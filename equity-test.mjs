@@ -1515,7 +1515,7 @@ try {
     if (!r.negRefused) p.push('a negative quantity was saved');
     if (/−100/.test(r.unpricedTile) || r.unpricedTile.trim() !== '—') p.push(`a portfolio with no priced holding shows an unrealised change of ${r.unpricedTile}`);
     if (/Crossed/.test(r.unpricedChip) || !/No price/.test(r.unpricedChip)) p.push(`an alert on an unpriced company reads: ${r.unpricedChip}`);
-    if (!(r.kinds.after < r.kinds.before) || !r.kinds.stored || r.kinds.disabled !== 3) p.push(`alert-type switches: feed ${r.kinds.before} → ${r.kinds.after}, stored ${r.kinds.stored}, ${r.kinds.disabled} disabled`);
+    if (!(r.kinds.after < r.kinds.before) || !r.kinds.stored || r.kinds.disabled !== 0) p.push(`alert-type switches: feed ${r.kinds.before} → ${r.kinds.after}, stored ${r.kinds.stored}, ${r.kinds.disabled} disabled`);
     if (!r.exportsAlerts) p.push('Export everything leaves out the price alerts');
     if (r.hollow.length) p.push(`on 66 closes these read computed with no value: ${r.hollow.join(', ')}`);
     if (r.seedLeft) p.push(`${r.seedLeft} seeded watchlists or alerts survive "Clear and start my own"`);
@@ -1725,17 +1725,17 @@ try {
     await evaluate(`openResearch('AAPL-SEC', 'snapshot'); true`); await sleep(500);
     const strip = await evaluate(`(() => {
       const chips = () => [...document.querySelectorAll('main .chip')].map(c => c.textContent);
-      const before = chips().filter(t => /^import /.test(t));
+      const before = chips().filter(t => /^data version /.test(t));
       const row = BY_ID.get('AAPL-SEC'); row.c.ingestVersion = 'sec 1.2.0';
       row.c.provenance = { ...row.c.provenance, rev: { ...row.c.provenance.rev, restated: { 2023: { from: 1, to: 2 } } } };
       render();
-      const after = chips().filter(t => /^import /.test(t));
+      const after = chips().filter(t => /^data version /.test(t));
       const restated = [...document.querySelectorAll('main .metaline')].some(p => /Restated in a later filing/.test(p.textContent) && /revenue FY2023/.test(p.textContent));
       row.c.ingestVersion = null; delete row.c.provenance.rev.restated; render();
       return { before, after, restated };
     })()`);
     if (strip.before.join() !== 'data version not recorded') p.push(`strip without a version: ${JSON.stringify(strip.before)}`);
-    if (strip.after.join() !== 'import 1.2.0' || !strip.restated) p.push(`strip with a version and a restatement: ${JSON.stringify(strip)}`);
+    if (strip.after.join() !== 'data version 1.2.0' || !strip.restated) p.push(`strip with a version and a restatement: ${JSON.stringify(strip)}`);
     if (p.length) fail('Learn publishes the registry with blocked measures named; the provenance strip carries the ingest version', p);
     else ok(`Learn lists all ${r.n} measures in ${r.cats.length} categories with definition, inputs, unit and period, and ${r.blockedRows.length} blocked rows (${r.blockedRows.join(', ')}); the provenance strip says the shipped file has no ingest version, and names one and a restated year when the record carries them`);
   }

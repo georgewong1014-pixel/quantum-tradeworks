@@ -1159,7 +1159,7 @@ VIEWS.research = () => {
          rather than implying the current rules produced it — in a reader's
          words, not the pipeline's (the 20 Oct 2026 sweep, copy-equities-9). */
       !c.personal ? (c.ingestVersion
-        ? el('span', { class: 'chip', title: 'The version of the rules that read these statements from the SEC filings.' }, `import ${c.ingestVersion.replace(/^sec /, '')}`)
+        ? el('span', { class: 'chip', title: 'The version of the rules that read these statements from the SEC filings.' }, `data version ${c.ingestVersion.replace(/^sec /, '')}`)
         : el('span', { class: 'chip chip-bronze', title: 'The data version of these statements was not recorded. Figures known to have been read wrongly are withheld on this page; the next data update records the version here.' }, 'data version not recorded')) : null,
       c.px?.eod ? (c.pricePersonal
           ? el('span', { class: 'chip chip-bronze' }, `read from your screen${c.px.asOf ? ' ' + c.px.asOf : ''}`)

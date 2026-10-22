@@ -925,11 +925,10 @@ VIEWS.alerts = () => {
     rules.append(cardHead('Alert types', 'Which types the research feed shows. Defaults are case-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
     const notProduced = ALERT_KINDS.filter(k => k.built === false).map(k => k.label.toLowerCase());
     ALERT_KINDS.filter(k => k.built !== false).forEach(k => {
-      const built = true;
       const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
       /* An id and renderKeepFocus: render() rebuilt the switch, so Space on
          one dropped focus on <body> and the next Tab started from the top. */
-      lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
+      lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: kindOn(k.id) ? '' : null,
         style: 'margin-top:3px', 'aria-describedby': `ak-${k.id}`,
         onchange: e => {
           State.alertKinds = e.target.checked ? [...new Set([...State.alertKinds, k.id])] : State.alertKinds.filter(x => x !== k.id);
@@ -937,8 +936,7 @@ VIEWS.alerts = () => {
         } }));
       const tx = el('div');
       tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
-      tx.append(el('div', { class: 'metaline', id: `ak-${k.id}` },
-        k.note));
+      tx.append(el('div', { class: 'metaline', id: `ak-${k.id}` }, k.note));
       lab.append(tx);
       rules.append(lab);
     });
