@@ -620,7 +620,12 @@ try {
       /* 1. */
       for (const s of waitingPages) {
         const view = manifest.pages[s.file].view;
-        const names = new Set([...(reads?.all || []), ...(reads?.views?.[view] || [])]);
+        /* A tab that waits is keyed view:tab in SERVED_READS (servedKeyOf), which a
+           page's view alone cannot name: /learn's dictionary reads the prices a
+           reader typed in. What its render says it was drawn from is the same
+           list, so it is read from there too. */
+        const drawnFrom = (committedOf(s).views.match(/data-drawn-from="([^"]*)"/)?.[1] || '').split(' ').map(x => x.split(':')[0]).filter(Boolean);
+        const names = new Set([...(reads?.all || []), ...(reads?.views?.[view] || []), ...drawnFrom]);
         const raw = Object.fromEntries(Object.entries(own).filter(([k]) => !names.has(k)));
         await firstVisit({ raw });
         const r = await visit(s);

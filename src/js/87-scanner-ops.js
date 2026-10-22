@@ -945,7 +945,7 @@ VIEWS.scannerMarket = () => {
     ...mk.list.map(m => el('option', { value: m.market, selected: S.market === m.market ? '' : null }, `${m.market}${m.label ? ` — ${m.label}` : ''} (${m.series} of your series)`)),
   ]);
   g.append(el('div', { class: 'field' }, [el('label', { for: 'scan-market-pick' }, 'Market'), msel,
-    el('p', { class: 'metaline' }, `Markets as the instrument registry (data/instruments.json) places your series, alphabetically.${mk.unplaced ? ` ${scanOpsPlural(mk.unplaced, 'series', 'series')} with no registry row can be screened only under “everything”.` : ''}`)]));
+    el('p', { class: 'metaline' }, `Markets as the instrument registry places your series, alphabetically.${mk.unplaced ? ` ${scanOpsPlural(mk.unplaced, 'series', 'series')} with no registry row can be screened only under “everything”.` : ''}`)]));
   /* A replay is of a session that has happened: the worker refuses an
      --as-of after today, and so does the screen (below). */
   const today = scanOpsNow().slice(0, 10);
@@ -1101,7 +1101,7 @@ VIEWS.scannerBacktest = () => {
   const sim = el('section', { class: 'scan-sim', role: 'note', 'aria-label': 'This is a simulation' }, [
     el('p', { class: 'scan-notice-hd' }, [el('span', { class: 'chip chip-bronze' }, 'Simulation'), el('strong', {}, 'A simulation of when the conditions held — not a backtest of performance.')]),
     el('p', {}, SCAN_SIMULATION_NOTE),
-    el('p', { class: 'scan-lookahead' }, 'No look-ahead: the row for a bar is computed from the bars up to and including that bar, never from any bar after it. The checks evaluate every bar both ways — on the full history and on the history cut at that bar — and fail if a single row differs.'),
+    el('p', { class: 'scan-lookahead' }, 'No look-ahead: the row for a bar is computed from the bars up to and including that bar, never from any bar after it.'),
   ]);
   wrap.append(sim);
 

@@ -217,6 +217,89 @@ try {
     else ok(`breakEvenRent is a true zero of the monthly position — RM${r.rent.toFixed(2)}`, r);
   }
 
+  /* 3b — THE BREAK-EVENS ON A MANAGED DEAL (the 20 Oct 2026 sweep:
+          managed-1, stress-1, lab-refurb-1, managed-3, stress-2, taxed-3).
+          Check 3 holds the break-even rent on the sample, which is self-
+          managed: no fee, no minimum and no placement, so the terms that
+          move with the answer are nought on it. Here, deals that carry them,
+          against figures worked by hand from their inputs (the annuity, the
+          running costs and the fee rules written out below, not the app's):
+          - M: the sample managed at 8% with a RM200 minimum a month, a
+            month's placement fee per 24-month tenancy, a 70% deposit. The
+            minimum binds at both answers, so the fee is the floor, RM2,400 a
+            year, and the placement is half a month's rent a year:
+              rent      = (5,078 + 2,400 + ADS) ÷ (12 × 0.91 × 0.95 − 1 × 12/24)
+              occupancy = (5,078 + 925 + 2,400 + ADS) ÷ (22,200 × 0.95)
+            where 5,078 is the maintenance (294 × 12), assessment, quit rent
+            and insurance, 925 the placement at the entered RM1,850, and ADS
+            twelve instalments on RM171,600 at 4.3% over 35 years. At each,
+            the model's own monthly position is nil to the sen, and the
+            occupancy is 100 less the model's "Survives vacancy to".
+          - S: the sample managed at 8% (no minimum), the 90% loan: the fee
+            is the percentage, so rent = (5,078 + ADS) ÷ (12 × 0.91 × 0.87 −
+            0.5) — RM3,727.9985, where the old closed form gave RM3,629.16,
+            at which the month was −RM74.13.
+          - G: the grade's "Cannot break even" gate follows the model: rent
+            RM2,000, 30% vacancy, 8% with a RM200 minimum, price RM283,113 —
+            the month at full occupancy is +RM19.00, so the gate does not
+            fire (it fired at "102%" on the frozen top-up).
+          - T: the after-tax gap is tax alone: at the break-even rent of S
+            at 24%, and of a managed cash purchase (10%, 6-month tenancies,
+            25%), year 1's cash flow before tax is nil, and the after-tax
+            break-even is above it (the cash purchase's read RM178 BELOW it,
+            printed "more"). */
+  {
+    const r = await evaluate(`(() => {
+      const base = { ...window.__T.base, evidence: { ...window.__T.base.evidence }, checks: {}, touched: {} };
+      const M = { ...base, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 200, leasingFeeMonths: 1, tenancyMonths: 24, downPct: 70 };
+      const S = { ...base, selfManaged: false, mgmtPct: 8 };
+      const G = { ...base, rent: 2000, vacancyPct: 30, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 200, price: 283113 };
+      const C = { ...base, downPct: 100, selfManaged: false, mgmtPct: 10, tenancyMonths: 6, marginalTaxPct: 25 };
+      const T = { ...S, marginalTaxPct: 24 };
+      const mM = dealModel(M), mS = dealModel(S), mG = dealModel(G);
+      const at = (d, k, v) => dealModel({ ...d, [k]: v });
+      const after = (d) => { const m = dealModel(d); const bp = propertyBreakPoint(d, 'rent', { measure: 'cashflowAfterTax', lo: 0, hi: Math.max(d.rent * 6, 30000) });
+        return { pre: m.breakEvenRent, post: bp.value, preTaxMonthAtPre: isNum(m.breakEvenRent) ? at(d, 'rent', m.breakEvenRent).path[0].cfPreTax / 12 : null }; };
+      return { base: { rent: base.rent, price: base.price },
+        M: { rent: mM.breakEvenRent, occ: mM.breakEvenOccupancy, atRent: at(M, 'rent', mM.breakEvenRent).cashflowMonthly,
+             atOcc: at(M, 'vacancyPct', 100 - mM.breakEvenOccupancy).cashflowMonthly, survives: mM.breakEvenVacancy, why: mM.breakEvenVacancyWhy },
+        S: { rent: mS.breakEvenRent, atRent: at(S, 'rent', mS.breakEvenRent).cashflowMonthly },
+        G: { occ: mG.breakEvenOccupancy, full: at(G, 'vacancyPct', 0).cashflowMonthly, gates: propertyGrade(G, mG).gates.map(g => g.id) },
+        T: after(T), C: after(C),
+        /* The Lab's working of M's occupancy: its own terms — the minimum
+           among the fixed costs, the repair reserve the only share. */
+        lab: { text: LAB_FIGURES.find(f => f.key === 'breakEvenOccupancy').formula(M, mM),
+               fixed: labMoney(5078 + 925 + 2400), occ: fmtPct(mM.breakEvenOccupancy, 1) } };
+    })()`);
+    const i = 0.043 / 12, pmt = (P) => P * i / (1 - Math.pow(1 + i, -420));
+    const F0 = 294 * 12 + 800 + 300 + 450;
+    const adsM = 12 * pmt(572000 * 0.30), adsS = 12 * pmt(572000 * 0.90);
+    const want = {
+      Mrent: (F0 + 2400 + adsM) / (12 * 0.91 * 0.95 - 1 * 12 / 24),
+      Mocc: (F0 + 1850 * 12 / 24 + 2400 + adsM) / (1850 * 12 * 0.95) * 100,
+      Srent: (F0 + adsS) / (12 * 0.91 * 0.87 - 1 * 12 / 24),
+    };
+    const p = [];
+    if (r.base.rent !== 1850 || r.base.price !== 572000) p.push(`the sample is not the one worked by hand (rent ${r.base.rent}, price ${r.base.price})`);
+    /* The worked figures' own premises: the minimum binds at M's answers. */
+    if (!(0.08 * 12 * 0.91 * want.Mrent < 2400) || !(0.08 * 1850 * 12 * want.Mocc / 100 < 2400)) p.push('the hand-worked case does not bind the minimum: the test is wrong');
+    if (!(Math.abs(r.M.rent - want.Mrent) < 0.005)) p.push(`M: break-even rent ${r.M.rent}, worked by hand ${want.Mrent.toFixed(4)}`);
+    if (!(Math.abs(r.M.atRent) < 0.005)) p.push(`M: at the break-even rent the monthly position is ${r.M.atRent}, not nil`);
+    if (!(Math.abs(r.M.occ - want.Mocc) < 1e-6)) p.push(`M: break-even occupancy ${r.M.occ}%, worked by hand ${want.Mocc.toFixed(6)}%`);
+    if (!(Math.abs(r.M.atOcc) < 0.005)) p.push(`M: at the break-even occupancy the monthly position is ${r.M.atOcc}, not nil`);
+    if (r.M.why !== 'crosses' || !(Math.abs(100 - r.M.survives - r.M.occ) < 1e-6)) p.push(`M: "Survives vacancy to" ${r.M.survives}% (${r.M.why}) beside a break-even occupancy of ${r.M.occ}%`);
+    if (!(Math.abs(r.S.rent - want.Srent) < 0.005) || !(Math.abs(r.S.atRent) < 0.005)) p.push(`S: break-even rent ${r.S.rent} (by hand ${want.Srent.toFixed(4)}), the month there ${r.S.atRent}`);
+    if (!(r.G.occ < 100) || !(r.G.full > 0) || r.G.gates.includes('breakeven')) p.push(`G: break-even occupancy ${r.G.occ}%, the month at full occupancy ${r.G.full}, gates ${r.G.gates.join(', ')}`);
+    if (!r.lab.text.includes(`(${r.lab.fixed} fixed costs + `) || !r.lab.text.includes('(1 − 5.0% variable costs)') || !r.lab.text.endsWith(`= ${r.lab.occ}.`))
+      p.push(`M: the Lab's working does not print the terms of its figure — "${r.lab.text}" (want ${r.lab.fixed} fixed costs, 5.0% variable costs, = ${r.lab.occ})`);
+    for (const k of ['T', 'C']) {
+      const x = r[k];
+      if (!isFinite(x.post) || !(Math.abs(x.preTaxMonthAtPre) < 0.005) || !(x.post > x.pre)) p.push(`${k}: before tax ${x.pre}, after tax ${x.post}; year 1's month before tax at the first ${x.preTaxMonthAtPre}`);
+    }
+    if (p.length) fail('the break-evens on a managed deal are zeros of the model\'s own monthly position, worked by hand', p);
+    else ok(`the break-evens on a managed deal are zeros of the model's own monthly position, worked by hand — a binding RM200 minimum and a month's placement: RM${r.M.rent.toFixed(2)} and ${r.M.occ.toFixed(4)}% (= 100 − "Survives vacancy to"), the month nil at each, the Lab's working on its own terms; managed at 8%: RM${r.S.rent.toFixed(2)}; the "Cannot break even" gate follows (${r.G.occ.toFixed(2)}%, +RM${r.G.full.toFixed(2)} at full occupancy); the after-tax gap is tax alone (RM${(r.T.post - r.T.pre).toFixed(2)}, RM${(r.C.post - r.C.pre).toFixed(2)} on a managed cash purchase)`);
+  }
+
   /* 4 — a solved break-point is a zero of the thing it breaks. */
   {
     const r = await evaluate(`(() => {
@@ -288,6 +371,34 @@ try {
 
       if (r.drivers.length !== r.declared) fail(`${r.declared} drivers declared, ${r.drivers.length} survived — one has a zero step`, r);
     }
+  }
+
+  /* 7b — ONLY DRIVERS THIS DEAL HAS (the 20 Oct 2026 sweep,
+          land-commercial-5). With no loan the rate and the tenure move
+          nothing, so they are not ranked, and no break-point is solved for
+          the rate: a cash purchase read "the two that move it least are
+          interest rate and loan tenure, at 0.00 and 0.00 points". With a
+          loan both stay. */
+  {
+    const r = await evaluate(`(() => {
+      const cash = { ...window.__T.base, downPct: 100 };
+      const s = propertySensitivity(cash), sl = propertySensitivity(window.__T.base);
+      const text = propertySensitivityPanel(cash, dealModel(cash)).textContent;
+      const textLoan = propertySensitivityPanel(window.__T.base, dealModel(window.__T.base)).textContent;
+      return { ok: s.ok, loan: s.base.loan, drivers: s.drivers.map(x => ({ k: x.k, span: x.span })), withLoan: sl.drivers.map(x => x.k),
+        least: (text.match(/The two that move it least are [^.]*\\./) || [''])[0], rateRow: /Interest rate/.test(text),
+        says: /With no loan, the interest rate and the loan tenure move nothing/.test(text), loanSays: /Interest rate is quoted by a bank/.test(textLoan) };
+    })()`);
+    const p = [];
+    if (!r.ok || r.loan !== 0) p.push(`the cash purchase did not run (${JSON.stringify({ ok: r.ok, loan: r.loan })})`);
+    if (r.drivers.some(x => x.k === 'ratePct' || x.k === 'tenureYears')) p.push(`with no loan the ranking still has ${r.drivers.filter(x => x.k === 'ratePct' || x.k === 'tenureYears').map(x => x.k).join(' and ')}`);
+    if (r.drivers.some(x => !(x.span > 1e-6))) p.push(`a ranked driver moves nothing: ${JSON.stringify(r.drivers.filter(x => !(x.span > 1e-6)))}`);
+    if (/interest rate|loan tenure/.test(r.least)) p.push(`"${r.least}"`);
+    if (r.rateRow) p.push('with no loan the panel still ranks, or solves a break-point for, the interest rate');
+    if (!r.says) p.push('the panel does not say why the rate and the tenure are not ranked');
+    if (!r.withLoan.includes('ratePct') || !r.withLoan.includes('tenureYears') || !r.loanSays) p.push(`with a loan the rate and the tenure are gone: ${r.withLoan.join(', ')}`);
+    if (p.length) fail('with no loan the sensitivity ranks no rate and no tenure', p);
+    else ok(`with no loan the sensitivity ranks ${r.drivers.length} drivers, each moving the return, and no rate or tenure — "${r.least}"; with a loan both are ranked`);
   }
 
   /* 9 — sixteen model runs and nothing leaked into State. */
@@ -502,7 +613,7 @@ try {
         loanDuty: [514800, 400000, 400001, 0].map(l => fee('loanStampDuty', { loan: l })),
         sarawak: [10000, 50000, 100000, 300000, 572000, 700000, 1200000, 15000].map(sw),
         purchaseLegal: fee('purchaseLegal', { price: 572000 }),
-        loanLegal: [514800, 0].map(l => fee('loanLegal', { loan: l })),
+        loanLegal: [514800, 0, 395288.10, 342317.70].map(l => fee('loanLegal', { loan: l })),
         sst: fee('professionalServiceTax', { legalFees: 9858.5 }),
         peninsular: pen ? [572000, 30000, 8000000].map(v => scaled(pen.scale, v, { minimumFee: pen.minimumFee })) : null,
         valuation: [572000, 100000, 120000, 3000000].map(p => Math.round(fee('valuationFee', { price: p }) * 100) / 100),
@@ -523,7 +634,11 @@ try {
       /* RM10,000 is 2.5%, RM250 — under the minimum scale charge, RM500. */
       sarawak: [500, 650, 1100, 2700, 4604, 5500, 8500, 500],
       purchaseLegal: 4604,
-      loanLegal: [5254.5, 0],
+      /* Rule 7's 1.25 on the scale, to the sen — and a true half sen up (the
+         20 Oct 2026 sweep, auction-4): RM3,367.02 × 1.25 = RM4,208.775 and
+         RM2,996.22 × 1.25 = RM3,745.275, which read RM4,208.77 and RM3,745.27
+         in floating point (3,367.02 × 1.25 × 100 = 420,877.49999999994). */
+      loanLegal: [5254.5, 0, 4208.78, 3745.28],
       sst: 788.68,
       peninsular: [6970, 500, 81250],
       valuation: [1194, 400, 400, 5716.67],
@@ -780,6 +895,32 @@ try {
     }
     if (p.length) fail('fee rulebook: every fee line shows its provenance badge, the headline its unverified or unknown share, and /data-sources the rulebook', p);
     else ok(`fee rulebook: ${r.lines.length} fee lines in the calculator's ledger each wear their badge (${[...new Set(r.lines.map(l => l.badge))].join(', ')}) and provenance; "Cash required (with a 3-month reserve)" says ${r.want} rests on unverified or unknown lines; /data-sources lists all ${r.ids.length} lines under version ${r.version}, checked ${r.checked}`);
+  }
+
+  /* 19b — THE LEDGER BY KIND AND ITS ESTIMATED SHARE AGREE (the 20 Oct 2026
+           sweep, copy-property-14). One paragraph gave the estimates' kind
+           as RM2,670 and then "RM3,960 of it rests on unverified or unknown
+           lines": the valuation fee and its tax are estimated too, inside
+           the kinds they are charged as. Each kind now says its estimated
+           share. By hand on the sample: the valuation fee 0.25% × 100,000
+           + 0.2% × 472,000 = RM1,194 (professional fees on a published
+           scale), its service tax 8% = RM95.52 (statutory charges), and the
+           estimates' own RM1,170 + RM1,500 = RM2,670 — RM3,959.52 in all,
+           the paragraph's unverified total. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      const m = dealModel(d);
+      return { words: ledgerSplitWords(m, labMoney), unconfirmed: m.unconfirmedCost, price: d.price, down: d.downPct };
+    })()`);
+    const p = [];
+    if (r.price !== 572000) p.push(`the sample is not the one worked by hand (price ${r.price})`);
+    const fee = 0.0025 * 100000 + 0.002 * 472000, tax = Math.round(fee * 8) / 100;
+    if (Math.abs(r.unconfirmed - (fee + tax + 1170 + 1500)) > 1e-6) p.push(`the unverified total is ${r.unconfirmed}, by hand ${fee + tax + 2670}`);
+    if (!r.words.includes('statutory charges RM14,649 (RM96 of it estimated)') || !r.words.includes(`professional fees on a published scale RM11,053 (RM1,194 of it estimated)`) || !r.words.includes('estimates RM2,670;') || /estimates RM2,670 \(/.test(r.words))
+      p.push(`the ledger by kind reads "${r.words.slice(0, 260)}"`);
+    if (p.length) fail('19b: the ledger by kind says each kind\'s estimated share, so it agrees with the unverified total', p);
+    else ok(`19b: the ledger by kind says each kind's estimated share — RM96 of the statutory charges, RM1,194 of the published-scale fees, the RM2,670 of estimates — RM${r.unconfirmed.toFixed(2)} in all, the paragraph's unverified total, by hand`);
   }
 
   /* 20 — every class the land-risk consequences and blockers name exists in
@@ -1446,7 +1587,7 @@ try {
       set('select[aria-label="Daily Momentum"]', 'bullish'); await wait();
       set('select[aria-label="Daily Momentum"]', 'strong_bullish'); await wait();
       const before = State.qtti.corrections.length;
-      [...document.querySelectorAll('main button')].find(x => /Load the §14 worked example/.test(x.textContent)).click(); await wait();
+      [...document.querySelectorAll('main button')].find(x => /Load the worked example/.test(x.textContent)).click(); await wait();
       out.history = { before, after: State.qtti.corrections.length, last: State.qtti.corrections[State.qtti.corrections.length - 1]?.newValue || null, symbol: State.qtti.symbol };
       const d = qttiWorkedExample(); d.confidence = { metadata:null, panels:null, indicators:null, legibility:null, recency:null };
       State.qtti = d; saveQtti(); State.decisionSubject = 'tradingIndex';
@@ -1576,6 +1717,116 @@ try {
     if (!(r.placement > 0)) fail('the managed deal carries no placement fee, so this check is vacuous', r);
     else if (r.said !== r.principal) fail('the instalment understatement is not the year-one principal', r);
     else ok(`deducting the instalment understates taxable income by the principal alone — ${r.said}`, r);
+  }
+
+  /* P3b — THE FIRST TENANT'S FEE IS NOT DEDUCTIBLE, A REPLACEMENT'S IS,
+           WHATEVER THE TENANCY LENGTH (the 20 Oct 2026 sweep: taxed-2,
+           managed-8, taxed-6). The model spreads each placement fee over
+           its tenancy (a fee every so many months), so the first tenant's
+           fee is the part of each year's charge in the first tenancy's
+           months, and that part is left out of the deduction. Worked by
+           hand on the sample bought for cash, managed at 8% with a month's
+           placement, taxed at 30% — running costs RM8,629.26 in year one
+           (5,078 + 8% and 5% of RM20,202 collected + the placement), grown
+           2% a year; rent grown 2.5%:
+           - 24-month tenancies: RM925 left out in year one AND RM943.50 in
+             year two (it left out year one's only, so half the first fee
+             was deducted in year two) — year two's tax RM3,854.61, not
+             RM3,571.56;
+           - 6-month tenancies: RM1,850 left out in year one, one fee (it
+             left out RM3,700, a replacement's too) — tax RM3,194.32;
+           - 12-month tenancies: RM1,850 in year one, as before.
+           The panel says each part only where the deal has it: no
+           instalment on a cash purchase ("pays RM0 to the bank …
+           understating it by RM0"), the loan's last split from the year it
+           ends, the fee where one is left out; and the after-tax break-even
+           names the reasons the deal has. */
+  {
+    const r = await evaluate(`(() => {
+      const T5 = { ...window.__T.base, downPct: 100, marginalTaxPct: 30, selfManaged: false, mgmtPct: 8, leasingFeeMonths: 1 };
+      const left = (m, y) => { const p = m.path[y - 1]; return p.taxable - (p.rent - p.opex - p.interest); };
+      const run = (d) => { const m = dealModel(d); return { m, l1: left(m, 1), l2: left(m, 2), l3: left(m, 3), t1: m.path[0].tax, t2: m.path[1].tax }; };
+      const a = run({ ...T5, tenancyMonths: 24 }), b = run({ ...T5, tenancyMonths: 6 }), c = run({ ...T5, tenancyMonths: 12 });
+      const text = (d) => returnsAndTaxPanel(d, dealModel(d)).textContent;
+      const sens = (d) => propertySensitivityPanel(d, dealModel(d)).textContent;
+      const cashSelf = { ...window.__T.base, downPct: 100, marginalTaxPct: 30 };
+      const shortLoan = { ...window.__T.taxed, tenureYears: 5, holdYears: 10 };
+      const pick = (x) => ({ l1: x.l1, l2: x.l2, l3: x.l3, t1: x.t1, t2: x.t2 });
+      return { base: { rent: window.__T.base.rent, maint: window.__T.base.maintenance, rr: window.__T.base.repairReservePct, v: window.__T.base.vacancyPct, g: window.__T.base.rentGrowthPct },
+        a: pick(a), b: pick(b), c: pick(c),
+        cashManaged: text({ ...T5, tenancyMonths: 24 }), cashSelf: text(cashSelf), shortLoan: text(shortLoan),
+        shortLast: (() => { const m = dealModel(shortLoan); const p = m.path[4]; return { y: p.y, i: fmtMoney(p.interest, 'MYR', 0), pr: fmtMoney(p.principal, 'MYR', 0), after: m.path[5].debt }; })(),
+        sensSelf: sens(cashSelf), sensManaged: sens({ ...T5, tenancyMonths: 24 }), sensLoan: sens(window.__T.taxed) };
+    })()`);
+    const p = [];
+    if (r.base.rent !== 1850 || r.base.maint !== 294 || r.base.rr !== 5 || r.base.v !== 9 || r.base.g !== 2.5) p.push(`the sample is not the one worked by hand: ${JSON.stringify(r.base)}`);
+    const eff1 = 1850 * 12 * 0.91, eff2 = eff1 * 1.025;
+    const opex1 = (pl) => 294 * 12 + 800 + 300 + 450 + eff1 * 0.08 + pl + eff1 * 0.05;
+    const tax = (eff, opexY, out) => Math.max(0, eff - (opexY - out)) * 0.30;
+    const want = {
+      a: { l1: 925, l2: 925 * 1.02, l3: 0, t2: tax(eff2, opex1(925) * 1.02, 925 * 1.02) },
+      b: { l1: 1850, l2: 0, t1: tax(eff1, opex1(3700), 1850) },
+      c: { l1: 1850, l2: 0 },
+    };
+    const near = (x, y, e = 0.005) => Math.abs(x - y) < e;
+    if (!near(r.a.l1, want.a.l1) || !near(r.a.l2, want.a.l2) || !near(r.a.l3, 0) || !near(r.a.t2, want.a.t2)) p.push(`24-month tenancies: left out ${r.a.l1} / ${r.a.l2} / ${r.a.l3}, year two's tax ${r.a.t2}; by hand 925 / 943.50 / 0 and ${want.a.t2.toFixed(2)}`);
+    if (!near(r.b.l1, want.b.l1) || !near(r.b.l2, 0) || !near(r.b.t1, want.b.t1)) p.push(`6-month tenancies: left out ${r.b.l1} / ${r.b.l2}, year one's tax ${r.b.t1}; by hand 1,850 / 0 and ${want.b.t1.toFixed(2)}`);
+    if (!near(r.c.l1, want.c.l1) || !near(r.c.l2, 0)) p.push(`12-month tenancies: left out ${r.c.l1} / ${r.c.l2}; by hand 1,850 / 0`);
+    if (/to the bank|The instalment is not deductible|is principal/.test(r.cashManaged)) p.push('a cash purchase is told about an instalment it does not pay');
+    if (!/The first tenant’s placement fee is not deductible — /.test(r.cashManaged) || /not deductible either/.test(r.cashManaged) || !/RM925 in year one/.test(r.cashManaged) || !/24-month tenancy/.test(r.cashManaged)) p.push('the managed cash purchase does not say its first tenant\'s fee is left out (RM925 in year one, over its 24-month tenancy)');
+    if (/not deductible|to the bank/.test(r.cashSelf)) p.push('a cash purchase with no placement fee shows the box');
+    if (!r.shortLoan.includes(`in its last year, year ${r.shortLast.y}, the split is ${r.shortLast.i} interest to ${r.shortLast.pr} principal. After it there is no instalment.`) || r.shortLast.after !== 0 || /widens every year/.test(r.shortLoan)) p.push(`a 5-year loan in a 10-year hold: the split is not from its last year (${JSON.stringify(r.shortLast)})`);
+    if (/not breaking even after tax|whole instalment/.test(r.sensSelf) || !/no tax on the rent is due, so it is the after-tax break-even too/.test(r.sensSelf)) p.push('the after-tax break-even of a cash purchase with no placement fee: ' + (r.sensSelf.match(/Covering the outgoings[^.]*\./) || ['—'])[0]);
+    if (!/first tenant’s placement fee has been paid but is not deductible/.test(r.sensManaged) || /whole instalment/.test(r.sensManaged)) p.push('the after-tax break-even of a managed cash purchase does not give its own reason (the first tenant\'s fee), or speaks of an instalment');
+    if (!/whole instalment has left the account/.test(r.sensLoan)) p.push('the after-tax break-even of a financed deal no longer explains the principal');
+    if (p.length) fail('the first tenant\'s placement fee is left out of the deduction whatever the tenancy length, and the panels say each part only where the deal has it', p);
+    else ok(`the first tenant's placement fee is left out of the deduction whatever the tenancy length, worked by hand — 24-month tenancies RM${r.a.l1.toFixed(2)} and RM${r.a.l2.toFixed(2)} (year two's tax RM${r.a.t2.toFixed(2)}), 6-month RM${r.b.l1.toFixed(2)} (RM${r.b.t1.toFixed(2)}), 12-month RM${r.c.l1.toFixed(2)}; no instalment words on a cash purchase; a 5-year loan's last split from year ${r.shortLast.y}`);
+  }
+
+  /* P3c — WHAT IS BEFORE TAX AND WHAT IS AFTER IT, SAID (the 20 Oct 2026
+           sweep, taxed-4, taxed-5). With a marginal rate entered, the
+           calculator's monthly figures stay before tax on the rent by
+           design, and say so beside them; the report's year-by-year
+           scenario is after tax, so the tax is a column and the row adds up
+           (effective rent − operating costs − debt service − tax = net cash
+           flow after tax), and the cash-on-cash tile says its year-1 cash
+           flow is before tax. Without a rate, none of it is said. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal'), bought = State.propertyReportsBought;
+      const read = async (d) => {
+        State.deal = d; saveDeal();
+        State.propertyReportsBought = [...bought, d.projectId];
+        navigate('/property/calculator?view=full', { replace: true }); render(); await w(450);
+        const text = (document.querySelector('main')?.textContent || '').replace(/\\s+/g, ' ');
+        const table = [...document.querySelectorAll('table')].find(t => [...t.querySelectorAll('thead th')].some(th => th.textContent.trim() === 'Loan balance'));
+        const heads = table ? [...table.querySelectorAll('thead th')].map(th => th.textContent.trim()) : null;
+        const row = table ? [...table.querySelector('tbody tr').children].map(td => td.textContent.trim()) : null;
+        const m = dealModel(d);
+        return { text, heads, row, y1: m.path[0], monthlySub: pcAnswerFigs(d, m).monthly[2] };
+      };
+      let taxed, plain;
+      try {
+        taxed = await read({ ...window.__T.taxed });
+        plain = await read({ ...window.__T.base });
+      } finally {
+        State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); State.propertyReportsBought = bought; saveDeal(); navigate(back, { replace: true }); render(); await w(250);
+      }
+      return { taxed, plain, fmt: { tax: fmtAmount(taxed.y1.tax, 'MYR'), cf: fmtAmount(taxed.y1.cf, 'MYR') } };
+    })()`);
+    const p = [], t = r.taxed, b = r.plain;
+    for (const s of ['After costs, vacancy and the loan, before tax on the rent', 'Rent needed to cover everything, before tax on the rent', 'Year 1’s cash flow before tax ÷ cash required including reserve'])
+      if (!t.text.includes(s)) p.push(`with a rate entered the page does not say "${s}"`);
+    if (!/before tax on the rent$/.test(t.monthlySub)) p.push(`the answer's monthly position reads "${t.monthlySub}"`);
+    if (!t.heads || !t.heads.includes('Tax on the rent') || !t.heads.includes('Net cash flow after tax')) p.push(`the scenario table's headings: ${JSON.stringify(t.heads)}`);
+    else {
+      const i = t.heads.indexOf('Tax on the rent'), j = t.heads.indexOf('Net cash flow after tax');
+      if (t.row[i] !== r.fmt.tax || t.row[j] !== r.fmt.cf || !(Math.abs(t.y1.rent - t.y1.opex - t.y1.debt - t.y1.tax - t.y1.cf) < 1e-6)) p.push(`year 1 reads tax ${t.row[i]}, net ${t.row[j]} (the model's ${r.fmt.tax}, ${r.fmt.cf}) — the row must add up`);
+    }
+    if (/After costs, vacancy and the loan, before tax|Rent needed to cover everything, before tax|Net cash flow after tax/.test(b.text) || (b.heads && b.heads.includes('Tax on the rent'))) p.push('with no rate entered the page still speaks of tax on the rent');
+    if (p.length) fail('P3c: with a rate entered, the monthly figures say they are before tax and the scenario table carries the tax', p);
+    else ok(`P3c: with a rate entered the monthly figures and the break-even say "before tax on the rent", the cash-on-cash its year-1 cash flow before tax, and the scenario table a "Tax on the rent" column beside "Net cash flow after tax" (year 1: ${r.fmt.tax} and ${r.fmt.cf}, the row adding up); without a rate, none of it`);
   }
 
   /* P4 — "the figure shown is the first one found" only beside a figure. */
@@ -2630,6 +2881,80 @@ try {
     if (/burns RM|months with no rent is RM/.test(r.para)) p.push(`the paragraph reads "${r.para.slice(0, 160)}"`);
     if (p.length) fail('fixwave P9: with a loan tenure of 0 the reserve paragraph prices a burn that leaves the loan out', p);
     else ok(`fixwave P9: with no instalment the burn and the reserve scenarios are not computed, and the paragraph says so ("${r.para.slice(0, 70)}…")`);
+  }
+
+  /* P9b — WITH NO RENT, THE MODEL'S OWN RUNNING COSTS AT NO RENT (the 20 Oct
+           2026 sweep, managed-4). The reserve's no-rent burn is the
+           instalment and opexAt(0) — the 100%-vacancy month's costs: no
+           percentage fee, no repair reserve, the minimum fee in full, the
+           placement as amortised. On the sample managed at 8% with a RM150
+           minimum a month, worked by hand: RM2,372.9565 of instalment
+           (RM514,800 at 4.3% over 35 years) + (5,078 of maintenance,
+           assessment, quit rent and insurance + the RM1,800 floor + RM925 of
+           placement) ÷ 12 = RM3,023.21 a month, the reserve 3 × that,
+           RM9,070. It charged only the floor's top-up at the entered rent:
+           RM2,888.53 and RM8,666. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...window.__T.base, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 150 };
+      const m = dealModel(d), empty = dealModel({ ...d, vacancyPct: 100 });
+      return { rent: d.rent, price: d.price, burn: m.burnWithoutRent, withRent: m.burnWithRent, reserve: m.reserve, months: m.reserveMonths,
+        six: m.reserveScenarios.find(s => s.months === 6)?.noRent, empty: empty.cashflowMonthly };
+    })()`);
+    const i = 0.043 / 12, inst = 514800 * i / (1 - Math.pow(1 + i, -420));
+    const want = inst + (294 * 12 + 800 + 300 + 450 + 150 * 12 + 1850 * 12 / 24) / 12;
+    const p = [];
+    if (r.rent !== 1850 || r.price !== 572000) p.push(`the sample is not the one worked by hand (rent ${r.rent}, price ${r.price})`);
+    if (!(Math.abs(r.burn - want) < 1e-6)) p.push(`the no-rent burn is ${r.burn}, worked by hand ${want.toFixed(4)}`);
+    if (!(Math.abs(r.burn + r.empty) < 1e-9)) p.push(`the no-rent burn ${r.burn} is not the model's own month at 100% vacancy, ${r.empty}`);
+    if (r.months !== 3 || r.reserve !== Math.round(3 * Math.max(want, r.withRent)) || r.six !== Math.round(6 * want)) p.push(`the reserve ${r.reserve} and six months with no rent ${r.six}, want ${Math.round(3 * want)} and ${Math.round(6 * want)}`);
+    if (p.length) fail('fixwave P9b: the reserve\'s no-rent burn is the model\'s own running costs at no rent, the minimum fee in full', p);
+    else ok(`fixwave P9b: the reserve's no-rent burn is the instalment and the model's own running costs at no rent — RM${r.burn.toFixed(2)} a month on the sample managed at 8% with a RM150 minimum (worked by hand; = the month at 100% vacancy), the reserve RM${r.reserve.toLocaleString('en')}, six months with no rent RM${r.six.toLocaleString('en')}`);
+  }
+
+  /* P9c — A TENANCY OF AT LEAST A MONTH (the 20 Oct 2026 sweep, managed-5;
+           the box refusals of QT-001, dealEntryRefused). The placement fee
+           is charged once a tenancy, so tenancies a year are 12 ÷ the
+           months: a 0 or a 0.5 was taken and counted as one month, twelve
+           placement fees a year — RM22,200, the whole gross rent of the
+           sample managed at 8% — beside a box still reading 0. Refused at
+           the box with its reason, the box keeping its figure and the
+           figures unmoved, and skipped in a link; 1 month and more taken. */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const said = [], was = window.toast;
+      window.toast = (m) => { said.push(String(m)); };
+      State.deal = { ...window.__fwKept.deal, selfManaged: false, mgmtPct: 8, tenancyMonths: 24 }; saveDeal();
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(400);
+      const placement0 = dealModel(State.deal).placementAnnual;
+      const typed = [];
+      for (const v of ['0', '0.5', '1']) {
+        const n = document.getElementById('d-tenancyMonths'); n.focus(); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); await w(250);
+        typed.push({ v, kept: State.deal.tenancyMonths, box: document.getElementById('d-tenancyMonths')?.value, placement: dealModel(State.deal).placementAnnual });
+      }
+      window.toast = was;
+      const linked = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      applyDealParam(linked, 'tenancyMonths:0~rent:2000');
+      const linked2 = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      applyDealParam(linked2, 'tenancyMonths:12');
+      return { unit: [0, 0.5, 0.99, 1, 6, 24].map(v => [v, dealEntryRefused('tenancyMonths', v)]), placement0, typed, said,
+        link: { t: linked.tenancyMonths, rent: linked.rent, t12: linked2.tenancyMonths, def: PROPERTY_DEFAULT_DEAL.tenancyMonths } };
+    })()`);
+    await fwPut();
+    const p = [];
+    for (const [v, why] of r.unit) {
+      if (v < 1 && !/at least 1 month/.test(why || '')) p.push(`a tenancy of ${v} month(s) is not refused with its reason (${why})`);
+      if (v >= 1 && why !== null) p.push(`a tenancy of ${v} months is refused: ${why}`);
+    }
+    const [t0, tHalf, t1] = r.typed;
+    if (t0.kept !== 24 || t0.box !== '24' || t0.placement !== r.placement0 || tHalf.kept !== 24 || tHalf.placement !== r.placement0) p.push(`typed 0 then 0.5: ${JSON.stringify([t0, tHalf])} (RM${r.placement0} of placement a year before)`);
+    if (r.said.length < 2 || !r.said.slice(0, 2).every(s => /at least 1 month/.test(s) && /placement fee/.test(s) && /stays at 24/.test(s))) p.push(`what the box said: ${JSON.stringify(r.said)}`);
+    if (t1.kept !== 1 || !(Math.abs(t1.placement - 1850 * 12) < 1e-6)) p.push(`typed 1: ${JSON.stringify(t1)} — one placement fee a month, RM22,200 a year`);
+    if (r.link.t !== r.link.def || r.link.rent !== 2000 || r.link.t12 !== 12) p.push(`a link's tenancy of 0 ${r.link.t === r.link.def ? 'skipped' : 'taken'} (rent ${r.link.rent}); 12 gives ${r.link.t12}`);
+    if (p.length) fail('fixwave P9c: an expected tenancy under one month is refused with its reason, at the box and in a link', p);
+    else ok(`fixwave P9c: an expected tenancy of 0 or 0.5 months is refused at the box ("${(r.said[0] || '').slice(0, 90)}…"), the box keeping 24 and the placement RM${r.placement0} a year; a link's 0 is skipped and the rest applied; 1 month and more are taken`);
   }
 
   /* P11 — "Application structure" is not scored from nothing. It scored 70
@@ -5184,12 +5509,22 @@ try {
           applyDealParam(linked, 'tenureYears:-5~vacancyPct:101~maintenance:-10~holdYears:12~rent:2100');
           out.link = { tenure: linked.tenureYears, vac: linked.vacancyPct, maint: linked.maintenance, hold: linked.holdYears, rent: linked.rent,
             def: [PROPERTY_DEFAULT_DEAL.tenureYears, PROPERTY_DEFAULT_DEAL.vacancyPct, PROPERTY_DEFAULT_DEAL.maintenance] };
-          /* A refused entry typed into a box keeps its figure. */
-          for (const [k, v] of [['maintenance', -50], ['vacancyPct', 101], ['tenureYears', -3]]) {
-            const was = A().work[k];
-            const n = await typeBox(k, v);
-            if (A().work[k] !== was || n.value !== String(was)) out.refusedTyped.push(k + ' typed ' + v + ' left the column at ' + A().work[k] + ' and the box at ' + n.value);
-          }
+          /* A refused entry typed into a box keeps its figure — the rate,
+             the rent and the renovation's too, as the calculator's boxes
+             refuse them, with the calculator's reason in the toast (the 20
+             Oct 2026 sweep, lab-refurb-2: a rate of −1%, a rent of −RM500
+             and a renovation of −RM20,000 were taken and priced). */
+          const toasts = [], realToast = window.toast;
+          window.toast = (m) => { toasts.push(String(m)); };
+          try {
+            for (const [k, v] of [['maintenance', -50], ['vacancyPct', 101], ['tenureYears', -3], ['ratePct', -1], ['ratePct', 101], ['rent', -500], ['renovation', -20000]]) {
+              const was = A().work[k];
+              toasts.length = 0;
+              const n = await typeBox(k, v);
+              if (A().work[k] !== was || n.value !== String(was)) out.refusedTyped.push(k + ' typed ' + v + ' left the column at ' + A().work[k] + ' and the box at ' + n.value);
+              else if (!toasts.some(t => t.includes(dealEntryRefused(k, v)))) out.refusedTyped.push(k + ' typed ' + v + ' was refused without the calculator\\'s reason ("' + dealEntryRefused(k, v) + '"): ' + JSON.stringify(toasts));
+            }
+          } finally { window.toast = realToast; }
           const whole = await typeBox('tenureYears', 27.6);
           if (A().work.tenureYears !== 28) out.refusedTyped.push('a tenure typed as 27.6 years is ' + A().work.tenureYears + ', not whole years (28)');
           const longHold = await typeBox('holdYears', 99);
@@ -5220,7 +5555,7 @@ try {
           if (!/Assumed occupancy is exactly 100 less this allowance: 86%/.test(r.occ)) p.push(`the vacancy knob's note reads "${r.occ}"`);
         }
         if (p.length) fail('scenario-lab L18: the tenure, vacancy, maintenance and holding-period knobs', p);
-        else ok(`scenario-lab L18: the four knobs added in phase 2 each stand as a slider; every span, at twelve anchors, holds only what dealEntryRefused takes (and whole years, and the model's own hold limits); a move of each travels in the address as ${r.param.split('~').filter(x => /^(tenureYears|vacancyPct|maintenance|holdYears):/.test(x)).join(', ')} and comes back the same, marked the reader's; an address of tenureYears:-5, vacancyPct:101 and maintenance:-10 skips those and applies holdYears:12 and rent:2100; typed, a negative maintenance, a 101% vacancy and a negative tenure keep their figures, 27.6 years is 28 and 99 is held to ${30}; a 100% deposit shows the tenure off in place, its reason in sight, and on again at 10%; the vacancy knob says its occupancy is exactly 100 less it`);
+        else ok(`scenario-lab L18: the four knobs added in phase 2 each stand as a slider; every span, at twelve anchors, holds only what dealEntryRefused takes (and whole years, and the model's own hold limits); a move of each travels in the address as ${r.param.split('~').filter(x => /^(tenureYears|vacancyPct|maintenance|holdYears):/.test(x)).join(', ')} and comes back the same, marked the reader's; an address of tenureYears:-5, vacancyPct:101 and maintenance:-10 skips those and applies holdYears:12 and rent:2100; typed, a negative maintenance, a 101% vacancy, a negative tenure, a rate of −1% or 101%, a rent of −RM500 and a renovation of −RM20,000 keep their figures, each refused with the calculator's reason, 27.6 years is 28 and 99 is held to ${30}; a 100% deposit shows the tenure off in place, its reason in sight, and on again at 10%; the vacancy knob says its occupancy is exactly 100 less it`);
       });
     } finally {
       await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId).catch(() => {});
@@ -5252,12 +5587,17 @@ try {
            report is locked (F9);
        V10 Open and Update say what they do to whose figures, and the toast
            says the grade stays U while a driving figure is the tool's (F10);
-       V11 the unlocked total profit reads as a sentence (F11);
+       V11 the unlocked total profit reads as a sentence (F11), its flows
+           before tax on the rent where no rate is entered (the 20 Oct 2026
+           sweep, taxed-7);
        V12 a "Sliders move" radio is named by its letter, and a chain row's
            name does not begin with its chevron (interaction F6, F7);
        V13 a budget typed into an empty renovation draws its slider
            (interaction F12);
-       V14 a reference line stands inside its scale (interaction F13). */
+       V14 a reference line stands inside its scale (interaction F13);
+       V16 with no row moved, "Moved by" counts no rows by hand (the 20 Oct
+           2026 sweep, lab-refurb-8: "none of the seven" after the chain
+           grew to eight). */
   {
     const VKEYS = ['savedWork', 'deal', 'dealBeforeLink', 'propertyReportsBought', 'plan', 'observations', 'lang', 'propertyReportLog', 'servedReads'];
     const vKept = await evaluate(`JSON.stringify(Object.fromEntries(${JSON.stringify(VKEYS)}.map(k => [k, localStorage.getItem('vl.' + k)])))`);
@@ -5618,7 +5958,10 @@ try {
           State.propertyReportsBought = State.propertyReportsBought.filter(x => x !== State.deal.projectId); render(); await frame();
           return out;
         })()`);
-        if (!/Every year’s cash flow after tax/.test(s) || /less the RM[\d,]+ the purchase cost/.test(s)) fail('scenario-lab-verify V11: the unlocked total profit reads as a sentence', s);
+        /* The sample enters no marginal rate, so its yearly flows are before
+           tax on the rent, and the sentence says so (the 20 Oct 2026 sweep,
+           taxed-7: it said "after tax" with none computed). */
+        if (!/Every year’s cash flow before tax on the rent/.test(s) || /after tax/.test(s) || /less the RM[\d,]+ the purchase cost/.test(s)) fail('scenario-lab-verify V11: the unlocked total profit reads as a sentence', s);
         else ok(`scenario-lab-verify V11: "${(s.match(/Every year’s cash flow[^.]*\./) || [s])[0]}"`);
       });
 
@@ -5708,6 +6051,77 @@ try {
         }
         if (p.length) fail('scenario-lab-verify V15: a property opened with labOpen stays open, and the address names it', p.slice(0, 6));
         else ok(`scenario-lab-verify V15: a property opened with labOpen stays open through a theme change and render(), at ${r.drawn.url}`);
+      });
+
+      /* V16: a purchase for cash has no loan, so a move of its rate moves no
+         printed row — and "Moved by" says so without a count of rows kept by
+         hand ("none of the seven" stood after the chain grew to eight). */
+      await vStep('V16', async () => {
+        await vDeal({ downPct: 100 });
+        const r = await evaluate(`(async () => { ${VH}
+          await setRange('ratePct', 6); await frame(); await w(100);
+          return { s: txt(document.getElementById('lab-movedby')), loan: A().cur?.m?.loan ?? null, rows: LAB_FIGURES.length, rate: A().work.ratePct };
+        })()`);
+        if (r.loan !== 0 || r.rate !== 6) fail('scenario-lab-verify V16: the check could not run', r);
+        else if (!/\(interest rate\): none of the results\./.test(r.s) || /none of the seven/.test(r.s)) fail('scenario-lab-verify V16: with no row moved, "Moved by" says so without a count kept by hand', r);
+        else ok(`scenario-lab-verify V16: a purchase for cash with its rate moved to 6% reads "${r.s}" — none of the ${r.rows} rows moved, and no count is kept by hand`);
+      });
+
+      /* V17: the words and figures the 20 Oct 2026 sweep found wrong, each
+         probed on the page's own functions (no calculation is asked to
+         change): taxed-1, stress-3, stress-5, lab-refurb-6, lab-refurb-7. */
+      await vStep('V17', async () => {
+        const r = await evaluate(`(async () => {
+          const out = {};
+          /* taxed-1: a rate on a loan with no schedule has no month after tax; it is not RM0. */
+          const d1 = { ...PROPERTY_DEFAULT_DEAL, marginalTaxPct: 24, tenureYears: 0 };
+          const m1 = dealModel(d1);
+          const vm = labMetricView('cashflow', { cols: [{ key: 'A', cur: { m: m1 }, work: d1 }] });
+          out.t1 = { cf: m1.path[0].cf, note: vm.tables[0].rows[0].note, twin: vm.twin.rows()[0][2] };
+          /* stress-5: no loan, no valuation — the price moves nothing. */
+          const dC = { ...PROPERTY_DEFAULT_DEAL, downPct: 100, bankValuation: 0, targetKind: 'monthly', targetValue: 1000 };
+          const sC = solveDealPrice(dC);
+          out.s5 = { status: sC.status, sub: priceSolveWords(sC, dC).sub, formula: priceSolveFormula(sC, dC) };
+          /* stress-3: an overrun row's cash is the headline's, with the reserve. */
+          const dR = { ...PROPERTY_DEFAULT_DEAL, renovation: 25000 };
+          const mR = dealModel(dR);
+          const risk = cpSplitItems(dR, mR, cpCash(mR), false).risks.filter(x => /^Renovation/.test(x.label));
+          out.s3 = { values: risk.map(x => x.value), want: mR.stress.renovation.slice(1, 3).map(x => Math.round(x.cash + mR.reserveCash)), safe: mR.safeCashRequired };
+          /* lab-refurb-6 and -7: a tax-marked commitment, a loan "when the sale completes". */
+          const dT = { ...PROPERTY_DEFAULT_DEAL, marginalTaxPct: 24 };
+          const mT = dealModel(dT), fT = LAB_FIGURES.find(f => f.key === 'monthlyCommitment');
+          out.r6 = { note: fT.note(mT), formula: fT.formula(dT, mT), plain: LAB_FIGURES.find(f => f.key === 'monthlyCommitment').note(dealModel(PROPERTY_DEFAULT_DEAL)) };
+          out.r7 = LAB_FIGURES.find(f => f.key === 'valueLessLoanAtExit').formula(PROPERTY_DEFAULT_DEAL, dealModel(PROPERTY_DEFAULT_DEAL));
+          return out;
+        })()`);
+        const p = [];
+        if (r.t1.cf !== null || /RM0\b/.test(r.t1.note) || r.t1.twin === 'RM0' || !/not computable/.test(r.t1.note)) p.push(`taxed-1: a rate on a loan with no schedule reads "${r.t1.note}" and "${r.t1.twin}" (the month after tax is ${r.t1.cf})`);
+        if (r.s5.status !== 'unbounded' || !/^With no loan, the price does not move the monthly position/.test(r.s5.sub) || /valuation/.test(r.s5.sub) || /the loan and its repayment rise/.test(r.s5.formula)) p.push(`stress-5: a cash purchase's unbounded solve says "${r.s5.sub}" / "${r.s5.formula.slice(150, 400)}"`);
+        if (r.s3.values.length !== 2 || r.s3.values.some((v, i) => v !== 'RM' + r.s3.want[i].toLocaleString('en-US') + ' cash required')) p.push(`stress-3: the overrun rows read ${JSON.stringify(r.s3.values)}, the cash with the reserve is ${JSON.stringify(r.s3.want)}`);
+        if (r.r6.note !== 'before tax on the rent' || !/That is before tax on the rent: after tax at 24%/.test(r.r6.formula) || r.r6.plain !== null) p.push(`lab-refurb-6: the commitment's note reads "${r.r6.note}" with a rate, "${r.r6.plain}" without; formula "${r.r6.formula.slice(-160)}"`);
+        if (!/less the loan still owed when the sale completes, 6 months after year 10, RM/.test(r.r7)) p.push(`lab-refurb-7: the subsale row's words read "${r.r7.slice(-150)}"`);
+        if (p.length) fail('scenario-lab-verify V17: the sweep’s wording defects', p);
+        else ok(`scenario-lab-verify V17: with a rate on a loan with no schedule the month after tax reads "${r.t1.twin}", not RM0; a cash purchase's price solve says "${r.s5.sub}"; the proposal's renovation overrun rows read ${r.s3.values.join(' and ')} (the reserve in); the monthly commitment is marked before tax once a rate is entered; the loan still owed is the one when the sale completes`);
+      });
+
+      /* V18: the Lab's refusal of a negative rate, rent or renovation leaves
+         a rate of 0% taken — with the calculator's caution in sight — and a
+         100% deposit (no loan) worked, as in the calculator. */
+      await vStep('V18', async () => {
+        await vDeal({});
+        const r = await evaluate(`(async () => { ${VH}
+          const zeroWarn = () => [...document.querySelectorAll('#lab-root .lab-note-warn')].filter(n => !n.hidden && /^The rate is 0%/.test(txt(n))).length;
+          const n0 = await typeBox('ratePct', 0);
+          const rate = { work: A().work.ratePct, box: n0.value, warn: zeroWarn(), model: A().cur?.m?.zeroRateModelled };
+          const n1 = await typeBox('downPct', 100);
+          const cash = { work: A().work.downPct, box: n1.value, loan: A().cur?.m?.loan, nan: /NaN|Infinity/.test(txt(document.getElementById('lab-root'))), warn: zeroWarn() };
+          return { rate, cash };
+        })()`);
+        const p = [];
+        if (r.rate.work !== 0 || r.rate.box !== '0' || r.rate.warn !== 1 || r.rate.model !== true) p.push(`a rate typed as 0 reads ${JSON.stringify(r.rate)}: it should be taken, with its caution in sight`);
+        if (r.cash.work !== 100 || r.cash.loan !== 0 || r.cash.nan || r.cash.warn !== 0) p.push(`a deposit typed as 100 reads ${JSON.stringify(r.cash)}: it should be taken, with no loan, no NaN and no zero-rate caution`);
+        if (p.length) fail('scenario-lab-verify V18: 0% and a 100% deposit are still taken', p);
+        else ok('scenario-lab-verify V18: a rate typed as 0 is taken and the Lab says "The rate is 0%…" in sight; a deposit typed as 100 is taken with no loan, nothing prints NaN, and the 0% caution goes');
       });
     } finally {
       await evaluate(`(() => { const k = ${vKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
@@ -5945,9 +6359,25 @@ try {
          land 0f43d4a2:30964, shophouse fdc0d1ec:32067, condoAsCommercial
          ee82214b:32236, taxed 3d9d1af4:31386, cash 98e5de34:29978,
          lowValuation 631d6040:31439, noTenure 4e07c073:28917, managed
-         88aa4cd7:31266. */
+         88aa4cd7:31266.
+         Recorded again for "managed" only, for two fixes of the 20 Oct 2026
+         sweep (track T1, Day 8), each shown alone by a probe run commit by
+         commit on these nine deals (handoff results/day8-t1-r1-diff.mjs, its
+         output day8-t1-r1-diff.txt: no other deal moves at any commit of the
+         branch, the sample a27fbebd:31517 throughout):
+         (managed-1 and five more) the break-even rent and occupancy are
+         zeros of the model's own month — managed's minimum fee and
+         placement now move with the answer: breakEvenRent, breakEvenOccupancy
+         and the key breakEvenOccupancyTerms, which only a managed deal with
+         a minimum fee carries (93fc8436:31578 -> 71f592ad:31631); (managed-4)
+         the reserve's no-rent burn is the instalment and the running costs
+         at no rent, opexAt(0), the RM150 minimum in full: burnWithoutRent,
+         and from it the reserve, the cash required and everything measured
+         on it — cash-on-cash, the flows, the rate of return, the NPV, the
+         exits and the equities comparison (-> e5b40f7a:31632). Was: managed
+         93fc8436:31578. */
       const BASE = { sample: 'a27fbebd:31517', land: '85288185:31396', shophouse: '80e1f5ca:32382', condoAsCommercial: 'c2d3db97:32537',
-        taxed: 'd948fe97:31707', cash: '4b67c9ab:30156', lowValuation: '0e3902c3:31743', noTenure: '21477857:29223', managed: '93fc8436:31578' };
+        taxed: 'd948fe97:31707', cash: '4b67c9ab:30156', lowValuation: '0e3902c3:31743', noTenure: '21477857:29223', managed: 'e5b40f7a:31632' };
       const p = [];
       for (const [k, d] of Object.entries(deals)) {
         const was = pmCanon(d), cls = propertyClassOf(d);
@@ -6047,6 +6477,41 @@ try {
     if (p.length) fail('p2 R3: the price that makes this work meets its target in the model\'s own figures, to the ringgit', p);
     else ok(`p2 R3: the price solved for ${r.out.length} targets meets each in dealModel's own figures and RM1 more does not (${r.out.map(x => `${x.name} → RM${x.price}, ${x.runs} runs`).join('; ')}); RM5,000 a month is out of reach and says so ("${r.inf.finding.slice(0, 80)}…"); a parcel's yield is not applicable, a loan with no schedule unknown, a loan held to a valuation unbounded; the deal on the calculator untouched`);
   });
+
+  /* R3b — WHICHEVER WAY THE NET YIELD MOVES WITH THE PRICE (the 20 Oct 2026
+           sweep, stress-4). The net operating income does not move with the
+           price, so on a negative income a higher price makes the yield
+           less negative: a target at or below nought is met from a price
+           UP. Worked by hand on the sample let at RM400: RM4,368 collected
+           (400 × 12 × 0.91) less RM5,078 of running costs and RM218.40 of
+           repair reserve is −RM928.40 a year, so a net yield of at least
+           −0.5% is met at RM185,680 (928.40 × 100 ÷ 0.5) and above, the
+           entered RM572,000 among them, and at RM185,679 it is not. It said
+           "No price … at any price from RM1,000". A yield of nought or more
+           a negative income reaches at no price, and says so. */
+  await p1try("p2 R3b: a net-yield target on a negative income is met from a price up", async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, rent: 400 };
+      const s = solveDealPrice(d, { kind: 'yield', value: -0.5 }), w = priceSolveWords(s, d);
+      const zero = solveDealPrice(d, { kind: 'yield', value: 0 });
+      const zf = priceSolveFormula(zero, d), sf = priceSolveFormula(s, d);
+      return JSON.stringify({ noi: dealModel(d).noi, entered: dealModel(d).netYield, status: s.status, price: s.price,
+        at: dealModel({ ...d, price: s.price }).netYield, under: dealModel({ ...d, price: s.price - 1 }).netYield,
+        achieved: s.achieved, belowMeets: s.belowMeets, figure: w.figure, finding: w.finding,
+        zero: { status: zero.status, figure: priceSolveWords(zero, d).figure, widened: zero.widenedTo, formula: zf }, sub: w.sub, formula: sf });
+    })()`));
+    const p = [];
+    if (Math.abs(r.noi - (400 * 12 * 0.91 - 5078 - 400 * 12 * 0.91 * 0.05)) > 1e-6) p.push(`the income is ${r.noi}, by hand −928.40`);
+    if (!(r.entered >= -0.5)) p.push(`the entered price's own yield ${r.entered}% does not meet −0.5%: the case is wrong`);
+    if (r.status !== 'from' || r.price !== 185680 || !(r.at >= -0.5) || r.under >= -0.5 || r.achieved !== r.at || r.belowMeets) p.push(`a yield of at least −0.5%: ${r.status} at RM${r.price} (${r.at}%; RM1 less ${r.under}%) — by hand RM185,680 and up`);
+    if (r.figure !== 'From RM185,680' || !/At RM185,680 or more/.test(r.finding) || r.sub !== 'RM386,320 below the RM572,000 modelled.') p.push(`the card reads "${r.figure}" — "${r.finding}" — "${r.sub}"`);
+    if (!/RM185,680 is the lowest price that meets it: there net yield is −0\.500000%, at least the −0\.5000% you set; at RM185,679 it is −0\.500003%, short of it/.test(r.formula || '') || !/rises towards nought/.test(r.formula || '')) p.push(`the working reads "${(r.formula || '').slice(-260)}"`);
+    if (!(r.zero.widened > 572000 * 4) || !/the range was widened ten times at a time to RM[\d,]+, where it is still short of it — so no price meets it/.test(r.zero.formula || '')) p.push(`a yield of nought: the working does not say the range was widened ("${(r.zero.formula || '').slice(-200)}")`);
+    if (r.zero.status !== 'infeasible' || r.zero.figure !== 'No price') p.push(`a yield of nought or more on a negative income: ${JSON.stringify(r.zero)} — it is met at no price`);
+    if (p.length) fail('p2 R3b: a net-yield target on a negative income is met from a price up, worked by hand', p);
+    else ok(`p2 R3b: on an income of −RM928.40 a year a net yield of at least −0.50% is met from RM${r.price.toLocaleString('en')} up, worked by hand, and RM1 less is not — never "No price" ("${r.finding.slice(0, 60)}…"); a yield of nought or more is met at no price, and says so`);
+  });
+
   await p1try("p2 R4: the price gap is worked out only from the comparables named", async () => {
     const r = await evaluate(`(() => {
       const keep = State.observations;
@@ -6192,15 +6657,19 @@ try {
     auctionLegal: 7000, auctionHoldMonths: 3 })`;
   await p3try('p3 A1: the auction waterfall adds up', async () => {
     const r = JSON.parse(await evaluate(`(() => {
-      const d = ${P3_DEAL};
+      /* The balance due in 90 days, so the holding is priced (the owner's
+         rule of 21 Oct 2026): 3 months of the running costs from the sale,
+         each to the sen, and no instalment — the balance falls due as the
+         3 months end. */
+      const d = { ...${P3_DEAL}, auctionBalanceDays: 90 };
       const m = dealModel(d), a = auctionModel(d, m);
       const items = m.costGroups.filter(g => g.id === 'acquisition' || g.id === 'financing').flatMap(g => g.items);
       const amt = (label) => items.filter(it => it[0] === label).reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
       const all = items.reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
-      const transaction = all - amt('Deposit') - amt('Valuation-gap cash') - amt('Arrears the Proclamation passes to you') - amt('Repairs') - amt('Possession cost')
+      const transaction = all - amt('Deposit') - amt('Down payment') - amt('Valuation-gap cash') - amt('Arrears the Proclamation passes to you') - amt('Repairs') - amt('Possession cost')
         - items.filter(it => it[2]?.id === 'mortgageProtection').reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
       const burn = m.instalment + (m.maintenanceY + m.sinkingY + m.statutoryY + m.insuranceY) / 12;
-      const holding = 3 * burn;
+      const holding = 3 * Math.round((m.maintenanceY + m.sinkingY + m.statutoryY + m.insuranceY) / 12 * 100) / 100 + Math.max(0, 3 - 90 / 30) * Math.round(m.instalment * 100) / 100;
       const effective = 500000 + 15000 + 4200 + 6000 + transaction + holding;
       const step = (id) => a.steps.find(s => s.id === id)?.amount ?? null;
       const partial = auctionModel({ ...d, auctionRepairs: undefined, arrearsUtilities: undefined, auctionHoldMonths: undefined });
@@ -6214,7 +6683,7 @@ try {
         partial: { effective: partial.effective, notEntered: partial.notEntered, arrears: partial.steps.find(s => s.id === 'arrears').amount, missing: partial.steps.find(s => s.id === 'arrears').partsMissing },
         partialWant: 500000 + 3600 + 6000 + partial.steps.find(s => s.id === 'transaction').amount,
         noComps: auctionModel({ ...d, auctionComp1: undefined, auctionComp2: undefined, auctionComp3: undefined }).trueDiscount,
-        subsale: (() => { const s = { ...d }; delete s.route; const ms = dealModel(s); return ms.costGroups.flatMap(g => g.items).filter(it => /Proclamation|^Repairs$|^Possession cost$|your quote$/.test(it[0]) && it[2]?.id !== 'mortgageProtection').length; })() });
+        subsale: (() => { const s = { ...d }; delete s.route; const ms = dealModel(s); return ms.costGroups.flatMap(g => g.items).filter(it => /Proclamation|^Repairs$|^Possession cost$|lawyer’s quote$/.test(it[0]) && it[2]?.id !== 'mortgageProtection').length; })() });
     })()`));
     const near = (x, y) => Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) < 1e-6;
     const p = [];
@@ -6222,7 +6691,7 @@ try {
     if (r.reserve !== 420000 || r.bid !== 500000) p.push(`reserve ${r.reserve} and bid ${r.bid}`);
     if (r.repairs !== 15000 || r.arrears !== 4200 || r.possession !== 6000) p.push(`repairs ${r.repairs}, arrears ${r.arrears} (want 4,200), possession ${r.possession}`);
     if (!near(r.transaction, r.wantTransaction) || !(r.transaction > 7000)) p.push(`transaction costs ${r.transaction}, the ledger's fee lines come to ${r.wantTransaction}`);
-    if (!near(r.burnModel, r.burn) || !near(r.holding, r.wantHolding)) p.push(`holding ${r.holding}, want 3 × ${r.burn} = ${r.wantHolding} (the model's burn ${r.burnModel})`);
+    if (!near(r.burnModel, r.burn) || !near(r.holding, r.wantHolding)) p.push(`holding ${r.holding}, want 3 months of the running costs and none of the instalment = ${r.wantHolding} (the model's burn ${r.burnModel})`);
     if (!near(r.effective, r.wantEffective)) p.push(`effective acquisition cost ${r.effective}, worked out here as ${r.wantEffective}`);
     if (!r.td || !near(r.td.pct, r.wantTd) || !near(r.td.amount, 600000 - r.wantEffective)) p.push(`true discount ${JSON.stringify(r.td)}, want ${r.wantTd}%`);
     if (r.order !== 'market>reserve>bid>repairs>arrears>possession>transaction>holding>effective') p.push(`the steps run ${r.order}`);
@@ -6233,7 +6702,31 @@ try {
     if (r.noComps !== null) p.push(`with no comparable the true discount is ${JSON.stringify(r.noComps)}, not Unavailable`);
     if (r.subsale !== 0) p.push(`the same deal as a subsale still carries ${r.subsale} auction line(s)`);
     if (p.length) fail('p3 A1: the auction waterfall adds up', p);
-    else ok(`p3 A1: the waterfall — market value RM600,000 (the median of three comparables), reserve RM420,000, bid RM500,000, + repairs 15,000 + arrears 4,200 + possession 6,000 + transaction ${Math.round(r.transaction)} (the ledger's fee lines, the RM7,000 legal quote in the scale's place) + holding ${Math.round(r.holding)} (3 × ${Math.round(r.burn)}) = effective RM${Math.round(r.effective)}, a true discount of ${r.td.pct.toFixed(2)}%; a cost not entered named and not counted; no comparable, no discount; the subsale carries none of it`);
+    else ok(`p3 A1: the waterfall — market value RM600,000 (the median of three comparables), reserve RM420,000, bid RM500,000, + repairs 15,000 + arrears 4,200 + possession 6,000 + transaction ${Math.round(r.transaction)} (the ledger's fee lines, the RM7,000 legal quote in the scale's place) + holding ${Math.round(r.holding)} (3 × RM${(r.holding / 3).toFixed(2)} running costs, no instalment — the balance due as the months end) = effective RM${Math.round(r.effective)}, a true discount of ${r.td.pct.toFixed(2)}%; a cost not entered named and not counted; no comparable, no discount; the subsale carries none of it`);
+  });
+  /* A1b — THE LAWYER'S QUOTE IS LEGAL FEES ONLY (the owner, 21 Oct 2026;
+           the 20 Oct sweep, auction-2). The input, its ledger line and its
+           note say legal fees; the searches stay the rulebook's separate
+           estimate, charged beside the quote; the service tax is 8% of the
+           legal fees — the quote and the loan's — and of nothing else. No
+           figure changes: on P3's deal, by hand, RM1,170 of searches and
+           8% × (7,000 + the loan legal fees). */
+  await p3try('p3 A1b: the lawyer\'s quote is legal fees only', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = ${P3_DEAL};
+      const m = dealModel(d), items = m.costGroups.flatMap(g => g.items);
+      const by = (id) => items.find(it => it[2]?.id === id);
+      const q = by('auctionLegal'), loanLegal = by('loanLegal'), tax = by('professionalServiceTax'), search = by('disbursements');
+      const field = AU_GROUPS(d).flatMap(g => g.fields).find(f => f[0] === 'auctionLegal');
+      return JSON.stringify({ label: q?.[0], note: q?.[2]?.note || '', quote: q?.[1], field: field?.[1], search: search?.[1], tax: tax?.[1], loanLegal: loanLegal?.[1],
+        words: PM_FIELD_WORDS?.auctionLegal || null, feeNote: auctionFeeNote() });
+    })()`));
+    const p = [];
+    if (r.label !== 'Legal fees — your lawyer’s quote' || r.field !== 'Legal fees — your lawyer’s quote (RM)') p.push(`the ledger line reads "${r.label}" and the input "${r.field}"`);
+    if (/search/i.test(r.label + r.field + (r.words || '')) || !/the searches stay the rulebook’s separate estimate/.test(r.note) || !/the searches stay the rulebook’s separate estimate/.test(r.feeNote)) p.push(`the words still put the searches in the quote: "${r.note}" / "${r.feeNote.slice(-160)}" / "${r.words}"`);
+    if (r.quote !== 7000 || r.search !== 1170 || Math.abs(r.tax - Math.round((7000 + r.loanLegal) * 8) / 100) > 1e-9) p.push(`quote ${r.quote}, searches ${r.search}, service tax ${r.tax} — by hand 7,000, 1,170 and 8% × (7,000 + ${r.loanLegal})`);
+    if (p.length) fail('p3 A1b: the lawyer\'s quote is legal fees only', p);
+    else ok(`p3 A1b: the lawyer's quote is legal fees only — "${r.field}", its ledger line "${r.label}"; the RM1,170 searches estimate stays beside it and the service tax is 8% of the legal fees alone (RM${r.tax.toFixed(2)}), no figure changed`);
   });
   await p3try('p3 A2: the forfeiture exposure is the deposit at the terms entered', async () => {
     const r = JSON.parse(await evaluate(`(() => {
@@ -7306,22 +7799,156 @@ try {
           none: c({ ...au, auctionCapKind: null, auctionCapValue: null }).status }); })()`));
       /* By hand (V3): transaction costs at a RM400,000 bid — duty 7,000 + the lawyer's quote 5,000 + registration 20 + searches 1,170
          + service tax 8% × (5,000 + 3,900) = 712 + loan duty 1,800 + the charge 10 + loan legal 3,900 + valuation 850 + 68 = 20,530;
-         holding 4 × RM1,000 = 4,000; effective = 400,000 + 15,000 + 4,000 + 2,000 + 20,530 + 4,000 = 445,530; market value the median
-         of 480k/500k/520k = 500,000; true discount (500,000 − 445,530) ÷ 500,000 = 10.894%. Deposit 10% of the 380,000 reserve = 38,000;
-         balance 362,000, of which 2,000 beyond the 360,000 loan. Ceiling 500,000 × 85% = 425,000: solved on the contract's own formula
-         (hand.mjs, every fee as a function of the bid) — 380,353 (cost RM424,999.99; at 380,354, RM425,001.02). A cost of 430,000: 385,138. */
+         holding (the owner's rule of 21 Oct 2026): no running costs, and the RM1,000 instalment only from the day the balance falls
+         due — 90 days, 3 months, of the 4 — so 1 × RM1,000 = 1,000 (it was 4 × RM1,000 from the sale); effective = 400,000 + 15,000
+         + 4,000 + 2,000 + 20,530 + 1,000 = 442,530; market value the median of 480k/500k/520k = 500,000; true discount
+         (500,000 − 442,530) ÷ 500,000 = 11.494%. Deposit 10% of the 380,000 reserve = 38,000; balance 362,000, of which 2,000 beyond
+         the 360,000 loan. Ceiling 500,000 × 85% = 425,000, every fee as a function of the bid — at 383,103 (loan 344,792.70): duty
+         on 383,200, 6,664; quote 5,000; registration 20; searches 1,170; loan legal (2,700 + 0.7% × 44,792.70 = 3,013.55) × 1.25 =
+         3,766.94; service tax 8% × 8,766.94 = 701.36; loan duty on 345,000, 1,725; the charge 10; valuation 250 + 0.2% × 283,103 =
+         816.21, its tax 65.30 — 19,938.81; holding 1 × 957.76 (344,792.70 ÷ 360); so 383,103 + 21,000 + 19,938.81 + 957.76 =
+         RM424,999.57, and at 383,104 RM425,000.58. A cost of 430,000: 387,919 (RM429,999.96; at 387,920 RM430,000.98, its loan
+         legal fees RM3,043.90 × 1.25 = RM3,804.875, a half sen, up). Was 380,353 and 385,138 with the holding from the sale. */
       const p = [];
-      if (!near(r.tx, 20530) || !near(r.hold, 4000) || !near(r.eff, 445530)) p.push(`transaction ${r.tx}, holding ${r.hold}, effective ${r.eff} — by hand 20,530, 4,000, 445,530`);
-      if (!near(r.td, 10.894, 1e-9)) p.push(`true discount ${r.td}% — by hand 10.894%`);
+      if (!near(r.tx, 20530) || !near(r.hold, 1000) || !near(r.eff, 442530)) p.push(`transaction ${r.tx}, holding ${r.hold}, effective ${r.eff} — by hand 20,530, 1,000, 442,530`);
+      if (!near(r.td, 11.494, 1e-9)) p.push(`true discount ${r.td}% — by hand 11.494%`);
       if (!near(r.fx, 38000) || !near(r.bal, 362000) || !near(r.cash, 2000)) p.push(`forfeiture ${r.fx}, balance ${r.bal}, cash beyond the loan ${r.cash} — by hand 38,000, 362,000, 2,000`);
       if (r.final) p.push('with no check ticked the auction reads final');
-      if (r.margin.status !== 'solved' || r.margin.bid !== 380353 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 424999.99) || !near(r.margin.above, 425001.02)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 380,353 (424,999.99; +1 → 425,001.02)`);
-      if (r.cost.status !== 'solved' || r.cost.bid !== 385138) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 385,138`);
+      if (r.margin.status !== 'solved' || r.margin.bid !== 383103 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 424999.57) || !near(r.margin.above, 425000.58)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 383,103 (424,999.57; +1 → 425,000.58)`);
+      if (r.cost.status !== 'solved' || r.cost.bid !== 387919 || !near(r.cost.eff, 429999.96) || !near(r.cost.above, 430000.98)) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 387,919 (429,999.96; +1 → 430,000.98)`);
       if (r.noMv.status !== 'unavailable' || !/market value/.test(r.noMv.why || '')) p.push(`a margin with no market value: ${JSON.stringify(r.noMv)} — not Unavailable`);
-      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 385138) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
+      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 387919) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
       if (r.none !== 'no-target') p.push(`no ceiling entered is ${r.none}, not "no target"`);
       if (p.length) fail('val V3: auction × residential — effective cost, discount, forfeiture and the bid ceiling', p);
-      else ok('val V3: auction × residential — RM20,530 of transaction costs and RM4,000 of holding make the effective cost RM445,530, a 10.894% true discount on the RM500,000 the comparables imply; RM38,000 at risk, Not final; the bid ceiling is RM380,353 at 15% under the market value (RM425,000) and RM385,138 at a cost of RM430,000 — each to the ringgit; a margin with no market value is Unavailable, a cost needs none');
+      else ok('val V3: auction × residential — RM20,530 of transaction costs and RM1,000 of holding (the instalment from the day the balance falls due) make the effective cost RM442,530, an 11.494% true discount on the RM500,000 the comparables imply; RM38,000 at risk, Not final; the bid ceiling is RM383,103 at 15% under the market value (RM425,000) and RM387,919 at a cost of RM430,000 — each to the ringgit, worked by hand; a margin with no market value is Unavailable, a cost needs none');
+    });
+
+    /* V3b — THE HOLDING MONTHS, ONE RULE EVERYWHERE (the owner, 21 Oct
+       2026; the 20 Oct sweep, auction-3, auction-5, auction-8; the Day-8
+       review). On V3's auction (a RM360,000 loan at 0% over 30 years:
+       RM1,000 a month), with RM300 a month of maintenance and RM600 a year
+       of assessment — RM350 a month owed with no tenancy — by hand:
+       - holding 4 months, the balance due in 90 days: 4 × RM350.00 running
+         costs from the sale + (4 − 90 ÷ 30 =) 1 month × RM1,000.00
+         instalment = RM2,400.00, in the effective cost, and in the cash
+         required as a line of its own (+RM2,400.00 on the same deal with
+         no holding entered);
+       - the flows count the hold's years from the end of the 4 months:
+         the cash required at 0, year y at 4 ÷ 12 + y; year 1 pays 12
+         instalments and the loan has run 1 month when it starts, so the
+         sale (10 years + 6 months selling) settles 360,000 − 127 × 1,000
+         = RM233,000;
+       - holding 2 months: the balance falls due a month after it ends, so
+         no instalment in the holding (RM700.00), year 1 pays 11, and the
+         sale settles 360,000 − 125 × 1,000 = RM235,000;
+       - managed at 8% with a RM200 minimum and a month's placement each
+         12-month tenancy: the same RM2,400.00 — no agent's fee and no
+         placement before a tenancy;
+       - bought with no loan and no days entered: 4 × RM350.00 = RM1,400.00,
+         and the working says "no loan, so no instalment", no days;
+       - a loan and no days: the running costs priced (RM1,400.00), the
+         instalment a line not priced, named with its reason; still no rent
+         in the 4 months (year 1 at 1.33 years) and the loan from year 1
+         (RM234,000 settled); the rate of return and the year-by-year cash
+         say "so far" with the reason;
+       - at 4.3%, taxed at 24%: year 1's interest is the loan's months 1 to
+         13 — 12 instalments less the principal they repay, by the annuity
+         written out here — and its tax 24% of the rent less the running
+         costs and that interest;
+       - 2.125 months is held to the hundredth, 2.13: 2.13 × RM350.00 =
+         RM745.50, the row's own working;
+       - the holding row prints "4 months × RM350.00 running costs + 1
+         month × RM1,000.00 instalment" beside "+RM2,400.00". */
+    await vtry('val V3b: the auction holding months — one rule in the effective cost, the cash required and the flows', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const au = F({ route: 'auction', reservePrice: 380000, auctionComp1: 500000, auctionComp2: 520000, auctionComp3: 480000, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90,
+          auctionRepairs: 15000, arrearsMaintenance: 3000, arrearsQuitRent: 200, arrearsAssessment: 300, arrearsUtilities: 500, possessionCost: 2000, auctionLegal: 5000, auctionHoldMonths: 4,
+          maintenance: 300, assessment: 600 });
+        const one = (d) => { const m = dealModel(d), a = auctionModel(d, m), h = a.adds.find(s => s.id === 'holding');
+          const line = m.costGroups.flatMap(g => g.items).find(it => it[2]?.id === 'auctionHolding');
+          const fig = typeof auctionWaterfall === 'function' ? auctionWaterfall(a, 'mt') : null; const li = fig?.querySelector?.('[data-step="holding"]');
+          const W = auctionWaterfallFormula(a);
+          return { hold: h.amount, eff: a.effective, line: line ? [line[0], line[1]] : null, cash: m.safeCashRequired, missing: m.missingCostLines.map(x => x.label + ': ' + (x.why || '')),
+            times: m.auctionHolding?.flowTimes?.slice(0, 3) || null, flow0: m.flows[0], debt1: m.path[0].debt, int1: m.path[0].interest, tax1: m.path[0].tax, out: m.outstanding, notEntered: a.notEntered,
+            holdYears: d.holdYears, sell: d.sellMonths, inst: m.instalment,
+            row: li ? li.textContent.replace(/\\s+/g, ' ').trim() : null, working: W.slice(W.indexOf('Holding:'), W.indexOf('Effective acquisition')),
+            returns: returnsAndTaxPanel(d, m).textContent.replace(/\\s+/g, ' '),
+            sens: d.marginalTaxPct ? propertySensitivityPanel(d, m).textContent.replace(/\\s+/g, ' ') : '' };
+        };
+        const noHold = { ...au, auctionHoldMonths: null };
+        return JSON.stringify({ four: one(au), two: one({ ...au, auctionHoldMonths: 2 }), noDays: one({ ...au, auctionBalanceDays: null }), noDaysTax: one({ ...au, auctionBalanceDays: null, marginalTaxPct: 24 }), none: one(noHold),
+          managed: one({ ...au, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 200, leasingFeeMonths: 1, tenancyMonths: 12 }),
+          cash: one({ ...au, downPct: 100, auctionBalanceDays: null }), taxed: one({ ...au, ratePct: 4.3, marginalTaxPct: 24 }),
+          short: one({ ...au, ratePct: 4.3, marginalTaxPct: 24, auctionHoldMonths: 1 }), odd: one({ ...au, auctionHoldMonths: 2.125 }) }); })()`));
+      const p = [], { four, two, noDays, noDaysTax, none, managed, cash, taxed, short, odd } = r;
+      if (four.holdYears !== 10 || four.sell !== 6) p.push(`the hold is not the one worked by hand: ${four.holdYears} years, ${four.sell} months selling`);
+      if (!near(four.hold, 2400) || !near(four.eff - none.eff, 2400)) p.push(`holding 4 months: ${four.hold} (effective ${four.eff} against ${none.eff} with none) — by hand RM2,400.00`);
+      if (!four.line || four.line[0] !== 'Holding until it earns: 4 months, no rent' || !near(four.line[1], 2400) || !near(four.cash - none.cash, 2400)) p.push(`the cash required's holding line ${JSON.stringify(four.line)}, the cash required ${four.cash} against ${none.cash} — by hand +RM2,400.00`);
+      if (!four.times || !near(four.times[1], 4 / 12 + 1, 1e-12) || four.times[0] !== 0 || !near(four.flow0, -four.cash)) p.push(`the flows' moments ${JSON.stringify(four.times)}, the first flow ${four.flow0} — by hand 0, 1.3333, the cash required`);
+      if (!near(four.debt1, 12000) || !near(four.out, 233000)) p.push(`4 months: year 1 pays ${four.debt1}, the sale settles ${four.out} — by hand 12,000 and 233,000`);
+      if (!near(two.hold, 700) || !near(two.debt1, 11000) || !near(two.out, 235000)) p.push(`2 months: holding ${two.hold}, year 1 pays ${two.debt1}, the sale settles ${two.out} — by hand 700, 11,000 and 235,000`);
+      if (!/no instalment: the balance falls due 90 days after the sale, when these months have ended/.test(two.working)) p.push(`2 months' working: "${two.working}"`);
+      if (!near(managed.hold, 2400) || /placement|minimum/.test(managed.working) || !/no agent’s fee before a tenancy/.test(managed.working)) p.push(`managed: holding ${managed.hold}, "${managed.working.slice(0, 200)}" — by hand RM2,400.00, no agent's fee or placement`);
+      if (!near(cash.hold, 1400) || !/no loan, so no instalment/.test(cash.working) || /days after|null|from the day the balance falls due/.test(cash.working)) p.push(`no loan, no days: holding ${cash.hold}, "${cash.working}" — by hand RM1,400.00 and no instalment`);
+      if (!near(noDays.hold, 1400) || !noDays.notEntered.includes('Holding’s instalment') || !noDays.missing.some(x => /^Holding: the instalment from the day the balance falls due: The holding months’ instalment is not priced/.test(x))
+        || !noDays.times || !near(noDays.times[1], 4 / 12 + 1, 1e-12) || !near(noDays.debt1, 12000) || !near(noDays.out, 234000)) p.push(`a loan and no days: ${JSON.stringify({ hold: noDays.hold, missing: noDays.missing, times: noDays.times, debt1: noDays.debt1, out: noDays.out })} — by hand RM1,400.00 priced, the instalment named, year 1 at 1.33, RM234,000`);
+      if ((noDays.returns.match(/so far — the holding months’ instalment is not priced/g) || []).length < 2 || !/So far: The holding months’ instalment is not priced/.test(noDaysTax.returns)) p.push('a loan and no days: the rate of return, the NPV or the year-by-year cash do not say they are short');
+      if (/so far — the holding months’|So far: The holding/.test(four.returns)) p.push('a priced holding says it is short');
+      const i = 0.043 / 12, pmt = 360000 * i / (1 - Math.pow(1 + i, -360)), bal = (n) => 360000 * Math.pow(1 + i, n) - pmt * (Math.pow(1 + i, n) - 1) / i;
+      const int1 = 12 * pmt - (bal(1) - bal(13)), tax1 = 0.24 * (24000 - 4200 - int1);
+      if (!near(taxed.inst, pmt, 1e-6) || !near(taxed.int1, int1, 1e-6) || !near(taxed.tax1, tax1, 1e-6) || !near(taxed.hold, 1400 + Math.round(pmt * 100) / 100)) p.push(`at 4.3% and 24%: interest ${taxed.int1}, tax ${taxed.tax1}, holding ${taxed.hold} — by hand ${int1.toFixed(4)}, ${tax1.toFixed(4)}, ${(1400 + Math.round(pmt * 100) / 100).toFixed(2)}`);
+      if (!/Year 1 here pays 10 of the 12 instalments/.test(short.sens) || /Breaking even on cash is not breaking even after tax/.test(short.sens)) p.push(`a balance due after the holding months: the after-tax break-even is set against the monthly one ("${(short.sens.match(/Covering the outgoings[^.]*\./) || short.sens.match(/Year 1 here[^.]*\./) || [''])[0]}")`);
+      if (!near(odd.hold, 745.5) || !odd.row || !odd.row.includes('2.13 months × RM350.00 running costs') || !odd.row.includes('+RM745.50')) p.push(`2.125 months: holding ${odd.hold}, the row "${odd.row}" — by hand 2.13 × RM350.00 = RM745.50`);
+      if (none.line || none.times !== null) p.push('with no holding months entered the deal carries a holding line or a timed hold');
+      if (!r.four.row || !r.four.row.includes('+RM2,400.00') || !r.four.row.includes('4 months × RM350.00 running costs + 1 month × RM1,000.00 instalment')) p.push(`the holding row reads "${r.four.row}"`);
+      if (p.length) fail('val V3b: the auction holding months — one rule in the effective cost, the cash required and the flows', p);
+      else ok('val V3b: the auction holding months, worked by hand — 4 × RM350.00 owed with no tenancy + 1 × RM1,000.00 instalment from the day the balance falls due = RM2,400.00, in the effective cost and the cash required alike, managed or not; the flows count the hold from the end of the holding (year 1 at 1.33 years), the loan from the day it was drawn (RM233,000 settled); 2 months: no instalment, RM700.00, RM235,000; no loan: RM1,400.00, no instalment; a loan and no days: RM1,400.00 priced, the instalment named, no rent in the months, the rate of return "so far"; 4.3%: year 1\'s interest and tax by the annuity; the after-tax break-even withheld where year 1 pays 10 instalments; 2.13 months × RM350.00 = RM745.50');
+    });
+
+
+    /* V3c — THE AUCTION'S WORDS SAY WHAT ITS FIGURES ARE (the 20 Oct 2026
+       sweep, auction-1, auction-6, auction-7, auction-9). On V3's auction:
+       - a ceiling below the reserve: with the reserve at RM390,000 the
+         15% ceiling works out at RM383,103 (val V3), a bid that cannot win
+         that sale, so it reads "No winning bid" and gives the effective
+         cost at the reserve, over the ceiling — by hand, at RM390,000:
+         duty 6,800 + 5,000 + 20 + 1,170 + loan legal (2,700 + 0.7% ×
+         51,000 = 3,057) × 1.25 = 3,821.25 + service tax 8% × 8,821.25 =
+         705.70 + loan duty 1,755 + 10 + valuation 830 + 66.40 = 20,178.35;
+         holding 1 × RM975.00; so 390,000 + 21,000 + 20,178.35 + 975 =
+         RM432,153.35, over RM425,000;
+       - a cap that is not a whole ringgit is printed to the sen beside the
+         costs to the sen, and a margin to the places entered (10.05%);
+       - the financing buffer is the cash set aside for the part of the
+         balance the loan does not cover, which is what it is set against;
+       - the loan's deposit is the down payment on the auction route, beside
+         the Proclamation's "Deposit (%)": in the calculator's box and the
+         ledger. */
+    await vtry('val V3c: the auction ceiling, buffer and deposit words say what their figures are', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const au = F({ route: 'auction', reservePrice: 380000, auctionComp1: 500000, auctionComp2: 520000, auctionComp3: 480000, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90,
+          auctionRepairs: 15000, arrearsMaintenance: 3000, arrearsQuitRent: 200, arrearsAssessment: 300, arrearsUtilities: 500, possessionCost: 2000, auctionLegal: 5000, auctionHoldMonths: 4,
+          auctionCapKind: 'margin', auctionCapValue: 15 });
+        const card = (d) => { const a = auctionModel(d), c = auctionBidCeiling(d, a); const n = auctionCeilingCard(c, a);
+          return { status: c.status, bid: c.bid ?? null, atReserve: c.atReserve ?? null, text: n.textContent.replace(/\\s+/g, ' '), formula: auctionCeilingFormula(c, a) }; };
+        const high = card({ ...au, reservePrice: 390000 });
+        const odd = card({ ...au, auctionComp1: 500001, auctionCapValue: 10.05 });
+        const notes = auctionInputs({ d: au, prefix: 'mt', answer: () => {} }).textContent.replace(/\\s+/g, ' ');
+        const down = pcDealField(au, 'downPct').textContent.trim();
+        const ledger = dealModel(au).costGroups.flatMap(g => g.items).map(it => ledgerLineLabel(au, it[0]));
+        const lab = LAB_INPUTS.find(x => x.k === 'downPct'), labDown = lab.label(au), labSub = lab.label({ ...au, route: undefined });
+        const model0 = dealModel({ ...au, auctionDepositPct: null }).costGroups[0].items[0][0];
+        const sub = pcDealField({ ...au, route: undefined }, 'downPct').textContent.trim();
+        return JSON.stringify({ high, odd, notes, down, sub, ledger: ledger.slice(0, 3), labDown, labSub, model0, cap: 500001 * (1 - 10.05 / 100) }); })()`));
+      const p = [], h = r.high, o = r.odd;
+      if (h.status !== 'below-reserve' || h.bid !== 383103 || !near(h.atReserve, 432153.35)) p.push(`with a RM390,000 reserve: ${h.status} at ${h.bid}, the cost at the reserve ${h.atReserve} — by hand below the reserve, RM432,153.35`);
+      if (!/No winning bid/.test(h.text) || !/No winning bid fits these costs/.test(h.text) || !h.text.includes('RM432,153.35') || /a winning bid of at most/.test(h.text)) p.push(`the card reads "${h.text.slice(0, 260)}"`);
+      if (!/no winning bid fits these costs/.test(h.formula)) p.push(`the working reads "${h.formula.slice(0, 200)}"`);
+      if (!near(r.cap, 449750.8995, 1e-6) || !o.text.includes('10.05% under the market value') || !o.text.includes('at or under RM449,750.90')) p.push(`a 10.05% margin on RM500,001: "${o.text.slice(0, 260)}"`);
+      if (!/The financing buffer is cash you set aside for the part of the balance the loan does not cover\./.test(r.notes) || /late or short/.test(r.notes)) p.push('the buffer is not defined as what it is set against');
+      if (r.down !== 'Down payment (%)' || r.ledger[0] !== 'Down payment' || r.sub !== 'Deposit (%)' || r.labDown !== 'Down payment (%)' || r.labSub !== 'Deposit (%)' || r.model0 !== 'Deposit') p.push(`the Lab's slider reads "${r.labDown}" (on a subsale "${r.labSub}"); the model's line "${r.model0}"`), p.push(`the loan's deposit on the auction route reads "${r.down}" and "${r.ledger[0]}" (on a subsale "${r.sub}")`);
+      if (p.length) fail('val V3c: the auction ceiling, buffer and deposit words say what their figures are', p);
+      else ok('val V3c: a ceiling below the reserve reads "No winning bid", the cost at the reserve RM432,153.35 worked by hand; a 10.05% margin prints as entered beside its cap; the buffer is the cash for the balance beyond the loan; the loan\'s deposit is the down payment on the auction route');
     });
 
     await vtry('val V4: new development — construction interest, the completion delay, the templates by asset', async () => {
@@ -7382,6 +8009,54 @@ try {
       if (!near(r.market, 360000) || !near(r.hold, 600)) p.push(`land at auction: market ${r.market}, holding ${r.hold} — by hand 360,000 and 600`);
       if (p.length) fail('val V5: land — subsale, auction, and new development gated', p);
       else ok('val V5: land — −RM100 a month, no net yield and no price that gives one; at auction the quit-rent arrears count and maintenance arrears are not asked or counted, RM600 of holding; New development is gated for a bare parcel: no premium, interest or exit, and the cash required is the subsale’s to the sen');
+    });
+
+    /* V5b — A PARCEL'S WORDS GIVE ITS OWN REASONS, AND A SHORT TOTAL SAYS
+       SO (the 20 Oct 2026 sweep, land-commercial-1, land-commercial-2). On
+       V5's parcel, with an agent entered (8%, a RM120 minimum) and a sinking
+       fund and repair reserve typed — none of which a parcel is charged:
+       - the break-even rent is "Not a quantity this asset has", not "not
+         computable";
+       - the management card says no management is charged because the
+         class has no tenancy, not that the reader manages it, and lists no
+         tenancy duties;
+       - the cash to make it ready is not called rent-ready;
+       - the Quick model's other running costs name only what is counted:
+         assessment, quit rent and insurance;
+       - every total short of a line not priced says "so far — without"
+         and names the lines of its own groups; the ledger by kind does not
+         call a kind whose lines are all unpriced "none". */
+    await vtry('val V5b: a parcel\'s words give its own reasons, and a short total says so', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${V_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const d = L({ selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 120, sinkingFund: 40, repairReservePct: 5 });
+        const m = dealModel(d), figs = pcAnswerFigs(d, m);
+        const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal');
+        let full = '', quick = '';
+        try {
+          State.deal = d; saveDeal();
+          navigate('/property/calculator?view=full', { replace: true }); render(); await w(450);
+          full = (document.querySelector('main')?.textContent || '').replace(/\\s+/g, ' ');
+          navigate('/property/calculator', { replace: true }); setPropertyView(false); render(); await w(400);
+          quick = (document.querySelector('#pc-q-other > summary')?.textContent || '').replace(/\\s+/g, ' ');
+        } finally { State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); saveDeal(); navigate(back, { replace: true }); render(); await w(250); }
+        const kinds = Object.keys(FEE_TABLE.categories);
+        const unpricedKinds = [...new Set(m.costGroups.flatMap(g => g.items).filter(it => !isNum(it[1]) && it[2]?.provenance).map(it => feeKindOf(it[2])).filter(Boolean))];
+        const split = ledgerSplitWords(m);
+        return JSON.stringify({ be: figs.breakeven, complete: figs.complete[2], short: m.missingCostLines.filter(x => x.groupId === 'acquisition' || x.groupId === 'financing').map(x => x.label.toLowerCase()),
+          impShort: m.missingCostLines.filter(x => x.groupId === 'improvement').length, full, quick, otherY: m.statutoryY + m.insuranceY,
+          split, unpricedWords: unpricedKinds.map(k => FEE_TABLE.categories[k].toLowerCase()) }); })()`));
+      const p = [];
+      if (r.be[2] !== 'Not a quantity this asset has') p.push(`the break-even rent reads "${r.be[2]}"`);
+      if (!r.full.includes('No management is charged: this class has no tenancy to manage.') || /You have said you will manage|What you are taking on by managing it yourself|What the manager is agreeing to do/.test(r.full)) p.push('the management card gives the wrong reason, or lists tenancy duties, on a parcel');
+      if (!r.full.includes('Cash to make it ready') || r.full.includes('Cash to make rent-ready')) p.push('the parcel\'s cash to make it ready is called rent-ready');
+      if (!r.quick.includes('a year: assessment, quit rent and insurance') || /sinking fund|repair reserve/.test(r.quick)) p.push(`the Quick model's other running costs read "${r.quick}"`);
+      if (!r.short.length) p.push('the parcel has no line not priced in its completion groups: the case is vacuous');
+      else if (!r.complete.includes('so far — without') || !r.short.every(x => r.complete.toLowerCase().includes(x))) p.push(`the cash to complete reads "${r.complete}" (short by ${r.short.join(', ')})`);
+      if (!r.full.includes('Cash still to complete') || !/Cash before reserve: RM[^ ]+ — completion and making it ready together; so far — without/.test(r.full)) p.push('the cash before reserve does not say it is short');
+      for (const k of r.unpricedWords) if (new RegExp(`${k} none`).test(r.split)) p.push(`the ledger by kind calls ${k} "none": "${r.split}"`);
+      if (p.length) fail('val V5b: a parcel\'s words give its own reasons, and a short total says so', p);
+      else ok(`val V5b: on a parcel the break-even rent is "Not a quantity this asset has", no management is charged for want of a tenancy, the cash is "to make it ready", the Quick model's other running costs are assessment, quit rent and insurance, and the short totals say "so far — without" the ${r.short.length} lines not priced`);
     });
 
     await vtry('val V6: the new inputs travel in their own words and are drawn with their badges', async () => {
@@ -7958,6 +8633,25 @@ try {
       else ok('refurb F1: Do nothing RM1,000 a month at 6.00%; Refurbish (RM30,000, +RM150, 2 months void) RM791.67 over the first twelve months, RM1,150 once let, 6.00% on RM430,000, RM32,000 cash, payback 16.7 years (RM30,000 ÷ RM1,800); Upgrade (RM80,000, no uplift, 4 months void) RM333.33, 5.00%, RM84,000, payback "Not demonstrated" (and with an uplift of RM0) — Do nothing plainly has the best monthly position; Sell RM78,750 net on the loan as modelled, RM88,750 on a RM350,000 settlement, a RM67,500 shortfall at RM300,000; no cost, Unavailable; land not run');
     });
 
+    /* F1b — "Not entered" only for what was not entered (the 20 Oct 2026
+       sweep, lab-refurb-3). An option with no cost is Unavailable, and the
+       uplift and the months without rent the reader did enter read as
+       entered — they read "Not entered" beside boxes holding them. */
+    await ftry('refurb F1b: an option with no cost says what was entered', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${R_SEED}
+        const up = (x) => refurbModel(F({ ...RF, rfUpgradeCost: null, ...x })).options.find(o => o.id === 'upgrade');
+        const c = (row, o) => { const v = rfCell(row, o, {}); return v.text + ' — ' + v.sub; };
+        const o = up({ rfUpgradeUplift: 500 }), n = up({ rfUpgradeVoid: null });
+        return JSON.stringify({ status: o.status, uplift: c('uplift', o), void: c('void', o), noneUplift: c('uplift', n), noneVoid: c('void', n) }); })()`));
+      const p = [];
+      if (r.status !== 'unavailable') p.push(`an upgrade with no cost is ${r.status}, not Unavailable`);
+      if (r.uplift !== '+RM500 — a month, your figure') p.push(`its uplift of RM500 entered reads "${r.uplift}"`);
+      if (r.void !== '4 months — with no rent while the works run') p.push(`its 4 months entered read "${r.void}"`);
+      if (r.noneUplift !== 'Not entered — no uplift counted' || r.noneVoid !== 'Not entered — none counted') p.push(`with neither entered: "${r.noneUplift}", "${r.noneVoid}"`);
+      if (p.length) fail('refurb F1b: an option with no cost says what was entered', p);
+      else ok(`refurb F1b: an upgrade with no cost is Unavailable, and the uplift and the months entered read as entered ("${r.uplift}", "${r.void}"); "Not entered" only where nothing was`);
+    });
+
     await ftry('refurb F2: on the Lab, the lens never reorders the options', async () => {
       const r = JSON.parse(await evaluate(`(async () => { ${R_SEED}
         const w = (ms) => new Promise(res => setTimeout(res, ms));
@@ -7985,6 +8679,8 @@ try {
         if (ranked) p.push(`lens ${s.lens}: the card says "${ranked[0]}"`);
       }
       if (!/The figures you entered imply/.test(r.seen[0].text) || !/nothing here is ranked/.test(r.seen[0].text)) p.push('the card does not say "the figures you entered imply" and that nothing is ranked');
+      /* The column the options are worked on is named (the 20 Oct 2026 sweep, lab-refurb-4). */
+      if (!/Worked on [AB] — /.test(r.seen[0].text) || !/column [AB], as it stands/.test(r.seen[0].text)) p.push('the card does not name the column it is worked on: ' + r.seen[0].text.slice(0, 160));
       if (/supplier|contractor|vendor|company name|brand/i.test(r.inputs)) p.push(`a supplier is asked for: "${r.inputs.match(/supplier|contractor|vendor|company name|brand/i)[0]}"`);
       if (p.length) fail('refurb F2: on the Lab, the lens never reorders the options', p);
       else ok(`refurb F2: through ${r.seen.length - 1} lens switches the options read Do nothing, Refurbish, Upgrade, Sell every time; each lens leads with its own two rows (cash flow: the monthly position and the net yield; risk: the cash required and the months without rent); "The figures you entered imply", "nothing here is ranked", no ranking word, no supplier asked for`);
@@ -9119,7 +9815,7 @@ try {
       risks: ['Model-test risk one', 'Model-test risk two', 'Model-test risk three'],
       questions: ['Model-test question one?', 'Model-test question two?'],
       horizon: '4–6 years', review: '2031-03-15', conf: 'High' };
-    const FIELDS = ['id', 'ticker', 'oneLine', 'quality', 'valCase', 'catalysts', 'risks', 'conds', 'horizon', 'review', 'conf', 'questions', 'created', 'stamp', 'runRef'];
+    const FIELDS = ['id', 'ticker', 'oneLine', 'quality', 'valCase', 'catalysts', 'risks', 'conds', 'horizon', 'review', 'conf', 'questions', 'created', 'stamp', 'runRef', 'suggested', 'snapshot'];
     const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
     if (!r.id || !r.created) p.push('the case was not created');
     if (r.typed && r.typed.some(x => !x)) p.push(`an editor control was not found: ${JSON.stringify(r.typed)}`);
@@ -9187,6 +9883,321 @@ try {
     }
     if (p.length) fail('qt-day7b: a malformed backup is refused with a reason and changes nothing', p);
     else ok(`qt-day7b: a backup that is not JSON, of another format, without data, or cut off half-way is refused with a reason ("${String(r.notJson.why).slice(0, 60)}…") and leaves the saved work and the deal as they were`);
+  }
+  /* THE BACKUP ROUND TRIP (the 21 Oct 2026 Day-8 report, Quantum block 5,
+     items 1, 2 and the export half of 4: "Verify export includes edited
+     inputs, saved model, scenarios and relevant evidence. Restore in
+     isolated test storage through the existing explicit … process. Test
+     malformed/older backup, failed storage and conflicting records.
+     Preserve existing work on failure and maintain format compatibility").
+     Beside qt-day5 to qt-day7b, which hold save -> reopen -> export ->
+     restore, a cancelled save, a refused save and a malformed file; this holds
+     what they do not. One synthetic property, named as a test: six edited
+     inputs, evidence marks on three of them, one saved scenario with changed
+     figures, one recorded actual (rent received for January 2026). Both
+     restores REPLACE, key by key; neither merges (the report: test the
+     existing process as it is, do not add a merge). Runs in the test
+     browser's own profile, and puts back every key it found. */
+  {
+    let r = null, reloadedOver = null;
+    try { r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const NAME = 'Model-test property — not a real property', NAME2 = 'Model-test property two — not a real property';
+      const SCNAME = 'Model-test scenario — rent 3,100';
+      const snapAll = () => { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('vl.')) o[k] = localStorage.getItem(k); } return o; };
+      const sameSnap = (a, b) => JSON.stringify(Object.keys(a).sort().map(k => [k, a[k]])) === JSON.stringify(Object.keys(b).sort().map(k => [k, b[k]]));
+      const diffKeys = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(k => a[k] !== b[k]).map(k => k.slice(3));
+      const S0 = snapAll(), keepDeal = JSON.stringify(State.deal);
+      const putBack = (S) => { for (const k of Object.keys(snapAll())) if (!(k in S)) localStorage.removeItem(k); for (const [k, v] of Object.entries(S)) localStorage.setItem(k, v); };
+      const realSet = Storage.prototype.setItem;
+      const out = { problems: [] };
+      const EDITED = { price: 480000, rent: 2600, renovation: 30000, reserveMonths: 6, vacancyPct: 12, mgmtPct: 8 };
+      const EVID = { price: 'verified', rent: 'developer', vacancyPct: 'user' };
+      const SC_OV = { rent: 3100, vacancyPct: 5, evidence: { rent: 'verified' } };
+      const ACT = { kind: 'month', period: '2026-01', months: 1, rent: 2550 };
+      const modelOf = (inputs) => JSON.stringify(dealModel(inputs));
+      const figures = (rec) => ({ base: modelOf(pmSavedInputs(rec)), sc: modelOf(pmSavedInputs(rec, pmScenario(rec, SCID))) });
+      let SCID = null;
+      const clearProperty = (id, { actuals = true } = {}) => { persistWork(loadWork().filter(x => x.id !== id)); if (actuals) actualsWrite(id, null); newPropertyDeal({ show: false }); };
+      const dialogText = async (text) => {
+        navigate('/my/data'); await w(500);
+        const btn = [...document.querySelectorAll('#views button')].find(b => b.textContent.trim() === 'Restore from a backup');
+        const input = btn && btn.nextElementSibling;
+        if (!input || input.type !== 'file') return null;
+        const dt = new DataTransfer(); dt.items.add(new File([text], 'backup.json', { type: 'application/json' }));
+        input.files = dt.files; input.dispatchEvent(new Event('change'));
+        await w(400);
+        const box = document.querySelector('[data-clear-confirm]');
+        const t = box ? box.textContent : null;
+        closeDrawer({ restore: false }); await w(350);
+        return t;
+      };
+      const drawerText = async (doc) => {
+        openRestoreDrawer(); await w(200);
+        const ta = drawerBody.querySelector('textarea');
+        const go = [...drawerBody.querySelectorAll('button')].find(b => b.textContent.trim() === 'Check this file');
+        if (!ta || !go) return null;
+        ta.value = JSON.stringify(doc); go.click(); await w(200);
+        const t = drawerBody.textContent;
+        closeDrawer({ restore: false }); await w(350);
+        return t;
+      };
+      try {
+        /* ---- the property ---- */
+        newPropertyDeal({ show: false });
+        Object.assign(State.deal, EDITED);
+        State.deal.touched = { ...(State.deal.touched || {}), ...Object.fromEntries(Object.keys(EDITED).map(k => [k, true])) };
+        State.deal.evidence = { ...State.deal.evidence, ...EVID };
+        saveDeal();
+        const rec0 = saveActiveProperty({ name: NAME });
+        if (!rec0) throw new Error('the test property was not saved');
+        const id = rec0.id;
+        const base0 = pmFind(id);
+        const sc = pmAddScenario(id, pmDiff(pmMerge(pmInputsOf(base0), SC_OV), pmInputsOf(base0)), SCNAME);
+        if (!sc) throw new Error('the scenario was not saved');
+        SCID = sc.id;
+        actualsWrite(id, { start: '2026-01', entries: [ACT] });
+        openPropertyModel(id, { show: false });
+        const recBefore = pmCanon(pmFind(id)), actBefore = pmCanon(actualsAll()[id] || null), figBefore = figures(pmFind(id));
+        const nBefore = loadWork().length;
+        out.fig = { n: Object.keys(JSON.parse(figBefore.base)).length, differ: figBefore.base !== figBefore.sc, scOv: pmCanon(pmScenario(pmFind(id), SCID).overrides) };
+
+        /* ---- 1. what each file holds ---- */
+        const backupText = JSON.stringify(backupPayload());
+        const bDoc = JSON.parse(backupText);
+        const eDoc = JSON.parse(JSON.stringify(exportEverything()));
+        const holds = (data) => {
+          const rec = (data.savedWork || []).find(x => x.id === id), a = data.propertyActuals && data.propertyActuals[id];
+          const d = rec && rec.payload && rec.payload.deal, s = rec && (rec.scenarios || []).find(x => x.id === SCID);
+          return { name: !!rec && rec.name === NAME,
+            inputs: Object.keys(EDITED).filter(k => !(d && d[k] === EDITED[k] && d.touched && d.touched[k] === true)),
+            scenario: !!s && s.name === SCNAME && pmCanon(s.overrides) === pmCanon(SC_OV),
+            evidence: Object.keys(EVID).filter(k => !(d && d.evidence && d.evidence[k] === EVID[k])),
+            actual: !!a && a.start === '2026-01' && a.entries.length === 1 && pmCanon(a.entries[0]) === pmCanon(ACT),
+            once: (data.savedWork || []).filter(x => x.id === id).length === 1 };
+        };
+        out.holds = { backup: holds(bDoc.data), everything: holds(eDoc.data) };
+        out.kinds = { backup: Object.keys(bDoc.data).length, everything: Object.keys(eDoc.data).length,
+          backupOnly: Object.keys(bDoc.data).filter(k => !(k in eDoc.data)), everythingOnly: Object.keys(eDoc.data).filter(k => !(k in bDoc.data)),
+          left: ['servedReads', 'lastExport'].filter(k => k in bDoc.data), format: [bDoc.format, eDoc.format] };
+
+        /* ---- 2. a faithful restore, each file by its own restore ---- */
+        const after = () => {
+          const rec = pmFind(id), list = loadWork();
+          const o = { n: list.length, once: list.filter(x => x.id === id).length, unique: new Set(list.map(x => x.id)).size === list.length,
+            scenarios: rec ? (rec.scenarios || []).filter(x => x.id === SCID).length : 0, scenariosAll: rec ? (rec.scenarios || []).length : 0,
+            actualEntries: actualsOf(id).entries.length, sameRecord: !!rec && pmCanon(rec) === recBefore, sameActual: pmCanon(actualsAll()[id] || null) === actBefore };
+          o.opened = openPropertyModel(id, { show: false });
+          const f = figures(pmFind(id));
+          o.differ = ['base', 'sc'].filter(k => f[k] !== figBefore[k]);
+          o.labels = [shownEvidence(State.deal, 'price'), shownEvidence(State.deal, 'rent'), State.deal.price, State.deal.reserveMonths];
+          return o;
+        };
+        clearProperty(id);
+        const gone1 = !pmFind(id) && actualsOf(id).entries.length === 0;
+        const res1 = restoreBackup(backupText);
+        out.back = { gone: gone1, ok: !!res1.ok, restored: res1.restored, ...after() };
+        clearProperty(id);
+        const gone2 = !pmFind(id) && actualsOf(id).entries.length === 0;
+        const imp = importEverything(eDoc);
+        const done2 = imp.ok ? imp.apply() : null;
+        out.every = { gone: gone2, ok: !!imp.ok, kinds: imp.incoming ? imp.incoming.length : 0, ...after() };
+        out.nBefore = nBefore;
+
+        /* ---- 3. an older file: shapes this app really wrote ---- */
+        /* A property as saveWork wrote it before the property model
+           (46c0e768, 30 Sep 2026): the snapshot's record, with no createdAt,
+           updatedAt or scenarios, which migratePropertyStore gives it on load. */
+        const cur = pmFind(id);
+        const oldRec = {}; ['id', 'kind', 'name', 'savedAt', 'modelVersion', 'asOf', 'editor', 'stamp', 'payload'].forEach(k => { oldRec[k] = JSON.parse(JSON.stringify(cur[k])); });
+        out.oldRecKeys = Object.keys(oldRec).length;
+        const listWith = (rec) => [...loadWork().filter(x => x.id !== id), rec];
+        const old = {};
+        const afterOld = () => {
+          migratePropertyStore();
+          const rec = pmFind(id), list = loadWork();
+          const o = { once: list.filter(x => x.id === id).length, listed: list.length, hasRec: !!rec, createdAt: !!(rec && rec.createdAt), scenarios: rec && Array.isArray(rec.scenarios) ? rec.scenarios.length : null,
+            actualEntries: actualsOf(id).entries.length, sameActual: pmCanon(actualsAll()[id] || null) === actBefore };
+          o.opened = rec ? openPropertyModel(id, { show: false }) : false;
+          o.differ = rec ? (figures({ ...pmFind(id), scenarios: [] }).base !== figBefore.base ? ['base'] : []) : ['base'];
+          return o;
+        };
+        /* A: a backup written before the record grew, and before propertyActuals existed. */
+        const aDoc = JSON.parse(backupText); aDoc.data.savedWork = listWith(oldRec); delete aDoc.data.propertyActuals; aDoc.keys = Object.keys(aDoc.data).length;
+        clearProperty(id, { actuals: false });
+        old.backupText = await dialogText(JSON.stringify(aDoc));
+        const resA = restoreBackup(JSON.stringify(aDoc));
+        old.backup = { ok: !!resA.ok, ...afterOld() };
+        /* B: an "Export everything" file as the first build wrote it (cf3f618b^): sixteen kinds, no
+           dataVersions, no saved work. */
+        const OLD16 = ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections', 'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData'];
+        const bDocOld = { format: eDoc.format, version: eDoc.version, exportedAt: eDoc.exportedAt, model: eDoc.model, data: {} };
+        OLD16.forEach(k => { if (k in eDoc.data) bDocOld.data[k] = eDoc.data[k]; });
+        const impB = importEverything(JSON.parse(JSON.stringify(bDocOld)));
+        old.everyDrawerB = await drawerText(bDocOld);
+        impB.apply();
+        old.everyB = { ok: !!impB.ok, kinds: impB.incoming ? impB.incoming.length : 0, missing: impB.missing || [], ...afterOld() };
+        /* C: one written after saved work joined it (0caa1e75^): thirty kinds, dataVersions, the old record, no propertyActuals. */
+        const cDoc = JSON.parse(JSON.stringify(eDoc)); cDoc.data.savedWork = listWith(oldRec); delete cDoc.data.propertyActuals;
+        clearProperty(id, { actuals: false });
+        const impC = importEverything(cDoc);
+        old.everyDrawerC = await drawerText(cDoc);
+        impC.apply();
+        old.everyC = { ok: !!impC.ok, kinds: impC.incoming ? impC.incoming.length : 0, missing: impC.missing || [], ...afterOld() };
+        out.old = old;
+        out.labelsOf = { actuals: PORTABLE_KEYS.find(x => x.k === 'propertyActuals').label, work: PORTABLE_KEYS.find(x => x.k === 'savedWork').label };
+
+        /* ---- 5. conflicting records ---- */
+        const conflict = async (kind) => {
+          restoreBackup(backupText); migratePropertyStore(); openPropertyModel(id, { show: false });
+          State.deal.price = 500000; saveDeal(); const p1 = saveActiveProperty();
+          newPropertyDeal({ show: false });
+          Object.assign(State.deal, { price: 350000, rent: 1800 }); State.deal.touched = { ...State.deal.touched, price: true, rent: true }; saveDeal();
+          const p2 = saveActiveProperty({ name: NAME2 });
+          if (p2) actualsWrite(p2.id, { start: '2026-02', entries: [{ kind: 'month', period: '2026-02', months: 1, rent: 1800 }] });
+          const o = { p1Saved: !!p1 && pmFind(id).payload.deal.price === 500000, p2Saved: !!p2 && !!pmFind(p2.id), p2Actual: !!p2 && actualsOf(p2.id).entries.length === 1 };
+          o.words = kind === 'backup' ? await dialogText(backupText) : await drawerText(eDoc);
+          if (kind === 'backup') { const x = restoreBackup(backupText); o.ok = !!x.ok; }
+          else { const x = importEverything(eDoc); o.ok = !!x.ok; x.apply(); }
+          const list = loadWork(), rec = pmFind(id);
+          o.p1Price = rec ? rec.payload.deal.price : null; o.p1Once = list.filter(x => x.id === id).length;
+          o.p2Left = p2 ? list.filter(x => x.id === p2.id).length : -1; o.p2Named = list.filter(x => x.name === NAME2).length;
+          o.p2ActualLeft = p2 ? actualsOf(p2.id).entries.length : -1;
+          o.sameList = JSON.stringify(list.map(x => x.id)) === JSON.stringify((kind === 'backup' ? bDoc : eDoc).data.savedWork.map(x => x.id));
+          o.sameRecord = !!rec && pmCanon(rec) === recBefore;
+          return o;
+        };
+        out.conflict = { backup: await conflict('backup'), everything: await conflict('everything') };
+
+        /* ---- 4. storage refusing the third write ---- */
+        const refuse = (fn) => { let n = 0; Storage.prototype.setItem = function (k, v) { if (String(k).startsWith('vl.') && ++n === 3) throw new DOMException('quota', 'QuotaExceededError'); return realSet.call(this, k, v); }; try { return fn(); } finally { Storage.prototype.setItem = realSet; out.writes = n; } };
+        const differing = (keys, n = 2) => keys.slice(0, n).forEach(k => localStorage.setItem('vl.' + k, JSON.stringify({ modelTestDiffers: k })));
+        const writable = (data) => Object.keys(data).filter(k => data[k] === null || !storedShapeFault(k, data[k]));
+        restoreBackup(backupText);
+        differing(writable(bDoc.data));
+        const S1 = snapAll();
+        let resF = null, threwF = null;
+        try { resF = refuse(() => restoreBackup(backupText)); } catch (e) { threwF = String(e && e.message || e); }
+        out.failBackup = { ok: resF && resF.ok, error: resF && resF.error || '', restored: resF && resF.restored, threw: threwF, writes: out.writes, same: sameSnap(S1, snapAll()), changed: diffKeys(S1, snapAll()), differedFirstTwo: writable(bDoc.data).slice(0, 2).length };
+        putBack(S1);
+        const impF = importEverything(eDoc);
+        differing(impF.incoming, 3);
+        const S2 = snapAll();
+        let applied = null, threwE = null;
+        try { applied = refuse(() => impF.apply()); } catch (e) { threwE = String(e && e.message || e); }
+        out.failEvery = { threw: threwE, ok: applied ? applied.ok : null, error: applied && applied.error || '', writes: out.writes, same: sameSnap(S2, snapAll()), changed: diffKeys(S2, snapAll()), kinds: impF.incoming.length };
+        /* The restore drawer: the same refusal through its own Restore button. The reason is said in the drawer, the drawer stays open and the page is not reloaded (a marker on window survives). */
+        putBack(S2);
+        const S3 = snapAll();
+        window.__t4mark = 1;
+        const onHide = () => { try { sessionStorage.setItem('__t4reload', '1'); putBack(S0); } catch { /* nothing to do */ } };
+        window.addEventListener('pagehide', onHide);
+        const realConfirm = window.confirm; window.confirm = () => true;
+        openRestoreDrawer(); await w(200);
+        const ta2 = drawerBody.querySelector('textarea'), go2 = [...drawerBody.querySelectorAll('button')].find(b => b.textContent.trim() === 'Check this file');
+        if (ta2 && go2) { ta2.value = JSON.stringify(eDoc); go2.click(); await w(250); }
+        const rb = [...drawerBody.querySelectorAll('button')].find(b => /^Restore [0-9]+ item/.test(b.textContent.trim()));
+        if (rb) refuse(() => rb.click());
+        window.confirm = realConfirm;
+        await w(1200);
+        window.removeEventListener('pagehide', onHide);
+        const said = drawerBody.querySelector('[data-restore-refused]');
+        out.drawerFail = { found: !!rb, marker: window.__t4mark === 1, said: said ? said.textContent : null, open: !drawer.hidden, same: sameSnap(S3, snapAll()), changed: diffKeys(S3, snapAll()) };
+        delete window.__t4mark;
+        closeDrawer({ restore: false }); await w(350);
+      } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
+      finally { Storage.prototype.setItem = realSet; }
+      navigate('/property/calculator?view=full'); await w(500);
+      State.deal = JSON.parse(keepDeal); saveDeal(); putBack(S0);
+      out.cleaned = sameSnap(snapAll(), S0);
+      out.differ = diffKeys(snapAll(), S0);
+      return JSON.stringify(out); })()`)); } catch (e) { reloadedOver = String(e && e.message || e); }
+    if (reloadedOver) {
+      /* The drawer reloaded the page over a refused restore: the page's pagehide handler (below) put the browser's own keys back and left a mark. */
+      let mark = null;
+      for (let i = 0; i < 80 && mark === null; i++) { await sleep(250); try { mark = await evaluate(`sessionStorage.getItem('__t4reload') || ''`); } catch { /* still loading */ } }
+      try { await evaluate(`sessionStorage.removeItem('__t4reload'); true`); } catch { /* ignored */ }
+      fail('qt-day8: a refused "Export everything" restore leaves the browser as it was', [`the restore drawer reloaded the page over a refused restore (the browser answered: ${reloadedOver}; mark ${mark === '1' ? 'seen' : 'not seen'})`]);
+    } else {
+    const p = [...r.problems];
+    const SC = 'Model-test scenario — rent 3,100';
+    /* 1 */
+    for (const [file, h] of Object.entries(r.holds || {})) {
+      if (!h.name) p.push(`${file}: the property's name is not in the file`);
+      if (h.inputs.length) p.push(`${file}: edited inputs missing or not marked as entered: ${h.inputs.join(', ')}`);
+      if (!h.scenario) p.push(`${file}: the scenario "${SC}" with its changed figures is not in the file`);
+      if (h.evidence.length) p.push(`${file}: evidence marks missing: ${h.evidence.join(', ')}`);
+      if (!h.actual) p.push(`${file}: the recorded actual (January 2026, rent 2,550) is not in the file`);
+      if (!h.once) p.push(`${file}: the property is in the file ${h.once === false ? 'not once' : '?'}`);
+    }
+    if (!r.fig || r.fig.n < 20 || !r.fig.differ) p.push(`the test property's scenario does not change the model: ${JSON.stringify(r.fig)}`);
+    if (r.kinds && (r.kinds.format[0] !== 'quantum-tradeworks-backup' || r.kinds.format[1] !== 'quantum-tradeworks/user-data')) p.push(`the files' formats: ${JSON.stringify(r.kinds.format)}`);
+    if (r.kinds && r.kinds.left.length) p.push(`the backup carries what the page makes again itself: ${r.kinds.left.join(', ')}`);
+    /* 2 */
+    for (const [file, x] of [['backup', r.back], ['Export everything', r.every]]) {
+      if (!x) { p.push(`${file}: no restore result`); continue; }
+      if (!x.gone) p.push(`${file}: the property was not cleared before the restore`);
+      if (!x.ok) p.push(`${file}: the restore was refused`);
+      if (x.once !== 1 || !x.unique || x.n !== r.nBefore) p.push(`${file}: the property is in saved work ${x.once} times, ${x.n} records listed (${r.nBefore} before), unique ${x.unique}`);
+      if (x.scenarios !== 1 || x.scenariosAll !== 1) p.push(`${file}: the scenario is there ${x.scenarios} time(s) of ${x.scenariosAll}`);
+      if (x.actualEntries !== 1 || !x.sameActual) p.push(`${file}: the actual comes back ${x.actualEntries} time(s), same: ${x.sameActual}`);
+      if (!x.sameRecord) p.push(`${file}: the saved record is not the one that was saved, field for field`);
+      if (!x.opened || x.differ.length) p.push(`${file}: reopened, the figures differ in ${x.differ.join(', ') || 'nothing — but it did not open'}`);
+      if (x.labels[0] !== 'verified' || x.labels[1] !== 'developer' || x.labels[2] !== 480000 || x.labels[3] !== 6) p.push(`${file}: reopened, price/rent labels and price/reserve read ${JSON.stringify(x.labels)}`);
+    }
+    /* 3 */
+    const o = r.old || {};
+    for (const [what, x] of [['an older backup (the record before createdAt, updatedAt and scenarios; no propertyActuals)', o.backup], ['Export everything from the first build (16 kinds, no saved work)', o.everyB], ['Export everything with the older record and no propertyActuals', o.everyC]]) {
+      if (!x) { p.push(`${what}: no result`); continue; }
+      if (!x.ok) p.push(`${what}: refused`);
+      if (x.once !== 1 || !x.hasRec) p.push(`${what}: the property is in saved work ${x.once} times`);
+      if (!x.createdAt || x.scenarios === null) p.push(`${what}: the record was not given its createdAt and scenarios on load (${x.createdAt}, ${x.scenarios})`);
+      if (!x.opened || x.differ.length) p.push(`${what}: the property does not open with its figures (${x.differ.join(', ') || 'not opened'})`);
+      if (x.actualEntries !== 1 || !x.sameActual) p.push(`${what}: the actual, not in the file, was not kept as it was (${x.actualEntries} entries)`);
+    }
+    if (o.everyB && !(o.everyB.missing.includes('savedWork') && o.everyB.missing.includes('propertyActuals'))) p.push(`the first-build file's missing kinds do not include saved work and the actuals: ${(o.everyB.missing || []).join(', ')}`);
+    if (o.everyC && !o.everyC.missing.includes('propertyActuals')) p.push(`the older file's missing kinds do not include the actuals: ${(o.everyC.missing || []).join(', ')}`);
+    const L = r.labelsOf || {};
+    if (!/Not in this backup, so kept as this browser holds them:[^]*Actual rent, vacancy and costs you recorded/.test(o.backupText || '')) p.push(`the older backup's confirmation does not name the actuals it keeps as they are: ${String(o.backupText).slice(0, 300)}`);
+    for (const [k, t, need] of [['first-build file', o.everyDrawerB, [L.work, L.actuals]], ['older file', o.everyDrawerC, [L.actuals]]]) {
+      const m = (t || '').match(/Not in this file, so kept as this browser holds them:[^.]*\./);
+      if (!m || need.some(x => !m[0].includes(x))) p.push(`the ${k}'s restore report does not name ${need.join(' and ')} as kept: ${m ? m[0] : String(t).slice(0, 200)}`);
+    }
+    /* 5 */
+    for (const [file, x] of [['backup', r.conflict && r.conflict.backup], ['Export everything', r.conflict && r.conflict.everything]]) {
+      if (!x) { p.push(`${file}: no conflict result`); continue; }
+      if (!x.p1Saved || !x.p2Saved || !x.p2Actual) p.push(`${file}: the conflict was not set up: ${JSON.stringify([x.p1Saved, x.p2Saved, x.p2Actual])}`);
+      if (!x.ok) p.push(`${file}: the restore was refused`);
+      if (x.p1Price !== 480000 || x.p1Once !== 1 || !x.sameRecord) p.push(`${file}: after the restore P1 is at ${x.p1Price}, in the list ${x.p1Once} time(s), same record ${x.sameRecord} — the backup says 480,000, once`);
+      if (x.p2Left !== 0 || x.p2Named !== 0 || x.p2ActualLeft !== 0) p.push(`${file}: P2, saved after the backup, is ${x.p2Left} in the list, ${x.p2Named} by name, ${x.p2ActualLeft} actual(s) — the page says the saved work is replaced, so it should be gone`);
+      if (!x.sameList) p.push(`${file}: the saved-work list is not the file's`);
+    }
+    const bw = r.conflict && r.conflict.backup && r.conflict.backup.words, ew = r.conflict && r.conflict.everything && r.conflict.everything.words;
+    if (!/replaces what this browser holds now[^]*under the same names/.test(bw || '')) p.push(`the backup's confirmation does not say it "replaces what this browser holds now … under the same names": ${String(bw).slice(0, 300)}`);
+    if (!/Saved work — REPLACES what is here now/.test(ew || '')) p.push(`Export everything's restore report does not say saved work is replaced: ${String(ew).slice(0, 300)}`);
+    /* 4 */
+    const fb = r.failBackup, fe = r.failEvery;
+    if (!fb || fb.threw || fb.ok !== false || !fb.error || fb.restored !== 0) p.push(`backup, the third write refused: ${JSON.stringify(fb)}`);
+    else if (!fb.same) p.push(`backup, the third write refused: the restore was refused ("${String(fb.error).slice(0, 60)}…") but these keys are not as they were: ${fb.changed.join(', ')}`);
+    if (!fb || fb.writes < 3) p.push(`backup, the third write was never reached (${fb && fb.writes} writes)`);
+    if (!fe || fe.threw || fe.ok !== false || !/^Not restored — this browser refused part of the file/.test(fe.error)) p.push(`Export everything, the third write refused: apply returned ${JSON.stringify(fe)}, not a refusal with a reason`);
+    else if (!fe.same) p.push(`Export everything, the third write refused: the restore was refused ("${String(fe.error).slice(0, 50)}…") but these keys are not as they were: ${fe.changed.join(', ')}`);
+    const dr = r.drawerFail;
+    if (!dr || !dr.found) p.push('the restore drawer offered no Restore button for the file');
+    else {
+      if (!dr.said || !/refused part of the file/.test(dr.said)) p.push(`the restore drawer, the third write refused, shows no reason: ${JSON.stringify(dr.said)}`);
+      if (!dr.marker) p.push('the restore drawer reloaded the page over a refused restore');
+      if (!dr.open) p.push('the restore drawer closed over a refused restore');
+      if (!dr.same) p.push(`the restore drawer, the third write refused, left these keys changed: ${dr.changed.join(', ')}`);
+    }
+    if (!fe || fe.writes < 3) p.push(`Export everything, the third write was never reached (${fe && fe.writes} writes)`);
+    if (!r.cleaned) p.push(`the browser's own work was not put back; changed: ${(r.differ || []).join(', ')}`);
+    if (p.length) fail('qt-day8: a backup and an "Export everything" file each hold the property, its scenario, evidence and actual; restore them whole, older files too; a refused write and a conflict leave what the page says', p);
+    else {
+      const h = r.holds.backup, k = r.kinds;
+      ok(`qt-day8: a test property — six edited inputs (price 480,000, rent 2,600, renovation 30,000, 6-month reserve, vacancy 12%, management 8%), evidence marks on price, rent and vacancy, one scenario (rent 3,100, vacancy 5%) and one actual (rent 2,550 for January 2026) — is in both files: the backup (${k.backup} kinds) and Export everything (${k.everything} kinds) each carry the name, all six inputs, the scenario with its figures, the evidence marks and the actual, through saved work and the recorded actuals; the backup alone also carries ${k.backupOnly.length} kind(s) Export everything does not (${k.backupOnly.join(', ')}; the fingerprint and last-export time are left out of it); each restores through its own restore, every field once, and reopened the base and the scenario give the same ${r.fig.n} model figures; a backup from before the record grew, and two Export everything files an earlier build wrote, restore and open with their figures, the page naming what it keeps as it is (the actuals, and saved work for the first build's file); with the third write refused the backup says why and every key is as it was; a backup taken at 480,000 restores P1 at 480,000, once, and removes P2 saved after it (the saved-work list and the recorded actuals are replaced whole, as the page says: "replaces what this browser holds now … under the same names"). Export everything's restore, with the third write refused, is refused with a reason ("${String(r.failEvery.error).slice(0, 50)}…") and every key is as it was, and so through the restore drawer, which shows the reason, stays open and does not reload`);
+    }
+    }
   }
   /* ---- end qt-day1 ---- */
   /* ---- eq-comparability ---- */
@@ -9317,6 +10328,420 @@ try {
   }
   /* ---- end eq-comparability ---- */
 
+  /* ---- qt-day8-cases ---- */
+  /* INDEPENDENT EXPECTED FIGURES (the Day-8 report, item 3, 21 Oct 2026:
+     "add independent expected cases for zero-interest loan, no loan,
+     vacancy changes, management/repair fee bases, and upfront
+     cash/reserve; then test supported exit/tax/IRR scenarios separately;
+     do not infer accuracy from UI consistency"). The page gives
+     dealModel's results for synthetic deals and nothing else. Every
+     expected figure is worked here, in Node, from the deal's inputs and
+     the rules written out below, never through the app's own helpers: a
+     figure that agrees with the rest of the page but not with its rule
+     fails. Money agrees to the sen where the model rounds to the sen (the
+     fee lines and their service tax; the reserve, to the ringgit) and to
+     ±RM0.01 otherwise; a rate of return to ±0.0001 percentage points.
+
+     THE DEAL, B. Every input that moves a figure here is set, so a change
+     to the sample deal moves no case: a residential condominium bought on
+     the subsale route, sold later by a citizen; price RM410,000, no bank
+     valuation; 10% down, a RM369,000 loan at 4.2% a year over 35 years;
+     renovation RM18,000, none of it recovered at the sale; rent RM1,900 a
+     month, 2.5% a year more from year 2, 9% vacancy; service charge RM310
+     and sinking fund RM31 a month, assessment RM620, quit rent RM160 and
+     insurance RM380 a year; self-managed (no management, placement or
+     minimum fee); repair reserve 5%; a 3-month reserve; held 10 years at
+     3% a year capital growth, 6 months to sell, agent 2%, legal 0.5% (at
+     least RM500); no tax rate; no booking deposit, mortgage protection or
+     charges passed on; 6% the return the capital could earn elsewhere.
+
+     THE RULES, as the model states them (the calculation check pack's
+     assumptions 1–23), written out here:
+     - The loan is the lower of the price and the valuation × (100 −
+       deposit %). A level instalment, L × i ÷ (1 − (1 + i)^−n), i the rate
+       ÷ 12 and n the tenure × 12; at 0%, L ÷ n. The balance is the
+       schedule run month by month (balance × (1 + i) − instalment) and a
+       year's interest the sum of its months' balance × i, not the model's
+       closed forms.
+     - Running costs: the fixed outgoings (service charge and sinking fund
+       × 12, assessment, quit rent, insurance), and the management fee and
+       the repair reserve, each a share of the rent collected after
+       vacancy. Year y's costs are year 1's × 1.02^(y − 1), a rate in the
+       code (the pack's open question C); its rent collected the rent × 12
+       × (1 + growth)^(y − 1) × (1 − vacancy).
+     - The fees, each to the sen: the transfer duty on the price rounded up
+       to RM100, 1% of the first RM100,000, 2% to RM500,000, 3% to RM1m, 4%
+       above; Sarawak's advocates' scale, 2.5% of the first RM10,000, 1% of
+       the next 40,000, 0.9% of 50,000, 0.8% of 200,000, 0.7% of 400,000,
+       0.6% of 500,000, 0.55% of 1m, 0.5% of 3m and 0.45% above, at least
+       RM500: on the price for the purchase, and on the loan × 1.25 for the
+       loan (rule 7); the loan agreement's duty RM5 a RM1,000 or part; the
+       charge's stamp a fifth of it, at most RM10; registration RM10 an
+       instrument (the transfer, and the charge with a loan); with a loan
+       only, the valuation fee, 0.25% of the first RM100,000 of the price
+       and 0.2% of the next RM1.9m, at least RM400; service tax 8% on the
+       two legal fees, and on the valuation fee; the searches RM1,170 and
+       the utility deposits RM1,500 (the rulebook's estimates). No case's
+       loan meets a half-sen tie in the × 1.25.
+     - The reserve: its months (3 unless entered, 1 to 24) × the larger of
+       the instalment plus the outgoings that do not move with rent, and
+       the shortfall in a month with the rent coming in; to the ringgit.
+     - The cash required: the deposit on the lender's basis, any valuation
+       gap, every fee line, the renovation, the utility deposits and the
+       reserve. A booking deposit already paid splits it and adds nothing.
+     - The sale in year N: the price × (1 + growth)^N; the agent and the
+       legal costs shares of it, the legal at least RM500; the instalments
+       of the months spent selling and that many months of year N's costs
+       carried; the loan settled at its balance after those instalments;
+       gains tax. Net proceeds: the value less all of them.
+     - Gains tax: the value less the price, the transfer duty and the
+       purchase legal fee, the agent and the legal, and the renovation;
+       less, for a citizen, the greater of RM10,000 and 10% of the gain; at
+       30% in years 1 to 3, 20% in year 4, 15% in year 5 and nil after (a
+       company: 10% after, no relief; a non-citizen: 30% to year 5, 10%
+       after, no relief). Nothing on a loss. The sale is taken in year N,
+       at the end of the hold, not when it completes months later.
+     - Tax on the rent, where a rate is entered: the rent collected less
+       the year's running costs and interest (not the principal), at the
+       rate; a loss pays none and is not carried forward.
+     - The rate of return: the cash required out at 0, each year's cash
+       flow after tax at its end, and the net proceeds and the reserve back
+       with year N's; solved by bisection on the NPV.
+
+     1 — ZERO INTEREST. B at 0%: RM369,000 ÷ 420 = RM878.57 a month; no
+         interest in any year; RM258,300 owed at the sale (after 126
+         instalments); the reserve, the cash required, the net proceeds
+         and the rate of return all finite and as worked.
+     2 — NO LOAN. B at 100% down: no instalment, and the loan agreement's
+         duty, the charge's stamp, the loan legal fee, the valuation fee
+         and the tax on it each nought; one instrument registered; service
+         tax on the purchase legal fee alone; nothing owed at the sale.
+     3 — VACANCY at 0%, 9% and 25%, on B managed at 10% with no minimum
+         and no placement fee: the rent collected, the fee, the repair
+         reserve, the running costs, the NOI and the monthly position at
+         each; year 2's rent collected; the stress rows at 15, 25 and 40%.
+     4 — THE BASES at 25%: the fee 10% and the reserve 5% of the RM17,100
+         collected, RM1,710 and RM855 — not of the RM22,800 let (RM2,280
+         and RM1,140).
+     5 — UPFRONT CASH AND THE RESERVE. B with a 6-month reserve and
+         RM5,000 already paid; B with a RM400,000 valuation: every line of
+         the cash required and no other, the two burns, the reserve, the
+         totals and what is still to pay at completion.
+     6 — EXIT, TAX AND THE RATE OF RETURN, each on its own. X is B with 40%
+         down, held 5 years, legal 0.1% of the sale and a 24% tax rate:
+         6a the sale in year 5 (legal at its RM500 minimum) by a citizen, a
+         company and a non-citizen, and at no growth; in year 10 (0.1% is
+         above RM500; nil gains tax); and in each year 1 to 5 (30, 30, 30,
+         20, 15%). 6b each year's tax on the rent, on X and on B at 24%
+         (its first two years a loss). 6c the rate of return of X's hold,
+         of a sale in each year 1 to 5 and in year 10, and of B at 24%; and
+         X's NPV at 6%.
+     Not here (the report names them): a managed deal with a placement fee
+     or a minimum fee, the auction route, the break-evens. */
+  {
+    const D8 = 'qt-day8-cases';
+    const B = { propertyType: 'Condominium', propertyClassOverride: null, route: 'subsale', disposerCategory: 'citizen',
+      price: 410000, bankValuation: 0, valuationRule: 'lower_of', downPct: 10, ratePct: 4.2, tenureYears: 35,
+      renovation: 18000, renoValueRecoveryPct: 0, renoRentUpliftPct: 0, mrtaPremium: null, mortgageProtection: null,
+      chargesToBuyer: 0, bookingDepositPaid: 0, reserveMonths: 3,
+      rent: 1900, rentGrowthPct: 2.5, vacancyPct: 9, maintenance: 310, sinkingFund: 31, assessment: 620, quitRent: 160, insurance: 380,
+      selfManaged: true, mgmtPct: 0, mgmtMinMonthly: 0, leasingFeeMonths: 0, renewalFeeMonths: 0, tenancyMonths: 12, repairReservePct: 5,
+      holdYears: 10, apprecPct: 3, sellMonths: 6, agentPct: 2, exitLegalPct: 0.5, equityReturnPct: 6, marginalTaxPct: null };
+    const MANAGED = { selfManaged: false, mgmtPct: 10 };
+    const X = { downPct: 40, holdYears: 5, exitLegalPct: 0.1, marginalTaxPct: 24 };
+    const CASES = {
+      zero: { ...B, ratePct: 0 },
+      cash: { ...B, downPct: 100 },
+      v0: { ...B, ...MANAGED, vacancyPct: 0 }, v9: { ...B, ...MANAGED, vacancyPct: 9 }, v25: { ...B, ...MANAGED, vacancyPct: 25 },
+      upfront: { ...B, reserveMonths: 6, bookingDepositPaid: 5000 },
+      lowVal: { ...B, bankValuation: 400000 },
+      x: { ...B, ...X }, xCo: { ...B, ...X, disposerCategory: 'company' }, xNc: { ...B, ...X, disposerCategory: 'foreign' }, xFlat: { ...B, ...X, apprecPct: 0 },
+      taxB: { ...B, marginalTaxPct: 24 },
+    };
+
+    /* THE PAGE: dealModel's results for each deal, and nothing worked. */
+    let got = null;
+    try {
+      got = JSON.parse(await evaluate(`(() => {
+        const CASES = ${JSON.stringify(CASES)};
+        const sale = (e) => ({ value: e.value, owed: e.outstanding, agent: e.agentFee, legal: e.exitLegal, carry: e.carry, rate: e.rpgtPct, rpgt: e.rpgt, net: e.net, irr: e.irrPct });
+        const out = {};
+        for (const [k, c] of Object.entries(CASES)) {
+          const m = dealModel({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, ...c });
+          out[k] = { loan: m.loan, deposit: m.deposit, gap: m.valuationGapCash, inst: m.instalment, ads: m.annualDebtService, zeroRate: m.zeroRateModelled,
+            ledger: m.costGroups.flatMap(g => g.items.map(it => [g.id + '/' + (g.id === 'reserve' ? 'reserve' : (it[2] && it[2].id) || it[0]), it[1]])),
+            transaction: m.transactionCash, improvement: m.improvementCash, reserveCash: m.reserveCash, cash: m.safeCashRequired,
+            paid: m.cashAlreadyPaid, still: m.cashStillRequiredToComplete,
+            reserveMonths: m.reserveMonths, burnNoRent: m.burnWithoutRent, burnWithRent: m.burnWithRent,
+            gross: m.grossAnnualRent, eff: m.effectiveRent, mgmt: m.mgmtY, repair: m.repairY, opex: m.opex, noi: m.noi, monthly: m.cashflowMonthly,
+            stressVacancy: m.stress.vacancy.map(s => [s.vacancyPct, s.monthly]),
+            path: m.path.map(p => ({ rent: p.rent, opex: p.opex, debt: p.debt, interest: p.interest, balance: p.balance, taxable: p.taxable, tax: p.tax, cf: p.cf })),
+            taxComputed: m.taxComputed, cumTax: m.cumTax,
+            sale: { value: m.exitValue, owed: m.outstanding, agent: m.agentFee, legal: m.exitLegal, carry: m.carryWhileSelling, rate: m.rpgtPct,
+                    gain: m.gain, relief: m.rpgtResult.relief, rpgt: m.rpgt, net: m.netExitProceeds },
+            exits: m.exits.map(sale), hold: m.holdVsSell.map(sale), irr: m.irrPct, npv: m.npvAtHurdle };
+        }
+        return JSON.stringify(out);
+      })()`));
+    } catch (e) { fail(`${D8}: dealModel could not be run on the cases`, String(e.message).split('\n')[0]); }
+
+    /* NODE: the expected figures, from the rules above. A scale is a list
+       of [slice, rate in basis points]; worked in hundredths of a sen,
+       exact in integers on a whole-ringgit base, then rounded to the sen. */
+    const ADVOCATES = [[10000, 250], [40000, 100], [50000, 90], [200000, 80], [400000, 70], [500000, 60], [1000000, 55], [3000000, 50], [5000000, 45], [Infinity, 45]];
+    const TRANSFER = [[100000, 100], [400000, 200], [500000, 300], [Infinity, 400]];
+    const VALUER = [[100000, 25], [1900000, 20]];
+    /* Gains tax by year of disposal: years 1, 2, 3, 4, 5, and 6 on. */
+    const RPGT = { citizen: [30, 30, 30, 20, 15, 0], company: [30, 30, 30, 20, 15, 10], foreign: [30, 30, 30, 30, 30, 10] };
+    const scaleSen = (base, tiers, unit = 1) => {
+      let left = Math.ceil(base / unit) * unit, h = 0;
+      for (const [size, bp] of tiers) { const s = Math.min(left, size); h += s * bp; left -= s; if (left <= 0) break; }
+      if (left > 0 || !Number.isInteger(h)) throw new Error(`the test's scale is not worked for a base of ${base}`);
+      return Math.round(h / 100);
+    };
+    const work = (d) => {
+      if (!d.selfManaged && (d.mgmtMinMonthly || d.leasingFeeMonths)) throw new Error('a minimum or a placement fee is not worked here');
+      const e = {};
+      const basis = d.bankValuation > 0 ? Math.min(d.price, d.bankValuation) : d.price;
+      const loan = basis * (100 - d.downPct) / 100;
+      Object.assign(e, { loan, deposit: basis - loan, gap: d.price - basis });
+      const n = d.tenureYears * 12, i = d.ratePct / 100 / 12;
+      e.inst = !(loan > 0) ? 0 : i === 0 ? loan / n : loan * i / (1 - Math.pow(1 + i, -n));
+      /* The schedule, month by month: the balance after k instalments, and month k's interest. */
+      const bal = [loan], monthInt = [0];
+      for (let k = 1; k <= n; k++) { monthInt.push(bal[k - 1] * i); bal.push(Math.max(0, bal[k - 1] * (1 + i) - e.inst)); }
+      const owedAfter = (k) => bal[Math.min(k, n)];
+      /* The ledger, in sen. */
+      const dutySen = scaleSen(d.price, TRANSFER, 100);
+      const purchaseSen = Math.max(scaleSen(d.price, ADVOCATES), 50000);
+      let loanLegalSen = 0;
+      if (loan > 0) {
+        const s = Math.max(scaleSen(loan, ADVOCATES), 50000);
+        if (s % 4 === 2) throw new Error(`the loan's legal fee meets a half-sen tie at a loan of ${loan}: choose another`);
+        loanLegalSen = Math.round(s * 1.25);
+      }
+      const loanDutySen = loan > 0 ? Math.ceil(loan / 1000) * 500 : 0;
+      const chargeSen = Math.min(loanDutySen / 5, 1000);
+      const valuerSen = loan > 0 ? Math.max(scaleSen(d.price, VALUER), 40000) : 0;
+      const legalTaxSen = Math.round((purchaseSen + loanLegalSen) * 8 / 100);
+      const valuerTaxSen = Math.round(valuerSen * 8 / 100);
+      e.duty = dutySen / 100; e.purchaseLegal = purchaseSen / 100;
+      /* Year 1. */
+      e.gross = d.rent * 12;
+      e.eff = e.gross * (1 - d.vacancyPct / 100);
+      e.fixed = d.maintenance * 12 + d.sinkingFund * 12 + d.assessment + d.quitRent + d.insurance;
+      e.mgmt = d.selfManaged ? 0 : e.eff * d.mgmtPct / 100;
+      e.repair = e.eff * d.repairReservePct / 100;
+      e.opex = e.fixed + e.mgmt + e.repair;
+      e.noi = e.eff - e.opex;
+      e.monthly = e.noi / 12 - e.inst;
+      /* The reserve. */
+      e.reserveMonths = Math.min(24, Math.max(1, d.reserveMonths || 3));
+      e.burnNoRent = e.inst + e.fixed / 12;
+      e.burnWithRent = Math.max(0, e.burnNoRent + (e.mgmt + e.repair) / 12 - e.eff / 12);
+      e.reserve = Math.round(e.reserveMonths * Math.max(e.burnNoRent, e.burnWithRent));
+      e.ledger = Object.fromEntries([
+        ['acquisition/Deposit', e.deposit], ...(e.gap > 0 ? [['acquisition/Valuation-gap cash', e.gap]] : []),
+        ['acquisition/transferStampDuty', dutySen / 100], ['acquisition/purchaseLegal', purchaseSen / 100], ['acquisition/registration', loan > 0 ? 20 : 10],
+        ['acquisition/disbursements', 1170], ['acquisition/professionalServiceTax', legalTaxSen / 100],
+        ['financing/loanStampDuty', loanDutySen / 100], ['financing/chargeStampDuty', chargeSen / 100], ['financing/loanLegal', loanLegalSen / 100],
+        ['financing/valuationFee', valuerSen / 100], ['financing/valuationServiceTax', valuerTaxSen / 100],
+        ['improvement/Renovation and furnishing', d.renovation], ['improvement/utilityDeposits', 1500], ['reserve/reserve', e.reserve]]);
+      const groupSum = (g) => Object.entries(e.ledger).filter(([k]) => k.startsWith(`${g}/`)).reduce((t, [, v]) => t + v, 0);
+      e.transaction = groupSum('acquisition') + groupSum('financing');
+      e.improvement = groupSum('improvement');
+      e.cash = e.transaction + e.improvement + e.reserve;
+      e.paid = Math.min(Math.max(d.bookingDepositPaid, 0), e.transaction);
+      e.still = e.transaction - e.paid;
+      /* Each year, to the hold or to year 10 if later. */
+      e.path = [];
+      for (let y = 1; y <= Math.max(d.holdYears, 10); y++) {
+        const rent = e.gross * Math.pow(1 + d.rentGrowthPct / 100, y - 1) * (1 - d.vacancyPct / 100);
+        const opex = e.opex * Math.pow(1.02, y - 1);
+        let debt = 0, interest = 0;
+        for (let k = 12 * (y - 1) + 1; k <= Math.min(12 * y, n); k++) { debt += e.inst; interest += monthInt[k]; }
+        const taxable = rent - opex - interest;
+        const tax = d.marginalTaxPct > 0 && taxable > 0 ? taxable * d.marginalTaxPct / 100 : 0;
+        e.path.push({ rent, opex, debt, interest, balance: owedAfter(12 * y), taxable, tax, cf: rent - opex - debt - tax });
+      }
+      /* A sale at the end of year N. */
+      e.sale = (N) => {
+        const value = d.price * Math.pow(1 + d.apprecPct / 100, N) + d.renovation * d.renoValueRecoveryPct / 100;
+        const agent = value * d.agentPct / 100, legal = Math.max(500, value * d.exitLegalPct / 100);
+        const paid = Math.min(d.sellMonths, Math.max(0, n - 12 * N));
+        const owed = owedAfter(12 * N + paid);
+        const carry = e.inst * paid + d.sellMonths * e.opex * Math.pow(1.02, N - 1) / 12;
+        const rate = RPGT[d.disposerCategory][Math.min(Math.max(1, Math.ceil(N)), 6) - 1];
+        const rawGain = value - d.price - (e.duty + e.purchaseLegal) - (agent + legal) - d.renovation;
+        const relief = rawGain > 0 && d.disposerCategory === 'citizen' ? Math.min(rawGain, Math.max(10000, rawGain * 0.1)) : 0;
+        const rpgt = rawGain > 0 ? (rawGain - relief) * rate / 100 : 0;
+        return { value, agent, legal, owed, carry, rate, gain: Math.max(0, rawGain), relief, rpgt, net: value - owed - agent - legal - rpgt - carry };
+      };
+      /* The flows of a sale in year N: the cash required out, each year's cash, the net proceeds and the reserve back. */
+      e.flows = (N) => { const s = e.sale(N); return [-e.cash, ...e.path.slice(0, N).map((p, k) => p.cf + (k === N - 1 ? s.net + e.reserve : 0))]; };
+      return e;
+    };
+    const npv = (r, f) => f.reduce((t, x, k) => t + x / Math.pow(1 + r, k), 0);
+    const bisect = (f) => {
+      let lo = -0.99, hi = 1;
+      if (Math.sign(npv(lo, f)) === Math.sign(npv(hi, f))) return null;
+      for (let k = 0; k < 200; k++) { const mid = (lo + hi) / 2; if (Math.sign(npv(mid, f)) === Math.sign(npv(lo, f))) lo = mid; else hi = mid; }
+      return (lo + hi) / 2 * 100;
+    };
+
+    const rmw = (v) => (typeof v === 'number' ? `${v < 0 ? '−' : ''}RM${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : String(v));
+    const pct = (v) => (typeof v === 'number' ? `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(4)}%` : String(v));
+    const SEN = 0.005, CENT = 0.01, IRR_TOL = 0.0001;
+    const chk = (p, what, have, want, tol = CENT, f = rmw) => {
+      if (!(typeof have === 'number' && typeof want === 'number' && Math.abs(have - want) <= tol)) p.push(`${what}: the model ${f(have)}, by hand ${f(want)}`);
+    };
+    const ledgerChk = (p, what, g, e) => {
+      const have = Object.fromEntries(g.ledger);
+      for (const [k, v] of Object.entries(e.ledger)) chk(p, `${what} ${k}`, have[k], v, SEN);
+      const extra = Object.keys(have).filter(k => !(k in e.ledger));
+      if (extra.length) p.push(`${what}: lines not worked by hand: ${extra.join(', ')}`);
+      if (g.ledger.length !== Object.keys(have).length) p.push(`${what}: a line appears twice`);
+    };
+    const yearsChk = (p, what, g, e, years, keys) => {
+      for (let y = 1; y <= years; y++) for (const k of keys) chk(p, `${what ? `${what} ` : ''}year ${y}'s ${k}`, g.path[y - 1]?.[k], e.path[y - 1][k]);
+    };
+    const saleChk = (p, what, have, s) => {
+      for (const k of ['value', 'agent', 'legal', 'owed', 'carry', 'rpgt', 'net']) chk(p, `${what} ${k}`, have?.[k], s[k]);
+      if (have?.rate !== s.rate) p.push(`${what}: gains tax at ${have?.rate}%, by hand ${s.rate}%`);
+    };
+    const d8 = (label, fn) => {
+      if (!got) return;
+      const p = [];
+      let words = '';
+      try { words = fn(p); } catch (e) { p.push(`the case could not be worked: ${e.message}`); }
+      if (p.length) fail(`${D8} ${label}`, p);
+      else ok(`${D8} ${label}: ${words}`);
+    };
+
+    d8('1, a zero-interest loan', (p) => {
+      const g = got.zero, e = work(CASES.zero), s = e.sale(10), irr = bisect(e.flows(10));
+      chk(p, 'the instalment, the loan ÷ the months', g.inst, e.loan / 420);
+      chk(p, 'the instalment', g.inst, e.inst);
+      if (g.zeroRate !== true) p.push(`a 0% rate on a loan is not flagged (zeroRateModelled ${g.zeroRate})`);
+      chk(p, 'a year\'s instalments', g.ads, 12 * e.inst);
+      yearsChk(p, '', g, e, 10, ['debt', 'interest', 'balance', 'cf']);
+      chk(p, 'the monthly position', g.monthly, e.monthly);
+      chk(p, 'owed at the sale', g.sale.owed, s.owed);
+      chk(p, 'owed at the sale, 369,000 × (1 − 126 ÷ 420)', g.sale.owed, 258300);
+      chk(p, 'carried while selling', g.sale.carry, s.carry);
+      chk(p, 'the reserve', g.reserveCash, e.reserve, SEN);
+      chk(p, 'the cash required', g.cash, e.cash, SEN);
+      chk(p, 'the net proceeds', g.sale.net, s.net);
+      chk(p, 'the rate of return', g.irr, irr, IRR_TOL, pct);
+      return `RM369,000 at 0% over 420 months — ${rmw(e.inst)} a month (the loan ÷ the months), ${rmw(12 * e.inst)} a year and no interest in any year; ${rmw(s.owed)} owed at the sale after 126 instalments; monthly position ${rmw(e.monthly)}; the reserve ${rmw(e.reserve)}, the cash required ${rmw(e.cash)}, net proceeds ${rmw(s.net)} and the rate of return ${pct(irr)}, by hand, all finite and the model's to the sen`;
+    });
+
+    d8('2, no loan', (p) => {
+      const g = got.cash, e = work(CASES.cash), s = e.sale(10), irr = bisect(e.flows(10));
+      const have = Object.fromEntries(g.ledger);
+      if (g.loan !== 0 || g.inst !== 0 || g.ads !== 0) p.push(`the loan ${g.loan}, its instalment ${g.inst} and a year's ${g.ads}: by hand none`);
+      for (const k of ['loanStampDuty', 'chargeStampDuty', 'loanLegal', 'valuationFee', 'valuationServiceTax']) chk(p, `${k}, no loan`, have[`financing/${k}`], 0, SEN);
+      chk(p, 'registration, the transfer alone', have['acquisition/registration'], 10, SEN);
+      chk(p, 'service tax, 8% of the purchase legal fee alone', have['acquisition/professionalServiceTax'], Math.round(e.purchaseLegal * 8) / 100, SEN);
+      ledgerChk(p, 'the ledger', g, e);
+      yearsChk(p, '', g, e, 10, ['debt', 'interest', 'balance', 'cf']);
+      chk(p, 'owed at the sale', g.sale.owed, 0);
+      chk(p, 'carried while selling, 6 months of year 10\'s costs and no instalment', g.sale.carry, s.carry);
+      chk(p, 'the reserve', g.reserveCash, e.reserve, SEN);
+      chk(p, 'the cash required', g.cash, e.cash, SEN);
+      chk(p, 'the net proceeds', g.sale.net, s.net);
+      chk(p, 'the rate of return', g.irr, irr, IRR_TOL, pct);
+      return `B bought outright — no instalment; the loan agreement's duty, the charge's stamp, the loan legal fee, the valuation fee and its service tax each RM0.00; registration RM10.00 (the transfer alone); service tax ${rmw(e.ledger['acquisition/professionalServiceTax'])}, 8% of the ${rmw(e.purchaseLegal)} purchase legal fee alone; nothing owed at the sale and ${rmw(s.carry)} carried (costs only); the reserve ${rmw(e.reserve)}, the cash required ${rmw(e.cash)}, net proceeds ${rmw(s.net)}, the rate of return ${pct(irr)} — by hand, the model's to the sen`;
+    });
+
+    d8('3, vacancy at 0%, 9% and 25%', (p) => {
+      const words = [];
+      for (const [k, v] of [['v0', 0], ['v9', 9], ['v25', 25]]) {
+        const g = got[k], e = work(CASES[k]);
+        for (const f of ['gross', 'eff', 'mgmt', 'repair', 'opex', 'noi', 'monthly']) chk(p, `at ${v}%, ${f}`, g[f], e[f]);
+        chk(p, `at ${v}%, year 2's rent collected`, g.path[1]?.rent, e.path[1].rent);
+        words.push(`${v}%: collected ${rmw(e.eff)}, fee ${rmw(e.mgmt)}, repairs ${rmw(e.repair)}, monthly ${rmw(e.monthly)}`);
+      }
+      const rows = got.v9.stressVacancy.slice(1);
+      if (rows.map(r => r[0]).join() !== '15,25,40') p.push(`the stress rows are at ${rows.map(r => r[0]).join(', ')}% vacant, not 15, 25 and 40`);
+      for (const [v, monthly] of rows) chk(p, `the stress row at ${v}% vacant`, monthly, work({ ...CASES.v9, vacancyPct: v }).monthly);
+      return `B managed at 10% with no minimum and no placement fee — ${words.join('; ')}; year 2's rent collected and the stress rows at 15, 25 and 40% (${rows.map(r => rmw(r[1])).join(', ')}) as worked at each vacancy`;
+    });
+
+    d8('4, the management and repair bases', (p) => {
+      const g = got.v25, e = work(CASES.v25);
+      const letMgmt = e.gross * 10 / 100, letRepair = e.gross * 5 / 100;
+      if (Math.abs(letMgmt - e.mgmt) < 1 || Math.abs(letRepair - e.repair) < 1) p.push('the case cannot tell the rent collected from the rent let');
+      chk(p, 'the management fee, 10% of the rent collected', g.mgmt, e.mgmt);
+      chk(p, 'the repair reserve, 5% of the rent collected', g.repair, e.repair);
+      if (Math.abs(g.mgmt - letMgmt) <= CENT) p.push(`the management fee is 10% of the rent let (${rmw(letMgmt)}), not of the rent collected`);
+      if (Math.abs(g.repair - letRepair) <= CENT) p.push(`the repair reserve is 5% of the rent let (${rmw(letRepair)}), not of the rent collected`);
+      chk(p, 'the running costs', g.opex, e.opex);
+      return `at 25% vacancy the fee is 10% and the repair reserve 5% of the ${rmw(e.eff)} collected — ${rmw(e.mgmt)} and ${rmw(e.repair)}, running costs ${rmw(e.opex)} — not of the ${rmw(e.gross)} let (${rmw(letMgmt)} and ${rmw(letRepair)})`;
+    });
+
+    d8('5, upfront cash and the reserve', (p) => {
+      const words = [];
+      for (const [k, months, what] of [['upfront', 6, 'a 6-month reserve, RM5,000 already paid'], ['lowVal', 3, 'a RM400,000 valuation']]) {
+        const g = got[k], e = work(CASES[k]);
+        for (const f of ['loan', 'deposit', 'gap']) chk(p, `${k}: the ${f}`, g[f], e[f]);
+        ledgerChk(p, `${k}:`, g, e);
+        if (g.reserveMonths !== months) p.push(`${k}: the reserve is of ${g.reserveMonths} months, entered ${months}`);
+        chk(p, `${k}: a month with no rent`, g.burnNoRent, e.burnNoRent);
+        chk(p, `${k}: a month with the rent coming in`, g.burnWithRent, e.burnWithRent);
+        for (const [f, h] of [['transaction', 'transaction'], ['improvement', 'improvement'], ['reserveCash', 'reserve'], ['cash', 'cash'], ['paid', 'paid'], ['still', 'still']]) chk(p, `${k}: ${f}`, g[f], e[h], SEN);
+        const noRentLarger = e.burnNoRent >= e.burnWithRent;
+        words.push(`${what}: deposit ${rmw(e.deposit)}${e.gap ? ` and ${rmw(e.gap)} below the valuation` : ''}, fees and duties ${rmw(e.transaction - e.deposit - e.gap)}, renovation and deposits ${rmw(e.improvement)}, the reserve ${e.reserveMonths} × ${rmw(Math.max(e.burnNoRent, e.burnWithRent))} (a month ${noRentLarger ? 'with no rent' : 'with the rent coming in'}, the larger; ${rmw(noRentLarger ? e.burnWithRent : e.burnNoRent)} ${noRentLarger ? 'with it' : 'without'}) = ${rmw(e.reserve)}; cash required ${rmw(e.cash)}, ${rmw(e.still)} still to pay at completion`);
+      }
+      return words.join('; ');
+    });
+
+    d8('6a, the sale', (p) => {
+      const words = [];
+      for (const [k, who] of [['x', 'a citizen'], ['xCo', 'a company'], ['xNc', 'a non-citizen'], ['xFlat', 'a citizen, at no growth']]) {
+        const s = work(CASES[k]).sale(5), g = got[k];
+        saleChk(p, `${k}, year 5:`, g.sale, s);
+        chk(p, `${k}, year 5: the gain`, g.sale.gain, s.gain);
+        chk(p, `${k}, year 5: the relief`, g.sale.relief, s.relief);
+        words.push(`by ${who}, gains tax ${rmw(s.rpgt)} (${s.gain > 0 ? `${s.rate}% of ${rmw(s.gain)} less ${rmw(s.relief)}` : `no gain: ${rmw(s.value)} less the price and the allowable costs is below nought`})`);
+      }
+      const e = work(CASES.x), s5 = e.sale(5), s10 = e.sale(10);
+      if (!(s5.value * 0.1 / 100 < 500 && s10.value * 0.1 / 100 > 500)) p.push('the case does not straddle the RM500 minimum');
+      saleChk(p, 'x, year 10 (the exits table):', got.x.exits[1], s10);
+      saleChk(p, 'x, year 5 (the exits table):', got.x.exits[0], s5);
+      got.x.hold.forEach((h, k) => saleChk(p, `x, a sale in year ${k + 1}:`, h, e.sale(k + 1)));
+      if (got.x.hold.length !== 5) p.push(`${got.x.hold.length} years of hold-or-sell, not 5`);
+      return `X sold in year 5 for ${rmw(s5.value)}: agent ${rmw(s5.agent)}, legal ${rmw(s5.legal)} (0.1% is ${rmw(s5.value / 1000)}), ${rmw(s5.owed)} settled after 66 instalments, ${rmw(s5.carry)} carried, net ${rmw(s5.net)}; ${words.join('; ')}; in year 10 for ${rmw(s10.value)}, legal ${rmw(s10.legal)} and nil gains tax; a sale in each year 1–5 at ${got.x.hold.map(h => `${h.rate}%`).join(', ')}`;
+    });
+
+    d8('6b, tax on the rent', (p) => {
+      const words = [];
+      for (const [k, years] of [['x', 5], ['taxB', 10]]) {
+        const g = got[k], e = work(CASES[k]);
+        if (g.taxComputed !== true) p.push(`${k}: tax not computed with a 24% rate entered`);
+        yearsChk(p, `${k}:`, g, e, years, ['rent', 'opex', 'interest', 'taxable', 'tax', 'cf']);
+        const cum = e.path.slice(0, years).reduce((t, x) => t + x.tax, 0);
+        chk(p, `${k}: the tax over the hold`, g.cumTax, cum);
+        words.push(`${k === 'x' ? 'X' : 'B at 24%'}: ${e.path.slice(0, years).map(x => rmw(x.tax)).join(', ')} (${rmw(cum)} in all)`);
+      }
+      const losses = work(CASES.taxB).path.slice(0, 10).filter(x => x.taxable < 0).length;
+      if (!losses) p.push('the case has no year of loss');
+      return `each year's tax at 24% on the rent collected less the running costs and the interest — ${words.join('; ')}; B's ${losses} years of loss pay none and carry nothing forward`;
+    });
+
+    d8('6c, the rate of return', (p) => {
+      const e = work(CASES.x), irr = bisect(e.flows(5));
+      chk(p, 'x: the rate of return', got.x.irr, irr, IRR_TOL, pct);
+      chk(p, 'x: the NPV at 6%', got.x.npv, npv(0.06, e.flows(5)));
+      got.x.hold.forEach((h, k) => chk(p, `x: a sale in year ${k + 1}`, h.irr, bisect(e.flows(k + 1)), IRR_TOL, pct));
+      chk(p, 'x: a sale in year 10', got.x.exits[1].irr, bisect(e.flows(10)), IRR_TOL, pct);
+      const b = work(CASES.taxB), irrB = bisect(b.flows(10));
+      chk(p, 'B at 24%: the rate of return', got.taxB.irr, irrB, IRR_TOL, pct);
+      return `bisection on the NPV — X ${pct(irr)} (NPV at 6% ${rmw(npv(0.06, e.flows(5)))}); a sale in each year 1–5 ${got.x.hold.map(h => pct(h.irr)).join(', ')} and in year 10 ${pct(bisect(e.flows(10)))}; B at 24% ${pct(irrB)}`;
+    });
+  }
+  /* ---- end qt-day8-cases ---- */
+
   /* ---- qt-quick ---- */
   /* THE CALCULATOR'S TWO VIEWS (the owner's QT-003, 14 Oct 2026;
      75-property-grade.js, pcQuickView). One deal, unlike the default in
@@ -9443,6 +10868,462 @@ try {
   }
   /* ---- end qt-quick ---- */
 
+  /* ---- qt-day8-case ---- */
+  /* WHAT "START A RESEARCH CASE" CREATES, AND WHAT A SAVED CASE KEEPS (the
+     21 Oct 2026 Day-8 report, QT-D08-01). On a filed company with no price,
+     through the company page's own button, in this browser's own profile,
+     and everything it found put back:
+     - the button reads "Start an investment case", opens My investment cases
+       and toasts "Draft created in this browser. Review the suggested
+       assumptions before treating this as your investment case."; the draft
+       line is on the case;
+     - the review date, the horizon, the confidence and the condition the
+       tool added are marked "Suggested default — not yet confirmed by you."
+       and the condition is awaiting (no price), never counted as passing,
+       and says the tool suggested it;
+     - Confirm on one default and a typed change to another take those marks
+       off and only those; the draft line stays until the last one goes;
+     - the snapshot holds the composite (score, classified, completeness,
+       tested weight, each pillar's score or null, the gates), each lens fit,
+       the scorecard, the coverage tier, the base-case estimate with its
+       range and confidence, and the assumptions the reader edited; a figure
+       the page did not have is null, never 0, and each is what the page's
+       own function says now;
+     - after a real reload the case is as it was; the card says "Research
+       when saved" with its versions, marks what moved, and does not touch
+       the saved snapshot or the assumptions — only "Review against today's
+       research" takes a new one;
+     - "Download a backup" and "Export everything" each carry it: cleared
+       and restored twice, the case is in storage once with every field the
+       same;
+     - a case from before (no suggested, no snapshot) reads "Saved before
+       snapshots", shows no mark, and is not given a field it never had; the
+       storage shape check takes the new and the old alike;
+     - a timing workspace entry does not change the research composite.
+     The page-side steps are written as functions and sent as their source,
+     so nothing in them needs a second layer of escaping. */
+  {
+    const d8a = async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      for (let i = 0; i < 160 && (typeof realPending === 'undefined' || realPending || !BY_ID.has('AAPL-SEC')); i++) await w(250);
+      const own = {};
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('vl.')) own[k] = localStorage.getItem(k); }
+      const out = { own, keepTheses: JSON.stringify(State.theses), keepQtti: JSON.stringify(State.qtti), problems: [] };
+      const text = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : '');
+      const parts = (cid) => { const r = document.getElementById('thesis-record-' + cid); return r ? { head: text(r.querySelector('h4')), meta: text(r.querySelector('.metaline')), after: text(r.querySelector('.metaline + .caption')), cap: text(r.querySelector('.case-review .caption')), summary: text(r.querySelector('summary')), btn: text(r.querySelector('.case-review-btn')), chip: text(r.querySelector('.metaline .chip')), movedRows: [...r.querySelectorAll('tr.case-moved td:first-child')].map(text), savedWith: text(r.querySelector('.case-saved-with')) } : null; };
+      const MARK = 'Suggested default — not yet confirmed by you.';
+      try {
+        const row = ['AAPL-SEC', 'MSFT-SEC', 'WMT-SEC', 'KO-SEC', 'PG-SEC'].map(x => BY_ID.get(x)).find(x => x && x.c.real && !isNum(x.c.px?.p) && !State.theses.some(t => t.ticker === x.c.id));
+        if (!row) throw new Error('no filed company without a price and without a case');
+        const id = row.c.id; out.id = id;
+
+        /* the button, on the company page, and what it opens */
+        navigate(companyPath(row.c)); await w(500);
+        out.buttons = [...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim());
+        const start = [...document.querySelectorAll('main .company-acts button')].find(b => /^Start an investment case$/.test(b.textContent.trim()));
+        if (!start) throw new Error('no "Start an investment case" button on the company page');
+        start.click(); await w(600);
+        out.path = location.pathname; out.toast = document.getElementById('toast')?.textContent || '';
+        let t = State.theses.find(x => x.ticker === id);
+        if (!t) throw new Error('the button made no case');
+        const cid = t.id;
+        const card = () => document.getElementById('thesis-card-' + cid);
+        const box = () => document.getElementById('thesis-draft-' + cid);
+        out.line = text(box()?.querySelector('.case-draft-line'));
+        const q = box()?.querySelector('.case-draft-line')?.getBoundingClientRect();
+        out.lineInSight = !!q && q.top >= 0 && q.bottom <= innerHeight;
+        out.suggested0 = JSON.parse(JSON.stringify(t.suggested || null));
+        out.cond0 = JSON.parse(JSON.stringify(t.conds));
+        out.marks0 = [...(card()?.querySelectorAll('.caption') || [])].filter(n => text(n) === MARK).length;
+        out.confirmHeights = [...(card()?.querySelectorAll('.case-confirm') || [])].map(b => Math.round(b.getBoundingClientRect().height));
+        const ev = evaluateThesis(t);
+        out.eval0 = { breaches: ev.breaches.length, ok: ev.ok.map(c => ({ actual: c.actual, state: conditionState(c).label })) };
+        const cr = [...(card()?.querySelectorAll('table.dt tbody tr') || [])].find(tr => /base-case model estimate/.test(tr.cells[0]?.textContent || ''));
+        out.condRow = cr ? [...cr.cells].map(c => text(c)) : null;
+        out.step6 = sevenSteps(row, t)[5]; out.step6 = { ok: out.step6.ok, note: out.step6.note };
+        const s7 = sevenSteps(row, t)[6]; out.step7 = { ok: s7.ok, note: s7.note };
+        out.snap0 = JSON.parse(JSON.stringify(t.snapshot || null));
+        out.nowComposite = (() => { const rc = researchComposite(row); return { score: rc.score, classified: rc.classified, testedWeight: rc.testedWeight, pillars: rc.parts.map(p => isNum(p.score) ? p.score : null), gates: rc.gates.map(g => g.state) }; })();
+        out.nowLenses = strategyLens(row).fits.map(f => [f.key, f.score]);
+        out.nowScores = Object.fromEntries(['quality', 'growth', 'strength', 'capital', 'value'].map(k => [k, row.scores[k]?.score ?? null]));
+        out.nowSources = { retrieved: row.c.retrieved ?? null, fy: latestFy(row.c), fyEnd: fyEndOf(row.c, latestFy(row.c)) ?? null, priceAsOf: row.c.px?.asOf ?? null, model: MODEL_VERSION, pack: row.val.pack?.name ?? null, packId: row.val.pack?.id ?? null };
+        out.nowVal = { base: row.val.vals?.base ?? null, bear: row.val.vals?.bear ?? null, bull: row.val.vals?.bull ?? null, conf: row.val.conf, band: row.val.confBand, tier: coverageTier(row).label };
+
+        /* Confirm one (the review date, by its button) */
+        document.getElementById('case-confirm-' + cid + '-review').click(); await w(300);
+        t = State.theses.find(x => x.id === cid);
+        out.afterConfirm = { suggested: JSON.parse(JSON.stringify(t.suggested)), line: !!box()?.querySelector('.case-draft-line'), rows: [...(box()?.querySelectorAll('.case-sug strong') || [])].map(text), focus: !!document.activeElement && document.activeElement !== document.body };
+        /* Change another (the horizon, through the editor) */
+        openThesisEditor(t); await w(300);
+        const hz = document.getElementById('th-horizon'); hz.focus(); hz.value = '4–6 years'; hz.dispatchEvent(new Event('input', { bubbles: true })); await w(60);
+        out.editorMarkConf = !!document.getElementById('th-sug-conf'); out.editorMarkHorizonGone = !document.getElementById('th-sug-horizon');
+        await w(450); closeDrawer(); await w(250);
+        t = State.theses.find(x => x.id === cid);
+        out.afterChange = { suggested: JSON.parse(JSON.stringify(t.suggested)), horizon: t.horizon, line: !!box()?.querySelector('.case-draft-line'), rows: [...(box()?.querySelectorAll('.case-sug strong') || [])].map(text), condMarked: [...(card()?.querySelectorAll('table.dt .caption') || [])].some(n => text(n) === MARK) };
+        const s7b = sevenSteps(row, t)[6]; out.step7b = { ok: s7b.ok, note: s7b.note };
+
+        /* the reader edits an assumption; opening the case replaces nothing */
+        const al = assumptionList(row.inputs, row.val.pack.id).find(a => typeof row.inputs[a.k] === 'number' && row.inputs[a.k] !== 0);
+        if (!al) throw new Error('no valuation assumption could be edited');
+        out.editKey = al.k;
+        const inputs = studioInputs(row); inputs[al.k] = +(row.inputs[al.k] * 1.1).toFixed(6); persistValuation(row, true);
+        out.editedValue = inputs[al.k];
+        const kept = () => valuationEdits()[id]?.over?.[al.k] ?? null;
+        out.snapBefore = t.snapshot.at;
+        navigate('/my/theses'); await w(400);
+        out.record0 = parts(cid);
+        out.snapKeptByReading = JSON.stringify(State.theses.find(x => x.id === cid).snapshot) === JSON.stringify(out.snap0);
+        out.editsKeptNull = State.theses.find(x => x.id === cid).snapshot.edits === null;
+        out.assumption0 = kept();
+        /* a figure saved differently from today's, and a model version that has moved */
+        const tt = State.theses.find(x => x.id === cid);
+        const bumped = (tt.snapshot.composite.score ?? 0) + 1;
+        tt.snapshot.composite.score = bumped; tt.snapshot.stamp.model = 'metrics 0.0.1 · scores 0.0.1 · valuation 0.0.1'; saveTheses();
+        render(); await w(400);
+        out.moved = parts(cid);
+        out.keptWhileMoved = JSON.parse(localStorage.getItem('vl.theses')).find(x => x.id === cid).snapshot.composite.score === bumped && State.theses.find(x => x.id === cid).snapshot.composite.score === bumped;
+        out.assumptionWhileMoved = kept();
+        document.querySelector('#thesis-record-' + cid + ' .case-review-btn').click(); await w(400);
+        const t2 = State.theses.find(x => x.id === cid);
+        out.retaken = { defaults: JSON.parse(JSON.stringify(t2.snapshot.defaults)), at: t2.snapshot.at, score: t2.snapshot.composite.score, model: t2.snapshot.stamp.model, edits: JSON.parse(JSON.stringify(t2.snapshot.edits)), suggested: JSON.parse(JSON.stringify(t2.suggested)), conds: JSON.parse(JSON.stringify(t2.conds)) };
+        out.nowComposite2 = researchComposite(row).score;
+        out.recordAfter = parts(cid);
+        out.assumptionAfter = kept();
+        out.theses1 = JSON.stringify(store.read('theses', []).find(x => x.id === cid));
+        out.id1 = cid;
+        navigate('/property/calculator?view=full'); await w(300);
+      } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
+      return JSON.parse(JSON.stringify(out));
+    };
+    const d8b = async (A) => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = { problems: [] };
+      const text = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : '');
+      const parts = (cid) => { const r = document.getElementById('thesis-record-' + cid); return r ? { head: text(r.querySelector('h4')), meta: text(r.querySelector('.metaline')), cap: text(r.querySelector('.case-review .caption')), btn: text(r.querySelector('.case-review-btn')) } : null; };
+      const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
+      const MARK = 'Suggested default — not yet confirmed by you.';
+      const find = () => store.read('theses', []).filter(x => x.id === A.id1);
+      try {
+        /* after a real reload */
+        out.reloaded = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)), inState: State.theses.some(x => x.id === A.id1) };
+        const row = BY_ID.get(A.id);
+        navigate('/my/theses'); await w(500);
+        let t = State.theses.find(x => x.id === A.id1);
+        out.reopened = { record: parts(t.id), draft: text(document.getElementById('thesis-draft-' + t.id)), snapSame: canon(t.snapshot) === canon(JSON.parse(A.theses1).snapshot) };
+        /* export, clear, restore, restore — the full backup */
+        const clear = () => { store.write('theses', store.read('theses', []).filter(x => x.id !== A.id1)); State.theses = store.read('theses', []); };
+        const text1 = JSON.stringify(backupPayload());
+        out.inBackup = JSON.stringify(JSON.parse(text1).data.theses || []).includes(A.id1);
+        clear(); out.goneBackup = find().length;
+        out.b1 = restoreBackup(text1).ok; out.afterB1 = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)) };
+        out.b2 = restoreBackup(text1).ok; out.afterB2 = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)) };
+        /* export everything, clear, restore, restore */
+        const doc = exportEverything();
+        out.inEverything = JSON.stringify(doc.data.theses || []).includes(A.id1);
+        clear(); out.goneEverything = find().length;
+        const i1 = importEverything(JSON.parse(JSON.stringify(doc))); if (i1.ok) i1.apply(); out.e1 = i1.ok; out.afterE1 = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)) };
+        const i2 = importEverything(JSON.parse(JSON.stringify(doc))); if (i2.ok) i2.apply(); out.e2 = i2.ok; out.afterE2 = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)) };
+        State.theses = store.read('theses', []);
+        t = State.theses.find(x => x.id === A.id1);
+        navigate('/my/theses'); await w(500);
+        out.restoredCard = parts(t.id);
+
+        /* a case from before: no suggested, no snapshot — one made as the old button made it, and the seeded sample */
+        const other = ['MSFT-SEC', 'WMT-SEC', 'KO-SEC', 'PG-SEC'].map(x => BY_ID.get(x)).find(x => x && x.c.id !== A.id && !State.theses.some(y => y.ticker === x.c.id));
+        const old = { id: 'told-day8', ticker: other.c.id, oneLine: '', quality: '', valCase: '', catalysts: [], risks: [],
+          conds: [{ type: 'val', op: '>', v: 15, label: 'Price moves more than 15% above the base-case model estimate' }],
+          horizon: '3–5 years', review: '2027-01-19', conf: 'Low', questions: [], created: '2026-09-01', stamp: buildStamp(other.c) };
+        const oldJson = JSON.stringify(old);
+        out.shapeNewAndOld = storedShapeFault('theses', [JSON.parse(A.theses1), JSON.parse(oldJson), seedTheses()[0]]);
+        store.write('theses', [...store.read('theses', []), JSON.parse(oldJson)]); State.theses = store.read('theses', []);
+        navigate('/my/theses'); await w(500);
+        const oc = document.getElementById('thesis-card-told-day8');
+        const olds = State.theses.find(x => x.id === 'told-day8');
+        out.old = { found: !!oc, record: parts('told-day8'), draft: !!document.getElementById('thesis-draft-told-day8'), marks: [...(oc?.querySelectorAll('.caption') || [])].filter(n => text(n) === MARK).length,
+          suggestedWords: /suggested/i.test(text(oc)),
+          condRow: (() => { const tr = [...(oc?.querySelectorAll('table.dt tbody tr') || [])][0]; return tr ? [...tr.cells].map(text) : null; })(),
+          steps: sevenSteps(other, olds).slice(5).map(s => [s.ok, s.note]),
+          row: workspaceItems().find(i => i.key === 'told-day8')?.detail || null,
+          untouched: JSON.stringify(store.read('theses', []).find(x => x.id === 'told-day8')) === oldJson,
+          noFields: !('suggested' in olds) && !('snapshot' in olds) && !('suggested' in olds.conds[0]) };
+        const sample = seedTheses()[0]; delete sample.stamp;
+        store.write('theses', [sample]); State.theses = store.read('theses', []);
+        navigate('/my/theses'); await w(400);
+        out.sample = { record: parts(sample.id), button: !!document.querySelector('#thesis-record-' + sample.id + ' .case-review-btn') };
+        navigate('/my/workspace'); await w(400);
+        out.sampleRow = text([...document.querySelectorAll('.ws-list .ws-row')].find(x => /Investment case/.test(x.textContent)));
+
+        /* a company with little to go on: the case is made without a throw, and what is missing is null, not a number */
+        const thin = U.filter(x => x.c.real && !State.theses.some(y => y.ticker === x.c.id)).sort((a, b) => (a.m.coverage ?? 0) - (b.m.coverage ?? 0))[0];
+        const noModel = U.find(x => x.c.real && x.inputs.model === 'unavailable' && !State.theses.some(y => y.ticker === x.c.id));
+        out.missing = [];
+        for (const m of [thin, noModel].filter(Boolean)) {
+          const rec = { id: m.c.id, threw: null };
+          try {
+            addToThesis(m.c.id); await w(300);
+            const mt = State.theses.find(y => y.ticker === m.c.id);
+            const sn = mt.snapshot;
+            rec.coverage = sn.composite.dataCompleteness; rec.base = sn.valuation.base; rec.conf = sn.valuation.conf; rec.confBand = sn.valuation.confBand;
+            rec.nullPillars = sn.composite.pillars.filter(x => x.score === null).length; rec.zeroPillars = sn.composite.pillars.filter(x => x.score === 0).length + sn.scorecard.filter(x => x.score === 0).length;
+            rec.noNaN = !/undefined|NaN|Infinity/.test(JSON.stringify(sn));
+            rec.rendered = /^Research when saved, /.test(parts(mt.id)?.head || '');
+            rec.cond = evaluateThesis(mt).ok.map(c => conditionState(c).label);
+            rec.suggested = JSON.parse(JSON.stringify(sn.defaults));
+            rec.errorModel = !!m.val.err;
+            State.theses = State.theses.filter(y => y.id !== mt.id); saveTheses();
+          } catch (e) { rec.threw = String(e && e.message || e); }
+          out.missing.push(rec);
+        }
+        /* a timing workspace entry does not change the research composite */
+        const cmp = () => canon({ rc: (() => { const rc = researchComposite(row); return { score: rc.score, classified: rc.classified, tw: rc.testedWeight, parts: rc.parts.map(p => isNum(p.score) ? p.score : null), gates: rc.gates.map(g => g.state) }; })(), snap: (() => { const s = caseSnapshot(row); return { composite: s.composite, lenses: s.lenses, scorecard: s.scorecard }; })() });
+        const c0 = cmp();
+        State.qtti = qttiWorkedExample(); saveQtti();
+        out.timing = { entered: !!State.qtti.symbol, same: cmp() === c0 };
+      } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
+      return JSON.parse(JSON.stringify(out));
+    };
+    /* the browser's own work, put back — whatever happened above */
+    const d8c = async (A) => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = { problems: [] };
+      try {
+        navigate('/property/calculator?view=full'); await w(400);
+        if (A.id) delete State.valuation[A.id];
+        for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('vl.') && !(k in A.own)) localStorage.removeItem(k); }
+        for (const [k, v] of Object.entries(A.own)) localStorage.setItem(k, v);
+        State.theses = JSON.parse(A.keepTheses); State.qtti = JSON.parse(A.keepQtti);
+        out.differ = Object.keys(A.own).filter(k => localStorage.getItem(k) !== A.own[k]);
+        out.extra = Object.keys(localStorage).filter(k => k.startsWith('vl.') && !(k in A.own));
+      } catch (e) { out.problems.push('restore threw: ' + (e && e.message || e)); }
+      return JSON.parse(JSON.stringify(out));
+    };
+    const A = await evaluate(`(${d8a.toString()})()`);
+    const p = [...A.problems];
+    const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your investment case.';
+    const MARK = 'Suggested default — not yet confirmed by you.';
+    const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
+    let B = null;
+    if (!A.problems.length) {
+      /* start */
+      if (!A.buttons.includes('Start an investment case') || A.buttons.includes('Save research')) p.push(`the company page's buttons read ${JSON.stringify(A.buttons)}`);
+      if (A.path !== '/my/theses') p.push(`the button opened ${A.path}`);
+      if (A.toast !== LINE) p.push(`the toast reads "${A.toast}"`);
+      if (A.line !== LINE || !A.lineInSight) p.push(`the draft line reads "${A.line}" and is ${A.lineInSight ? '' : 'not '}in sight on arrival`);
+      if (canon(A.suggested0) !== canon({ review: true, horizon: true, conf: true }) || A.cond0.length !== 1 || A.cond0[0].suggested !== true) p.push(`the case is marked ${canon(A.suggested0)} with its condition ${canon(A.cond0)}`);
+      if (A.marks0 !== 4) p.push(`the case shows "${MARK}" ${A.marks0} times — want the review date, the horizon, the confidence and the condition`);
+      if (A.confirmHeights.length !== 4 || A.confirmHeights.some(h => h < 44)) p.push(`Confirm controls measure ${JSON.stringify(A.confirmHeights)} high, not four of 44px or more`);
+      if (A.eval0.breaches !== 0 || A.eval0.ok.length !== 1 || A.eval0.ok[0].actual !== null || A.eval0.ok[0].state !== 'Awaiting update') p.push(`with no price the condition evaluates ${canon(A.eval0)} — want awaiting, no value, not passing`);
+      if (!A.condRow || !/^Awaiting update/.test(A.condRow[4]) || !/Not counted as passing/.test(A.condRow[4]) || /Within|Approaching|Breached/.test(A.condRow[4]) || !A.condRow[0].includes(MARK)) p.push(`the condition's row reads ${canon(A.condRow)}`);
+      if (A.step7.ok !== false || !/suggested, unconfirmed/.test(A.step7.note) || A.step6.ok !== false || !/1 suggested, not confirmed/.test(A.step6.note)) p.push(`the seven-step review, step 6 ${canon(A.step6)}, step 7 ${canon(A.step7)}`);
+      /* snapshot, field by field, against the page's own figures */
+      const s = A.snap0;
+      if (!s) p.push('the new case holds no snapshot');
+      else {
+        for (const k of ['at', 'stamp', 'composite', 'lenses', 'scorecard', 'tier', 'valuation', 'edits']) if (!(k in s)) p.push(`the snapshot lacks ${k}`);
+        if (!s.stamp?.model || !/^\d{4}-\d{2}-\d{2}T/.test(s.at || '')) p.push(`the snapshot's date and version: ${s.at}, ${canon(s.stamp)}`);
+        const c = s.composite, n = A.nowComposite;
+        if (c.score !== n.score || c.classified !== n.classified || c.testedWeight !== n.testedWeight || canon(c.pillars.map(x => x.score)) !== canon(n.pillars) || canon(c.gates.map(g => g.state)) !== canon(n.gates)) p.push(`the snapshot's composite ${canon(c)} is not the page's ${canon(n)}`);
+        if (!c.gates.some(g => g.id === 'governance' && g.state === 'manual_review')) p.push('the snapshot does not keep governance as manual review');
+        if (!c.pillars.some(x => x.score === null) || c.pillars.some(x => x.score === 0)) p.push(`an untested pillar is not kept as null: ${canon(c.pillars)}`);
+        if (typeof c.dataCompleteness !== 'number') p.push(`data completeness is ${c.dataCompleteness}`);
+        if (s.lenses.length !== 8 || canon(s.lenses.map(f => [f.key, f.score])) !== canon(A.nowLenses)) p.push(`the snapshot's lens scores ${canon(s.lenses.map(f => [f.key, f.score]))} are not the page's ${canon(A.nowLenses)}`);
+        if (s.lenses.some(f => !f.shown || (f.state === 'graded') !== /^Evidence band [A-D]$/.test(f.shown))) p.push(`a lens fit is not shown as the page shows it: ${canon(s.lenses)}`);
+        if (s.lenses.some(f => f.score === null && f.state === 'graded') || !s.lenses.some(f => f.score === null)) p.push(`lens scores: ${canon(s.lenses.map(f => [f.key, f.state, f.score]))}`);
+        if (canon(Object.fromEntries(s.scorecard.map(x => [x.key, x.score]))) !== canon(A.nowScores) || s.scorecard.find(x => x.key === 'value')?.score !== null) p.push(`the snapshot's scorecard ${canon(s.scorecard)} is not the page's ${canon(A.nowScores)} (a filed company with no price has no valuation score)`);
+        if (s.tier.label !== A.nowVal.tier) p.push(`coverage tier ${canon(s.tier)} against ${A.nowVal.tier}`);
+        const v = s.valuation;
+        if (v.base !== A.nowVal.base || v.bear !== A.nowVal.bear || v.bull !== A.nowVal.bull || v.conf !== A.nowVal.conf || v.confBand !== A.nowVal.band) p.push(`the snapshot's valuation ${canon(v)} is not the page's ${canon(A.nowVal)}`);
+        const ns = A.nowSources;
+        if (canon(s.sources) !== canon({ retrieved: ns.retrieved, fy: ns.fy, fyEnd: ns.fyEnd, priceAsOf: ns.priceAsOf }) || !s.sources.retrieved || s.sources.priceAsOf !== null) p.push(`the snapshot's source dates ${canon(s.sources)} are not the page's ${canon(ns)} (and a filed company with no price has no price date)`);
+        if (canon(s.methodology) !== canon({ version: ns.model, valuationModel: ns.pack, valuationModelId: ns.packId }) || s.stamp.model !== ns.model) p.push(`the snapshot's methodology ${canon(s.methodology)} and model version ${s.stamp.model} are not the page's ${canon(ns)}`);
+        if (canon(s.defaults) !== canon({ review: 'suggested', horizon: 'suggested', conf: 'suggested', conditions: ['suggested'] })) p.push(`the snapshot keeps the defaults' state as ${canon(s.defaults)}, not all suggested`);
+        if (s.edits !== null) p.push(`the snapshot of a company with no edited assumption holds ${canon(s.edits)}, not null`);
+        if (/undefined|NaN|Infinity/.test(JSON.stringify(s))) p.push('the snapshot holds a value that is not a value');
+      }
+      /* confirm one, change another */
+      if (canon(A.afterConfirm.suggested) !== canon({ review: false, horizon: true, conf: true }) || !A.afterConfirm.line || A.afterConfirm.rows.length !== 2 || A.afterConfirm.rows.some(x => /Next review/.test(x)) || !A.afterConfirm.focus) p.push(`after Confirm on the review date: ${canon(A.afterConfirm)}`);
+      if (canon(A.afterChange.suggested) !== canon({ review: false, horizon: false, conf: true }) || A.afterChange.horizon !== '4–6 years' || !A.afterChange.line || A.afterChange.rows.length !== 1 || !/^Confidence: Low$/.test(A.afterChange.rows[0]) || !A.afterChange.condMarked) p.push(`after the horizon was changed: ${canon(A.afterChange)}`);
+      if (!A.editorMarkConf || !A.editorMarkHorizonGone) p.push(`the editor's marks: confidence ${A.editorMarkConf}, horizon gone ${A.editorMarkHorizonGone}`);
+      if (!A.step7b.ok || !/^Next review \d{4}-\d{2}-\d{2}, horizon 4–6 years\.$/.test(A.step7b.note)) p.push(`step 7 after the review date is confirmed and the horizon changed: ${canon(A.step7b)}`);
+      /* the record beside today's, and only the reader's press replaces it */
+      const r0 = A.record0;
+      if (!r0 || !/^Research when saved, \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/.test(r0.head) || !/^Model version metrics .* · Data version (us\.json|SEC filings) /.test(r0.meta) || !/^Beside today’s: 1 of \d+ moved$/.test(r0.summary) || canon(r0.movedRows) !== canon(['Assumptions you edited'])) p.push(`the record, with an assumption edited since, reads ${canon(r0)}`);
+      if (!A.snapKeptByReading || !A.editsKeptNull || A.assumption0 !== A.editedValue) p.push(`opening the case, with an assumption edited since, replaced the saved snapshot (${A.snapKeptByReading}), its assumptions (${A.editsKeptNull}) or the reader's edit (${A.assumption0} against ${A.editedValue})`);
+      const mv = A.moved;
+      if (!mv || !/^Beside today’s: 2 of \d+ moved$/.test(mv.summary) || mv.chip !== 'Model moved' || !/^Model moved: metrics 0\.0\.1 → /.test(mv.after) || canon(mv.movedRows) !== canon(['Research case score', 'Assumptions you edited']) || !A.keptWhileMoved || A.assumptionWhileMoved !== A.editedValue) p.push(`with a score and a model version moved, the card says ${canon(mv)}; saved kept ${A.keptWhileMoved}, edit ${A.assumptionWhileMoved}`);
+      if (!mv || mv.btn !== 'Review against today’s research' || !/^Replaces the saved research above with today’s; your assumptions stay.$/.test(mv.cap)) p.push(`"Review against today's research" says ${canon(mv && { btn: mv.btn, cap: mv.cap })}`);
+      const rt = A.retaken;
+      if (rt.score !== A.nowComposite2 || rt.model === 'metrics 0.0.1 · scores 0.0.1 · valuation 0.0.1' || rt.at === A.snapBefore || !rt.edits || rt.edits[A.editKey] !== A.editedValue || A.assumptionAfter !== A.editedValue) p.push(`the new snapshot holds ${canon(rt)}, today's score being ${A.nowComposite2} and the edit ${A.editKey} ${A.editedValue}`);
+      if (canon(rt.defaults) !== canon({ review: 'confirmed', horizon: 'confirmed', conf: 'suggested', conditions: ['suggested'] })) p.push(`the new snapshot keeps the defaults' state as ${canon(rt.defaults)}, not the review date and horizon confirmed with the confidence and condition suggested`);
+      if (!/When saved: review date confirmed, horizon confirmed, confidence suggested, condition 1 suggested/.test(A.recordAfter && A.recordAfter.savedWith || '') || !/Statements retrieved \d{4}-\d{2}-\d{2} · FY\d{4}/.test(A.recordAfter.savedWith) || !/No price/.test(A.recordAfter.savedWith) || !/Valuation model: /.test(A.recordAfter.savedWith)) p.push(`the record's line of what it was saved against reads "${A.recordAfter && A.recordAfter.savedWith}"`);
+      if (canon(rt.suggested) !== canon({ review: false, horizon: false, conf: true }) || rt.conds.length !== 1 || rt.conds[0].suggested !== true) p.push(`taking a new snapshot changed the defaults' state: ${canon({ s: rt.suggested, c: rt.conds })}`);
+      if (!A.recordAfter || !/^Beside today’s: none of \d+ moved$/.test(A.recordAfter.summary)) p.push(`after the new snapshot the card says ${canon(A.recordAfter)}`);
+      /* a real reload, then the backups */
+      await send('Page.reload', {}, sessionId);
+      for (let i = 0; i < 160; i++) {
+        await sleep(250);
+        try { if (await evaluate(`typeof realPending !== 'undefined' && !realPending && typeof BY_ID !== 'undefined' && BY_ID.has('AAPL-SEC') && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* between documents */ }
+      }
+      B = await evaluate(`(${d8b.toString()})(${JSON.stringify(A)})`);
+      p.push(...B.problems);
+      if (!B.reloaded || B.reloaded.n !== 1 || !B.reloaded.same || !B.reloaded.inState) p.push(`after a reload ${canon(B.reloaded)}`);
+      if (!B.reopened || !/^Research when saved, /.test(B.reopened.record?.head || '') || !B.reopened.snapSame || !B.reopened.draft.includes(LINE) || !B.reopened.draft.includes('Confidence: Low')) p.push(`reopened after a reload: ${canon(B.reopened)}`);
+      if (!B.inBackup || !B.inEverything) p.push(`the file lacks the case: backup ${B.inBackup}, everything ${B.inEverything}`);
+      if (B.goneBackup !== 0 || B.goneEverything !== 0) p.push(`the case was not cleared before a restore: ${B.goneBackup}, ${B.goneEverything}`);
+      for (const [when, ok1, x] of [['backup, once', B.b1, B.afterB1], ['backup, twice', B.b2, B.afterB2], ['export everything, once', B.e1, B.afterE1], ['export everything, twice', B.e2, B.afterE2]])
+        if (!ok1 || !x || x.n !== 1 || !x.same) p.push(`restored from the ${when}: ${canon({ ok: ok1, x })}`);
+      if (!/^Research when saved, /.test(B.restoredCard?.head || '')) p.push(`the restored case reads ${canon(B.restoredCard)}`);
+      /* before: no suggested, no snapshot */
+      const o = B.old;
+      if (B.shapeNewAndOld !== null) p.push(`the storage shape check refuses a case with the new fields, or one without them: ${B.shapeNewAndOld}`);
+      if (!o || !o.found || o.record?.head !== 'Saved before snapshots' || o.record.btn !== 'Review against today’s research' || !/^Saves today’s research with this case\./.test(o.record.cap)) p.push(`an old case's research record reads ${canon(o && o.record)}`);
+      if (!o || o.draft || o.marks || o.suggestedWords || !o.condRow || /Suggested|Confirmed/.test(o.condRow[0]) || !/^Awaiting update/.test(o.condRow[4])) p.push(`an old case shows ${canon(o && { draft: o.draft, marks: o.marks, suggestedWords: o.suggestedWords, cond: o.condRow })}`);
+      if (!o || !o.row || !/Saved before snapshots/.test(o.row) || /Suggested defaults/.test(o.row) || !o.untouched || !o.noFields) p.push(`an old case in Saved work reads "${o && o.row}", untouched ${o && o.untouched}, with no field invented ${o && o.noFields}`);
+      if (!o || o.steps[1][1] !== 'Next review 2027-01-19, horizon 3–5 years.' || o.steps[0][1] !== '1 invalidation condition(s), but no investment case written yet.') p.push(`an old case's steps 6 and 7 read ${canon(o && o.steps)}`);
+      if (B.sample?.record?.head !== 'Saved before snapshots' || B.sample.button) p.push(`the seeded sample reads ${canon(B.sample)}`);
+      if (!/Saved before snapshots/.test(B.sampleRow || '') || !/Saved before stamping/.test(B.sampleRow || '')) p.push(`the seeded sample's Saved work row reads "${B.sampleRow}"`);
+      if (!B.missing || !B.missing.length) p.push('no company with little data was found for the missing-data case');
+      for (const m of B.missing || []) {
+        if (m.threw || !m.noNaN || !m.rendered || m.zeroPillars || (m.errorModel && (m.base !== null || m.conf !== null || m.confBand !== null))) p.push(`a case on ${m.id} (coverage ${m.coverage}%, model unavailable ${m.errorModel}): ${canon(m)}`);
+        if (m.cond.some(x => x !== 'Awaiting update' && x !== 'Data unavailable') || canon(m.suggested.conditions) !== canon(['suggested'])) p.push(`on ${m.id} the condition reads ${canon(m.cond)}, never to pass`);
+      }
+      if (!B.timing || !B.timing.entered || !B.timing.same) p.push(`a timing workspace entry ${B.timing && B.timing.entered ? 'changed' : 'was not made, so did not test'} the research composite and the snapshot's figures`);
+    }
+    const C = await evaluate(`(${d8c.toString()})(${JSON.stringify({ own: A.own, keepTheses: A.keepTheses, keepQtti: A.keepQtti, id: A.id || null })})`);
+    p.push(...C.problems);
+    if (C.differ?.length || C.extra?.length) p.push(`the browser's own work was not put back: ${canon({ differ: C.differ, extra: C.extra })}`);
+    if (p.length) fail('qt-day8-case: a research case is a draft whose defaults are marked suggested until confirmed, keeps the research as it stood, and survives a reload and both backups', p);
+    else ok('qt-day8-case: "Start an investment case" on a filed company with no price opens a draft with the toast and the in-page line in sight; the review date, horizon, confidence and condition marked "Suggested default — not yet confirmed by you." (four 44px Confirms), the condition awaiting and not counted as passing; Confirm on the review date and a typed horizon take those two marks off, the line staying with the confidence and the condition; the snapshot holds the composite (nulls kept null, governance as manual review), eight lens fits, the scorecard, the tier, the base-case estimate with range and confidence, and edits as null; reading the card with an assumption edited, a score and the model moved replaces nothing and marks the one figure and the model; "Review against today\'s research" takes a new snapshot with the edit and leaves the defaults as they were; after a reload the case is as it was; "Download a backup" and "Export everything", each cleared and restored twice, leave it once with every field; a case from before reads "Saved before snapshots" with no mark and no field invented, the seeded sample too, and the shape check takes new and old; a timing workspace entry leaves the composite unchanged; the snapshot also keeps each default\'s state, the methodology and model version and the dates of the statements and price, and the company with least data and one with no model start a case with nothing invented', A.id);
+  }
+  /* ---- end qt-day8-case ---- */
+  /* qt-quick-fee — THE FEE AND WHO MANAGES, SIDE BY SIDE (the 20 Oct 2026
+     sweep, managed-2). The sample is self-managed, so a letting and
+     management fee typed in the Quick model — which had the box and not
+     the tick — changed no figure, and nothing said so. The full model's
+     own tick, "I will manage this property myself", is drawn in the Quick
+     model right after the fee box, ticked on the sample; unticking it
+     there charges the fee: on the sample with 8% typed, the month falls
+     by (8% of the RM20,202 collected + half a month's RM1,850 placement a
+     year) ÷ 12 = RM211.76, worked by hand. Fails on 68f3da44: no tick in
+     the Quick model. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal');
+      const out = {};
+      try {
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, mgmtPct: 8 };
+        saveDeal(); navigate('/property/calculator', { replace: true }); setPropertyView(false); render(); await w(400);
+        const fee = document.querySelector('#pc-quick #d-mgmtPct'), tick = document.querySelector('#pc-quick #d-selfManaged');
+        out.quick = !!document.getElementById('pc-quick');
+        out.drawn = { fee: !!fee, tick: !!tick };
+        out.next = !!(fee && tick) && fee.closest('.assumption')?.nextElementSibling === tick.closest('label');
+        out.label = tick ? tick.closest('label').textContent.trim() : null;
+        out.before = { checked: tick ? tick.checked : null, monthly: dealModel(State.deal).cashflowMonthly };
+        if (tick) { tick.click(); await w(400); }
+        const t2 = document.querySelector('#pc-quick #d-selfManaged');
+        out.after = { self: State.deal.selfManaged, checked: t2 ? t2.checked : null, monthly: dealModel(State.deal).cashflowMonthly, quick: !!document.getElementById('pc-quick') };
+      } finally {
+        State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); saveDeal(); navigate(back, { replace: true }); render(); await w(250);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (!r.quick || !r.drawn.fee || !r.drawn.tick) p.push(`the Quick model draws ${r.drawn.fee ? 'the fee box' : 'no fee box'} and ${r.drawn.tick ? 'the tick' : 'no "I will manage this property myself" tick'}`);
+    else {
+      if (!r.next) p.push('the tick is not right after the fee box');
+      if (r.label !== 'I will manage this property myself') p.push(`the tick reads "${r.label}"`);
+      const want = (0.08 * 1850 * 12 * 0.91 + 1 * 1850 * 12 / 24) / 12;
+      if (r.before.checked !== true || r.after.self !== false || r.after.checked !== false || !r.after.quick) p.push(`ticked ${r.before.checked} on the sample; after a click the deal is ${r.after.self ? 'self-managed' : 'managed'}, the tick ${r.after.checked}, ${r.after.quick ? 'in Quick' : 'out of Quick'}`);
+      if (!(Math.abs((r.before.monthly - r.after.monthly) - want) < 1e-6)) p.push(`unticked, the month moved ${(r.before.monthly - r.after.monthly).toFixed(4)}, by hand ${want.toFixed(4)} (the fee charged)`);
+    }
+    if (p.length) fail('qt-quick-fee: the Quick model shows who manages beside the fee, and the tick charges the fee', p);
+    else ok(`qt-quick-fee: the Quick model draws "I will manage this property myself" right after the fee box, ticked on the sample; unticked there, the 8% typed is charged — the month falls RM${(r.before.monthly - r.after.monthly).toFixed(2)}, worked by hand`);
+  }
+
+  /* qt-words — THE CALCULATOR'S WORDS SAY WHAT ITS FIGURES ARE (the 20 Oct
+     2026 sweep, stress-6, stress-7, stress-9, managed-6, managed-7):
+     - the "Breaks even at" tile on the sample says what was computed: no
+       rate down to 0% makes the month positive, because at 0% the loan's
+       repayment (RM514,800 ÷ 420 = RM1,225.71) is more than the rent
+       leaves (RM1,176.16), not that "the interest rate is not what makes
+       this negative" — interest is most of the shortfall;
+     - the vacancy rows are captioned as the fixed levels they are;
+     - the sensitivity table's last column is the larger one-step move it
+       holds, not a "swing" between the ends beside it;
+     - on the sample managed at 8% with a RM300 minimum (8% of the RM20,202
+       collected is RM1,616.16, under RM3,600), the management cost tile
+       names the minimum, and the note says the minimum is owed whatever is
+       collected, RM1,983.84 above the percentage at this rent, more as
+       collections fall — not that the top-up "does not fall with rent". */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal');
+      const read = async (d) => { State.deal = d; saveDeal(); navigate('/property/calculator?view=full', { replace: true }); render(); await w(450);
+        return (document.querySelector('main')?.textContent || '').replace(/\\s+/g, ' '); };
+      const base = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      let sample = '', managed = '', mm = null;
+      try {
+        sample = await read(base);
+        const md = { ...base, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 300 };
+        managed = await read(md); mm = dealModel(md);
+      } finally { State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); saveDeal(); navigate(back, { replace: true }); render(); await w(250); }
+      const sens = propertySensitivityPanel(base, dealModel(base)).textContent.replace(/\\s+/g, ' ');
+      return { sample, managed, sens, topUp: mm.mgmtMinTopUp, money: fmtAmount(3600 - 0.08 * 1850 * 12 * 0.91, 'MYR'), floor: fmtAmount(3600, 'MYR'), min: fmtAmount(300, 'MYR') };
+    })()`);
+    const p = [];
+    const inst0 = 514800 / 420, left = (1850 * 12 * 0.91 - (294 * 12 + 800 + 300 + 450 + 1850 * 12 * 0.91 * 0.05)) / 12;
+    if (!(inst0 > left)) p.push(`the sample's repayment at 0% (${inst0.toFixed(2)}) is not more than the rent leaves (${left.toFixed(2)}): the case is wrong`);
+    if (!r.sample.includes('Negative even at 0%: the loan’s repayment is more than the rent leaves, so no rate cut alone fixes it.') || r.sample.includes('The interest rate is not what makes this negative')) p.push('the "Breaks even at" tile does not say what was computed');
+    if (!r.sample.includes('At fixed vacancy levels') || r.sample.includes('If it sits empty for longer')) p.push('the vacancy rows are not captioned as fixed levels');
+    if (!/Larger move/.test(r.sens) || /\bSwing\b/.test(r.sens)) p.push('the sensitivity table still calls the larger one-step move a swing');
+    if (!r.managed.includes(`the ${r.min} monthly minimum plus placement`)) p.push(`the management cost tile does not name the minimum it charges (${r.min})`);
+    if (!r.managed.includes(`less than the ${r.floor} a year minimum you entered, which is owed whatever the property collects — ${r.money} more than the percentage at this rent, and more as collections fall.`) || /does not fall with rent|treats it as fixed/.test(r.managed)) p.push(`the minimum fee's note: by hand ${r.floor} owed, ${r.money} above 8% of RM20,202`);
+    if (p.length) fail('qt-words: the calculator\'s tiles, captions and notes say what their figures are', p);
+    else ok(`qt-words: "Negative even at 0%: the loan’s repayment is more than the rent leaves" (RM${inst0.toFixed(2)} against RM${left.toFixed(2)}, by hand); "At fixed vacancy levels"; "Larger move"; the RM300 minimum named, owed whatever is collected, ${r.money} above 8% at this rent`);
+  }
+
+  /* qt-bases — EACH PERCENTAGE SAYS WHAT IT IS A PERCENTAGE OF (the Day-8
+     report, item 4), and the model charges it on that: the fee and the
+     reserve on the rent collected after vacancy, the exit costs on the sale
+     price (the legal costs at least RM500), the vacancy of the year. By
+     hand, on the sample managed at 8% with 25% vacancy: rent collected
+     1,850 × 12 × 0.75 = RM16,650, the fee 8% of it RM1,332 and the reserve
+     5% RM832.50 (on the gross RM22,200 they would be RM1,776 and RM1,110);
+     a 2-year hold of a RM50,000 parcel at 3% growth sells at RM53,045, its
+     agent 2% RM1,060.90 and its legal costs RM500, not 0.5% (RM265.23).
+     The labels in English, Malay and Chinese; the RM500 floor in the
+     box's note. */
+  {
+    const r = await evaluate(`(() => {
+      const base = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      const m = dealModel({ ...base, selfManaged: false, mgmtPct: 8, vacancyPct: 25 });
+      const x = dealModel({ ...base, propertyType: 'Land', landSqft: 4000, sqft: 0, price: 50000, downPct: 100, holdYears: 2, apprecPct: 3 });
+      const keys = ['vacancyPct', 'mgmtPct', 'repairReservePct', 'agentPct', 'exitLegalPct'];
+      return { mgmtY: m.mgmtY, repairY: m.repairY, exitValue: x.exitValue, agent: x.agentFee, legal: x.exitLegal,
+        labels: Object.fromEntries(keys.map(k => [k, { def: PC_FIELD_DEF[k][1], ...PROPERTY_I18N['in.' + k] }])),
+        note: pcDealField(base, 'exitLegalPct').textContent.replace(/\\s+/g, ' ').trim() };
+    })()`);
+    const p = [], near = (a, b) => Math.abs(a - b) < 1e-6;
+    if (!near(r.mgmtY, 1332) || !near(r.repairY, 832.5)) p.push(`the fee ${r.mgmtY} and the reserve ${r.repairY} — by hand 1,332 and 832.50, on the rent collected`);
+    if (!near(r.exitValue, 50000 * 1.03 * 1.03) || !near(r.agent, 50000 * 1.03 * 1.03 * 0.02) || r.legal !== 500) p.push(`the exit: value ${r.exitValue}, agent ${r.agent}, legal ${r.legal} — by hand 53,045, 1,060.90 and 500`);
+    const want = {
+      vacancyPct: ['Vacancy allowance (% of the year)', 'Peruntukan kekosongan (% daripada setahun)', '空置预留 (占全年 %)'],
+      mgmtPct: ['Letting and management fee (% of rent collected)', 'Fi sewaan dan pengurusan (% sewa yang dikutip)', '出租与管理费 (占实收租金 %)'],
+      repairReservePct: ['Repair reserve (% of rent collected)', 'Rizab pembaikan (% sewa yang dikutip)', '维修储备 (占实收租金 %)'],
+      agentPct: ['Agent commission on exit (% of the sale price)', 'Komisen ejen semasa jualan (% harga jualan)', '出售时经纪佣金 (占售价 %)'],
+      exitLegalPct: ['Legal costs on exit (% of the sale price)', 'Kos guaman semasa jualan (% harga jualan)', '出售时律师费 (占售价 %)'],
+    };
+    for (const [k, [en, ms, zh]] of Object.entries(want)) {
+      const l = r.labels[k];
+      if (l.def !== en || l.en !== en || l.ms !== ms || l.zh !== zh) p.push(`${k} reads ${JSON.stringify(l)}`);
+    }
+    if (!/At least RM500\./.test(r.note) || /RM500/.test(r.labels.exitLegalPct.en)) p.push(`the legal costs' box: "${r.note}"`);
+    if (p.length) fail('qt-bases: each percentage says what it is a percentage of, and is charged on it', p);
+    else ok('qt-bases: the fee and the reserve on the rent collected (RM1,332 and RM832.50 at 25% vacancy, by hand), the exit costs on the sale price (RM1,060.90; the legal costs RM500 at least), the vacancy of the year — each label saying so in English, Malay and Chinese');
+  }
+
   /* ---- qt-quick-full ---- */
   /* WHAT THE CALCULATOR WAS SERVED WITH, THE FULL MODEL DRAWS (QT-003).
      /property/calculator is served in the Quick model since QT-003, so what
@@ -9539,6 +11420,305 @@ try {
     else ok('qt-quick-full: the full model drawn (?view=full) on a first visit — the ten seeded inputs each tagged "Illustrative default — not yours, and not from any market"; the methodology, the pillar table and every blocker above the sections in closed drawers, the worst in sight; "Cash to complete" and "Monthly position" once above the sections; the two questions answered Residential and Subsale, rows of chips, the objective not chosen, "Residential · Subsale" and Change ahead of them, their first choice the first form control; Illustrative, Placeholder and Derived badges; the sensitivity and the renovation recovery in their approved words', r);
   }
   /* ---- end qt-quick-full ---- */
+
+  /* ---- qt-day8-bands ---- */
+  /* THE EVIDENCE BANDS AND THE RESEARCH CASE, BY KNOWN ANSWER (the Day-8
+     report, QT-D08-01: "known-answer scoring and boundary tests;
+     incomplete-data and unavailable-price tests"). The page's own functions
+     — fitGrade, coverageTier, STRATEGY_FITS and BAND_MEANING
+     (45-views-research.js), researchComposite and COMPOSITE_BANDS
+     (15-derivation.js) — run on synthetic companies named as tests (filed,
+     US-listed, priced and every statement line present unless a case says
+     otherwise), each input worked by hand from the fit's own formula so the
+     score lands on the boundary:
+       Income      60 + 5 × yield − the payout above 70%, rounded
+       Compounder  0.7 × business quality + 2 × revenue growth (at most 30)
+       Value       50 + the price's gap below the base-case estimate (%)
+       DCA, Wheel  the business-quality score
+       Cyclical    45, capped without cycle evidence
+     B1 — nothing missing: 80 reads A and 79 B, 65 B and 64 C, 50 C and 49 D,
+          on the Income and the Compounder fits alike.
+     B2 — evidence missing holds a fit to B or lower: DCA at a quality of 95,
+          80 and 65 reads B, 64 and 50 C, 49 D; Value at 95 and 80 and the US
+          Cash Wheel at 95 read B; the Cyclical fit's 45 reads D.
+     B3 — the tiers and the states: coverageTier at the 90% and 70% bounds,
+          with and without a price; on a Basic Directory company every fit
+          that scores at the Standard tier is withheld, no score and one
+          reason added; an illustrative company's fits read illustrative,
+          bar the Cash Wheel on a Bursa one; Trend is not built on any filer,
+          at any tier, priced or not; the Cash Wheel does not apply outside
+          the US, filed or illustrative.
+     B4 — incomplete data and an unavailable price: with no price, Income
+          and Value / re-rating are Unassessed and name the price, with no
+          score and no figure in their words; a fit missing the one input it
+          needs is Unassessed and names it; every filed company of this
+          build without a price reads the same on both.
+     B5 — BAND_MEANING says what fitGrade does: every score 0 to 100 run
+          through fitGrade, with nothing missing and with something missing,
+          gives each letter's range, and the numbers each meaning states are
+          those ranges' bounds.
+     B6 — every strategy in STRATEGY_FITS comes back under its own label, in
+          a state FIT_STATES explains, with a score and a letter or a reason.
+     C1 — researchComposite classifies at a data coverage of 70 and not at
+          69, which keeps the score and adds the coverage gate naming 69%
+          and 70%.
+     C2 — the bands at 85/84, 70/69 and 55/54, each score worked by hand
+          over the 80% tested (35 quality, 30 valuation, 15 balance sheet).
+     C3 — an untested pillar carries no score and the divisor is the weight
+          tested (valuation untested: (35 × 80 + 15 × 50) ÷ 50 = 71);
+          catalysts and macro are untested even when a score is offered for
+          them; the governance gate is manual review on every composite; and
+          with no pillar tested there is no score and no classification.
+     Each passes on 68f3da44 and fails on a copy of the page with its rule
+     broken (A from 81; the cap lifted; the directory, illustrative, trend
+     or Bursa rule dropped; the price gate dropped; a meaning's number moved;
+     a strategy with no branch; the gate at 69; a band from 86; the divisor
+     100; catalysts read; governance passed; no pillar scored nought). */
+  {
+    const nm = 'qt-day8-bands';
+    /* By hand, from each fit's formula (fitGrade): [score, inputs, letter]. */
+    const INCOME = [
+      [80, { dy: 4, payout: 70 }, 'A'], [79, { dy: 4, payout: 71 }, 'B'],
+      [65, { dy: 1, payout: 70 }, 'B'], [64, { dy: 1, payout: 71 }, 'C'],
+      [50, { dy: 0, payout: 80 }, 'C'], [49, { dy: 0, payout: 81 }, 'D']];
+    /* Return on equity 15% throughout, which the fit needs and does not score. */
+    const COMPOUNDER = [
+      [80, { q: 100, rev5: 5 }, 'A'], [79, { q: 100, rev5: 4.5 }, 'B'],
+      [65, { q: 50, rev5: 15 }, 'B'], [64, { q: 50, rev5: 14.5 }, 'C'],
+      [50, { q: 50, rev5: 7.5 }, 'C'], [49, { q: 50, rev5: 7 }, 'D']];
+    const DCA = [[95, 'B'], [80, 'B'], [65, 'B'], [64, 'C'], [50, 'C'], [49, 'D']];
+    const VALUE = [[95, 45, 'B'], [80, 30, 'B']];
+    /* [statement lines present and price, metrics, tier]. */
+    const TIERS = [
+      [{ completeness: 0.9 }, {}, 'verified'], [{ completeness: 0.89 }, {}, 'standard'],
+      [{ completeness: 0.7 }, {}, 'standard'], [{ completeness: 0.69 }, {}, 'directory'],
+      [{ px: { p: null } }, {}, 'standard'], [{ completeness: 0.69, px: { p: null } }, {}, 'directory'],
+      [{ completeness: null }, { coverage: 90 }, 'verified'], [{ completeness: null }, { coverage: 69 }, 'directory'],
+      [{ real: false }, {}, 'unassessed']];
+    /* (35 × quality + 30 × valuation + 15 × balance sheet) ÷ 80, quality the
+       mean of its three: [score, pillars, the band's lower bound]. */
+    const RC = [
+      [85, { t: [100, 100, 100], v: 70, s: 80 }, 85],  /* 3,500 + 2,100 + 1,200 = 6,800 */
+      [84, { t: [92, 96, 100], v: 80, s: 64 }, 70],    /* 3,360 + 2,400 +   960 = 6,720 */
+      [70, { t: [60, 64, 68], v: 90, s: 44 }, 70],     /* 2,240 + 2,700 +   660 = 5,600 */
+      [69, { t: [66, 72, 78], v: 60, s: 80 }, 55],     /* 2,520 + 1,800 + 1,200 = 5,520 */
+      [55, { t: [30, 40, 50], v: 70, s: 60 }, 55],     /* 1,400 + 2,100 +   900 = 4,400 */
+      [54, { t: [55, 60, 65], v: 50, s: 48 }, 0]];     /* 2,100 + 1,500 +   720 = 4,320 */
+    const T = { income: INCOME.map(x => x[1]), compounder: COMPOUNDER.map(x => x[1]), dca: DCA.map(x => x[0]),
+      value: VALUE.map(x => x[1]), tiers: TIERS.map(([c, m]) => [c, m]), rc: RC.map(x => x[1]) };
+    try {
+      const r = JSON.parse(await evaluate(`(() => {
+        const kinds = { fitGrade: typeof fitGrade, coverageTier: typeof coverageTier, researchComposite: typeof researchComposite,
+          STRATEGY_FITS: typeof STRATEGY_FITS, BAND_MEANING: typeof BAND_MEANING, COMPOSITE_BANDS: typeof COMPOSITE_BANDS, FIT_STATES: typeof FIT_STATES };
+        const absent = Object.keys(kinds).filter(k => kinds[k] === 'undefined');
+        if (absent.length) return JSON.stringify({ absent });
+        const T = ${JSON.stringify(T)};
+        /* A score that is neither a number nor null (NaN, undefined) said as
+           itself: JSON would carry NaN across as null, the "no score" it is not. */
+        const v = (n) => (n === null || isNum(n) ? n : String(n));
+        const co = (x) => ({ c: { id: 'QT-MODEL-TEST', tk: 'QTTEST', name: 'Model-test company, not a real one', mkt: 'US', type: 'mature', real: true, completeness: 1, px: { p: 100 }, ...(x.c || {}) },
+          m: { coverage: 100, ...(x.m || {}) }, scores: { quality: { score: isNum(x.q) ? x.q : null } }, val: x.val || null });
+        const fit = (x, key) => { const r = co(x), tier = coverageTier(r), f = fitGrade(r, key, tier);
+          return { key, tier: tier.id, label: f.label, state: f.state, grade: f.grade, score: v(f.score), missing: f.missing.slice(), cap: f.cap || null,
+            supports: f.supports.slice(), weakens: f.weakens.slice() }; };
+        const all = (x) => STRATEGY_FITS.map(s => fit(x, s.k));
+        const FULL = { m: { dy: 4, payout: 70, rev5: 5, roe: 15 }, q: 100, val: { mos: { base: 45 } } };
+        const on = (c) => ({ ...FULL, c });
+        const b1 = { income: T.income.map(m => fit({ m }, 'income')),
+          compounder: T.compounder.map(x => fit({ m: { rev5: x.rev5, roe: 15 }, q: x.q }, 'compounder')) };
+        const b2 = { dca: T.dca.map(q => fit({ q }, 'dca')), value: T.value.map(mos => fit({ val: { mos: { base: mos } } }, 'value')),
+          wheel: fit({ q: 95 }, 'wheel'), cyclical: fit({ c: { type: 'cyclical' }, m: { revDD: -30 } }, 'cyclical') };
+        const b3 = { tiers: T.tiers.map(([c, m]) => coverageTier(co({ c, m })).id),
+          lists: { verified: all(on({})), standard: all(on({ completeness: 0.8 })), directory: all(on({ completeness: 0.5 })),
+            illusUS: all(on({ real: false })), illusMY: all(on({ real: false, mkt: 'MY' })), filedMY: all(on({ mkt: 'MY' })),
+            unpriced: all(on({ px: { p: null } })) } };
+        const b4 = { income: fit(on({ px: { p: null } }), 'income'), value: fit(on({ px: { p: null } }), 'value'),
+          incomeNoPx: fit(on({ px: null }), 'income'), valueNoPx: fit(on({ px: null }), 'value'),
+          incomplete: [
+            ['Income with a price and no distribution or payout record', fit({}, 'income')],
+            ['Quality compounder with no growth record', fit({ m: { roe: 15 }, q: 100 }, 'compounder')],
+            ['Quality compounder with no business-quality assessment', fit({ m: { rev5: 5, roe: 15 } }, 'compounder')],
+            ['Cyclical with no revenue drawdown history', fit({ c: { type: 'cyclical' } }, 'cyclical')],
+            ['Value / re-rating with no valuation model', fit({ val: { err: 'no model' } }, 'value')],
+            ['DCA with no business-quality assessment', fit({}, 'dca')],
+            ['US Cash Wheel with no business-quality assessment', fit({}, 'wheel')]],
+          filed: U.filter(x => x.c.real && !isNum(x.c.px && x.c.px.p)).map(x => { const tier = coverageTier(x), i = fitGrade(x, 'income', tier), w = fitGrade(x, 'value', tier);
+            return [x.c.tk, i.state, v(i.score), i.missing[0] || null, w.state, v(w.score), w.missing[0] || null]; }),
+          filedAll: U.filter(x => x.c.real).length };
+        const scan = [];
+        for (let s = 0; s <= 100; s++) {
+          const a = fit({ m: s >= 60 ? { dy: (s - 60) / 5 } : { dy: 0, payout: 130 - s } }, 'income'), d = fit({ q: s }, 'dca');
+          scan.push([s, a.score, a.state, a.grade, a.missing.length, d.score, d.state, d.grade, d.missing.length]);
+        }
+        const b5 = { scan, meaning: BAND_MEANING };
+        const b6 = { fits: STRATEGY_FITS.map(s => [s.k, s.label]), states: Object.keys(FIT_STATES) };
+        const rc = (x) => { const o = researchComposite({ c: { id: 'QT-MODEL-TEST', real: true }, m: { coverage: x.cov === undefined ? 100 : x.cov },
+            scores: { quality: { score: x.t[0] }, growth: { score: x.t[1] }, capital: { score: x.t[2] }, value: { score: x.v }, strength: { score: x.s }, ...(x.extra || {}) } });
+          return { score: v(o.score), classified: o.classified, testedWeight: o.testedWeight, dataCoverage: o.dataCoverage,
+            band: o.band ? { min: o.band.min, state: o.band.state } : null, parts: o.parts.map(p => [p.id, p.w, p.score, p.absent || null]),
+            untested: o.untested.map(p => p.id), gates: o.gates.map(g => [g.id, g.state, g.why || '']) }; };
+        const k85 = T.rc[0];
+        const c = { bands: T.rc.map(rc), at70: rc({ ...k85, cov: 70 }), at69: rc({ ...k85, cov: 69 }), noCov: rc({ ...k85, cov: null }),
+          offered: rc({ ...k85, extra: { catalysts: { score: 100 }, macro: { score: 100 } } }),
+          noValue: rc({ t: [70, 80, 90], v: null, s: 50 }), qualityOnly: rc({ t: [70, 80, 90], v: null, s: null }),
+          none: rc({ t: [null, null, null], v: null, s: null }), table: COMPOSITE_BANDS.map(b => [b.min, b.state]),
+          every: U.map(x => { const o = researchComposite(x); return [x.c.tk, o.testedWeight, o.untested.map(p => p.id), o.gates.map(g => g.id + ':' + g.state)]; }) };
+        return JSON.stringify({ b1, b2, b3, b4, b5, b6, c });
+      })()`));
+      if (r.absent) throw new Error(`the page holds no ${r.absent.join(', ')}`);
+      const reason = (f) => f.cap || f.missing[0] || '';
+      const said = (f) => `${f.state}${f.state === 'graded' ? ` ${f.grade}` : ''} at ${f.score}, ${f.missing.length} missing`;
+      const byKey = (list) => Object.fromEntries(list.map(f => [f.key, f]));
+      const L = r.b3.lists;
+
+      /* B1 */
+      const p1 = [];
+      for (const [k, rows] of [['Income', INCOME], ['Quality compounder', COMPOUNDER]]) rows.forEach(([score, x, letter], i) => {
+        const f = r.b1[k === 'Income' ? 'income' : 'compounder'][i];
+        if (f.score !== score || f.state !== 'graded' || f.grade !== letter || f.missing.length) p1.push(`${k} on ${JSON.stringify(x)}: ${said(f)} — by hand ${score}, ${letter}, nothing missing`);
+      });
+      if (p1.length) fail(`${nm} B1: with nothing missing, fitGrade reads A from 80, B from 65 and C from 50`, p1);
+      else ok(`${nm} B1: with nothing missing, 80 reads A and 79 B, 65 B and 64 C, 50 C and 49 D — on Income (60 + 5 × yield − payout above 70) and Quality compounder (0.7 × quality + 2 × growth, at most 30) alike, each score worked by hand`);
+
+      /* B2 */
+      const p2 = [];
+      const held = (f, score, letter, what) => { if (f.score !== score || f.state !== 'graded' || f.grade !== letter || !f.missing.length || !f.cap) p2.push(`${what}: ${said(f)}, cap ${JSON.stringify(f.cap)} — by hand ${score}, ${letter}, held with something missing`); };
+      DCA.forEach(([q, letter], i) => held(r.b2.dca[i], q, letter, `DCA at a business quality of ${q}`));
+      VALUE.forEach(([score, mos, letter], i) => held(r.b2.value[i], score, letter, `Value / re-rating with the price ${mos}% below the base-case estimate`));
+      held(r.b2.wheel, 95, 'B', 'the US Cash Wheel at a business quality of 95');
+      held(r.b2.cyclical, 45, 'D', 'Cyclical with a revenue drawdown history');
+      if (p2.length) fail(`${nm} B2: a fit with evidence missing is held to B or lower`, p2);
+      else ok(`${nm} B2: with evidence missing a fit is held to B or lower and says it is capped — DCA at a quality of 95, 80 and 65 reads B, 64 and 50 C, 49 D; Value at 95 and 80 and the US Cash Wheel at 95 read B; Cyclical's 45 reads D`);
+
+      /* B3 */
+      const p3 = [];
+      TIERS.forEach(([c, m, want], i) => { if (r.b3.tiers[i] !== want) p3.push(`coverageTier on ${JSON.stringify({ ...c, ...m })}: ${r.b3.tiers[i]}, not ${want}`); });
+      const std = byKey(L.standard), dir = byKey(L.directory);
+      if (L.standard[0]?.tier !== 'standard' || L.directory[0]?.tier !== 'directory') p3.push(`the test companies sit at the ${L.standard[0]?.tier} and ${L.directory[0]?.tier} tiers, not standard and directory`);
+      const withheld = [];
+      for (const [k, s] of Object.entries(std)) {
+        const d = dir[k];
+        if (s.state !== 'graded') { if (d.state !== s.state) p3.push(`${s.label}: ${s.state} at the Standard tier, ${d.state} at the Basic Directory tier`); continue; }
+        const added = d.missing.filter(x => !s.missing.includes(x));
+        if (d.state !== 'missing' || d.score !== null || added.length !== 1 || !added[0]) p3.push(`${s.label} at the Basic Directory tier: ${said(d)}, ${added.length} reasons added (${JSON.stringify(added)}) — at the Standard tier ${s.grade} at ${s.score}`);
+        else withheld.push(s.label);
+      }
+      if (withheld.length < 5) p3.push(`only ${withheld.length} fits score at the Standard tier for the Basic Directory tier to withhold (${withheld.join(', ')})`);
+      for (const [name, list, wheel] of [['an illustrative US company', L.illusUS, 'illustrative'], ['an illustrative Bursa company', L.illusMY, 'not_applicable']])
+        for (const f of list) { const want = f.key === 'wheel' ? wheel : 'illustrative';
+          if (f.tier !== 'unassessed' || f.state !== want || f.score !== null || !reason(f)) p3.push(`${f.label} on ${name}: ${said(f)} at the ${f.tier} tier, reason ${JSON.stringify(reason(f))} — ${want}, no score`); }
+      for (const [name, list] of [['a priced US filer', L.verified], ['a Standard Coverage filer', L.standard], ['a Basic Directory filer', L.directory], ['a filer with no price', L.unpriced], ['a Bursa filer', L.filedMY]]) {
+        const t = list.find(f => f.key === 'trend');
+        if (!t || t.state !== 'not_built' || t.score !== null || !t.cap) p3.push(`Trend on ${name}: ${t ? said(t) : 'absent'}, cap ${JSON.stringify(t?.cap)} — not built`);
+      }
+      for (const [name, list] of [['a Bursa filer at a business quality of 100', L.filedMY], ['an illustrative Bursa company', L.illusMY]]) {
+        const w = list.find(f => f.key === 'wheel');
+        if (!w || w.state !== 'not_applicable' || w.score !== null || !w.cap) p3.push(`the Cash Wheel on ${name}: ${w ? said(w) : 'absent'}, cap ${JSON.stringify(w?.cap)} — not applicable`);
+      }
+      if (byKey(L.verified).wheel?.state !== 'graded') p3.push(`the Cash Wheel on the same company listed in the US reads ${byKey(L.verified).wheel?.state}, so the Bursa case shows nothing`);
+      if (p3.length) fail(`${nm} B3: the tiers, and the Basic Directory, illustrative, trend and Cash Wheel states`, p3);
+      else ok(`${nm} B3: coverageTier reads Verified Core at 90% of statement lines with a price and Standard at 89%, Standard at 70% and Basic Directory at 69%, Standard with no price, the metric coverage when no line count is held, Unassessed on illustrative figures; at the Basic Directory tier ${withheld.join(', ')}, which score at the Standard tier, are withheld — no score, one reason added; every fit of an illustrative company reads illustrative, bar the Cash Wheel on a Bursa one; Trend is not built on any filer, at any tier, priced or not; the Cash Wheel does not apply to a Bursa company, filed or illustrative`);
+
+      /* B4 */
+      const p4 = [];
+      const figure = (f) => /\d/.test([...f.supports, ...f.weakens, ...f.missing, f.cap || ''].join(' '));
+      const priced = byKey(L.verified);
+      for (const [k, name] of [['income', 'Income'], ['value', 'Value / re-rating']]) for (const [how, f] of [['a price of null', r.b4[k]], ['no price record', r.b4[`${k}NoPx`]]]) {
+        if (f.state !== 'missing' || f.score !== null || f.grade !== 'U' || f.supports.length || f.weakens.length || !f.missing[0] || figure(f))
+          p4.push(`${name} with ${how}: ${said(f)}, supports ${JSON.stringify(f.supports)}, weakens ${JSON.stringify(f.weakens)}, missing ${JSON.stringify(f.missing)} — Unassessed, a reason, no figure`);
+        else if (priced[k].state !== 'graded' || priced[k].missing.includes(f.missing[0])) p4.push(`${name}'s reason "${f.missing[0]}" is not the price's: priced, the same company reads ${said(priced[k])} (${JSON.stringify(priced[k].missing)})`);
+      }
+      for (const [what, f] of r.b4.incomplete) if (f.state !== 'missing' || f.score !== null || f.grade !== 'U' || !f.missing[0]) p4.push(`${what}: ${said(f)} (${JSON.stringify(f.missing)}) — Unassessed, no score, the gap named`);
+      const why = { income: r.b4.income.missing[0], value: r.b4.value.missing[0] };
+      const off = r.b4.filed.filter(([, is, isc, im, vs, vsc, vm]) => is !== 'missing' || isc !== null || im !== why.income || vs !== 'missing' || vsc !== null || vm !== why.value);
+      if (off.length) p4.push(`${off.length} of the ${r.b4.filed.length} filed companies without a price read otherwise on Income or Value / re-rating: ${JSON.stringify(off.slice(0, 3))}`);
+      if (p4.length) fail(`${nm} B4: with data missing or no price, a fit says its state and reason, never a figure`, p4);
+      else ok(`${nm} B4: with no price, Income and Value / re-rating read Unassessed — "${why.income}" and "${why.value}" — with no score and no figure, a null price and no price record alike; ${r.b4.incomplete.length} fits each missing the one input they need read Unassessed and name it; ${r.b4.filed.length} of this build's ${r.b4.filedAll} filed companies have no price, and each reads the same on both`);
+
+      /* B5 */
+      const p5 = [];
+      const ladder = (col, nothing) => { const g = {}, order = [];
+        for (const row of r.b5.scan) { const [s] = row, score = row[col], state = row[col + 1], letter = row[col + 2], missing = row[col + 3];
+          if (score !== s || state !== 'graded' || (nothing ? missing !== 0 : missing === 0)) { p5.push(`the scan's input for ${s} (${nothing ? 'Income' : 'DCA'}) gave ${state} ${letter} at ${score}, ${missing} missing`); continue; }
+          if (order[order.length - 1] !== letter) order.push(letter);
+          g[letter] = g[letter] ? [g[letter][0], s] : [s, s]; }
+        return { g, order }; };
+      const full = ladder(1, true), capped = ladder(5, false);
+      if (full.order.join() !== 'D,C,B,A') p5.push(`with nothing missing the letters run ${full.order.join(', ')} from 0 to 100`);
+      if (capped.order.join() !== 'D,C,B') p5.push(`with something missing the letters run ${capped.order.join(', ')} from 0 to 100 — never above B`);
+      const meaning = r.b5.meaning;
+      if (Object.keys(meaning).sort().join() !== [...new Set([...full.order, ...capped.order])].sort().join()) p5.push(`BAND_MEANING explains ${Object.keys(meaning).join(', ')}; fitGrade gives ${[...new Set([...full.order, ...capped.order])].join(', ')}`);
+      const bounds = {};
+      for (const letter of Object.keys(meaning)) {
+        const t = String(meaning[letter]);
+        const said5 = { range: [...t.matchAll(/(\d+)\s*(?:to|–)\s*(\d+)/g)].map(m => `${m[1]}-${m[2]}`),
+          from: [...t.matchAll(/(\d+)\s+(?:or more|and over|or above)/g)].map(m => +m[1]), below: [...t.matchAll(/(?:below|under|less than)\s+(\d+)/g)].map(m => +m[1]) };
+        const want = new Set();
+        for (const [which, g] of [['with nothing missing', full.g[letter]], ['with something missing', capped.g[letter]]]) {
+          if (!g) continue;
+          const [lo, hi] = g;
+          if (lo > 0 && hi < 100) { want.add(lo).add(hi); if (!said5.range.includes(`${lo}-${hi}`)) p5.push(`${letter} ${which} is ${lo} to ${hi}; its meaning says ${JSON.stringify(t)}`); }
+          else if (lo > 0) { want.add(lo); if (!said5.from.includes(lo)) p5.push(`${letter} ${which} is ${lo} or more; its meaning says ${JSON.stringify(t)}`); }
+          else if (hi < 100) { want.add(hi + 1); if (!said5.below.includes(hi + 1)) p5.push(`${letter} ${which} is below ${hi + 1}; its meaning says ${JSON.stringify(t)}`); }
+        }
+        const stray = [...t.matchAll(/\d+/g)].map(m => +m[0]).filter(n => n !== 100 && !want.has(n));
+        if (stray.length) p5.push(`${letter}'s meaning states ${stray.join(', ')}, which bound nothing fitGrade does (${JSON.stringify(t)})`);
+        bounds[letter] = [...want].join('/');
+      }
+      if (p5.length) fail(`${nm} B5: BAND_MEANING's numbers are fitGrade's thresholds`, p5);
+      else ok(`${nm} B5: BAND_MEANING says what fitGrade does — every score 0–100 through fitGrade gives ${['A', 'B', 'C', 'D'].map(l => `${l} ${full.g[l].join('–')}`).join(', ')} with nothing missing and ${['B', 'C', 'D'].map(l => `${l} ${capped.g[l].join('–')}`).join(', ')} with something missing, and each meaning states those bounds (${Object.entries(bounds).map(([l, b]) => `${l} ${b}`).join(', ')})`);
+
+      /* B6 */
+      const p6 = [];
+      const keys = r.b6.fits.map(([k]) => k), labels = Object.fromEntries(r.b6.fits);
+      for (const k of ['income', 'compounder', 'cyclical', 'value', 'catalyst', 'trend', 'dca', 'wheel']) if (!keys.includes(k)) p6.push(`STRATEGY_FITS holds no ${k}`);
+      for (const [name, list] of Object.entries(L)) {
+        if (list.map(f => f.key).join() !== keys.join()) p6.push(`${name}: fitGrade answered ${list.map(f => f.key).join(', ')}`);
+        for (const f of list) {
+          if (f.label !== labels[f.key]) p6.push(`${name}, ${f.key}: labelled "${f.label}", STRATEGY_FITS says "${labels[f.key]}"`);
+          if (!r.b6.states.includes(f.state)) p6.push(`${name}, ${f.label}: ${f.state}, a state FIT_STATES does not explain`);
+          else if (f.state === 'graded' ? !(Number.isFinite(f.score) && /^[A-D]$/.test(f.grade)) : (f.score !== null || !reason(f))) p6.push(`${name}, ${f.label}: ${said(f)}, reason ${JSON.stringify(reason(f))}`);
+        }
+      }
+      if (p6.length) fail(`${nm} B6: every strategy in STRATEGY_FITS comes back with a state, and a score or a reason`, p6);
+      else ok(`${nm} B6: each of the ${keys.length} strategies in STRATEGY_FITS comes back from fitGrade under its own label on ${Object.keys(L).length} test companies, in a state FIT_STATES explains — graded with a score and a letter, or no score and a reason`);
+
+      /* C1 */
+      const c = r.c, pc1 = [];
+      const cov = c.at69.gates.find(g => g[0] === 'coverage');
+      if (!c.at70.classified || c.at70.score !== 85 || c.at70.band?.min !== 85 || c.at70.gates.some(g => g[0] === 'coverage')) pc1.push(`at a data coverage of 70: ${c.at70.score}, classified ${c.at70.classified}, band ${JSON.stringify(c.at70.band)}, gates ${c.at70.gates.map(g => g[0]).join(', ')}`);
+      if (c.at69.classified || c.at69.band !== null || c.at69.score !== 85 || cov?.[1] !== 'not_classified' || !/\b69%/.test(cov?.[2] || '') || !/\b70%/.test(cov?.[2] || '')) pc1.push(`at 69: ${c.at69.score}, classified ${c.at69.classified}, band ${JSON.stringify(c.at69.band)}, the coverage gate ${JSON.stringify(cov)}`);
+      if (c.noCov.classified || c.noCov.dataCoverage !== 0 || c.noCov.band !== null) pc1.push(`with no data coverage recorded: classified ${c.noCov.classified} at ${c.noCov.dataCoverage}%`);
+      if (pc1.length) fail(`${nm} C1: researchComposite classifies at a data coverage of 70 and not at 69`, pc1);
+      else ok(`${nm} C1: researchComposite classifies 85 at a data coverage of 70 ("${c.at70.band.state}") and not at 69, where the 85 stays and the coverage gate says "${cov[2]}"; with no coverage recorded nothing is classified`);
+
+      /* C2 */
+      const pc2 = [];
+      if (c.table.map(([m]) => m).join() !== '85,70,55,0') pc2.push(`COMPOSITE_BANDS starts its bands at ${c.table.map(([m]) => m).join(', ')}, not 85, 70, 55 and 0`);
+      if (new Set(c.table.map(([, s]) => s)).size !== c.table.length) pc2.push(`two bands say the same: ${JSON.stringify(c.table)}`);
+      RC.forEach(([score, x, min], i) => { const o = c.bands[i];
+        if (o.score !== score || o.testedWeight !== 80 || !o.classified || o.band?.min !== min) pc2.push(`quality ${x.t.join('/')}, valuation ${x.v}, balance sheet ${x.s}: ${o.score} over ${o.testedWeight}%, ${o.band ? `the band from ${o.band.min}, "${o.band.state}"` : 'no band'} — by hand ${score} over 80%, the band from ${min}`); });
+      if (pc2.length) fail(`${nm} C2: the research case's bands at 85/84, 70/69 and 55/54`, pc2);
+      else ok(`${nm} C2: worked by hand over the 80% tested, ${RC.map(([s], i) => `${s} reads "${c.bands[i].band.state}"`).join(', ')}`);
+
+      /* C3 */
+      const pc3 = [];
+      const part = (o, id) => o.parts.find(p => p[0] === id);
+      const all3 = [...c.bands, c.at70, c.at69, c.noCov, c.offered, c.noValue, c.qualityOnly, c.none];
+      if (c.offered.score !== 85 || c.offered.testedWeight !== 80) pc3.push(`catalysts and macro offered 100 each: ${c.offered.score} over ${c.offered.testedWeight}% — by hand 85 over 80%, neither read`);
+      for (const o of all3) for (const id of ['catalysts', 'macro']) { const pp = part(o, id); if (!pp || pp[2] !== null || !o.untested.includes(id) || !pp[3]) pc3.push(`${id}: ${JSON.stringify(pp)}, untested ${o.untested.join(', ')} — untested, no score, with a reason`); }
+      if (c.noValue.score !== 71 || c.noValue.testedWeight !== 50 || c.noValue.untested.join() !== 'value,catalysts,macro' || part(c.noValue, 'value')?.[2] !== null) pc3.push(`quality 70/80/90 and balance sheet 50, valuation untested: ${c.noValue.score} over ${c.noValue.testedWeight}% (untested ${c.noValue.untested.join(', ')}) — by hand (35 × 80 + 15 × 50) ÷ 50 = 71, not ÷ 80 = 44 or ÷ 100 = 36`);
+      if (c.qualityOnly.score !== 80 || c.qualityOnly.testedWeight !== 35) pc3.push(`quality 70/80/90 alone: ${c.qualityOnly.score} over ${c.qualityOnly.testedWeight}% — by hand 80 over 35%`);
+      if (c.none.score !== null || c.none.testedWeight !== 0 || c.none.classified || c.none.band !== null || c.none.gates.map(g => g[0]).join() !== 'governance') pc3.push(`no pillar tested, at a data coverage of 100: ${c.none.score} over ${c.none.testedWeight}%, classified ${c.none.classified}, gates ${c.none.gates.map(g => g[0]).join(', ')} — no score, no classification, the governance gate alone`);
+      for (const o of all3) { const g = o.gates[0];
+        if (!g || g[0] !== 'governance' || g[1] !== 'manual_review' || !g[2] || o.gates.some(x => !['manual_review', 'not_classified'].includes(x[1]))) pc3.push(`a composite at ${o.score}: gates ${JSON.stringify(o.gates.map(x => [x[0], x[1]]))} — governance first, manual review, never passed`); }
+      const offU = c.every.filter(([, w, un, gates]) => w > 80 || !un.includes('catalysts') || !un.includes('macro') || gates[0] !== 'governance:manual_review');
+      if (offU.length) pc3.push(`${offU.length} of the ${c.every.length} companies in this build: ${JSON.stringify(offU.slice(0, 3))}`);
+      if (pc3.length) fail(`${nm} C3: untested pillars carry no score, the divisor is the weight tested, catalysts and macro are untested, governance is manual review`, pc3);
+      else ok(`${nm} C3: valuation untested, quality 70/80/90 and balance sheet 50 give (35 × 80 + 15 × 50) ÷ 50 = 71 over 50%, quality alone 80 over 35%; catalysts and macro carry no score even when offered 100, here and on all ${c.every.length} companies of this build; governance is manual review on every composite; with no pillar tested there is no score and no classification`);
+    } catch (e) { fail(`${nm}: the evidence bands and the research case by known answer`, String(e.message).split('\n')[0]); }
+  }
+  /* ---- end qt-day8-bands ---- */
 
   /* ---- calc-fixes ---- */
   /* THREE DEFECTS THE CALCULATION CHECK PACK FOUND (the owner, 17 Oct 2026:

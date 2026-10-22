@@ -852,7 +852,7 @@ function openRestoreDrawer() {
        where this browser holds something for it — kept as it is. */
     if (r.newer) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-newer': '' },
       `This file was written by a later build (format ${r.version}; this build writes ${EXPORT_VERSION}). Only what this build recognises is restored.`));
-    const keptHere = (r.missing || []).filter(k => { const v = store.read(k, null); return v !== null && v !== undefined && (!Array.isArray(v) || v.length); });
+    const keptHere = heldKinds(r.missing || []);
     if (keptHere.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-missing': '' },
       `Not in this file, so kept as this browser holds them: ${keptHere.map(k => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k).join(', ')}.${r.model && r.model !== MODEL_VERSION ? ` The file was exported under model ${r.model}; this build is ${MODEL_VERSION}.` : ''}`));
 
@@ -864,7 +864,14 @@ function openRestoreDrawer() {
       el('button', { class: 'btn btn-ghost btn-sm', 'data-export-first': '', onclick: () => { if (downloadEverything()) toast('Exported what this browser holds now — the file is in your downloads'); } }, 'Export first'),
       el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
         if (!confirm('Replace the listed items in this browser? What is here now cannot be recovered afterwards.')) return;
-        r.apply();
+        /* Refused part-way, nothing is replaced (apply, 00-core.js): the
+           reason is said here, and the page is not reloaded over it. */
+        const done = r.apply();
+        if (!done.ok) {
+          report.querySelector('[data-restore-refused]')?.remove();
+          report.append(el('p', { class: 'body', role: 'alert', 'data-restore-refused': '', style: 'font-size:13px;margin-top:var(--sm);color:var(--dn-text)' }, done.error));
+          return;
+        }
         closeDrawer();
         /* A full reload rather than render(): half this state was read into
            module-level variables at boot, and repainting over them would show a

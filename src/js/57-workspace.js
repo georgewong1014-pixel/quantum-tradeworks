@@ -43,6 +43,22 @@ const illusOf = (stamp, ids) => {
 };
 const tkOf = (id) => BY_ID.get(id)?.c.tk || id;
 
+/* What a saved case's row says beyond its name: the reviews, the linked run,
+   any default still the tool's and not the reader's (never the reader's plan),
+   and the research it was saved against. A case from before snapshots says
+   so and is not given one. */
+function caseRowDetail(t, nReviews) {
+  const sug = [...suggestedFields(t).map(([, label]) => label.toLowerCase()),
+    ...(suggestedConds(t).length ? [`${suggestedConds(t).length} condition${suggestedConds(t).length === 1 ? '' : 's'}`] : [])];
+  const snap = isRecord(t.snapshot) ? t.snapshot : null;
+  const moved = snap ? stampDiff(snap.stamp) : null;
+  return [`${nReviews} review${nReviews === 1 ? '' : 's'}`,
+    t.runRef ? 'linked to a saved run' : null,
+    sug.length ? `Suggested defaults not yet confirmed by you: ${sug.join(', ')}` : null,
+    snap ? `Research when saved, ${fmtSaved(snap.at)}${moved && moved.status !== 'current' ? ` (${moved.label.toLowerCase()})` : ''}` : 'Saved before snapshots',
+  ].filter(Boolean).join(' · ');
+}
+
 function workspaceItems() {
   const items = [];
 
@@ -94,7 +110,7 @@ function workspaceItems() {
       kind: 'thesis', key: t.id, name: `${tkOf(t.ticker)} — ${t.oneLine || 'no one-line case written yet'}`,
       sample: SEEDED_THESIS_IDS.includes(t.id), subject: tkOf(t.ticker), ids: [t.ticker],
       created: t.stamp?.savedAt || t.created, stamp: t.stamp, legacy: null, illustrative: illusOf(t.stamp, [t.ticker]),
-      detail: `${nReviews} review${nReviews === 1 ? '' : 's'}${t.runRef ? ' · linked to a saved run' : ''}`,
+      detail: caseRowDetail(t, nReviews),
       open: () => { navigate('/my/theses'); openThesisEditor(t); },
       remove: () => {
         const rv = store.read('reviews', {});
@@ -171,7 +187,7 @@ VIEWS.workspace = () => {
     el('span', { class: 'chip' }, 'No account, no sync, no sharing'),
   ]));
   lim.append(el('p', { class: 'body', style: 'font-size:13px;max-width:72ch' },
-    `Nothing here leaves this device. A cleared browser, private mode or a second machine starts empty; the export on Your data is the only copy that travels, and it carries every kind listed here. “Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (this build: ${currentDataText()}).`));
+    `Nothing here leaves this device. A cleared browser, private mode or a second machine starts empty; the export on Your data & settings is the only copy that travels, and it carries every kind listed here. “Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (this build: ${currentDataText()}).`));
   lim.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', href: href('/my/data'),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/data'); } },
     'Export or restore everything'));
@@ -193,6 +209,7 @@ VIEWS.workspace = () => {
      filter" over two saved cases. The filter goes back to All. */
   if (W.kind !== 'all' && !counts[W.kind]) W.kind = 'all';
   const moved = all.filter(i => ['model', 'data', 'both'].includes(i.diff.status)).length;
+  const unstamped = all.filter(i => i.diff.status === 'unstamped').length;
   const bar = el('div', { class: 'card ws-filters' });
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Show saved items of one kind', style: 'flex-wrap:wrap' });
   [{ id: 'all', label: 'All' }, ...WORKSPACE_KINDS].forEach(k => {
@@ -217,7 +234,10 @@ VIEWS.workspace = () => {
   const samplesN = all.filter(i => i.sample).length;
   const samplesSaid = !samplesN ? '' : samplesN === all.length ? (all.length === 1 ? ', a sample — not yours' : ', all samples — not yours') : `, ${samplesN} of them sample${samplesN === 1 ? '' : 's'} — not yours`;
   bar.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model or data version this build no longer carries` : '; none saved under a model or data version this build has since replaced'}.`));
+    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model or data version this build no longer carries` : ''}${unstamped ? `; ${unstamped} saved before version stamping, so whether the data under ${unstamped === 1 ? 'it' : 'them'} has moved cannot be said` : ''}${moved || unstamped ? '' : '; none saved under a model or data version this build has since replaced'}.`));
+  /* The summary counted only the stamped items, so one saved before stamping
+     read as current while its row said it cannot be told (the 20 Oct 2026
+     sweep, copy-equities-25). */
   wrap.append(bar);
 
   const needle = W.q.trim().toLowerCase();

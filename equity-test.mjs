@@ -830,7 +830,7 @@ try {
     })()`);
     const p = [];
     if (r.leaks.length) p.push(`${r.leaks.length} misassembled figures still shown: ${r.leaks.slice(0, 6).join(', ')}`);
-    if (r.koPayout.reason !== 'withheld' || !/CommonStockSharesIssued/.test(r.koPayout.text)) p.push(`KO payout: ${r.koPayout.reason} — ${r.koPayout.text}`);
+    if (r.koPayout.reason !== 'withheld' || !/treasury stock/.test(r.koPayout.text)) p.push(`KO payout: ${r.koPayout.reason} — ${r.koPayout.text}`);
     if (r.apdDe.reason !== 'withheld' || r.apdCash != null) p.push(`APD debt/equity: ${r.apdDe.reason}, net cash ${r.apdCash}`);
     if (p.length) fail('the shipped file\'s misassembled shares, debt and sector labels are withheld with their reason', p);
     else ok('no share count read from the issued tag, no current-portion-only or double-counted debt, no misfiled sector is shown; KO\'s payout and APD\'s debt/equity read "withheld" with the reason');
@@ -1725,17 +1725,17 @@ try {
     await evaluate(`openResearch('AAPL-SEC', 'snapshot'); true`); await sleep(500);
     const strip = await evaluate(`(() => {
       const chips = () => [...document.querySelectorAll('main .chip')].map(c => c.textContent);
-      const before = chips().filter(t => /ingest/.test(t));
+      const before = chips().filter(t => /^import /.test(t));
       const row = BY_ID.get('AAPL-SEC'); row.c.ingestVersion = 'sec 1.2.0';
       row.c.provenance = { ...row.c.provenance, rev: { ...row.c.provenance.rev, restated: { 2023: { from: 1, to: 2 } } } };
       render();
-      const after = chips().filter(t => /ingest/.test(t));
+      const after = chips().filter(t => /^import /.test(t));
       const restated = [...document.querySelectorAll('main .metaline')].some(p => /Restated in a later filing/.test(p.textContent) && /revenue FY2023/.test(p.textContent));
       row.c.ingestVersion = null; delete row.c.provenance.rev.restated; render();
       return { before, after, restated };
     })()`);
-    if (strip.before.join() !== 'ingest version not in this dataset yet') p.push(`strip without a version: ${JSON.stringify(strip.before)}`);
-    if (strip.after.join() !== 'ingest 1.2.0' || !strip.restated) p.push(`strip with a version and a restatement: ${JSON.stringify(strip)}`);
+    if (strip.before.join() !== 'import version not recorded') p.push(`strip without a version: ${JSON.stringify(strip.before)}`);
+    if (strip.after.join() !== 'import 1.2.0' || !strip.restated) p.push(`strip with a version and a restatement: ${JSON.stringify(strip)}`);
     if (p.length) fail('Learn publishes the registry with blocked measures named; the provenance strip carries the ingest version', p);
     else ok(`Learn lists all ${r.n} measures in ${r.cats.length} categories with definition, inputs, unit and period, and ${r.blockedRows.length} blocked rows (${r.blockedRows.join(', ')}); the provenance strip says the shipped file has no ingest version, and names one and a restated year when the record carries them`);
   }
@@ -1781,17 +1781,17 @@ try {
     if (r.badges.length !== 4 || r.badges.some(b => b !== 'Filed')) p.push(`source badges: ${JSON.stringify(r.badges)}`);
     if (!r.fyOk) p.push('a tile does not name its fiscal year');
     if (!r.dtxt.includes(r.concept) || !/Original unit/.test(r.dtxt) || !/Transformation/.test(r.dtxt)) p.push('the Revenue tile does not open a drawer naming its XBRL concept, original unit and transformation');
-    for (const a of ['Add to watchlist', 'Compare', 'Save research', 'Create a setup for MSFT'])
-      if (!r.acts.some(x => x === a || (a === 'Add to watchlist' && /watchlist/.test(x)) || (a === 'Save research' && /investment case|Save research/.test(x)))) p.push(`header action missing: ${a}`);
+    for (const a of ['Add to watchlist', 'Compare', 'Start an investment case', 'Create a setup for MSFT'])
+      if (!r.acts.some(x => x === a || (a === 'Add to watchlist' && /watchlist/.test(x)) || (a === 'Start an investment case' && /investment case|Start an investment case/.test(x)))) p.push(`header action missing: ${a}`);
     if (!r.cmpHref || !/\/compare\?companies=.*MSFT-SEC/.test(decodeURIComponent(r.cmpHref))) p.push(`Compare links to ${r.cmpHref}`);
     if (!r.scan) p.push('no scanner control');
-    else if (r.scan.tag !== 'A' || !/\/app\/scanner\/setups\/new\?.*symbol=MSFT/.test(r.scan.href || '') || /none is loaded here/.test(r.scanNote) === r.lane)
+    else if (r.scan.tag !== 'A' || !/\/app\/scanner\/setups\/new\?.*symbol=MSFT/.test(r.scan.href || '') || /none loaded here/.test(r.scanNote) === r.lane)
       p.push(`scanner control with history ${r.lane}: ${JSON.stringify(r.scan)} — "${r.scanNote}"`);
     if (!/Statements\s*FY/.test(r.prov) || !/Source/.test(r.prov) || !/As of/.test(r.prov)) p.push(`freshness line: ${r.prov.slice(0, 200)}`);
     if (/SEC filer/.test(r.exch)) p.push(`the exchange chip reads "${r.exch}"`);
     if (!r.noDashRow) p.push('market tiles render as dashes on an unpriced filer');
     if (p.length) fail('the company page opens on its reported figures, its actions and one freshness line', p);
-    else ok(`MSFT-SEC opens on four filed tiles equal to its stored lines (${r.got.join(', ')}), each opening its source; Watchlist, Compare, Save research and "Create a setup for MSFT" to the builder, with the history it is checked on ${r.lane ? 'loaded' : 'said to be absent'}; one freshness line; exchange "${r.exch}"`);
+    else ok(`MSFT-SEC opens on four filed tiles equal to its stored lines (${r.got.join(', ')}), each opening its source; Watchlist, Compare, Start an investment case and "Create a setup for MSFT" to the builder, with the history it is checked on ${r.lane ? 'loaded' : 'said to be absent'}; one freshness line; exchange "${r.exch}"`);
   }
   {
     const r = await evaluate(`(() => {
@@ -2207,7 +2207,7 @@ try {
     if (r.illus !== 'all' || r.mixed !== 'some') p.push(`illustrative flags ${r.illus}, ${r.mixed}`);
     if (r.current !== 'current') p.push(`a fresh stamp reads ${r.current}`);
     if (r.model.status !== 'model' || !/valuation 1\.4\.0 → 1\.5\.0|valuation 1\.4\.0 →/.test(r.model.text) || r.model.dataMoved) p.push(`model move ${JSON.stringify(r.model)}`);
-    if (r.data.status !== 'data' || r.data.modelMoved || !/Data moved: saved against us\.json a635756/.test(r.data.text)) p.push(`data move ${JSON.stringify(r.data)}`);
+    if (r.data.status !== 'data' || r.data.modelMoved || !/Data moved: saved against SEC filings a635756/.test(r.data.text)) p.push(`data move ${JSON.stringify(r.data)}`);
     if (r.legacy.status !== 'unstamped' || r.legacy.modelMoved !== false || r.none.status !== 'unstamped') p.push('an unstamped item is not reported as such');
     /* The NAPIC file of the deal's division (plan item 1.6: one file a
        division; the whole extract is not served), and the geography. The
@@ -9258,7 +9258,7 @@ try {
       {
         const r = await evaluate(`(async () => { ${W}
           navigate('/company/MAYBANK'); await w(250);
-          const btn = [...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim()).find(t => /investment case|Save research/.test(t)) || '';
+          const btn = [...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim()).find(t => /investment case|Start an investment case/.test(t)) || '';
           navigate('/company/MAYBANK?tab=thesis'); await w(250);
           const cards = [...document.querySelectorAll('main .card')];
           const seven = cards.find(c => /Seven-step review/.test(c.textContent));
@@ -10112,8 +10112,8 @@ try {
           if (!before.length || after.length || !/No filters applied/.test(document.getElementById('views').textContent)) out.bad.push('Clear all left ' + JSON.stringify(after) + ' of ' + JSON.stringify(before));
           const chips = () => { const lab = [...document.querySelectorAll('#views label.caption')].find(l => l.textContent === 'Business model'); return lab ? [...lab.parentElement.querySelectorAll('button.chip')] : []; };
           const unmarked = chips().filter(b => !['true', 'false'].includes(b.getAttribute('aria-pressed')));
-          chips().find(b => b.textContent === 'bank')?.click(); await w(300);
-          const bank = chips().find(b => b.textContent === 'bank');
+          chips().find(b => b.getAttribute('data-type') === 'bank')?.click(); await w(300);
+          const bank = chips().find(b => b.getAttribute('data-type') === 'bank');
           out.seen.push('bank chip aria-pressed=' + bank?.getAttribute('aria-pressed'));
           if (!chips().length || unmarked.length || bank?.getAttribute('aria-pressed') !== 'true' || chips().some(b => b !== bank && b.getAttribute('aria-pressed') !== 'false'))
             out.bad.push('business-model chips: ' + chips().map(b => b.textContent + '=' + b.getAttribute('aria-pressed')).join(', '));

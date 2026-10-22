@@ -510,7 +510,7 @@ function hiwWheelCard() {
 /* The Trading Index on the specification's published example. */
 function hiwTradingCard() {
   const qr = qttiRun(qttiWorkedExample());
-  return pubProofCard('QT Trading Index', 'worked example §14', [
+  return pubProofCard('QT Trading Index', 'worked example', [
     ['Trend regime', String(qr.regime)],
     ['Tranche ready', String(qr.tranche), '--dn-text'],
     ['Screenshot conf.', String(qr.confidence)],
@@ -1202,6 +1202,15 @@ function askClearSamples(focusAfter = '#views h1') {
     label: 'Clear the samples', run: () => { clearSeededData(); focusAfterRedraw(focusAfter); } });
 }
 
+/* WHAT A FILE HOLDS (the 21 Oct 2026 Day-8 report, item 4: "explain …
+   exactly what each export includes"). The backup's card and Export
+   everything's each say it in full, in a disclosure closed on arrival —
+   its summary a 44px target (details.explain) — under the line that says
+   the file is the only copy, which stays in sight. */
+const FILE_HOLDS_P = 'font-size:13px;margin-top:var(--xs)';
+const fileHolds = (kind, body) => el('details', { class: 'explain', 'data-file-holds': kind },
+  [el('summary', {}, 'What the file holds'), ...body]);
+
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(pageHead({ title: 'Bring your own prices', lede: 'Your prices, your backups and your settings, kept in this browser.',
@@ -1226,7 +1235,7 @@ VIEWS.userdata = () => {
      is just an apology in advance. */
   const bk = el('div', { class: 'card' });
   bk.append(cardHead('Back up everything in this browser',
-    'One file with every calculation, saved deal, watchlist, screen and correction case this browser holds. There is no server copy, so this file is the only copy.'));
+    'Everything this browser keeps for Quantum Tradeworks, in one file. Nothing is kept on a server, so this file is the only copy.'));
   /* When a file last left this browser, and what has changed since
      (backupHealth): kept in sight, never a modal. */
   bk.append(backupLine());
@@ -1258,9 +1267,14 @@ VIEWS.userdata = () => {
       const sibling = siblingFileOf(doc);
       if (!doc || (sibling !== 'backup')) { const res = restoreBackup(text); if (!res.ok) toast(res.error); return; }
       const n = Object.keys(doc.data || {}).length;
+      /* A backup without some kinds — one taken before they existed — leaves
+         what this browser holds of them as it is, and says which, as
+         "Restore from a file" does (heldKinds, 00-core.js). */
+      const keptHere = heldKinds(PORTABLE_KEYS.map(x => x.k).filter(k => !(k in (doc.data || {})))).map(portableLabel);
       confirmClear({ title: 'Restore this backup', lead: `The backup taken ${String(doc.takenAt || '').slice(0, 16).replace('T', ' ') || 'at an unstated time'} UTC replaces what this browser holds now for each of the ${n} item${n === 1 ? '' : 's'} it carries:`,
         removes: ['every saved item, list, case, comparison and setting this browser holds under the same names'],
-        keeps: 'Anything the backup does not carry is kept as it is here.', label: 'Restore and reload', run: () => {
+        keeps: keptHere.length ? `Not in this backup, so kept as this browser holds them: ${keptHere.join(', ')}. Anything else it does not carry is kept too.`
+          : 'Anything the backup does not carry is kept as it is here.', label: 'Restore and reload', run: () => {
           const res = restoreBackup(text);
           if (!res.ok) { toast(res.error); return; }
           const left = res.refused || [];
@@ -1274,8 +1288,22 @@ VIEWS.userdata = () => {
     'Restore from a backup'));
   bkRow.append(fileIn);
   bk.append(bkRow);
+  /* Everything backupPayload (15-derivation.js) reads off this browser's
+     storage, and the two records it leaves out, in its words. */
+  bk.append(fileHolds('backup', [
+    el('p', { class: 'body', style: FILE_HOLDS_P }, 'Everything this browser keeps for Quantum Tradeworks, as it keeps it:'),
+    el('ul', { class: 'explain-list' }, [
+      el('li', {}, 'every kind Export everything carries, listed on its card below, samples included;'),
+      el('li', {}, 'everything else the pages keep here — settings such as the theme, density and language, what you had open, the Start here panels you hid, and the deal kept aside for “Restore my previous deal”.'),
+    ]),
+    el('p', { class: 'body', style: FILE_HOLDS_P }, 'Left out, because they belong to this browser:'),
+    el('ul', { class: 'explain-list' }, [
+      el('li', {}, 'a fingerprint of what this browser keeps, which the pages make again from the rest;'),
+      el('li', {}, 'when this browser last exported — a file restored elsewhere was not exported from there.'),
+    ]),
+  ]));
   bk.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Restoring overwrites what this browser currently holds for any key present in the file, then reloads. '
+    'Restoring replaces whatever this browser holds of each kind the file carries, then reloads. '
     + 'Nothing is merged, because a half-merged calculation is a figure nobody entered.'));
   wrap.append(bk);
 
@@ -1284,7 +1312,7 @@ VIEWS.userdata = () => {
   const sw = el('div', { class: 'card' });
   /* None is said as none, not as a nought (D12's rule, on My Workspace's
      pages since they are served pre-rendered: the 9 Oct 2026 audit, #7). */
-  sw.append(cardHead(recs.length ? `Saved work — ${recs.length}` : 'Saved work — none yet',
+  sw.append(cardHead(recs.length ? `Tool snapshots — ${recs.length}` : 'Tool snapshots — none yet',
     recs.length ? 'Named snapshots you took inside the tools. Each carries the model version and data date it was taken against.'
                 : 'Nothing saved yet. The Property, Cash Wheel and Trading Index tools each have a Save control.',
     /* The tools' snapshots are one kind of saved thing among five; the
@@ -1292,7 +1320,7 @@ VIEWS.userdata = () => {
        moved. */
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/my/workspace'),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } },
-      'Everything saved, in the Workspace')));
+      'Everything saved, in Saved work')));
   if (recs.length) {
     const tw2 = el('div', { class: 'tablewrap' });
     const t2 = el('table', { class: 'dt' });
@@ -1386,7 +1414,7 @@ VIEWS.userdata = () => {
      the longest was the work most easily lost. */
   const all = el('div', { class: 'card' });
   all.append(cardHead('Everything you have made',
-    'All of it is held in this browser and nowhere else. This is the only copy that survives a cleared browser, a second machine, or private mode closing. Display preferences — theme, density, the companies in a comparison — are not in it; the backup above carries those too.'));
+    'All of it is held in this browser and nowhere else, so this file is the only copy that survives a cleared browser, a second machine or private mode closing.'));
 
   const held = PORTABLE_KEYS.map(({ k, label }) => {
     const v = store.read(k, null);
@@ -1414,6 +1442,12 @@ VIEWS.userdata = () => {
     /* Recorded as the last export (backupHealth), and the line above says so. */
     el('button', { class: 'btn btn-primary btn-sm', id: 'ud-export-all', onclick: () => { if (downloadEverything()) redrawKeepFocus(); } }, 'Export everything'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openRestoreDrawer() }, 'Restore from a file'),
+  ]));
+  /* Every kind exportEverything (00-core.js) carries, by its label. */
+  all.append(fileHolds('everything', [
+    el('p', { class: 'body', style: FILE_HOLDS_P }, 'Each of these that this browser holds, samples included and marked as samples:'),
+    el('ul', { class: 'explain-list', 'data-file-kinds': '' }, PORTABLE_KEYS.map(x => el('li', {}, x.label))),
+    el('p', { class: 'body', style: FILE_HOLDS_P }, 'Not in it: everything else the pages keep — settings such as the theme and density, the companies in a comparison, and the deal kept aside for “Restore my previous deal”. The backup above carries them.'),
   ]));
   all.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'The file never leaves your machine unless you send it. It is plain JSON — you can read it, and so can anyone you give it to.'));
@@ -1533,7 +1567,7 @@ VIEWS.watchlists = () => {
      above it, the one page of the four that looked like a different
      product. */
   wrap.append(pageHead({ title: 'Watchlists', lede: 'Companies you follow, in lists of your own.',
-    note: 'Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.' }));
+    note: 'Adding one here does not imply a view on it — it decides which companies the What changed list shows first, and a list can be handed to the scanner as its universe.' }));
   appendSampleBanner(wrap);
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
   /* A control of the page drawn again, by its label — where focus goes when
