@@ -2145,7 +2145,7 @@ function scanBuilder(d, ctx) {
       const ex = scanWatchlistExportState(u.watchlistId);
       rs.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-top:6px' }, [
         el('p', { class: 'caption scan-export-state', style: 'margin:0;flex:1 1 280px;max-width:72ch' }, ex.text),
-        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => { scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); rebuild('Export for the scanner (watchlists.json)'); } }, 'Export for the scanner'),
+        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => { scanExportWatchlists(); toast('Exported watchlists.json'); rebuild('Export for the scanner (watchlists.json)'); } }, 'Export for the scanner'),
       ]));
     }
     g2.append(rs);
@@ -2475,7 +2475,7 @@ VIEWS.scannerWatchlists = () => {
       ? `Last exported for the scanner from this browser ${scanStamp(ex.at)}, with ${scanPlural(Object.keys(ex.lists || {}).length, 'list')}.`
       : 'Not exported for the scanner from this browser yet.',
       el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => {
-        scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); scanRender();
+        scanExportWatchlists(); toast('Exported watchlists.json'); scanRender();
       } }, 'Export for the scanner')));
     xc.append(el('p', { class: 'metaline', style: 'max-width:80ch' }, 'A setup set to resolve from your latest export reads its list from that file at every run; the worker cannot read this browser, so the list it sees is the one you last exported, and a setup whose list is not in the file is evaluated on its own snapshot and the run marked partial. Setups on a snapshot never read the file.'));
     wrap.append(xc);

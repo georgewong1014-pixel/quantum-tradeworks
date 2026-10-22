@@ -356,9 +356,9 @@ const HIW_FLOW = {
   ],
   scanner: [
     ['Input', 'Your own rules — conditions on the price history you supply — and what to check: a watchlist, a market or named instruments.'],
-    ['Analysis', 'Each rule is checked on every completed daily bar, by one engine shared by this page and the worker on your computer.'],
+    ['Analysis', 'Each rule is checked on every completed daily bar, by one engine, here on the price history you supply.'],
     ['Result', 'A record of which conditions held on which bar, with their values. A record, not a signal: nothing is ranked and nothing is sent.'],
-    ['Save', 'Setups are kept in this browser with every version of each; the worker writes its matches to a file on your computer.'],
+    ['Save', 'Setups are kept in this browser with every version of each. The worker that would record matches is not distributed yet.'],
     ['Next', 'Open a match, read the values behind it, and go on to the company page where the instrument is a company, or to Tracked where it is followed by price only.'],
   ],
   property: [
@@ -1606,7 +1606,7 @@ VIEWS.watchlists = () => {
        it was made, so its pages can say when a list has moved on since. */
     typeof scanExportWatchlists === 'function' ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => {
       scanExportWatchlists();
-      toast('Exported watchlists.json — save it as data/watchlists.json on the machine the scanner’s worker runs on');
+      toast('Exported watchlists.json');
     } }, 'Export for the scanner') : null]));
   ctl.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'The export lists each company and its market, for use as a scanner list, and says it belongs to this browser. “Export for the scanner” writes the same file as watchlists.json: the scanner’s worker cannot read this browser, so a setup resolved from your latest export sees the lists as they were when you last exported them.'));
