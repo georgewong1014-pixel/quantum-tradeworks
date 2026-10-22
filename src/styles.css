@@ -3214,7 +3214,10 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
   background: linear-gradient(var(--line-2), var(--line-2)) center / 100% 4px no-repeat; border-radius: 2px; }
 @media (pointer: coarse), (max-width: 768px) { #views[data-served] .pub-lab-knob > .pub-lab-range[data-inert] { height: 44px; } }
 
-/* Not built: one line of text, never a card and never a link. */
+/* Not built: one line of text, never a card and never a link. On /pricing
+   (23 Oct 2026) it reads as the page's own line, left, with the plans' link
+   under it. */
+.plans-page .pub-soon { justify-content: flex-start; text-align: left; margin: var(--lg) 0 0; }
 .pub-soon { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 8px; margin: var(--md) 0 0;
   font-size: var(--ls-support); color: var(--ink-3); text-align: center; }
 .pub-soon-name { color: var(--ink-2); font-weight: var(--weight-semibold); }

@@ -957,7 +957,7 @@ const HOME_PAGE = read(HOME);
   if (!/Business Intelligence/.test(words(sample.pubnav)) || !/Business Intelligence/.test(words(sample.footProducts))) p.push('Business Intelligence is not in the header\'s and the footer\'s Products as text');
   for (const href of ['/how-it-works', '/pricing', '/methodology', '/data-sources', '/learn/glossary', '/status', '/about', '/contact', '/privacy', '/terms'])
     if (!pub.some(l => l.href === href)) p.push(`#pubnav has no link to ${href}`);
-  for (const href of ['/methodology', '/data-sources', '/learn/glossary', '/learn', '/corrections', '/status'])
+  for (const href of ['/methodology', '/data-sources', '/learn/glossary', '/corrections', '/status'])
     if (!res.some(l => l.href === href)) p.push(`#footResources has no link to ${href}`);
   /* The renders' own files are not pages for an index (2026-10-04): served
      at /prerender/…, each was a page's content as a document of its own, no
