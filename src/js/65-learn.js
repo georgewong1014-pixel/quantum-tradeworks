@@ -566,7 +566,7 @@ function learnData() {
   wrap.append(pit);
 
   const cov = el('div', { class: 'card' });
-  cov.append(cardHead('Coverage in this prototype', 'What is deliberately absent is as important as what is present.'));
+  cov.append(cardHead('Coverage in the beta', 'What is deliberately absent is as important as what is present.'));
   const g = el('div', { class: 'grid g-2' });
   const have = el('div');
   have.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Present'));

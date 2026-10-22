@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "808b8791954d5b60",
-      "changed": "2026-10-16"
+      "digest": "7c37704afcd04cb6",
+      "changed": "2026-10-22"
     },
     "pages/about.html": {
       "path": "/about",
@@ -93,8 +93,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c5b37bcd626e49b3",
-      "changed": "2026-10-17"
+      "digest": "675104023e94b8c6",
+      "changed": "2026-10-22"
     },
     "pages/admin/scanner/data.html": {
       "path": "/admin/scanner/data",
@@ -209,7 +209,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "798b1b4784ed4d7f",
+      "digest": "6689530eb7cd7a10",
       "changed": "2026-10-22"
     },
     "pages/app/equities.html": {
@@ -267,7 +267,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "337cbb1e8cd55333",
+      "digest": "bbad37cd6556edc7",
       "changed": "2026-10-22"
     },
     "pages/app/equities/explore.html": {
@@ -325,8 +325,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "775d6f8217b6740c",
-      "changed": "2026-10-17"
+      "digest": "8479f818cc8e3408",
+      "changed": "2026-10-22"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -383,7 +383,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "19b3bdc08291610a",
+      "digest": "1c68f5ef7993e1aa",
       "changed": "2026-10-22"
     },
     "pages/app/scanner/market.html": {
@@ -412,7 +412,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ad8f1ab76a0e8af9",
+      "digest": "3e38d7a39ff710c6",
       "changed": "2026-10-22"
     },
     "pages/app/scanner/settings.html": {
@@ -4068,7 +4068,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "337cbb1e8cd55333",
+      "digest": "bbad37cd6556edc7",
       "changed": "2026-10-22"
     },
     "pages/contact.html": {
@@ -4097,8 +4097,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "cd41ce0917eacdd2",
-      "changed": "2026-10-17"
+      "digest": "32b29a72d8e59da4",
+      "changed": "2026-10-22"
     },
     "pages/corrections.html": {
       "path": "/corrections",
@@ -4126,8 +4126,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "948fbf49744deb28",
-      "changed": "2026-10-16"
+      "digest": "3242dfabbdd3f101",
+      "changed": "2026-10-22"
     },
     "pages/data-sources.html": {
       "path": "/data-sources",
@@ -4155,8 +4155,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0c28322f09388265",
-      "changed": "2026-10-17"
+      "digest": "75fda177b1f00ced",
+      "changed": "2026-10-22"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -4242,7 +4242,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "818df75d06f5c440",
+      "digest": "8f55b2797ab67b35",
       "changed": "2026-10-22"
     },
     "pages/discover/screener.html": {
@@ -4329,7 +4329,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "630798298dd0b935",
+      "digest": "82dcebbb8ccb9ba4",
       "changed": "2026-10-22"
     },
     "pages/learn.html": {
@@ -4337,7 +4337,7 @@
       "view": "learn",
       "state": "filings in",
       "chrome": "public",
-      "h1": "Metric dictionary",
+      "h1": "Glossary",
       "tabs": false,
       "nav": {
         "pubnav": [
@@ -4358,7 +4358,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ea85a7740fdc8400",
+      "digest": "7bf5083fcc89ad86",
       "changed": "2026-10-22"
     },
     "pages/learn/glossary.html": {
@@ -4366,7 +4366,7 @@
       "view": "learn",
       "state": "filings in",
       "chrome": "public",
-      "h1": "Metric dictionary",
+      "h1": "Glossary",
       "tabs": false,
       "nav": {
         "pubnav": [
@@ -4387,7 +4387,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ea85a7740fdc8400",
+      "digest": "7bf5083fcc89ad86",
       "changed": "2026-10-22"
     },
     "pages/learn/product-boundaries.html": {
@@ -4474,7 +4474,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c16edd2e9e092b11",
+      "digest": "da73e4838e3f9ab4",
       "changed": "2026-10-22"
     },
     "pages/methodology/ips.html": {
@@ -4501,7 +4501,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "33b815b2f8755495",
+      "digest": "ec46f99df1b93c50",
       "changed": "2026-10-22"
     },
     "pages/methodology/property.html": {
@@ -4528,8 +4528,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e7f808445e0366d8",
-      "changed": "2026-10-15"
+      "digest": "f38c9d6e7247303a",
+      "changed": "2026-10-22"
     },
     "pages/my/alerts.html": {
       "path": "/my/alerts",
@@ -4565,7 +4565,7 @@
       "view": "userdata",
       "state": "first draw",
       "chrome": "app",
-      "h1": "Bring your own prices",
+      "h1": "Your data & settings",
       "tabs": true,
       "nav": {
         "pubnav": [],
@@ -4586,7 +4586,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b7007eb7f04647fd",
+      "digest": "938502f38b7ed5d4",
       "changed": "2026-10-22"
     },
     "pages/my/portfolio.html": {
@@ -4644,8 +4644,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b57b500d07acfaec",
-      "changed": "2026-10-18"
+      "digest": "52490e5a7a5067e4",
+      "changed": "2026-10-22"
     },
     "pages/my/scanner.html": {
       "path": "/my/scanner",
@@ -4673,8 +4673,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "775d6f8217b6740c",
-      "changed": "2026-10-17"
+      "digest": "8479f818cc8e3408",
+      "changed": "2026-10-22"
     },
     "pages/my/theses.html": {
       "path": "/my/theses",
@@ -4818,7 +4818,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b92c0d6072d7bef5",
+      "digest": "2e2f1d3ceb41044a",
       "changed": "2026-10-22"
     },
     "pages/pricing.html": {
@@ -4849,8 +4849,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "76e8edffb2c1f4fe",
-      "changed": "2026-10-15"
+      "digest": "06b8a447d61af1c0",
+      "changed": "2026-10-22"
     },
     "pages/privacy.html": {
       "path": "/privacy",
@@ -4963,8 +4963,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "c6d33b1b13df711e",
-      "changed": "2026-10-13"
+      "digest": "a94de6ae1d5ad345",
+      "changed": "2026-10-22"
     },
     "pages/property/areas/map.html": {
       "path": "/property/areas/map",
@@ -4992,8 +4992,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9f44379dec7c9957",
-      "changed": "2026-10-13"
+      "digest": "1fb562801846241a",
+      "changed": "2026-10-22"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -5232,7 +5232,7 @@
       "view": "launcher",
       "state": "first draw",
       "chrome": "app",
-      "h1": "Start with your goal",
+      "h1": "Start with a task",
       "tabs": false,
       "nav": {
         "pubnav": [],
@@ -5253,15 +5253,15 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bb0b644de1741d57",
-      "changed": "2026-10-16"
+      "digest": "036438d17fa6d308",
+      "changed": "2026-10-22"
     },
     "pages/status.html": {
       "path": "/status",
       "view": "status",
       "state": "first draw",
       "chrome": "public",
-      "h1": "What is built, what is gated, and what is holding it",
+      "h1": "Checks and status",
       "tabs": false,
       "nav": {
         "pubnav": [
@@ -5282,8 +5282,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c459125a7b698eb4",
-      "changed": "2026-10-21"
+      "digest": "ca090700b10f6acf",
+      "changed": "2026-10-22"
     },
     "pages/terms.html": {
       "path": "/terms",
@@ -5348,7 +5348,7 @@
       "view": "onboarding",
       "state": "first draw",
       "chrome": "app",
-      "h1": "What would you like Quantum Tradeworks to help you with?",
+      "h1": "How much of this is familiar already?",
       "tabs": false,
       "nav": {
         "pubnav": [],
@@ -5358,7 +5358,7 @@
         ]
       },
       "inert": {
-        "buttons": 6,
+        "buttons": 4,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -5369,8 +5369,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c9d58fc4d8131cc7",
-      "changed": "2026-10-11"
+      "digest": "99ec78016acfac2d",
+      "changed": "2026-10-22"
     }
   }
 }

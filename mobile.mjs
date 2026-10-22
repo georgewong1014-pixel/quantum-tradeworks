@@ -495,6 +495,8 @@ await send('Page.navigate', { url: BASE + '/status' }, sessionId);
 await sleep(2500);
 {
   const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    /* The register and the check record are closed on arrival (Day-10 IW-21); their links are measured open. */
+    document.querySelectorAll('main details.status-fold').forEach(d => { d.open = true; });
     const links = [...document.querySelectorAll('main table.status-dt td a')];
     const small = links.filter(a => { const b = a.getBoundingClientRect(); return b.width < 44 || b.height < 44; })
       .map(a => a.textContent + ' ' + Math.round(a.getBoundingClientRect().width) + '×' + Math.round(a.getBoundingClientRect().height) + 'px');
@@ -512,6 +514,8 @@ for (const path of ['/status']) {
   await send('Page.navigate', { url: BASE + path }, sessionId);
   await sleep(2500);
   const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    /* The register and the check record are closed on arrival (Day-10 IW-21); their links are measured open. */
+    document.querySelectorAll('main details.status-fold').forEach(d => { d.open = true; });
     const links = [...document.querySelectorAll('main .journeys-log, main .journey-line-link')];
     const small = links.filter(a => { const b = a.getBoundingClientRect(); return b.width < 44 || b.height < 44; })
       .map(a => a.textContent + ' ' + Math.round(a.getBoundingClientRect().width) + '×' + Math.round(a.getBoundingClientRect().height) + 'px');

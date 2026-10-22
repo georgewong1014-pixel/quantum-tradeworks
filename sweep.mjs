@@ -571,7 +571,8 @@ for (const route of ROUTES) {
       if (done) break;
       await sleep(100);
     }
-    const out = await evalValue(`({ sum: document.getElementById('health-journeys-sum')?.textContent || '',
+    /* The check record is closed on arrival (Day-10 IW-21): read open, as its rows are the thing measured. */
+    const out = await evalValue(`(document.querySelectorAll('#views details.status-fold').forEach(d => { d.open = true; }), { sum: document.getElementById('health-journeys-sum')?.textContent || '',
       rows: [...document.querySelectorAll('#health-journeys > li')].map(li => ({ status: li.dataset.status, text: li.innerText })),
       quick: [...document.querySelectorAll('#health-quick > li')].map(li => ({ status: li.dataset.status, text: li.innerText })),
       quickSum: document.getElementById('health-quick-sum')?.textContent || '', h2: document.querySelector('#health h2')?.textContent || '',

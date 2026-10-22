@@ -240,7 +240,7 @@ const CAPABILITY_REGISTER = [
   { name:'Valuation models', status:'flagged', path:'/company/aapl-apple-inc?tab=valuation',
     brief:['EQ-211'], priority:'P1',
     now:'In the Valuation Studio: net debt, the share count and a signed adjustment are inputs, labelled as yours once changed; edits are kept per company across reloads; the sensitivity grid takes any two inputs and steps; the calculation and the confidence score are explained with your figures.',
-    flag:'Editing sits behind the local plan switch in this prototype — no payment exists. Lease, minority and associate adjustments are not pre-filled from any filing; the adjustment is your figure.',
+    flag:'Editing sits behind the local plan switch in this beta — no payment exists. Lease, minority and associate adjustments are not pre-filled from any filing; the adjustment is your figure.',
     checks:[{ file:'equity-test.mjs', name:'the DCF bridge is equity = EV' },
             { file:'equity-test.mjs', name:'net debt and the adjustment are the reader' },
             { file:'equity-test.mjs', name:'the sensitivity grid takes the reader' },
