@@ -6773,7 +6773,7 @@ try {
     const p = [];
     if (!/^BUTTON#opp-add/.test(r.add)) p.push(`Add to register: ${r.add}`);
     if (!/^H3#opp-0-name bf3 first/.test(r.removeOne)) p.push(`Remove, one left: ${r.removeOne}`);
-    if (!/^H3 No properties recorded yet/.test(r.removeLast)) p.push(`Remove, none left: ${r.removeLast}`);
+    if (!/^H3 No candidates recorded yet/.test(r.removeLast)) p.push(`Remove, none left: ${r.removeLast}`);
     if (!/checkbox$/.test(r.alertKind)) p.push(`an alert-type switch: ${r.alertKind}`);
     if (p.length) fail('sweep: the opportunity register and the alert-type switches keep focus when they redraw', p);
     else ok('sweep: the opportunity register (add, remove) and the alert-type switches keep focus when they redraw');

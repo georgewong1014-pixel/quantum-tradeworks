@@ -1090,36 +1090,19 @@ function oppKind(x) {
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
-  wrap.append(pageHead({ title: 'Opportunity register', lede: 'Real properties, each with what is known about it and what is not.',
+  /* "Candidates", the register's own word in its rules ("A candidate with
+     no verified rent …"), so its list is not a second "properties" beside
+     My properties (the Day-10 pre-audit, CL-13). */
+  wrap.append(pageHead({ title: 'Opportunity register', lede: 'Real candidates, each with what is known about it and what is not.',
     note: 'Ordered by when it was recorded, never by how good it looks.' }));
 
   const list = State.opportunities || [];
-
-  const rules = el('div', { class: 'card' });
-  rules.append(cardHead('How this register behaves', 'The constraints matter more than the fields.'));
-  rules.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'Nothing is ordered by merit. A hidden merit rank is a recommendation wearing a sort order, and this product does not make recommendations.'),
-    el('li', {}, '“Available” appears only where availability was checked, with the date beside it. A stale flag sends someone to a property that sold weeks ago.'),
-    el('li', {}, 'Asking price, your negotiated price, the bank valuation and a registered valuer’s figure are four different numbers and are kept apart.'),
-    el('li', {}, 'A candidate with no verified rent, title or condition evidence stays U however good its yield looks — yield on an unverified rent is arithmetic on a guess.'),
-    el('li', {}, 'Nothing is scraped or republished. Each record holds a reference you entered, not content taken from a listing site.'),
-    el('li', {}, 'Records stay in this browser. There is no server holding them and no one else can see them.'),
-  ]));
-  wrap.append(rules);
-
-  if (!list.length) {
-    const empty = el('div', { class: 'card', id: 'opp-empty' });
-    empty.append(cardHead('No properties recorded yet', 'This is a register, not a feed — it holds what you put in it.'));
-    empty.append(el('p', { class: 'body', style: 'font-size:13px' },
-      'Quantum Tradeworks holds no property listings and does not source them. There is no permitted feed of Sarawak listings this product can republish, and inventing candidates would be worse than an empty page. Add a property you are actually looking at, and the underwriting engine will model it and grade it on whatever evidence you have.'));
-    wrap.append(empty);
-  }
 
   /* Add a candidate. Deliberately few fields — the point is to get a property
      into the register and let evidence accumulate against it, not to demand a
      complete file before anything can be recorded. */
   const add = el('div', { class: 'card' });
-  add.append(cardHead('Record a property', 'Enough to identify it. Evidence is added afterwards.'));
+  add.append(cardHead('Record a candidate', 'Enough to identify it. Evidence is added afterwards.'));
   /* WHAT IS ENTERED HERE BEFORE ADD IS KEPT THROUGH A REDRAW. The draft was
      drawn with the page, and the page is drawn again when the filings land a
      moment after it opens: a city, a price and an area given by then came
@@ -1216,6 +1199,18 @@ VIEWS.opportunities = () => {
     saveOpportunities(); toast(`${draft.name} recorded`); render(); focusAfterRedraw('#opp-add');
   } }, 'Add to register'));
   wrap.append(add);
+
+  /* THE FORM FIRST (the Day-10 pre-audit, CL-24): the page's one action
+     stood under 259 words of rules and an empty state. Then what is
+     recorded — or that nothing is — and the rules, whole, last. */
+  if (!list.length) {
+    const empty = el('div', { class: 'card', id: 'opp-empty' });
+    empty.append(cardHead('No candidates recorded yet', 'This is a register, not a feed — it holds what you put in it.'));
+    empty.append(el('p', { class: 'body', style: 'font-size:13px' },
+      'Quantum Tradeworks holds no property listings and does not source them. Record one you are actually looking at, and the calculator will model it and grade it on whatever evidence you have.'));
+    wrap.append(empty);
+  }
+
 
   /* Run every candidate once; the cards and the comparison both read it. */
   const modelled = list.map(o => ({ o, ...candidateModel(o) }));
@@ -1471,7 +1466,19 @@ VIEWS.opportunities = () => {
   });
 
   if (list.length) wrap.append(el('p', { class: 'metaline' },
-    `${list.length} propert${list.length === 1 ? 'y' : 'ies'}, newest first. This order is recency, not merit — nothing on this page is ranked by how attractive it looks.`));
+    `${list.length} candidate${list.length === 1 ? '' : 's'}, newest first. This order is recency, not merit — nothing on this page is ranked by how attractive it looks.`));
+
+  const rules = el('div', { class: 'card' });
+  rules.append(cardHead('How this register behaves', 'The constraints matter more than the fields.'));
+  rules.append(el('ul', { class: 'ticklist' }, [
+    el('li', {}, 'Nothing is ordered by merit. A hidden merit rank is a recommendation wearing a sort order, and this product does not make recommendations.'),
+    el('li', {}, '“Available” appears only where availability was checked, with the date beside it. A stale flag sends someone to a property that sold weeks ago.'),
+    el('li', {}, 'Asking price, your negotiated price, the bank valuation and a registered valuer’s figure are four different numbers and are kept apart.'),
+    el('li', {}, 'A candidate with no verified rent, title or condition evidence stays U however good its yield looks — yield on an unverified rent is arithmetic on a guess.'),
+    el('li', {}, 'Nothing is scraped or republished. Each record holds a reference you entered, not content taken from a listing site.'),
+    el('li', {}, 'Records stay in this browser. There is no server holding them and no one else can see them.'),
+  ]));
+  wrap.append(rules);
   return wrap;
 };
 

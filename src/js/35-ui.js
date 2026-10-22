@@ -589,7 +589,7 @@ const TOOLS = [
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
     status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
     proof: { journey: 'registers', step: 'Record a property: it is listed with what is known and what is not' },
-    action: { label: 'Record a property', path: '/property/opportunities' } },
+    action: { label: 'Record a candidate', path: '/property/opportunities' } },
   /* Quantum Scanner — its sections, each a tab of the Scanner's row as the
      other two products' tools are (Release B, B5): its own strip, drawn
      inside every scanner page from a table of its own, is gone. In the order
