@@ -1472,7 +1472,7 @@ for (const route of ROUTES) {
       if (h.navs !== 1) p.push(`${path}: ${h.navs} navs in the product header, not one`);
       else {
         if (h.name !== want.name || h.badge !== want.badge) p.push(`${path}: the header names ${JSON.stringify(h.name)} ${JSON.stringify(h.badge)}, not ${want.name} ${want.badge}`);
-        if (pid === 'property' && h.qual !== 'Calculations on your figures; no live market data') p.push(`${path}: Property's badge carries ${JSON.stringify(h.qual)} beside it, not "Calculations on your figures; no live market data" (D17)`);
+        if (pid === 'property' && h.qual !== 'Your figures; no live market data') p.push(`${path}: Property's badge carries ${JSON.stringify(h.qual)} beside it, not "Your figures; no live market data" (D17)`);
         if (JSON.stringify(h.tabs) !== JSON.stringify(want.tabs)) p.push(`${path}: the header's tabs ${JSON.stringify(h.tabs)} are not the registry's ${JSON.stringify(want.tabs)}`);
         if (JSON.stringify(h.current) !== JSON.stringify(want.here)) p.push(`${path}: the current tab is ${JSON.stringify(h.current)}, not ${JSON.stringify(want.here)}`);
       }

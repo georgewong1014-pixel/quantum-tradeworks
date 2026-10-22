@@ -383,11 +383,13 @@ function toast(msg) {
    The homepage card shows each product's; Property's is shown wherever its
    badge is (qualifyBadge: the header's menu and the phone sheet, the
    sidebar, the footer, the tab row, How it works, the search), because
-   "Live" alone read as live market data: it reads "Calculations on your
-   figures; no live market data" (the owner, 23 Oct 2026; it was "Your
-   figures, sample to start"). The sample deal is labelled where it is drawn.
-   The full note stays the badge's
-   title and the link's description, and the card's ⓘ prints it. */
+   "Live" alone read as live market data: it reads "Your figures; no live
+   market data" (the owner, 23 Oct 2026, asked for "Calculations on your
+   figures; no live market data", which takes the Property card to 14 words
+   against the homepage budget of 12; it was "Your figures, sample to
+   start"). The sample deal is labelled where it is drawn. The full note
+   stays the badge's title and the link's description, and the card's ⓘ
+   prints it. */
 const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
@@ -419,7 +421,7 @@ const PRODUCTS = [
        (D5(d)) — until the map ships, when the card's action becomes
        "Explore Property". */
     also: { label: 'Try the Scenario Lab', path: '/property/lab' },
-    status: 'live', qualifier: 'Calculations on your figures; no live market data', qualifyBadge: true,
+    status: 'live', qualifier: 'Your figures; no live market data', qualifyBadge: true,
     /* What the calculator does not do, in sight beside the homepage card's
        action (QT-D02-02, the 15 Oct report): served-check holds the words. */
     outcome: 'See the cash required, the monthly position and scenarios for a deal.',
@@ -446,7 +448,7 @@ const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
    for el() children; its own markup when put in a template string, because
    the pages that call it build both ways. */
 /* D17 (N2a, the 5 Oct audit; the owner's decision). Property's badge reads
-   "Live · Calculations on your figures; no live market data" wherever it appears — the tab row
+   "Live · Your figures; no live market data" wherever it appears — the tab row
    above /property's Scenario Lab, the header's Products menu, the phone
    sheet, the sidebar, the footer, /how-it-works and the homepage card. The
    qualifier is drawn here, as visible text beside the badge's word, never

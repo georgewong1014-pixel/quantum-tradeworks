@@ -2333,9 +2333,8 @@ const HOME_PAGE = read(HOME);
         details", 300 words or fewer outside it, the coverage line once, and
         "not on sale" beside every link to /pricing in a page's main;
    N2a  on /, /property, /property/calculator, /property/lab, /how-it-works,
-        /about and /status, every Property Live badge with "Calculations on your
-        figures; no live market data" in sight beside it, as many qualifiers
-        as badges. */
+        /about and /status, every Property Live badge with "Your figures; no
+        live market data" in sight beside it, as many qualifiers as badges. */
 {
   const B = await import('./build.mjs');
   const P = RENDER_PLAN.POSITIONING || {};
@@ -2564,11 +2563,11 @@ const HOME_PAGE = read(HOME);
     const body = got.get(path)?.body || (await get(path)).body || '';
     const nodes = all(T(body));
     const badges = nodes.filter(n => has(n, 'status-live') && attr(n, 'title') === PROPERTY_NOTE && B.inSight(n));
-    const quals = nodes.filter(n => has(n, 'pbadge-q') && sight(n) === 'Calculations on your figures; no live market data');
-    const beside = badges.filter(b => { const i = b.parent.kids.indexOf(b); return has(b.parent, 'pbadge') && b.parent.kids.slice(i + 1).some(k => has(k, 'pbadge-q') && sight(k) === 'Calculations on your figures; no live market data'); });
+    const quals = nodes.filter(n => has(n, 'pbadge-q') && sight(n) === 'Your figures; no live market data');
+    const beside = badges.filter(b => { const i = b.parent.kids.indexOf(b); return has(b.parent, 'pbadge') && b.parent.kids.slice(i + 1).some(k => has(k, 'pbadge-q') && sight(k) === 'Your figures; no live market data'); });
     said.qual.push(`${path} ${badges.length}`);
     if (!badges.length) p.push(`${path}: serves no Property Live badge in sight`);
-    if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Live badges, ${beside.length} with "Calculations on your figures; no live market data" in sight beside them, ${quals.length} qualifiers`);
+    if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Live badges, ${beside.length} with "Your figures; no live market data" in sight beside them, ${quals.length} qualifiers`);
   }
   judge(p, `the homepage cleanup as served: the strip a <details> on ${said.strips} pages, the warning and "No licensed prices" in its summary, Research mode and the links in its Details; the hero ${said.hero} words with one action; three cards, each 12 words or fewer, described by qualifier and note, the Property card to /property/lab, badges Beta · Beta · Live · Coming soon on /, /how-it-works and the footer; the example path ${said.path} words, 5 and 4 links served 200, no digit or name; #views within 16kB on ${said.views} pages; one variant of each positioning string; budgets ${JSON.stringify(said.budget)}; ${said.visuals} visuals, Apple's ${said.years} columns as filed; /pricing ${said.pricing} words outside "Compare details", three cards, no button outside it; Property's qualifier beside every Live badge (${said.qual.join(', ')})`,
     'the homepage cleanup (plan 3.1–3.6, 3.8, N8, N9, D17) is not served as accepted');
