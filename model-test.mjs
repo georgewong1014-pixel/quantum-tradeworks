@@ -6095,7 +6095,7 @@ try {
           return out;
         })()`);
         const p = [];
-        if (r.t1.cf !== null || /RM0/.test(r.t1.note) || r.t1.twin === 'RM0' || !/not computable/.test(r.t1.note)) p.push(`taxed-1: a rate on a loan with no schedule reads "${r.t1.note}" and "${r.t1.twin}" (the month after tax is ${r.t1.cf})`);
+        if (r.t1.cf !== null || /RM0\b/.test(r.t1.note) || r.t1.twin === 'RM0' || !/not computable/.test(r.t1.note)) p.push(`taxed-1: a rate on a loan with no schedule reads "${r.t1.note}" and "${r.t1.twin}" (the month after tax is ${r.t1.cf})`);
         if (r.s5.status !== 'unbounded' || !/^With no loan, the price does not move the monthly position/.test(r.s5.sub) || /valuation/.test(r.s5.sub) || /the loan and its repayment rise/.test(r.s5.formula)) p.push(`stress-5: a cash purchase's unbounded solve says "${r.s5.sub}" / "${r.s5.formula.slice(150, 400)}"`);
         if (r.s3.values.length !== 2 || r.s3.values.some((v, i) => v !== 'RM' + r.s3.want[i].toLocaleString('en-US') + ' cash required')) p.push(`stress-3: the overrun rows read ${JSON.stringify(r.s3.values)}, the cash with the reserve is ${JSON.stringify(r.s3.want)}`);
         if (r.r6.note !== 'before tax on the rent' || !/That is before tax on the rent: after tax at 24%/.test(r.r6.formula) || r.r6.plain !== null) p.push(`lab-refurb-6: the commitment's note reads "${r.r6.note}" with a rate, "${r.r6.plain}" without; formula "${r.r6.formula.slice(-160)}"`);
