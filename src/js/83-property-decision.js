@@ -425,7 +425,7 @@ function pcSubsaleInputs(d) {
   return box;
 }
 /* The comparables, from the reader's register, named one by one — for the
-   subsale's price gap and the auction's market value alike. */
+   subsale's price gap and the auction's comparables' median alike. */
 function pcComparablesFieldset(d, legend) {
   return comparablesPick({ d, prefix: 'pc', legend, cls: 'pc-sub-comps',
     toggle: (ids) => { if (setDealAnswer(d, 'comparableIds', ids)) { saveDeal(); renderKeepFocus(); } } });
@@ -505,7 +505,7 @@ function pcPriceEvidence(d) {
    Inputs, each with where it came from and its kind badge (D6): the
    Proclamation's terms — the reserve price, the deposit and what it is a
    share of, the days to pay the balance, the arrears it passes to the
-   buyer; the market value's comparables; and the reader's estimates —
+   buyer; the comparables behind the auction's median; and the reader's estimates —
    repairs, possession, the lawyer's legal fees, a financing buffer and
    the holding period. The winning bid is the purchase price the model runs
    on (on the Lab, the Price slider).
@@ -553,7 +553,7 @@ const AU_GROUPS = (d = null) => [
       ...(propertyClassOf(d) === 'land' ? [] : [['arrearsMaintenance', 'Arrears passed to you: maintenance and sinking fund (RM)', 100]]), ['arrearsQuitRent', 'Arrears passed to you: quit rent (RM)', 10],
       ['arrearsAssessment', 'Arrears passed to you: assessment (RM)', 10], ['arrearsUtilities', 'Arrears passed to you: utilities (RM)', 10]],
     after: `Arrears: only what the Proclamation passes to you — 0 where it pays them out of the purchase money.${propertyClassOf(d) === 'land' ? ` ${ROUTE_ASSET_GATES['auction|land'].why}` : ''}` },
-  { id: 'market', legend: 'The market value, from comparables',
+  { id: 'market', legend: 'Your comparables’ median',
     note: 'The median of the comparable prices you enter here and the comparables you name from your register — your own records, never a market figure. Not a valuation.',
     fields: [['auctionComp1', 'Comparable price 1 (RM)', 1000], ['auctionComp2', 'Comparable price 2 (RM)', 1000], ['auctionComp3', 'Comparable price 3 (RM)', 1000]] },
   { id: 'costs', legend: 'Your estimates',
@@ -563,7 +563,7 @@ const AU_GROUPS = (d = null) => [
   /* The bid ceiling (the validation pass, audit #4): the reader's, never a
      default. */
   { id: 'ceiling', legend: 'Your bid ceiling',
-    note: 'The highest winning bid at which the effective acquisition cost — the bid and everything the auction adds, as above — stays at or under the ceiling you set: a cost of your own, all in, or the market value your comparables imply less a margin you choose. Worked out by running this model at trial bids, every other figure held. A margin needs a market value: without comparables it is Unavailable. A cost not entered, or a fee line not priced, is not counted in the effective cost, so not in the ceiling either.',
+    note: 'The highest winning bid at which the effective acquisition cost — the bid and everything the auction adds, as above — stays at or under the ceiling you set: a cost of your own, all in, or your comparables’ median less a margin you choose. Worked out by running this model at trial bids, every other figure held. A margin needs that median: without comparables it is Unavailable. A cost not entered, or a fee line not priced, is not counted in the effective cost, so not in the ceiling either.',
     fields: [['auctionCapKind', 'The ceiling is', null, AUCTION_CAP_KINDS], ['auctionCapValue', 'Its figure — RM for a cost, % for a margin', 1]] },
 ];
 const AU_HOW_OPEN = new Set();
@@ -606,7 +606,7 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
       /* Kept open for the tab across the drawings an answer makes. */
       const hid = `${prefix}-au-${g.id}-how`;
       const det = el('details', { class: 'pc-more ls-l3 au-more', id: hid, open: AU_HOW_OPEN.has(hid) ? '' : null }, [
-        el('summary', { class: 'pc-more-sum' }, g.id === 'costs' ? 'What these estimates are' : g.id === 'market' ? 'How the market value is found' : g.id === 'ceiling' ? 'How the ceiling is found' : 'How these terms are used'),
+        el('summary', { class: 'pc-more-sum' }, g.id === 'costs' ? 'What these estimates are' : g.id === 'market' ? 'How the median is found' : g.id === 'ceiling' ? 'How the ceiling is found' : 'How these terms are used'),
         ...how.map(t => el('p', { class: 'pc-more-body au-note' }, t))]);
       det.addEventListener('toggle', () => { if (det.open) AU_HOW_OPEN.add(hid); else AU_HOW_OPEN.delete(hid); });
       fs.append(det);
@@ -641,17 +641,17 @@ function auctionChecklist({ d, prefix, answer }) {
   return fs;
 }
 
-/* THE WATERFALL (L2): from the market value down to the reserve and the
-   bid, then up by what the auction adds, to the effective cost. A row a
-   step: its name, its kind, its amount, and a bar on one scale — totals
-   from nought, additions floating from the running total — with the market
-   value marked on every bar, so how far each stands from it is a length.
+/* THE WATERFALL (L2): from the comparables' median down to the reserve
+   and the bid, then up by what the auction adds, to the effective cost. A
+   row a step: its name, its kind, its amount, and a bar on one scale —
+   totals from nought, additions floating from the running total — with the
+   median marked on every bar, so how far each stands from it is a length.
    Positions are percentages of the widest figure, rounded to 1/10000 of a
    per cent so every browser draws them alike (0c4ba54b). Each row's words
    are its figures, so no value waits behind a pointer. */
 function auctionWaterfall(a, prefix) {
   const fig = el('figure', { class: 'au-wf', id: `${prefix}-au-wf`, 'aria-labelledby': `${prefix}-au-wf-h` });
-  fig.append(el('figcaption', { class: 'au-wf-h', id: `${prefix}-au-wf-h` }, 'From the market value to the effective acquisition cost'));
+  fig.append(el('figcaption', { class: 'au-wf-h', id: `${prefix}-au-wf-h` }, 'From your comparables’ median to the effective acquisition cost'));
   const top = Math.max(...a.steps.map(s => s.amount).filter(isNum), 1);
   const X = (v) => auR4(Math.max(0, Math.min(100, v / top * 100)));
   const list = el('ol', { class: 'au-wf-rows' });
@@ -675,7 +675,7 @@ function auctionWaterfall(a, prefix) {
     }
     if (isNum(a.market) && s.id !== 'market') svg.append(sv('line', { class: 'au-wf-mv', x1: `${X(a.market)}%`, x2: `${X(a.market)}%`, y1: '0', y2: '14' }));
     const label = add ? `+ ${s.label}` : s.label;
-    const sub = s.id === 'market' && has ? `the median of ${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
+    const sub = s.id === 'market' && has ? `${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
       : s.id === 'holding' && has ? `${auHoldWorking(s)}${s.partial ? '; the instalment not priced' : ''}`
       : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced${s.gated ? ` — ${s.gated === s.unpriced ? '' : `${s.gated} of them `}not yet checked for ${FEE_CLASS_WORD[s.gatedCls]}` : ''}`
       : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of ${s.parts.length} not entered`
@@ -687,7 +687,7 @@ function auctionWaterfall(a, prefix) {
     ]));
   }
   fig.append(list);
-  if (isNum(a.market)) fig.append(el('p', { class: 'au-wf-key' }, [el('span', { class: 'au-wf-key-mv', 'aria-hidden': 'true' }), `The upright line on each bar is the market value your comparables imply, ${auMoney(a.market)}.`]));
+  if (isNum(a.market)) fig.append(el('p', { class: 'au-wf-key' }, [el('span', { class: 'au-wf-key-mv', 'aria-hidden': 'true' }), `The upright line on each bar is your comparables’ median, ${auMoney(a.market)}.`]));
   return fig;
 }
 
@@ -709,9 +709,9 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
     value: td ? `${td.amount < 0 ? '−' : ''}${auPct(td.pct)}` : 'Unavailable',
     attrs: { 'data-au-fig': 'discount', 'data-final': a.final ? 'true' : 'false' }, valueAttrs: { 'data-value': td ? String(td.pct) : '' },
     sub: td ? `${td.amount >= 0
-        ? `The figures you entered imply an effective cost ${auMoney(td.amount)} under the ${auMoney(a.market)} market value your comparables imply`
-        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over the ${auMoney(a.market)} market value your comparables imply — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${a.marketFrom.named.length ? ` Named from your register: ${a.marketFrom.named.map(pqCompWords).join('; ')}.` : ''}${auNotFinal(a)}`
-      : 'Enter comparable prices, or name comparables from your register: the market value is theirs, never a market figure.' }));
+        ? `The figures you entered imply an effective cost ${auMoney(td.amount)} under your comparables’ median of ${auMoney(a.market)}`
+        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over your comparables’ median of ${auMoney(a.market)} — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${a.marketFrom.named.length ? ` Named from your register: ${a.marketFrom.named.map(pqCompWords).join('; ')}.` : ''}${auNotFinal(a)}`
+      : 'Enter comparable prices, or name comparables from your register: the median is theirs, never a market figure.' }));
   const f = a.forfeiture;
   cards.append(lsMetricCard({ label: 'Forfeiture exposure', badge: auBadge(f.status === 'ok' ? 'yours' : 'unavailable', f.status === 'ok' ? 'the Proclamation’s terms you entered' : 'terms not entered'), level: 2, cls: 'au-card au-forfeit',
     value: f.status === 'ok' ? auMoney(f.atRisk) : 'Unavailable',
@@ -736,7 +736,7 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
    sen, and a margin to the places it was entered, up to four. */
 const auCap = (v) => (Math.abs(v - Math.round(v)) < 0.005 ? auMoney(v) : fmtMoney(v, 'MYR', 2));
 const auMargin = (v) => fmtNum(v, Math.min(4, (String(+(+v).toFixed(4)).split('.')[1] || '').length));
-const auCeilingTarget = (c) => (c.kind === 'margin' ? `${auMargin(c.value)}% under the market value your comparables imply` : `an effective cost of ${auCap(c.value)}, all in`);
+const auCeilingTarget = (c) => (c.kind === 'margin' ? `${auMargin(c.value)}% under your comparables’ median` : `an effective cost of ${auCap(c.value)}, all in`);
 function auctionCeilingCard(c, a) {
   const ok = c.status === 'solved';
   const left = [c.notEntered?.length ? `Not entered, not counted: ${auList(c.notEntered.map(x => x.toLowerCase()))}` : null,
@@ -748,14 +748,14 @@ function auctionCeilingCard(c, a) {
     : c.status === 'unavailable' ? `Unavailable: ${c.why}.`
       : c.status === 'infeasible' ? `Even a bid of ${auMoney(c.floor)} gives an effective cost of ${auMoney(c.atFloor)}, over the ${auCap(c.cap)} ceiling: the costs you entered, not the bid, stand in the way.`
         : c.why || 'Not computable for these inputs.';
-  return lsMetricCard({ label: 'Bid ceiling', level: 2, cls: 'au-card au-ceiling', badge: auBadge(ok || c.status === 'below-reserve' ? c.resultKind : 'unavailable', ok || c.status === 'below-reserve' ? 'your ceiling, and the effective cost this model works out at each bid' : c.status === 'unavailable' ? 'no market value' : 'not computable'),
+  return lsMetricCard({ label: 'Bid ceiling', level: 2, cls: 'au-card au-ceiling', badge: auBadge(ok || c.status === 'below-reserve' ? c.resultKind : 'unavailable', ok || c.status === 'below-reserve' ? 'your ceiling, and the effective cost this model works out at each bid' : c.status === 'unavailable' ? 'no comparable entered' : 'not computable'),
     value: ok ? auMoney(c.bid) : c.status === 'below-reserve' ? 'No winning bid' : 'Unavailable', attrs: { 'data-au-fig': 'ceiling', 'data-status': c.status, 'data-final': a.final ? 'true' : 'false' },
     valueAttrs: { 'data-value': ok ? String(c.bid) : '' }, sub });
 }
 function auctionCeilingFormula(c, a) {
-  if (!c || c.status === 'no-target') return 'No ceiling entered: choose what it is — a cost of your own, all in, or a margin under the market value — and its figure. Nothing is assumed.';
-  if (c.status === 'unavailable' || c.status === 'invalid') return `Unavailable: ${c.why}. A margin is taken off the market value your comparables imply, never off a market figure.`;
-  const cap = c.kind === 'margin' ? `the market value ${auMoney(a.market)} × (1 − ${auMargin(c.value)}%) = ${auCap(c.cap)}` : `your cost, ${auCap(c.cap)}`;
+  if (!c || c.status === 'no-target') return 'No ceiling entered: choose what it is — a cost of your own, all in, or a margin under your comparables’ median — and its figure. Nothing is assumed.';
+  if (c.status === 'unavailable' || c.status === 'invalid') return `Unavailable: ${c.why}. A margin is taken off your comparables’ median, never off a market figure.`;
+  const cap = c.kind === 'margin' ? `your comparables’ median ${auMoney(a.market)} × (1 − ${auMargin(c.value)}%) = ${auCap(c.cap)}` : `your cost, ${auCap(c.cap)}`;
   if (c.status === 'below-reserve') return `Ceiling: ${cap}. The model is run at trial bids, to the ringgit, every other figure held: the cost stays at or under it up to ${auMoney(c.bid)} — below the ${auMoney(a.reserve)} reserve, where no bid can win. At the reserve the effective cost is ${fmtMoney(c.atReserve, 'MYR', 2)}, over it, so no winning bid fits these costs.`;
   if (c.status !== 'solved') return `Ceiling: ${cap}. ${c.status === 'infeasible' ? `At a bid of ${auMoney(c.floor)} the effective cost is already ${auMoney(c.atFloor)}.` : 'Not computable for these inputs.'}`;
   return `Ceiling: ${cap}. The model is run at trial bids, to the ringgit, every other figure held — the transfer duty, the scale fees and the loan follow the bid; the repairs, arrears and possession do not. At ${auMoney(c.bid)} the effective cost is ${fmtMoney(c.effective, 'MYR', 2)}, at or under the ceiling; at ${auMoney(c.bid + 1)} it is ${fmtMoney(c.above, 'MYR', 2)}, over it. What the figures you entered imply — not a recommendation to bid.`;
@@ -765,7 +765,7 @@ function auctionCeilingFormula(c, a) {
 function auctionWaterfallFormula(a) {
   const named = a.marketFrom.named.map(c => `${c.name} ${auMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''} (${pqWhen(c.date)}, source: ${c.source})`);
   const typed = a.marketFrom.typed.map((c, i) => `your comparable price ${i + 1}, ${auMoney(c.price)}`);
-  const mv = isNum(a.market) ? `Market value: the median of ${auList([...named, ...typed])} = ${auMoney(a.market)}.` : 'Market value: none — no comparable is entered or named, so the true discount is Unavailable.';
+  const mv = isNum(a.market) ? `Your comparables’ median: the median of ${auList([...named, ...typed])} = ${auMoney(a.market)}.` : 'Your comparables’ median: none — no comparable is entered or named, so the true discount is Unavailable.';
   const t = a.adds.find(x => x.id === 'transaction');
   const tl = t.lines.map(l => `${l.label.charAt(0).toLowerCase()}${l.label.slice(1)} ${isNum(l.amount) ? auMoney(l.amount) : 'not priced'}`);
   const hold = a.adds.find(x => x.id === 'holding');
@@ -775,7 +775,7 @@ function auctionWaterfallFormula(a) {
     + `Holding: ${hold.months == null ? 'no holding period entered' : !isNum(hold.amount) ? `${auMonths(hold.months)} entered, not priced — ${(hold.why || 'The monthly cost is not computable.').charAt(0).toLowerCase()}${(hold.why || 'The monthly cost is not computable.').slice(1, -1)}`
       : `${auMonths(hold.months)} from the sale with no rent, ${auHoldWorking(hold)} = ${fmtMoney(hold.amount, 'MYR', 2)}: the running costs owed with no tenancy from the sale — maintenance, sinking fund, assessment, quit rent and insurance, no agent’s fee before a tenancy; ${auHoldInstalmentWords(hold)}. In the cash required too, and the rate of return counts the hold’s years from the end of these months`}. `
     + `Effective acquisition cost = the bid${sum.length ? ` + ${sum.join(' + ')}` : ''} = ${auMoney(a.effective)}${a.notEntered.length ? `; not entered and not counted: ${auList(a.notEntered.map(x => x.toLowerCase()))}` : ''}. `
-    + (a.trueDiscount ? `True discount = (market value − effective cost) ÷ market value = (${auMoney(a.market)} − ${auMoney(a.effective)}) ÷ ${auMoney(a.market)} = ${a.trueDiscount.amount < 0 ? '−' : ''}${auPct(a.trueDiscount.pct)}. ` : '')
+    + (a.trueDiscount ? `True discount = (your comparables’ median − effective cost) ÷ that median = (${auMoney(a.market)} − ${auMoney(a.effective)}) ÷ ${auMoney(a.market)} = ${a.trueDiscount.amount < 0 ? '−' : ''}${auPct(a.trueDiscount.pct)}. ` : '')
     + `${auctionFeeNote()} Every figure is yours or the fee rulebook’s, as each badge says. Not a valuation.`;
 }
 function auctionForfeitureFormula(a) {

@@ -7816,8 +7816,8 @@ try {
       if (r.final) p.push('with no check ticked the auction reads final');
       if (r.margin.status !== 'solved' || r.margin.bid !== 383103 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 424999.57) || !near(r.margin.above, 425000.58)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 383,103 (424,999.57; +1 → 425,000.58)`);
       if (r.cost.status !== 'solved' || r.cost.bid !== 387919 || !near(r.cost.eff, 429999.96) || !near(r.cost.above, 430000.98)) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 387,919 (429,999.96; +1 → 430,000.98)`);
-      if (r.noMv.status !== 'unavailable' || !/market value/.test(r.noMv.why || '')) p.push(`a margin with no market value: ${JSON.stringify(r.noMv)} — not Unavailable`);
-      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 387919) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
+      if (r.noMv.status !== 'unavailable' || !/your comparables’ median/.test(r.noMv.why || '')) p.push(`a margin with no comparables’ median: ${JSON.stringify(r.noMv)} — not Unavailable`);
+      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 387919) p.push(`a cost ceiling needs no comparables’ median: ${JSON.stringify(r.costNoMv)}`);
       if (r.none !== 'no-target') p.push(`no ceiling entered is ${r.none}, not "no target"`);
       if (p.length) fail('val V3: auction × residential — effective cost, discount, forfeiture and the bid ceiling', p);
       else ok('val V3: auction × residential — RM20,530 of transaction costs and RM1,000 of holding (the instalment from the day the balance falls due) make the effective cost RM442,530, an 11.494% true discount on the RM500,000 the comparables imply; RM38,000 at risk, Not final; the bid ceiling is RM383,103 at 15% under the market value (RM425,000) and RM387,919 at a cost of RM430,000 — each to the ringgit, worked by hand; a margin with no market value is Unavailable, a cost needs none');
@@ -7944,7 +7944,7 @@ try {
       if (h.status !== 'below-reserve' || h.bid !== 383103 || !near(h.atReserve, 432153.35)) p.push(`with a RM390,000 reserve: ${h.status} at ${h.bid}, the cost at the reserve ${h.atReserve} — by hand below the reserve, RM432,153.35`);
       if (!/No winning bid/.test(h.text) || !/No winning bid fits these costs/.test(h.text) || !h.text.includes('RM432,153.35') || /a winning bid of at most/.test(h.text)) p.push(`the card reads "${h.text.slice(0, 260)}"`);
       if (!/no winning bid fits these costs/.test(h.formula)) p.push(`the working reads "${h.formula.slice(0, 200)}"`);
-      if (!near(r.cap, 449750.8995, 1e-6) || !o.text.includes('10.05% under the market value') || !o.text.includes('at or under RM449,750.90')) p.push(`a 10.05% margin on RM500,001: "${o.text.slice(0, 260)}"`);
+      if (!near(r.cap, 449750.8995, 1e-6) || !o.text.includes('10.05% under your comparables’ median') || !o.text.includes('at or under RM449,750.90')) p.push(`a 10.05% margin on RM500,001: "${o.text.slice(0, 260)}"`);
       if (!/The financing buffer is cash you set aside for the part of the balance the loan does not cover\./.test(r.notes) || /late or short/.test(r.notes)) p.push('the buffer is not defined as what it is set against');
       if (r.down !== 'Down payment (%)' || r.ledger[0] !== 'Down payment' || r.sub !== 'Deposit (%)' || r.labDown !== 'Down payment (%)' || r.labSub !== 'Deposit (%)' || r.model0 !== 'Deposit') p.push(`the Lab's slider reads "${r.labDown}" (on a subsale "${r.labSub}"); the model's line "${r.model0}"`), p.push(`the loan's deposit on the auction route reads "${r.down}" and "${r.ledger[0]}" (on a subsale "${r.sub}")`);
       if (p.length) fail('val V3c: the auction ceiling, buffer and deposit words say what their figures are', p);

@@ -1801,18 +1801,19 @@ function solveDealPrice(d, target = dealTarget(d)) {
 
 /* THE AUCTION RISK MODE (the property decision layer, P3).
    ---------------------------------------------------------------------------
-   From the market value the reader's comparables imply, down to the reserve
-   price and the winning bid they expect, then up again by what an auction
+   From the median of the reader's comparables (called "the market value"
+   until the owner's rename of 23 Oct 2026: their own records are not a
+   valuation), down to the reserve price and the winning bid they expect, then up again by what an auction
    adds — repairs, the arrears the Proclamation passes to the buyer,
    possession, the transaction costs and the months of holding — to the
-   EFFECTIVE ACQUISITION COST; the TRUE DISCOUNT is the market value less
-   that, against the market value. And the FORFEITURE EXPOSURE: the deposit
+   EFFECTIVE ACQUISITION COST; the TRUE DISCOUNT is that median less
+   that, against the median. And the FORFEITURE EXPOSURE: the deposit
    at risk if the balance is not paid within the days the Proclamation
    gives.
 
    NOTHING ASSUMED. Every figure is the reader's: the winning bid is the
    purchase price the model runs on (every figure of dealModel is worked
-   from it); the market value is the median of the comparables they named
+   from it); the median is the median of the comparables they named
    from their register (priceGap) and the comparable prices they typed;
    the costs are what they entered. A cost not entered is not counted and
    is named as not entered — the effective cost says so, never "nought".
@@ -1842,7 +1843,7 @@ const AUCTION_FEE_ESTIMATES = ['disbursements'];
 function auctionModel(d, m = dealModel(d)) {
   const has = (k) => isNum(d?.[k]);
   const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
-  /* The market value, from comparables only. */
+  /* The comparables' median, from comparables only. */
   const g = priceGap(d);
   const typed = AUCTION_COMP_KEYS.filter(k => has(k) && d[k] > 0).map(k => ({ key: k, price: d[k], kind: kindOf(k) }));
   const values = [...g.comps.map(c => c.implied), ...typed.map(c => c.price)];
@@ -1911,7 +1912,7 @@ function auctionModel(d, m = dealModel(d)) {
   return {
     market, marketKind, marketFrom: { named: g.comps, typed, notUsed: g.notUsed }, reserve, bid, bidKind,
     steps: [
-      step('market', 'Market value', market, marketKind, { total: true }),
+      step('market', 'Your comparables’ median', market, marketKind, { total: true }),
       step('reserve', 'Reserve price', reserve, kindOf('reservePrice'), { total: true, key: 'reservePrice' }),
       step('bid', 'Winning bid', bid, bidKind, { total: true }),
       ...adds,
@@ -1930,8 +1931,8 @@ function auctionModel(d, m = dealModel(d)) {
    acquisition cost — auctionModel's own, run at that bid with every other
    input held — stays at or under the ceiling the reader sets:
    - a cost of their own, all in (auctionCapKind 'cost', RM); or
-   - the market value their comparables imply less a margin they choose
-     (auctionCapKind 'margin', %) — Unavailable without a market value,
+   - the median of their comparables less a margin they choose
+     (auctionCapKind 'margin', %) — Unavailable without that median,
      never a market figure standing in for one.
    WHY BISECTION IS ENOUGH. Every step of the effective cost rises or stays
    as the bid rises: the bid itself; the transfer duty and the scale fees,
@@ -1950,7 +1951,7 @@ function auctionBidCeiling(d, a = auctionModel(d)) {
   const valueKind = value == null ? 'unavailable' : KIND_OF_EVIDENCE[d?.evidence?.auctionCapValue || 'user'] || 'yours';
   if (missing.length) return { status: 'no-target', missing, kind, value };
   if (kind === 'margin' && !(value < 100)) return { status: 'invalid', kind, value, why: 'A margin of 100% or more leaves no price to bid.' };
-  if (kind === 'margin' && !isNum(a.market)) return { status: 'unavailable', kind, value, why: 'needs the market value — enter comparable prices or name comparables from your register' };
+  if (kind === 'margin' && !isNum(a.market)) return { status: 'unavailable', kind, value, why: 'needs your comparables’ median — enter comparable prices or name comparables from your register' };
   const cap = kind === 'margin' ? a.market * (1 - value / 100) : value;
   let runs = 0;
   const at = (bid) => { runs++; return auctionModel({ ...d, price: bid }); };

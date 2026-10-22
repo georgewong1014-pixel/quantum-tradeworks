@@ -156,6 +156,43 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end p1-route ---- */
 
+/* ---- auction-median ---- */
+/* THE AUCTION'S COMPARABLES ARE THE READER'S MEDIAN, NEVER "THE MARKET
+   VALUE" (the owner's decision of 23 Oct 2026, Day-10 OP-01). The figure
+   is the median of up to three prices the reader typed and the comparables
+   they named from their own register; "market value" is the term a
+   registered valuer's report uses, and this is not a valuation. In the
+   text of the auction route's modules — comments left out — the words are
+   not used at all: the decision layer and the waterfall (83), the auction
+   model (75), the Lab's auction column (82), the ceiling's kinds (70's
+   AUCTION_CAP_KINDS) and the auction row of /methodology/property (65).
+   70's stamp-duty notes, where "market value" is the statute's own term,
+   are not read. */
+{
+  const MV = /market[\s-]value/gi;
+  const src = (f) => uncommented(readFileSync(join(ROOT, 'src', 'js', f), 'utf8'));
+  const slice = (text, from, to) => { const i = text.indexOf(from); const j = i < 0 ? -1 : text.indexOf(to, i + from.length); return i < 0 || j < 0 ? null : text.slice(i, j); };
+  const parts = [
+    ['75-property-grade.js', src('75-property-grade.js')],
+    ['82-property-lab.js', src('82-property-lab.js')],
+    ['83-property-decision.js', src('83-property-decision.js')],
+    ['70-property.js AUCTION_CAP_KINDS', slice(src('70-property.js'), 'const AUCTION_CAP_KINDS', '};')],
+    ['65-learn.js, the auction row', slice(src('65-learn.js'), "id: 'auction', route: 'Auction'", "fees: 'commercial', legal: 'auction'")],
+  ];
+  let mvBad = 0;
+  for (const [f, code] of parts) {
+    if (code == null) { mvBad++; console.error(`FAIL  the auction wording check could not find ${f}`); continue; }
+    for (const m of code.matchAll(MV)) {
+      mvBad++;
+      console.error(`FAIL  "${m[0]}" names the auction's comparables in ${f}`);
+      console.error(`      “${sentenceAt(code, m.index, m[0].length).slice(0, 220)}”`);
+    }
+  }
+  bad += mvBad;
+  if (!mvBad) console.log(`ok    the auction route names the reader's comparables "your comparables’ median", never "the market value", in the text of its ${parts.length} parts`);
+}
+/* ---- end auction-median ---- */
+
 /* ---- cost-provenance ---- */
 /* NO SUPPLIER ATTACHED, NAMED OR PREFERRED (the owner's rule for Track A,
    10 Oct 2026: QT-03's cost lines, the cost-schedule import, Refurbish or

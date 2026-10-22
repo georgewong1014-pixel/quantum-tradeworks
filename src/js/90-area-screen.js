@@ -557,7 +557,7 @@ function areaRecorder(city, area) {
      4 whether you checked it against the source yourself;
      5 record it, and use it: a price is named in the Scenario Lab's
        comparables (a what-if until saved), where the price gap and the
-       auction's market value take it with its source and date.
+       auction's median of comparables take it with its source and date.
    WHAT IT IS AND IS NOT. The reader's own record, in this browser (Yours).
    Locality-level: it names no building, and whatever its source it is never
    a verified building transaction (observationStanding: scope 'area') — it
@@ -691,7 +691,7 @@ function evidenceFlowDone(o) {
   box.append(el('p', { class: 'metaline' }, [`Source: ${o.sourceRef}. `, el('span', { class: st.tone, title: st.why }, st.label)]));
   if (EF_PRICE.has(o.kind)) {
     box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
-      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
+      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s median take it — with its source and date — as a what-if until you save.'
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
     box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
       onclick: () => { State.labUseComparable = o.id; pfResumeLab(); } }, 'Use it in the Scenario Lab'),

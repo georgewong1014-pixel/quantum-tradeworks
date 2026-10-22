@@ -874,13 +874,15 @@ const AUCTION_COMP_KEYS = ['auctionComp1', 'auctionComp2', 'auctionComp3'];
 /* THE BID CEILING (the validation pass, audit #4, 10 Oct 2026): the
    highest winning bid at which the effective acquisition cost stays at or
    under a ceiling the reader sets — a cost of their own, all in, or the
-   market value their comparables imply less a margin they choose. Neither
-   is assumed: with no ceiling entered there is no solve, and a margin
-   without a market value is Unavailable (auctionBidCeiling,
-   75-property-grade.js). */
+   median of their comparables less a margin they choose. Neither is
+   assumed: with no ceiling entered there is no solve, and a margin without
+   that median is Unavailable (auctionBidCeiling, 75-property-grade.js).
+   The median was called "the market value" until 23 Oct 2026, when the
+   owner renamed it "your comparables’ median" wherever the auction route
+   said it: the reader's own records are not a valuation (Day-10 OP-01). */
 const AUCTION_CAP_KINDS = {
   cost:   { id:'cost',   label:'A cost, all in', unit:'RM', words:'an effective acquisition cost of at most' },
-  margin: { id:'margin', label:'Under the market value by', unit:'%', words:'the market value your comparables imply less' },
+  margin: { id:'margin', label:'Under your comparables’ median by', unit:'%', words:'your comparables’ median less' },
 };
 
 /* WHICH ROUTE × ASSET COMBINATIONS A MODEL IS WRITTEN FOR (the validation

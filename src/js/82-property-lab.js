@@ -3037,7 +3037,7 @@ const LAB_XR_ROWS = [
       const a = f.au, td = a.trueDiscount;
       if (!td) return { ...labXrUnavailable('needs comparable prices'), notFinal: !a.final };
       return { value: labR4(td.pct), text: `${td.amount < 0 ? '−' : ''}${auPct(td.pct)}`, kind: kindFirst([a.marketKind, a.effectiveKind]) || 'derived', notFinal: !a.final,
-        sub: `${auMoney(Math.abs(td.amount))} ${td.amount >= 0 ? 'under' : 'over'} the market value your comparables imply` };
+        sub: `${auMoney(Math.abs(td.amount))} ${td.amount >= 0 ? 'under' : 'over'} your comparables’ median` };
     } },
   { id: 'auForfeit', label: 'Forfeiture exposure', only: 'auction', cell: (f) => {
       const a = f.au, x = a.forfeiture;
