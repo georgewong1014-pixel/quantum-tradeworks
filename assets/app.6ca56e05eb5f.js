@@ -12602,8 +12602,13 @@ function toast(msg) {
    The homepage card shows each product's; Property's is shown wherever its
    badge is (qualifyBadge: the header's menu and the phone sheet, the
    sidebar, the footer, the tab row, How it works, the search), because
-   "Live" alone read as live market data. The full note stays the badge's
-   title and the link's description, and the card's ⓘ prints it. */
+   "Live" alone read as live market data: it reads "Your figures; no live
+   market data" (the owner, 23 Oct 2026, asked for "Calculations on your
+   figures; no live market data", which takes the Property card to 14 words
+   against the homepage budget of 12; it was "Your figures, sample to
+   start"). The sample deal is labelled where it is drawn. The full note
+   stays the badge's title and the link's description, and the card's ⓘ
+   prints it. */
 const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
@@ -12626,7 +12631,7 @@ const PRODUCTS = [
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
-    boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
+    boundary: 'The worker is not distributed yet; setups can be tested here on prices you supply.',
     statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
@@ -12635,7 +12640,7 @@ const PRODUCTS = [
        (D5(d)) — until the map ships, when the card's action becomes
        "Explore Property". */
     also: { label: 'Try the Scenario Lab', path: '/property/lab' },
-    status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
+    status: 'live', qualifier: 'Your figures; no live market data', qualifyBadge: true,
     /* What the calculator does not do, in sight beside the homepage card's
        action (QT-D02-02, the 15 Oct report): served-check holds the words. */
     outcome: 'See the cash required, the monthly position and scenarios for a deal.',
@@ -12662,7 +12667,7 @@ const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
    for el() children; its own markup when put in a template string, because
    the pages that call it build both ways. */
 /* D17 (N2a, the 5 Oct audit; the owner's decision). Property's badge reads
-   "Live · Your figures, sample to start" wherever it appears — the tab row
+   "Live · Your figures; no live market data" wherever it appears — the tab row
    above /property's Scenario Lab, the header's Products menu, the phone
    sheet, the sidebar, the footer, /how-it-works and the homepage card. The
    qualifier is drawn here, as visible text beside the badge's word, never
@@ -13124,11 +13129,10 @@ const chromeOf = (view) => (PUBLIC_VIEWS.has(view) ? 'public' : 'app');
 const RESOURCES = [
   { label: 'Methodology',                   path: '/methodology',               group: 'method' },
   { label: 'Data sources',                  path: '/data-sources',              group: 'method' },
-  { label: 'Glossary',                      path: '/learn/glossary',            group: 'method' },
-  { label: 'Learn',                         path: '/learn',                     group: 'method' },
+  { label: 'Metric dictionary',             path: '/learn/glossary',            group: 'method' },
   { label: 'Corrections',                   path: '/corrections',               group: 'method' },
   { label: 'What this product will not do', path: '/learn/product-boundaries',  group: 'method' },
-  { label: 'Build status',                  path: '/status',                    group: 'company' },
+  { label: 'Checks and status',             path: '/status',                    group: 'company' },
   { label: 'About',                         path: '/about',                     group: 'company' },
   { label: 'Contact',                       path: '/contact',                   group: 'company' },
   { label: 'Privacy',                       path: '/privacy',                   group: 'company' },
@@ -13362,7 +13366,7 @@ const POSITIONING = {
   title: 'Quantum Tradeworks — your financial decision workspace',
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
-  kicker: 'Research · Monitor · Model · Plan',
+  kicker: 'Research · Follow · Model · Plan',
   /* The hero's lede under the held h1 (D5): with it, 14 words. */
   lede: 'Companies, market setups and property, in one workspace.',
   /* The footer's line on every page. Business planning is "planned, not
@@ -13455,7 +13459,7 @@ const ROUTES = [
   { path: '/app/scanner/alerts/:alert',      view: 'scannerAlert',      title: 'Scanner alert' },
   { path: '/app/scanner/settings',           view: 'scannerSettings',   title: 'Scanner settings' },
   /* end Phase 3 — user */
-  { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
+  { path: '/start',               view: 'launcher',  title: 'Start with a task' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data & settings' },
   { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
   { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
@@ -13507,7 +13511,7 @@ const ROUTES = [
   { path: '/methodology/property', view: 'learn',   tab: 'property',  title: 'Property routes and assets' },
   { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
-  { path: '/status',              view: 'status',    title: 'Build status' },
+  { path: '/status',              view: 'status',    title: 'Checks and status' },
   { path: '/decision-record',     view: 'decisionRecord', title: 'Decision record' },
   { path: '/methodology/ips',     view: 'ips',       title: 'Investment Policy Statement' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
@@ -13560,9 +13564,9 @@ const META = {
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
-  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you monitor and what you have saved — read from this browser and the scanner’s own record.',
+  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you follow and what you have saved — read from this browser and the scanner’s own record.',
   onboarding:  'Four questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in — and where you start.',
-  launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
+  launcher:    'Start with a task: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
   thesis:      'What you believe about a company and what would prove you wrong, checked against the latest data.',
@@ -14270,7 +14274,7 @@ function resourceLists(prefix) {
     el('ul', { class: 'rs-list', 'aria-labelledby': `${prefix}-rs-${g}` },
       RESOURCES.filter(r => r.group === g).map(r => el('li', {}, shellLink(r.path, { class: 'rs-link' }, r.label)))),
   ]);
-  return [group('method', 'Method and data'), group('company', 'This build and its terms')];
+  return [group('method', 'Method and data'), group('company', 'This site and its terms')];
 }
 
 /* A disclosure menu of the public header: a button that says whether it is
@@ -14350,7 +14354,7 @@ const NAV_MARKUP = {
     /* The property landing (/property-investing): one link, the footer's
        only — not in the header's Resources menu, which it would crowd. */
     el('li', {}, shellLink('/property-investing', {}, 'Property investing in Sarawak')),
-    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')),
+    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Record a data error here')),
   ],
 };
 
@@ -27776,8 +27780,10 @@ const pubBadge = (p) => productBadge(p.id) || pubStatusBadge(p.status, p.statusN
 /* An in-app link that keeps the browser's own link behaviour: a modified or
    middle click opens a tab, as every other internal link in the product does. */
 function pubLink(path, attrs, ...kids) {
+  /* data-to is where the link goes now, when a page changes it after the
+     draw (pubCalcTo: the Property card carries the price the reader set). */
   return el('a', { href: href(path), ...attrs,
-    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, ...kids);
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(e.currentTarget.dataset.to || path); } }, ...kids);
 }
 /* A link to a section of this page. Scrolled here rather than left to the
    fragment: a changed hash fires popstate, and the router would repaint the
@@ -27820,8 +27826,8 @@ const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true
    It said everything in prose — 557 drawn words, no figure — and twice
    said what the data is. Now: the held headline, a lede of eight words and
    one action; three products, each a task, a qualifier with its ⓘ, and a
-   visual of what the product does, drawn from its own engine; Business as
-   one line of text; and an example path through the work, drawn, with no
+   visual of what the product does, drawn from its own engine; Business (23 Oct 2026: on /pricing
+   and in the footer, not here); and an example path through the work, drawn, with no
    figure, name or count in it. The strip above every page carries the one
    disclosure line; every sentence that left is one action away — in an ⓘ,
    the strip's Details, /how-it-works or /my/data.
@@ -27904,7 +27910,7 @@ function pubVisScanner() {
     el('div', { class: 'pub-record', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('div', { class: 'pub-record-row' }, [el('i'), el('i'), el('i')]))),
     el('figcaption', { class: 'pub-vis-cap pub-vis-empty' }, [
       el('span', { class: 'pub-vis-empty-mark', 'aria-hidden': 'true' }),
-      el('span', {}, 'Matches are recorded by a worker you run, not by this site'),
+      el('span', {}, 'Matches are recorded by the worker, not by this site'),
     ]),
   ]);
 }
@@ -27926,6 +27932,13 @@ const pubUnverified = (m) => (m?.unconfirmedCost > 0 ? `${labMoney(m.unconfirmed
    stored: the page reads nothing the reader keeps) so a redraw — the
    filings landing a moment after the page opens — leaves it where it was. */
 let pubLabAt = null;
+/* Where the Property card's action goes: the calculator, on the sample deal
+   at the price the reader moved the slider to (?d=price:…, as the
+   calculator's own links write it). At the sample's price, or before it
+   moves, the plain address. The price is not lost at the next step. */
+function pubCalcTo(path, price) {
+  return isNum(price) && price !== num0(PROPERTY_DEFAULT_DEAL.price) ? `${path}?d=price:${Math.round(price)}` : path;
+}
 function pubLabRun(price) {
   const d = pmCopy(PROPERTY_DEFAULT_DEAL);
   d.price = price;
@@ -27978,6 +27991,9 @@ function pubVisProperty({ badgeLink = true } = {}) {
   range.addEventListener('input', () => {
     const v = Number(range.value);
     pubLabAt = v;
+    /* The card's action opens the calculator at this price. */
+    const go = fig.closest('.pub-card')?.querySelector('.pub-card-link');
+    if (go) { const to = pubCalcTo(PRODUCTS.find(x => x.id === 'property').actionPath, v); go.dataset.to = to; go.setAttribute('href', href(to)); }
     val.textContent = inp.shown(v);
     range.setAttribute('aria-valuetext', inp.shown(v));
     paint(v);
@@ -28004,18 +28020,27 @@ function pubVisProperty({ badgeLink = true } = {}) {
 }
 const PUB_VISUALS = { equities: pubVisEquities, scanner: pubVisScanner, property: pubVisProperty };
 
+/* A product that is not built, as one line of text with its badge: no link,
+   no button. On /pricing, beside the plans (the owner, 23 Oct 2026: it left
+   the homepage's choice of tools); the footer lists it too (footProducts). */
+function pubSoonLine(p) {
+  return el('p', { class: 'pub-soon', 'data-product': p.id }, [
+    el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
+  ]);
+}
+
 /* ONE PRODUCT, AS A CARD (plan 3.3). An <article>: its name, its task — the
    card's one action, an <h3> link stretched over the card — its qualifier
    with the ⓘ, and its visual. What sits over the stretched link (the ⓘ,
    the visual's own link and control, a badge, the Property card's second
    action) is its own target: no link, button or <details> inside a link.
-   Business, which is not built, is not a card: one line of text below. */
+   Business, which is not built, is not on the homepage (pubSoonLine). */
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') },
-    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
+    pubLink(p.id === 'property' ? pubCalcTo(p.actionPath, pubLabAt) : p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
   if (p.outcome) card.append(el('p', { class: 'pub-card-outcome', id: id('out') }, p.outcome));
   card.append(pubQualifier(p, id));
   if (p.boundary) card.append(el('p', { class: 'pub-card-bound', id: id('bound') }, p.boundary));
@@ -28051,11 +28076,9 @@ VIEWS.marketing = () => {
   products.append(el('h2', { class: 'sr-only', id: 'pub-products-h' }, 'What would you like to do?'));
   const built = PRODUCTS.filter(p => p.path && p.actionPath);
   products.append(el('div', { class: 'pub-cards' }, built.map(pubProductCard)));
-  for (const p of PRODUCTS.filter(x => !x.path)) {
-    products.append(el('p', { class: 'pub-soon', 'data-product': p.id }, [
-      el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
-    ]));
-  }
+  /* Business Intelligence, which is not built, is not a choice here: it is
+     one line of text on /pricing (pubSoonLine) and a row in the footer
+     (the owner, 23 Oct 2026). */
   wrap.append(products);
 
   /* -- 3. an example path through the work (plan 3.4, D22) ------------------
@@ -28074,7 +28097,7 @@ VIEWS.marketing = () => {
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A match, if you run the worker', '/app/scanner', 'bell'], ['Back to the company', '/research', 'loop']]),
+      ['A recorded match', '/app/scanner', 'bell'], ['Back to research', '/research', 'loop']]),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
@@ -28593,7 +28616,7 @@ VIEWS.launcher = () => {
 
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Start here'),
-    el('h1', {}, 'Start with your goal'),
+    el('h1', {}, 'Start with a task'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Five things this product does. Pick one and it opens the right tool with what you tell it already filled in. '
       + 'These questions route a workflow — they are not a suitability assessment and nothing here recommends an investment.'),
@@ -48381,7 +48404,7 @@ function flagNoticeFor(row) {
       el('strong', {}, row.name)]),
     el('p', {}, row.flag),
     el('p', { class: 'metaline' }, [`Usable as it stands. `,
-      el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Build status')]),
+      el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Checks and status')]),
   ]);
 }
 /* Where the notice goes: under the page heading when the view has one, and on
@@ -64054,6 +64077,9 @@ VIEWS.plans = () => {
   })));
   det.append(body);
   wrap.append(det);
+
+  /* The product that is not built, as text with its badge (pubSoonLine). */
+  PRODUCTS.filter(p => !p.path).forEach(p => wrap.append(pubSoonLine(p)));
 
   /* What is deliberately not monetised, and why: one link. */
   wrap.append(el('p', { class: 'plan-boundary' }, [
