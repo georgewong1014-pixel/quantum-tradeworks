@@ -378,9 +378,15 @@ function restoreBackup(text) {
                      Formspree, Buttondown, a Vercel function, anything that
                      returns 2xx. Until it is set the waitlist does not render.
 
-   contactEmail      Used for the fallback mail link and for the contact page.
-                     Until it is set, /contact keeps saying no route is
-                     published, because none is.
+   contactEmail      The address of the mailbox the owner monitors for
+                     support and data-error reports. Until it is set, /contact
+                     keeps saying no route is published, because none is. Once
+                     it is set, /contact shows it and the last step of "Report
+                     a data error" offers the report to copy, with the address
+                     as text and a mailto link: the visitor's own email program
+                     sends it, nothing on this site does. It does NOT switch
+                     the waitlist on (waitlistReady reads the endpoint alone):
+                     a mailbox for support is not a list a visitor is added to.
 
    ANALYTICS: none. The Vercel Web Analytics tag was removed from the page
    (src/index.template.html) because analytics was never switched on and the
@@ -390,7 +396,11 @@ const LAUNCH = {
   waitlistEndpoint: '',
   contactEmail: '',
 };
-const waitlistReady = () => !!(LAUNCH.waitlistEndpoint || LAUNCH.contactEmail);
+const waitlistReady = () => !!LAUNCH.waitlistEndpoint;
+/* The support address, or '' while none is published. Every surface that
+   would name it reads it here, so setting LAUNCH.contactEmail is the one step
+   that switches the route on (tests set it at run time, never in source). */
+const supportEmail = () => LAUNCH.contactEmail || '';
 
 /* THE COVERAGE MANIFEST — one count, counted once, in one place.
    ---------------------------------------------------------------------------
@@ -481,7 +491,7 @@ function covText(fn, pending = COVERAGE_PENDING) {
    (prerender.mjs), to every crawler and to a reader with no script, for whom
    it never loads. The element is marked so (data-now, NOW in 35-ui.js):
    served, it says who counts it; drawn, the count or the wait. */
-const COVERAGE_SERVED = 'Counted by this page’s script once the audited set has loaded.';
+const COVERAGE_SERVED = 'Counted once the audited set has loaded.';
 /* HELD TO THE LONGER OF ITS TWO TEXTS (`hold`, 10 Oct 2026). The served box
    is the served sentence's; the wait drawn into it is longer, and in a
    narrow column it took another line: on /status at 390 the US equities row

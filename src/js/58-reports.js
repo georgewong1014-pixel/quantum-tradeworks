@@ -168,7 +168,7 @@ VIEWS.reports = () => {
       'A report is one page made from your own work, laid out to print or save as PDF: a company’s research report — its statements, its measures and your valuation assumptions, with where every figure came from — a saved property’s investor report, decision record and client proposal, or the decision record of a Cash Wheel contract or of Trading Index chart evidence.'));
     empty.append(el('p', { class: 'caption' },
       'Open a company’s page, save a property, enter a contract or record chart evidence, and its report is listed here.'));
-    empty.append(reportLink(productById('equities')?.actionPath || '/research', { class: 'btn btn-primary' }, productById('equities')?.action || 'Start research'));
+    empty.append(reportLink(productById('property')?.actionPath || '/property/calculator', { class: 'btn btn-primary' }, productById('property')?.action || 'Analyse a property'));
     wrap.append(empty);
     return wrap;
   }

@@ -2932,7 +2932,7 @@ for (const route of ROUTES) {
   };
   const mark = () => ev('window.__dlMark = 1');
   const WANT = { '/my/portfolio': 'Understand your exposures — not a trading screen', '/my/watchlists': 'Watchlists', '/my/theses': 'What you believe, and what would prove you wrong',
-    '/my/alerts': 'My Alerts', '/my/reports': 'Print & share', '/my/tracked': 'Tracked', '/my/data': 'Bring your own prices', '/my/workspace': 'Everything you have saved' };
+    '/my/alerts': 'My Alerts', '/my/reports': 'Print & share', '/my/tracked': 'Tracked', '/my/data': 'Your data & settings', '/my/workspace': 'Everything you have saved' };
   bucket = [];
   for (const [path, h1] of Object.entries(WANT)) {
     for (const how of ['entered', 'reloaded']) {

@@ -1821,7 +1821,7 @@ const FEE_TABLE = {
     { version: '1.1.0', date: '2026-10-09',
       what: 'Mortgage protection (MRTA/MLTA) is an optional line, off by default: left out of the cash required unless you include it or enter a quote, and listed as “Optional: mortgage protection” so its absence is visible — the sample’s cash required falls by its RM8,000 estimate. The ledger is split into five kinds: statutory charges, professional fees on a published scale, quotations, optional products and estimates. Registration of the transfer and the charge (RM10 an instrument, Land and Survey Department, Sarawak) and the stamp duty on the charge (one-fifth of the loan agreement’s duty, at most RM10: Item 27(b)) are verified and taken out of the disbursements estimate, which keeps the rest. The valuation fee, the searches and the firm’s disbursements, and the utility deposits stay estimates: no primary source fixing them was found.' },
     { version: '1.0.0', date: '2026-10-08',
-      what: 'Replaced 0.1.0-unverified: the transfer and loan agreement stamp duty, Sarawak’s advocates’ scale for the purchase and loan legal fees, and service tax verified from official texts; the valuation fee carried at the Board of Valuers’ ceiling as an estimate.' },
+      what: 'Replaced the unverified first draft: the transfer and loan agreement stamp duty, Sarawak’s advocates’ scale for the purchase and loan legal fees, and service tax verified from official texts; the valuation fee carried at the Board of Valuers’ ceiling as an estimate.' },
   ],
 
   lines: {
@@ -3226,7 +3226,7 @@ function cityMapHold(cityId, waiting) {
   const { pad, maxH, minH } = CITY_MAP_BOX;
   return el('div', { class: 'map-hold', style: `--map-r:${r};--map-pad:${pad}px;--map-min:${minH}px;--map-max:${maxH}px` },
     el('p', { class: 'caption map-hold-say',
-      'data-now': 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.' }, waiting));
+      'data-now': 'The map needs JavaScript; the table below is the same without it.' }, waiting));
 }
 /* label: what the diagram is said to be where it stands for something else
    — the Kuching scheme map's fallback (92-kuching-map.js), under which no
