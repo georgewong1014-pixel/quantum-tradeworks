@@ -1398,7 +1398,11 @@ let propertyUrlSeen = null;
 /* The address and the property its entry shows: two properties with the
    same figures — a duplicate, before it is edited — have one address, and
    Back from one to the other is still an arrival. */
-const propertyUrlKey = () => `${location.search}|${(isRecord(history.state?.pm) && history.state.pm.modelId) || ""}`;
+/* With its path: the Scenario Lab reads a linked deal too (labArrive,
+   82-property-lab.js), and the same ?d= on the calculator after it is the
+   calculator's own arrival, not one already seen (the Day-10 pre-audit,
+   NAV-07). */
+const propertyUrlKey = () => `${location.pathname}${location.search}|${(isRecord(history.state?.pm) && history.state.pm.modelId) || ""}`;
 function arrivePropertyUrl() {
   if (propertyUrlKey() === propertyUrlSeen) return { changed: false };
   propertyUrlSeen = propertyUrlKey();
