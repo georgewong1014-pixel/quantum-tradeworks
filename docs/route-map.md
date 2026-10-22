@@ -243,9 +243,9 @@ search box: `/` and Ctrl/Cmd+K open the search from every page.
   `/app/scanner`), Property Intelligence (Live, → `/property`), Business
   Intelligence (Coming soon — a row of text, not a link).
 - **Resources** — Methodology (`/methodology`), Data sources
-  (`/data-sources`), Glossary (`/learn/glossary`), Learn (`/learn`),
+  (`/data-sources`), Metric dictionary (`/learn/glossary`),
   Corrections (`/corrections`), What this product will not do
-  (`/learn/product-boundaries`) · Build status (`/status`), About (`/about`),
+  (`/learn/product-boundaries`) · Checks and status (`/status`), About (`/about`),
   Contact (`/contact`), Privacy (`/privacy`), Terms (`/terms`).
 - Both menus are disclosure menus: a button with `aria-expanded`; Escape
   closes and returns focus to it; ArrowDown opens onto the first link and the
@@ -338,9 +338,9 @@ badge and the page's one primary action (`pageHead`, 36-layouts.js):
 ### Footer
 
 Products (the four; Business Intelligence as text with its badge) ·
-Resources (Methodology, Data sources, Glossary, Learn, Corrections, What this
-product will not do, Build status, Report a data error) · Company (About,
-Contact, Plans & pricing, Privacy, Terms). Tagline "Research · Monitor ·
+Resources (Methodology, Data sources, Metric dictionary, Corrections, What this
+product will not do, Checks and status, Record a data error here) · Company (About,
+Contact, Plans & pricing, Privacy, Terms). Tagline "Research · Follow ·
 Model · Plan"; the legal paragraph is unchanged. That is the public
 chrome's footer. Under an app page the footer is the slim one — Resources,
 Company and the legal paragraph — since the sidebar already carries the
