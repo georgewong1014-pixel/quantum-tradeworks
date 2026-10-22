@@ -1267,7 +1267,7 @@ function labNextTile(P, lab, d) {
       r.closest('.lab-cmp-card')?.scrollIntoView({ block: 'start' });
       r.focus({ preventScroll: true });
     } }, 'Compare scenarios');
-    sub = 'A, B and C side by side, below';
+    sub = 'Scenarios side by side, below';
   }
   /* THE SYSTEM'S ACTION CARD: a title, one line, one call to action. */
   /* "Not saved" and "Saved" are the property's state, not a figure's kind:
@@ -1776,9 +1776,13 @@ function labSpan(col, inp) {
   if (!(hi > lo)) hi = lo + inp.step;
   return [+lo.toFixed(2), +hi.toFixed(2)];
 }
+/* A figure still the calculator's starting one says so whichever input it
+   is — inputIsSeeded, the calculator's own test (the Day-10 pre-audit,
+   CL-02): the deposit, rate, tenure, vacancy, growth and hold read
+   "Evidence: Assumed" here and "Illustrative default" on the calculator. */
 function labEvidenceWords(d, k) {
-  const ev = shownEvidence(d, k);
-  return ev === 'illustrative_default' ? 'Illustrative default — not yours, and not from any market' : `Evidence: ${evidenceOf(ev).label}`;
+  if (inputIsSeeded(d, k)) return 'Illustrative default — not yours, and not from any market';
+  return `Evidence: ${evidenceOf(shownEvidence(d, k)).label}`;
 }
 function labKnob(P, lab, col, inp) {
   const k = inp.k;
@@ -2203,7 +2207,8 @@ function labAlert(P, lab) {
   const d = labSubjectInputs(lab);
   const q = d && onCalc ? propertyReviewQueue(d) : [];
   if (!q.length) return null;
-  return lsAlertCard({ text: `${q.length} assumption${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
+  /* Named as the calculator names them (CL-02): "sample inputs". */
+  return lsAlertCard({ text: `${q.length} sample input${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
     sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''}.`,
     cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
 }
@@ -2225,7 +2230,9 @@ function labWhereEntered(lab, col, key) {
    compared; the switch changes the form and the scale. */
 function labCompare(P, lab) {
   const card = el('section', { class: 'card ls-section lab-cmp-card', 'aria-labelledby': labId(P, 'cmp-h') });
-  card.append(el('h2', { class: 'h-card', id: labId(P, 'cmp-h') }, 'A, B and C side by side'));
+  /* "Scenarios", not "A, B and C": a column C is there only once added
+     (the Day-10 pre-audit, CL-23). */
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'cmp-h') }, 'Scenarios side by side'));
   const fs = el('fieldset', { class: 'lab-pick lab-pick-by' });
   fs.append(el('legend', { class: 'lab-legend' }, 'Compare by'));
   const seg = el('div', { class: 'lab-seg lab-seg-by ls-chips', role: 'presentation' });
@@ -3644,7 +3651,7 @@ function labPaintPanel(P, { initial = false } = {}) {
       labAttr(kn.range, 'aria-describedby', desc);
       labAttr(kn.num, 'aria-describedby', desc);
     }
-    if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', shownEvidence(d, inp.k) === 'illustrative_default'); }
+    if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', inputIsSeeded(d, inp.k)); }
     if (kn.zero) kn.zero.hidden = !(m && m.zeroRateModelled);
     if (kn.recover) labText(kn.recover, num0(d.renoValueRecoveryPct) > 0
       ? `Moves the cash required and, through the ${labPctIn(num0(d.renoValueRecoveryPct))} of it recovered at the sale, the sale value — not the rent you entered.`
