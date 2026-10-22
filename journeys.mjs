@@ -3229,12 +3229,12 @@ const JOURNEYS = [
         const path = await tab.eval(`BY_ID.get(${JSON.stringify(CO)}) ? companyPath(BY_ID.get(${JSON.stringify(CO)}).c) : null`);
         if (!path) throw new StepError(`${CO} is not among the companies loaded`);
         await tab.goto(`${path}?tab=thesis`);
-        await tab.expect(`State.view === 'research' && State.ticker === ${JSON.stringify(CO)} && !!(${byText('main button', '/^Start a thesis$/')})`, async () => `${path}?tab=thesis opened ${await tab.eval('State.view')} with no “Start a thesis”`);
+        await tab.expect(`State.view === 'research' && State.ticker === ${JSON.stringify(CO)} && !!(${byText('main button', '/^Start an investment case$/')})`, async () => `${path}?tab=thesis opened ${await tab.eval('State.view')} with no “Start an investment case”`);
       });
       const condRow = `(() => { const tr = [...document.querySelectorAll('main table.dt tbody tr')].find(r => /base-case model estimate/.test(r.cells[0]?.textContent || '')); return tr ? [...tr.cells].map(td => td.textContent.replace(/\\s+/g, ' ').trim()) : null; })()`;
       await step(j, tab, 'Start a case: it is listed, its condition checked against the latest data held', BUDGET.action * 2, async () => {
-        await tab.click(byText('main button', '/^Start a thesis$/'), 'Start a thesis');
-        await tab.expect(`State.view === 'thesis' && location.pathname === '/my/theses' && [...document.querySelectorAll('main h3.h-card')].some(h => h.textContent.trim() === ${JSON.stringify(CO)})`, `“Start a thesis” did not list a case on ${CO} under My investment cases`);
+        await tab.click(byText('main button', '/^Start an investment case$/'), 'Start an investment case');
+        await tab.expect(`State.view === 'thesis' && location.pathname === '/my/theses' && [...document.querySelectorAll('main h3.h-card')].some(h => h.textContent.trim() === ${JSON.stringify(CO)})`, `“Start an investment case” did not list a case on ${CO} under My investment cases`);
         thesisId = await tab.eval(`State.theses.find(t => t.ticker === ${JSON.stringify(CO)})?.id || null`);
         const r = await tab.eval(condRow);
         if (!r) throw new StepError('the case lists no condition to check');
@@ -3255,7 +3255,7 @@ const JOURNEYS = [
         await tab.expect(`document.querySelector('#drawer')?.dataset.open === '1' && !!document.getElementById('th-oneLine')`, 'Edit opened no editor');
         await tab.fill(`document.getElementById('th-oneLine')`, CASE, 'The one-sentence investment case');
         await tab.click(byText('#drawer button', '/^Save$/'), 'Save');
-        await tab.expect(`/^Thesis saved/.test(document.getElementById('toast')?.textContent || '') && (document.querySelector('main')?.innerText || '').includes(${JSON.stringify(CASE)})`, 'Save did not show the case on its card', 4000);
+        await tab.expect(`/^Investment case saved/.test(document.getElementById('toast')?.textContent || '') && (document.querySelector('main')?.innerText || '').includes(${JSON.stringify(CASE)})`, 'Save did not show the case on its card', 4000);
         await tab.goto('/my/theses');
         if (!(await tab.text()).includes(CASE)) throw new StepError('after a reload the case no longer reads as written');
       });
@@ -3269,7 +3269,7 @@ const JOURNEYS = [
         const it = await tab.eval(item(`t => /^${CO}\\b.* — suggested condition breached, not yet confirmed by you$/.test(t)`));
         if (!breached) { if (it) throw new StepError('My Alerts lists a breach of a condition the case shows as not breached'); return; }
         if (!it) throw new StepError(`My Alerts lists no research alert for the breached condition on ${CO}`);
-        if (it.chip !== 'Thesis condition') throw new StepError(`the breach is labelled “${it.chip}”, not as a thesis condition`);
+        if (it.chip !== 'Case condition') throw new StepError(`the breach is labelled “${it.chip}”, not as a case condition`);
         if (!/FY\d{4} reported · /.test(it.text) || !/against the tool’s suggested threshold of > 15\.0%/.test(it.text)) throw new StepError(`the breach does not give its source period and the threshold: ${it.text.slice(0, 200)}`);
       });
       await step(j, tab, 'Set a price threshold: crossed, and listed with its source once price moves are shown', BUDGET.action * 4, async () => {
