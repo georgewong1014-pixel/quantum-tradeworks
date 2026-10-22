@@ -26,9 +26,14 @@ const WORKSPACE_KINDS = [
   { id: 'comparison', label: 'Comparisons' },
   { id: 'screen',     label: 'Screens' },
   { id: 'thesis',     label: 'Investment cases' },
+  /* A saved property is a kind of its own (the Day-10 pre-audit, NAV-16):
+     filed under "Tool snapshots", the property a reader had just saved
+     was under a name that did not say property. The Cash Wheel's and the
+     Trading Index's snapshots stay tool snapshots. */
+  { id: 'property',   label: 'Properties' },
   { id: 'work',       label: 'Tool snapshots' },
 ];
-const WORKSPACE_KIND_ONE = { run: 'Valuation run', comparison: 'Comparison', screen: 'Saved screen', thesis: 'Investment case', work: 'Tool snapshot' };
+const WORKSPACE_KIND_ONE = { run: 'Valuation run', comparison: 'Comparison', screen: 'Saved screen', thesis: 'Investment case', property: 'Property', work: 'Tool snapshot' };
 const WORK_PATHS = { property: '/property/calculator', wheel: '/us-options/wheel', trading: '/research/trading-index' };
 State.workspace = { kind: 'all', q: '' };
 
@@ -130,7 +135,7 @@ function workspaceItems() {
     const prop = w.kind === 'property' && typeof pmIsProperty === 'function' && pmIsProperty(w);
     const nSc = prop ? (w.scenarios || []).length : 0;
     items.push({
-      kind: 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
+      kind: prop ? 'property' : 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
       created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
       sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
       detail: (sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
@@ -167,7 +172,7 @@ VIEWS.workspace = () => {
   /* The one head (pageHead, 36-layouts.js): under My workspace's header,
      which is drawn by the shell. */
   wrap.append(pageHead({ title: 'Everything you have saved', lede: 'Everything saved in this browser, each with the version it was saved against.',
-    note: 'Valuation runs, comparisons, screens, investment cases and tool snapshots — and whether the model or the data under each has moved since.' }));
+    note: 'Valuation runs, comparisons, screens, investment cases, properties and tool snapshots — and whether the model or the data under each has moved since.' }));
   /* The seeded investment cases are listed here, each with its "sample"
      chip, and the page said nothing more: under "Everything you have saved"
      a first visit read "2 saved items" as its own. The banner every other

@@ -225,7 +225,7 @@ function searchSavedIndex() {
     kind: 'Scanner setup', icon: 'target', detail: `Version ${s.version} · ${s.enabled === false ? 'disabled' : 'enabled'}`, subject: s.id,
     sample: false, illus: null, path: scanSetupPath(s.id), open: () => navigate(scanSetupPath(s.id)) }));
   if (typeof workspaceItems === 'function') workspaceItems().forEach(i => {
-    const prop = i.kind === 'work' && typeof pmFind === 'function' && !!pmFind(i.key);
+    const prop = (i.kind === 'property' || i.kind === 'work') && typeof pmFind === 'function' && !!pmFind(i.key);
     const type = prop ? 'property' : i.kind;
     out.push({ type, id: i.key, name: i.name, kind: prop ? 'Saved property' : WORKSPACE_KIND_ONE[i.kind] || 'Saved item', icon: SEARCH_SAVED_ICON[type] || 'folder',
       detail: i.detail, subject: i.subject, sample: !!i.sample, illus: i.illustrative === 'all' || i.illustrative === 'some' ? i.illustrative : null,

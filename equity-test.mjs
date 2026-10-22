@@ -9206,7 +9206,7 @@ try {
         const r = await evaluate(`(async () => { ${W}
           const before = myDashOwn().propertySnaps, own0 = myDashOwn().hasOwn;
           const rec = saveWork('property', 'WS17 untouched');
-          const it = workspaceItems().find(i => i.kind === 'work' && i.key === rec.id);
+          const it = workspaceItems().find(i => (i.kind === 'work' || i.kind === 'property') && i.key === rec.id);
           const o = myDashOwn();
           navigate('/app'); await w(150);
           const out = { sample: !!it?.sample, detail: it?.detail || '', snaps: o.propertySnaps - before, own0, hasOwn: o.hasOwn, start: !!document.querySelector('.dash-start') };
@@ -9216,7 +9216,7 @@ try {
           const keepDeal = JSON.stringify(State.deal);
           State.deal = { ...State.deal, price: 610000, touched: { ...(State.deal.touched || {}), price: true } };
           const mine = saveWork('property', 'WS17 edited');
-          const it2 = workspaceItems().find(i => i.kind === 'work' && i.key === mine.id);
+          const it2 = workspaceItems().find(i => (i.kind === 'work' || i.kind === 'property') && i.key === mine.id);
           out.mine = { sample: !!it2?.sample, snaps: myDashOwn().propertySnaps - before };
           deleteWork(rec.id); deleteWork(mine.id); State.deal = JSON.parse(keepDeal);
           return out;
