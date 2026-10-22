@@ -1835,7 +1835,7 @@ try {
         const heads = table ? [...table.querySelectorAll('thead th')].map(th => th.textContent.trim()) : null;
         const row = table ? [...table.querySelector('tbody tr').children].map(td => td.textContent.trim()) : null;
         const m = dealModel(d);
-        return { text, heads, row, y1: m.path[0], monthlySub: pcAnswerFigs(d, m).monthly[2] };
+        return { text, heads, row, y1: m.path[0], monthlySub: pcAnswerFigs(d, m).monthly[2], beSub: pcAnswerFigs(d, m).breakeven[2] };
       };
       let taxed, plain;
       try {
@@ -1847,9 +1847,14 @@ try {
       return { taxed, plain, fmt: { tax: fmtAmount(taxed.y1.tax, 'MYR'), cf: fmtAmount(taxed.y1.cf, 'MYR') } };
     })()`);
     const p = [], t = r.taxed, b = r.plain;
-    for (const s of ['After costs, vacancy and the loan, before tax on the rent', 'Rent needed to cover everything, before tax on the rent', 'Year 1’s cash flow before tax ÷ cash required including reserve'])
+    /* The monthly position and the break-even rent say it in the headline
+       row, where each stands once since the full model's "Free calculator"
+       tiles went (the Day-10 pre-audit, CL-20). */
+    for (const s of ['Year 1’s cash flow before tax ÷ cash required including reserve'])
       if (!t.text.includes(s)) p.push(`with a rate entered the page does not say "${s}"`);
     if (!/before tax on the rent$/.test(t.monthlySub)) p.push(`the answer's monthly position reads "${t.monthlySub}"`);
+    if (!/before tax on the rent$/.test(t.beSub)) p.push(`the answer's break-even rent reads "${t.beSub}"`);
+    if (/before tax/.test(b.beSub) || /before tax/.test(b.monthlySub)) p.push(`with no rate entered the answer reads "${b.monthlySub}" and "${b.beSub}"`);
     if (!t.heads || !t.heads.includes('Tax on the rent') || !t.heads.includes('Net cash flow after tax')) p.push(`the scenario table's headings: ${JSON.stringify(t.heads)}`);
     else {
       const i = t.heads.indexOf('Tax on the rent'), j = t.heads.indexOf('Net cash flow after tax');
@@ -4684,7 +4689,8 @@ try {
         if (/preparer’s assumption/.test(r.words.exitNote) || !/Sample/.test(r.words.exitNote)) p8.push(`with the growth rate untouched the sale note reads "${r.words.exitNote.slice(0, 200)}"`);
         if (!/preparer’s assumption/.test(r.growthSet)) p8.push(`with the growth rate set the sale note reads "${r.growthSet.slice(0, 200)}"`);
         /* The fee registry is named as a source; the client is not "you". */
-        if (!/fee registry/.test(r.words.registry)) p8.push(`the disclosure credits every figure to the listed inputs alone: "${r.words.registry.slice(0, 160)}"`);
+        /* Named as every page names it, by its version (IW-13). */
+        if (!/fee rulebook \d/.test(r.words.registry)) p8.push(`the disclosure credits every figure to the listed inputs alone: "${r.words.registry.slice(0, 160)}"`);
         if (/your quote/i.test(r.quote)) p8.push('a quoted premium prints as "your quote" on the client\'s page');
         if (p8.length) fail('property-proposal PP8: each figure\'s words say what it is', p8.slice(0, 20));
         else ok(`property-proposal PP8: a cash purchase is described with no loan, rate or repayment; "the price is met by" a loan and a deposit that add up to it, and a loan on a valuation above the price is flagged instead; a rent of 1850.5 prints RM1,850.50 and 572000.755 as entered; what a scenario changes is in words, as entered (4.375%), with no input hint, raw value or first person, and the name a scenario is offered is in the same words, whole ("${r.offered}"); the growth rate is credited to whoever set it; the fee registry is named; a quote is not "your quote"`);

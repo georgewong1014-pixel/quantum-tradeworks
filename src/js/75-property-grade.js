@@ -3135,7 +3135,9 @@ function pcAnswerFigs(d, m) {
       (m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve')
         + pcShortWords(m, ['acquisition', 'financing'])],
     breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-      m.letsToTenant === false ? 'Not a quantity this asset has' : isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
+      /* Before tax, said here (the 20 Oct 2026 sweep, taxed-4): the full
+         model's tile that said it went (the Day-10 pre-audit, CL-20). */
+      m.letsToTenant === false ? 'Not a quantity this asset has' : isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent${pcBeforeTax(m)}` : 'not computable'],
   };
 }
 const PC_GRADE_TONE = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' };
