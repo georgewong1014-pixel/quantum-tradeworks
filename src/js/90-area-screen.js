@@ -53,6 +53,13 @@ VIEWS.areas = () => {
   const names = [...new Set([...mapped, ...(city.districts || []), ...recorded])];
   const canMap = mapped.length > 0;
 
+  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
+     said first (the daily audit's item #6; the Day-10 pre-audit, CL-14) —
+     it stood under the filters, the map and the table, 326 words down. */
+  if (!(State.observations || []).some(o => o.city === S.city)) wrap.append(el('div', { class: 'card' }, el('p', { class: 'body ef-empty', style: 'margin:0;font-size:var(--ls-support)' }, [
+    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
+    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')])));
+
   /* ---- filters, one row above everything they scope ---- */
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center' });
@@ -239,10 +246,10 @@ VIEWS.areas = () => {
   legend.append(swatch(null, 'Not recorded', true));
   mapCard.append(legend);
   if (layer.caveat) mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm);color:var(--bronze)' }, layer.caveat));
-  mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    layer.kind === 'quantity'
-      ? 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'
-      : 'Positions are geocoded approximations of the locality, not parcel boundaries. Confirm any address against the title and the Land and Survey Department.'));
+  /* The positions' note is said once, in "What this screen cannot tell
+     you" (the Day-10 pre-audit, CL-14); here, a quantity layer's banding. */
+  if (layer.kind === 'quantity') mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'));
   if (hasWorkedExample()) {
     const n = sampleObservations().length;
     const warn = el('div', { class: 'card', style: 'border-color:var(--bronze)' });
@@ -380,13 +387,8 @@ VIEWS.areas = () => {
   const tCard = el('div', { class: 'card' });
   tCard.append(cardHead(`${shown.length} of ${names.length} localit${names.length === 1 ? 'y' : 'ies'}`,
     shown.length === names.length
-      ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
+      ? 'Every mapped locality in this town.'
       : 'Filtered. The map shades the same set.', null, AK));
-  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
-     said where its absence is seen (the daily audit's item #6). */
-  if (!(State.observations || []).some(o => o.city === S.city)) tCard.append(el('p', { class: 'body ef-empty', style: 'margin-top:var(--sm);font-size:var(--ls-support)' }, [
-    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
-    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')]));
   gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
   /* A size container, so the recorder in its row can be as wide as what shows
      of the table rather than the table itself — see areaRecorder. */
@@ -413,9 +415,9 @@ VIEWS.areas = () => {
     wrap.append(localityTransactionPanel(S.city, S.editing));
     wrap.append(landRiskPanel(S.city, S.editing));
   }
-  tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Rent, vacancy and price columns are medians over the comparables register and move as you add to it. '
-    + 'A dash is an absence of evidence, never a zero.'));
+  /* The medians' note is said once, in "What this screen cannot tell you"
+     (CL-14). */
+  tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, 'A dash is an absence of evidence, never a zero.'));
   wrap.append(tCard);
 
   wrap.append(el('div', { class: 'card' }, [
@@ -811,13 +813,13 @@ VIEWS.comparables = () => {
        copy-property-8). */
     const nSources = SARAWAK_TRANSACTION_SOURCES.length;
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
-      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.`));
+      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above.`));
     head.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, WORKED_EXAMPLE_NOTE));
     head.append(workedExampleControls({ primary: false }));
+    /* One place to record one: the five steps above. A second, on the
+       calculator, sent the reader away from the form on this page (the
+       Day-10 pre-audit, NAV-19). */
     head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
-      el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/calculator'),
-        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
-        'Open the calculator to record one'),
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/data-sources'),
         onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/data-sources'); } },
         'Why no market data can be loaded'),
