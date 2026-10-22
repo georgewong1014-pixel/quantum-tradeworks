@@ -7760,7 +7760,9 @@ const METRIC_HELP = {
   propIrr: { label: 'Rate of return if sold',
     simple: 'The yearly return on the cash committed at the start, counting every year’s cash flow and the sale at the end, each at the time it arrives.',
     context: 'Measured on all the cash committed, the reserve included — which comes back at the sale. Where the cash flow changes direction more than once, more than one rate can fit, and the page says so rather than choosing one.',
-    technical: 'The rate r at which −cash committed + Σ (after-tax cash flow in year t) ÷ (1 + r)^t + (net sale proceeds + the reserve) ÷ (1 + r)^N equals zero, N being the holding period.' },
+    /* After tax only where a marginal rate is entered (the 20 Oct 2026
+       sweep, stress-8): the Lab says which; this says both. */
+    technical: 'The rate r at which −cash committed + Σ (cash flow in year t — after tax on the rent where you entered a marginal rate, before it where you did not) ÷ (1 + r)^t + (net sale proceeds + the reserve) ÷ (1 + r)^N equals zero, N being the holding period.' },
 };
 
 /* Remembered so a reader who wants the technical depth is not returned to the
@@ -44591,7 +44593,7 @@ const PROPERTY_I18N = {
      item 4): the vacancy of the year; the fee and the reserve of the rent
      collected, after vacancy (dealModel's mgmtY and repairY); the exit
      costs of the sale price (its RM500 minimum in the box's note). */
-  'in.vacancyPct':{ en:'Vacancy allowance (% of the year)', ms:'Peruntukan kekosongan (% setahun)', zh:'空置预留 (占全年 %)' },
+  'in.vacancyPct':{ en:'Vacancy allowance (% of the year)', ms:'Peruntukan kekosongan (% daripada setahun)', zh:'空置预留 (占全年 %)' },
   'in.maintenance':{ en:'Monthly maintenance (RM)', ms:'Penyelenggaraan bulanan (RM)', zh:'每月维修费 (RM)' },
   'in.sinkingFund':{ en:'Monthly sinking fund (RM)', ms:'Sinking fund bulanan (RM)', zh:'每月储备金 (RM)' },
   'in.assessment':{ en:'Annual assessment (RM)', ms:'Cukai pintu tahunan (RM)', zh:'每年门牌税 (RM)' },
@@ -47241,9 +47243,9 @@ function cpAcquisitionSection(d, m, cash) {
   const lets = m.letsToTenant;
   s.append(cpList([
     cash.paid > 0 ? ['Cash already paid', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), 'The booking deposit handed over at offer — part of the deposit, not on top of it.'] : null,
-    ['Cash still to complete', cpFig('cashStillRequiredToComplete', cpMoney(cash.complete)), `Paid out on completion day: the deposit, any valuation gap, the duties, the legal fees and the financing costs${cash.paid > 0 ? ', less what was paid at offer' : ''}.`],
+    ['Cash still to complete', cpFig('cashStillRequiredToComplete', cpMoney(cash.complete)), `Paid out on completion day: the deposit, any valuation gap, the duties, the legal fees and the financing costs${cash.paid > 0 ? ', less what was paid at offer' : ''}${pcShortWords(m, ['acquisition', 'financing'])}.`],
     [lets ? 'Cash to make it rent-ready' : 'Cash to make it ready', cpFig('improvementCash', cpMoney(cash.improvement)),
-      lets ? 'Spent after completion, before it can earn: renovation, furnishing and deposits.' : 'Spent after completion: renovation, furnishing and deposits.'],
+      (lets ? 'Spent after completion, before it can earn: renovation, furnishing and deposits' : 'Spent after completion: renovation, furnishing and deposits') + `${pcShortWords(m, ['improvement'])}.`],
     ['Cash to keep untouched', isNum(cash.reserve) ? cpFig('reserveCash', cpMoney(cash.reserve)) : el('span', { class: 'cp-unpriced' }, 'not priced'),
       `${cpPlural(m.reserveMonths, 'month')} of instalment and owner-paid running costs, held in the owner’s account rather than spent.`],
     [cashRequiredLabel(m), cpFig('safeCashRequired', cpMoney(cash.safe)), missing.length ? 'Everything priced so far — short by the lines named above.' : 'Everything together: the cash that decides whether the purchase can be carried.'],
@@ -47399,7 +47401,8 @@ function cpExitSection(d, m, paid = false) {
      gains tax of nil read "−RM0", a sign on a zero. */
   const less = (key, v) => cpFig(key, !isNum(v) ? '—' : cpMoney(v) === 'RM0' ? 'RM0' : `−${cpMoney(v)}`, { 'data-cp-sign': '-' });
   const lets = m.letsToTenant;
-  const rate = () => (isNum(m.irrPct) ? cpFig('irrPct', fmtPct(m.irrPct, 2)) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
+  /* Short of the holding months' instalment where it is not priced (auctionHolding partial). */
+  const rate = () => (isNum(m.irrPct) ? (holdingShort(m) ? el('span', {}, [cpFig('irrPct', fmtPct(m.irrPct, 2)), ' so far']) : cpFig('irrPct', fmtPct(m.irrPct, 2))) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
   if (!paid) {
     const label = (key) => LAB_FIGURES.find(f => f.key === key).label(d);
     s.append(cpTable(m.ndTiming ? soldWhen : `If it is sold after ${d.holdYears} years`, null, [
@@ -47578,7 +47581,9 @@ function cpSplitItems(d, m, cash, paid = false) {
   const stressRow = (label, v, note) => put('risks', label, isNum(v) ? `${cpSignedMoney(v)} a month` : 'not computed', isNum(v) ? (sample.size ? 'illustrative' : 'modelled') : 'unavailable', note, 'stress');
   if (isNum(m.cashflowMonthly) && m.cashflowMonthly < 0) put('risks', 'Monthly position as modelled', `${cpSignedMoney(m.cashflowMonthly)} a month`, sample.size ? 'illustrative' : 'modelled', 'Met from the owner’s own income every month.', 'position');
   if (loan) for (const r of (m.stress?.rate || []).slice(1)) stressRow(`Interest rate ${r.label} (${cpPct(r.ratePct, 2)})`, r.monthly, 'The monthly position with the rate raised and everything else held.');
-  if (lets) for (const r of (m.stress?.vacancy || []).slice(1)) stressRow(`Vacancy at ${r.label}`, r.monthly, 'The monthly position with that share of the year empty.');
+  /* Only the fixed levels above the vacancy entered are a risk: one at or
+     below it reads better than the deal itself (the 20 Oct 2026 sweep, stress-6). */
+  if (lets) for (const r of (m.stress?.vacancy || []).slice(1).filter(r => r.vacancyPct > num0(d.vacancyPct))) stressRow(`Vacancy at ${r.label}`, r.monthly, 'The monthly position with that share of the year empty.');
   /* An overrun row's cash is the ledger before the reserve (the model's
      stress rows; the calculator's "Cash before reserve", QT-002). Printed as
      "cash required" it read RM2,138 under the headline that counts the
@@ -48286,7 +48291,7 @@ function returnsAndTaxPanel(d, m) {
     isNum(m.irrPct) ? fmtPct(m.irrPct, 2) : '—',
     { sub: isNum(m.irrPct)
         ? (nt ? `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed at signing; held ${d.holdYears} years from vacant possession, sold ${ndYears(nt.saleYears)} years after signing`
-          : `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`)
+          : `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`) + holdingShortWords(m)
         : (m.irrWhy || 'Not computable') })));
   g.append(el('div', { class: 'panel ls-fig' }, statTile('Annualised multiple',
     isNum(m.annualisedMultiplePct) ? fmtPct(m.annualisedMultiplePct, 2) : '—',
@@ -48294,7 +48299,7 @@ function returnsAndTaxPanel(d, m) {
   g.append(el('div', { class: 'panel ls-fig' }, statTile(`Value against ${fmtPct(m.hurdlePct, 1)} elsewhere`,
     isNum(m.npvAtHurdle) ? fmtMoney(m.npvAtHurdle, 'MYR', 0) : '—',
     { sub: isNum(m.npvAtHurdle)
-        ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named')
+        ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named') + holdingShortWords(m)
         /* A return entered and a value still missing means the flows are
            unknown; asking for the return again would send the reader to a
            box that is already filled. */
@@ -48459,7 +48464,7 @@ function returnsAndTaxPanel(d, m) {
     }
     if (fee1 >= 0.5) {
       box.append(el('p', { class: hasPrincipal ? 'metaline' : 'body', style: hasPrincipal ? 'margin-top:6px' : 'margin:0' },
-        'The first tenant’s placement fee is not deductible either — getting a property into a lettable state is capital in nature — '
+        `The first tenant’s placement fee is not deductible${hasPrincipal ? ' either' : ''} — getting a property into a lettable state is capital in nature — `
         + `but a replacement tenant’s is. Each fee is spread over its ${m.monthsPerCycle}-month tenancy, so the first is left out `
         + `of the deduction while its tenancy runs: ${fmtMoney(fee1, 'MYR', 0)} in year one, inside the outgoings in the table below.`));
     }
@@ -48482,6 +48487,8 @@ function returnsAndTaxPanel(d, m) {
   ]))));
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
   gridKeyboard(t, 'Year by year rent, interest, tax and cash after tax. Arrow keys move between cells.');
+  /* A year's cash without the holding months' instalment, said (auctionHolding partial). */
+  if (holdingShort(m)) card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, `So far: ${holdingShort(m)}`));
 
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'A year whose outgoings exceed its rent produces no tax and no credit: a rental loss from a non-business source is not '
@@ -49214,12 +49221,10 @@ function dealModel(d) {
   const asLine = (r) => [r.label, r.amount, r];
   const costGroups = [
     { id:'acquisition', label:'Acquisition costs', items:[
-        /* On the auction route the Proclamation has a deposit of its own (the
-           forfeiture's), so the loan's is the down payment there (the 20 Oct
-           2026 sweep, auction-9): one name for each figure, once that deposit is
-           entered — a deal answered Auction with nothing entered is the deal
-           it was, line for line (P1 R1). */
-        [auctionRoute && isNum(d.auctionDepositPct) ? 'Down payment' : 'Deposit', deposit],
+        /* "Down payment" on the auction route, where it is drawn (ledgerLineLabel):
+           the line is the deal's, so a deal answered Auction with nothing
+           entered is the deal it was, line for line (P1 R1). */
+        ['Deposit', deposit],
         /* Only when it exists. A zero row for a gap there isn't would train the
            reader to skip the line that matters when there is one. */
         ...(valuationGapCash > 0 ? [['Valuation-gap cash', valuationGapCash]] : []),
@@ -49442,12 +49447,15 @@ function dealModel(d) {
   /* THE AUCTION'S HOLDING MONTHS, ONE RULE EVERYWHERE (the owner, 21 Oct
      2026, on the 20 Oct sweep's auction-3, auction-5 and auction-8). The
      months from the sale until the property earns: no rent; the running
-     costs from the sale — the model's own at no rent, opexAt(0), as the
-     reserve's no-rent month has them; the instalment only from the day the
-     balance falls due, the days the reader entered (a month taken as 30
-     days, as the implied vacancy takes it), when the loan is drawn. Each a
-     month to the sen, and the months after the balance date to the
-     hundredth, so the printed months × amounts give the printed total.
+     costs owed with no tenancy, from the sale — the maintenance, the
+     sinking fund, the assessment, the quit rent and the insurance, and no
+     agent's fee: no placement (the first tenant's is charged once, in year
+     1) and no minimum management fee before a tenancy (the Day-8 review);
+     the instalment only from the day the balance falls due, the days the
+     reader entered (a month taken as 30 days, as the implied vacancy
+     takes it), when the loan is drawn. The months, the months after the
+     balance date and each month's amounts to the hundredth, so the
+     printed months × amounts give the printed total.
      One figure, read by everything: the effective cost and the bid ceiling
      (auctionModel's holding step), the cash required (a line of its own,
      below) and the flows — the rate of return, the NPV and each year's
@@ -49458,35 +49466,46 @@ function dealModel(d) {
      schedule, its interest and its balance at the sale run from the day
      it was drawn. It counted every holding month at the full instalment
      from the sale, in the effective cost and the ceiling only, while the
-     cash required and the flows took rent from completion. Without the
-     days the instalment's start is not known and nothing is assumed: the
-     holding is not priced, and says why. Not on any other route, and not
-     until the holding months are entered: every other deal is the deal
-     it was. */
+     cash required and the flows took rent from completion.
+     PARTIAL, NEVER RENT (the Day-8 review): on a loan whose instalment's
+     start is not known — the days to pay the balance not entered, or no
+     schedule — nothing is assumed of it: the running costs are priced and
+     the holding months still earn no rent (the hold's years still count
+     from their end, the loan's from year 1), the instalment is a line not
+     priced, and every figure that leaves it out — the cash required, the
+     rate of return, the NPV, a year's cash — says so with its reason.
+     Not on any other route, and not until the holding months are entered:
+     every other deal is the deal it was. */
   const auctionHold = (() => {
     if (!auctionRoute || !isNum(d.auctionHoldMonths) || !(d.auctionHoldMonths >= 0)) return null;
-    const months = d.auctionHoldMonths;
-    const days = isNum(d.auctionBalanceDays) && d.auctionBalanceDays >= 0 ? d.auctionBalanceDays : null;
     const sen = (v) => Math.round(v * 100) / 100;
-    const running = sen(opexAt(0) / 12);
+    const months = sen(d.auctionHoldMonths);
+    const days = isNum(d.auctionBalanceDays) && d.auctionBalanceDays >= 0 ? d.auctionBalanceDays : null;
+    const running = sen((maintenanceY + sinkingY + statutoryY + insuranceY) / 12);
+    const partial = (why) => ({ status: 'partial', months, days, running, instMonths: null, instalment: null, lag: 0, amount: sen(months * running), why });
     /* With no loan there is no instalment to start, and the days do not matter. */
-    if (days == null && loan > 0) return { status: 'unavailable', months, days, running, why: 'Needs the days to pay the balance: the instalment starts when the balance falls due.' };
-    if (debtUnknown) return { status: 'unavailable', months, days, running, why: 'The loan has no schedule of repayments, so its instalment is not known.' };
+    if (loan > 0 && debtUnknown) return partial('The loan has no schedule of repayments, so the holding months’ instalment is not priced.');
+    if (loan > 0 && days == null) return partial('The holding months’ instalment is not priced: it starts when the balance falls due, and the days to pay the balance are not entered.');
     const lag = loan > 0 ? sen(months - days / 30) : 0;
     const instMonths = loan > 0 ? Math.min(Math.max(0, lag), tenureMonths) : 0;
     const inst = loan > 0 ? sen(num0(instalment)) : 0;
     return { status: 'ok', months, days, running, instMonths, instalment: inst, lag, amount: sen(months * running + instMonths * inst) };
   })();
   /* In the cash required: what it takes to make the property earn, beside
-     the renovation — or, not priced, a missing line that says why. */
+     the renovation — and, where its instalment is not priced, a missing
+     line that says why. */
   if (auctionHold) {
     const label = `Holding until it earns: ${fmtNum(auctionHold.months, auctionHold.months % 1 ? 2 : 0)} month${auctionHold.months === 1 ? '' : 's'}, no rent`;
-    costGroups.find(g => g.id === 'improvement').items.push([label, auctionHold.status === 'ok' ? auctionHold.amount : null,
-      auctionHold.status === 'ok' ? { id: 'auctionHolding' } : { id: 'auctionHolding', status: 'unset', why: auctionHold.why }]);
-    if (auctionHold.status === 'ok') acquisitionCost += auctionHold.amount;
-    else missingCostLines.push({ group: 'Initial improvement costs', groupId: 'improvement', label, why: auctionHold.why });
+    const imp = costGroups.find(g => g.id === 'improvement').items;
+    imp.push([label, auctionHold.amount, { id: 'auctionHolding' }]);
+    acquisitionCost += auctionHold.amount;
+    if (auctionHold.status === 'partial') {
+      const iLabel = 'Holding: the instalment from the day the balance falls due';
+      imp.push([iLabel, null, { id: 'auctionHoldingInstalment', status: 'unset', why: auctionHold.why }]);
+      missingCostLines.push({ group: 'Initial improvement costs', groupId: 'improvement', label: iLabel, why: auctionHold.why });
+    }
   }
-  const auctionLead = auctionHold?.status === 'ok' ? auctionHold.months / 12 : 0;
+  const auctionLead = auctionHold ? auctionHold.months / 12 : 0;
   const lag = auctionHold?.status === 'ok' ? auctionHold.lag : 0;
   /* The months the loan has run at month t of the hold, on the auction's
      clock; on every other deal the hold's months are the loan's. */
@@ -50245,10 +50264,13 @@ function solveDealPrice(d, target = dealTarget(d)) {
      a negative income never reaches a yield of nought or more, at any
      price. */
   let failsAt = lo;
+  const hi0 = hi;
   if (!meets(mLo) && !meets(mHi) && reads(mHi) > reads(mLo)) {
     while (hi < PRICE_SOLVE_TOP && !meets(mHi)) { failsAt = hi; hi *= 10; mHi = at(hi); }
   }
-  if (!meets(mLo) && !meets(mHi)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs };
+  /* Widened and still short: the top it reached is said with the rest. */
+  if (!meets(mLo) && !meets(mHi)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs,
+    ...(hi > hi0 ? { widenedTo: hi, atTop: reads(mHi) } : {}) };
   if (meets(mLo) && meets(mHi)) return { status: 'unbounded', target: t, value: target.value, ceiling: hi, atCeiling: reads(mHi), runs };
   if (!meets(mLo)) {
     /* Met at the top and not at the bottom: the LOWEST whole-ringgit price
@@ -50351,7 +50373,9 @@ function auctionModel(d, m = dealModel(d)) {
       { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance, ...(it[2].gated ? { gated: it[2].gated } : {}) })), unpriced: fees.length - feesPriced.length,
         /* Of those, the ones not yet checked for the class (the rulebook 1.2.0). */
         gated: fees.filter(it => it[2]?.gated).length, gatedCls: fees.find(it => it[2]?.gated)?.[2].gated || null }),
-    step('holding', 'Holding', hold?.status === 'ok' ? hold.amount : null, 'modelled', { months: holdMonths, running: hold?.running ?? null,
+    /* Partial where the instalment's start is not known: the running costs
+       counted, the instalment named as not (the Day-8 review). */
+    step('holding', 'Holding', hold ? hold.amount : null, 'modelled', { months: holdMonths, running: hold?.running ?? null, partial: hold?.status === 'partial',
       instMonths: hold?.instMonths ?? null, instalment: hold?.instalment ?? null, days: hold?.days ?? null, why: hold?.why || null }),
   ];
   const counted = adds.filter(a => a.amount != null);
@@ -50391,7 +50415,7 @@ function auctionModel(d, m = dealModel(d)) {
       ...adds,
       step('effective', 'Effective acquisition cost', effective, effectiveKind, { total: true }),
     ],
-    adds, notEntered: adds.filter(a => a.amount == null).map(a => a.label),
+    adds, notEntered: [...adds.filter(a => a.amount == null).map(a => a.label), ...(hold?.status === 'partial' ? ['Holding’s instalment'] : [])],
     effective, effectiveKind,
     trueDiscount: vs(effective), bidDiscount: vs(bid), reserveDiscount: vs(reserve),
     forfeiture, checksTicked: ticked, checksOpen, final: checksOpen.length === 0,
@@ -51463,9 +51487,9 @@ function pcDealField(d, k) {
   const [, defLabel, step] = PC_FIELD_DEF[k];
   /* The loan's deposit is the down payment on the auction route, beside the
      Proclamation's own "Deposit (%)" (auction-9). */
-  const auctionDown = k === 'downPct' && dealRoute(d) === 'auction';
-  const label = auctionDown ? 'Down payment (%)' : defLabel;
-  const pkey = auctionDown ? 'in.downPctAuction' : `in.${k}`;
+  const downHere = k === 'downPct' && auctionDown(d);
+  const label = downHere ? 'Down payment (%)' : defLabel;
+  const pkey = downHere ? 'in.downPctAuction' : `in.${k}`;
   const f = el('div', { class: 'assumption' });
   /* Two non-numeric kinds, because a management mandate is made of
      commitments and cadences as well as amounts. */
@@ -51551,6 +51575,18 @@ function pcDealField(d, k) {
 /* ---------------------------------------------- the one-page answer's parts */
 /* The four answer cards' label, figure, line and tone, for the full model's
    one-page answer; the Quick model shows two of them as they are. */
+/* ONE NAME FOR EACH FIGURE ON THE AUCTION ROUTE (the 20 Oct 2026 sweep,
+   auction-9; the Day-8 review): the Proclamation has a deposit of its own,
+   so the loan's is the down payment there — in the calculator's box, its
+   ledger and the Lab's slider alike, by the route alone. */
+const auctionDown = (d) => !!d && dealRoute(d) === 'auction';
+const ledgerLineLabel = (d, label) => (label === 'Deposit' && auctionDown(d) ? 'Down payment' : label);
+/* THE HOLDING MONTHS' INSTALMENT NOT PRICED (dealModel's auctionHolding,
+   partial): the reason every figure that leaves it out says beside it —
+   the rate of return, the NPV, a year's cash; the cash required names it
+   among its missing lines. Null on every other deal. */
+const holdingShort = (m) => (m?.auctionHolding?.status === 'partial' ? m.auctionHolding.why : null);
+const holdingShortWords = (m) => { const w = holdingShort(m); return w ? `; so far — ${w.charAt(0).toLowerCase()}${w.slice(1, -1)}` : ''; };
 /* Said beside a monthly figure, a break-even and a commitment when a
    marginal rate is entered (the 20 Oct 2026 sweep, taxed-5): the
    calculator's monthly figures are before tax on the rent by design, as
@@ -52994,7 +53030,7 @@ VIEWS.property = () => {
     g.items.forEach(it => {
       cashB.append(el('tr', {}, [
         el('td', { style: 'padding-left:var(--md)' }, [
-          it[0],
+          ledgerLineLabel(d, it[0]),
           /* Marked at every appearance, by the fee rulebook (70-property.js):
              the D6 kind badge — Placeholder for an estimate,
              Derived for a verified scale computed, Yours for the reader's
@@ -53713,7 +53749,10 @@ VIEWS.property = () => {
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
-      { sub: m.taxComputed ? 'Year 1’s cash flow before tax ÷ cash required including reserve' : 'Annual cash flow ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+      { sub: !m.taxComputed ? 'Annual cash flow ÷ cash required including reserve'
+        /* Year 1 is a full year of instalments, or it is not the figure (an auction whose balance falls due after its holding months). */
+        : Math.abs(num0(m.path?.[0]?.debt) - num0(m.annualDebtService)) < 0.005 ? 'Year 1’s cash flow before tax ÷ cash required including reserve'
+        : 'A full year’s cash flow before tax, 12 instalments, ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
       { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
     inv.append(ig);
@@ -53747,6 +53786,7 @@ VIEWS.property = () => {
       el('td', {}, fmtAmount(p2.value, 'MYR')), el('td', {}, fmtAmount(p2.balance, 'MYR')),
     ]))));
     stw.append(st); sc2.append(stw);
+    if (holdingShort(m)) sc2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, `So far: ${holdingShort(m)}`));
     reportCards.push(sc2);
 
 
@@ -54965,16 +55005,32 @@ function propertySensitivityPanel(d, m) {
      with no placement fee) nothing is taxed there, and the two are one
      figure; a cash purchase is not told about an instalment it does not
      pay. */
-  if (m && m.taxComputed) {
+  /* ON ONE BASIS (the Day-8 review): the cash break-even is the steady
+     month, twelve instalments; the after-tax one is solved on year 1. Where
+     year 1 is not a full year of instalments — an auction whose balance
+     falls due after its holding months end — the two are not set against
+     each other, and the reason is said. A gap is never clamped: under a
+     ringgit either way it is the solver's rounding, and below that the
+     comparison is withheld with its reason. */
+  const y1 = m && m.path && m.path[0];
+  const steady = !y1 || !isNum(m.annualDebtService) || !isNum(y1.debt) || Math.abs(y1.debt - m.annualDebtService) < 0.005;
+  if (m && m.taxComputed && !steady) {
+    card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+      `Year 1 here pays ${(n => fmtNum(n, Number.isInteger(n) ? 0 : 2))(Math.round(y1.debt / m.instalment * 100) / 100)} of the 12 instalments — the balance falls due after the holding months end — so its after-tax break-even is not set against the monthly one, which counts all 12.`));
+  } else if (m && m.taxComputed) {
     const rentBase = num0(d.rent);
     const afterTax = propertyBreakPoint(d, 'rent', {
       measure: 'cashflowAfterTax', lo: 0, hi: Math.max(rentBase * 6, 30000),
     });
     const atBE = isNum(m.breakEvenRent) ? dealModel({ ...d, rent: m.breakEvenRent }).path?.[0] : null;
-    if (isNum(afterTax.value) && isNum(m.breakEvenRent) && atBE && isNum(atBE.taxable)) {
+    const gap0 = isNum(afterTax.value) && isNum(m.breakEvenRent) ? afterTax.value - m.breakEvenRent : null;
+    if (isNum(gap0) && gap0 < -0.5) {
+      card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+        `Covering the outgoings takes ${fmtMoney(m.breakEvenRent, 'MYR', 0)} a month; the after-tax figure works out below it, which tax cannot do, so it is not shown.`));
+    } else if (isNum(gap0) && atBE && isNum(atBE.taxable)) {
       const principal = num0(atBE.principal);
       const fee = atBE.taxable - (atBE.rent - atBE.opex - atBE.interest);
-      const gap = Math.max(0, afterTax.value - m.breakEvenRent);
+      const gap = Math.abs(gap0) < 0.5 ? 0 : gap0;
       /* What is taxed at the cash break-even is the principal and the fee
          left out, and nothing else: with neither, no more than rounding. */
       if (!(principal > 0) && !(fee >= 0.5)) {
@@ -57005,7 +57061,8 @@ const LAB_INPUT_LIST = [
     span: (a) => [Math.max(0, labSnap(a * 0.75, 1000)), labSnap(a * 1.25, 1000)],
     basis: '±25% of as saved', why: ', to RM1,000 — five of the sensitivity panel’s 5% steps',
     shown: (v) => labMoney(v), spoken: (v) => `${fmtNum(v, 0)} ringgit` },
-  { k: 'downPct', label: () => ptr('in.downPct', 'Deposit (%)'), say: 'Deposit', short: 'Deposit', step: 1,
+  /* The down payment on the auction route, as the calculator's box names it (auctionDown). */
+  { k: 'downPct', label: (d) => (auctionDown(d) ? ptr('in.downPctAuction', 'Down payment (%)') : ptr('in.downPct', 'Deposit (%)')), say: 'Deposit', short: 'Deposit', step: 1,
     span: () => [0, 100], basis: 'the model’s own limits on a deposit',
     shown: (v) => labPctIn(v), spoken: (v, m) => `${fmtNum(v, 0)} percent${isNum(m?.deposit) ? `, ${fmtNum(m.deposit, 0)} ringgit` : ''}`,
     ticks: [10, 20, 30] },
@@ -57121,7 +57178,7 @@ const LAB_FIGURES = [
       m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ')),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
-      + ` = ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
+      + ` = ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}${pcShortWords(m, ['acquisition', 'financing'])}. `
       + (m.unconfirmedCost > 0
         ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
         : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
@@ -57195,7 +57252,7 @@ const LAB_FIGURES = [
     } },
   { key: 'irrPct', label: (d) => `If sold ${labSaleWhen(d).replace(/^year/, 'in year')}`, fmt: 'pct2', help: 'propIrr',
     read: (m) => m.irrPct,
-    note: (m, d) => (isNum(m.irrPct) ? `rate of return on ${labMoney(m.equityOut)} committed` : (m.irrWhy || 'Not computable')),
+    note: (m, d) => (isNum(m.irrPct) ? `rate of return on ${labMoney(m.equityOut)} committed${holdingShort(m) ? ', so far' : ''}` : (m.irrWhy || 'Not computable')),
     formula: (d, m) => {
       const n = normHoldYears(d.holdYears), rr = m.rpgtResult, t = m.ndTiming;
       const sale = t ? `a sale ${n} year${n === 1 ? '' : 's'} after vacant possession` : `a sale in year ${n}`;
@@ -58368,7 +58425,9 @@ function labPricePaint(P, lab, { initial = false } = {}) {
     setTarget: () => { const r = document.getElementById(`${P.idPrefix}-q-target-monthly`); if (r) { r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
   /* The solved price, tried in the column the sliders move — as a move,
      a what-if like any other, kept in this tab until saved. */
-  const solved = s.status === 'solved' && Math.round(num0(d.price)) !== s.price;
+  /* The lowest price that meets a target met from a price up is a price to
+     try as well (solveDealPrice 'from'). */
+  const solved = (s.status === 'solved' || s.status === 'from') && Math.round(num0(d.price)) !== s.price;
   pe.tryBox.replaceChildren(...(solved ? [el('button', { type: 'button', class: 'btn btn-ghost btn-sm pe-try-btn', id: labId(P, 'pe-try-btn'),
     onclick: () => {
       const L = LAB[P.key], c = labActive(L);
@@ -58706,7 +58765,7 @@ function labKnob(P, lab, col, inp) {
   const row = el('div', { class: `lab-knob${lab.input === k ? ' is-on' : ''}${applies ? '' : ' is-off'}${aboutOpen ? ' is-about' : ''}`, id: labId(P, `knob-${k}`), data: { k } });
   const rid = labId(P, `r-${k}`), nid = labId(P, `n-${k}`), lid = labId(P, `l-${k}`), sid = labId(P, `span-${k}`), eid = labId(P, `ev-${k}`);
   const hd = el('div', { class: 'lab-knob-hd' });
-  hd.append(el('label', { class: 'lab-knob-label', id: lid, for: noSlider ? nid : rid }, inp.label()));
+  hd.append(el('label', { class: 'lab-knob-label', id: lid, for: noSlider ? nid : rid }, inp.label(col.work)));
   /* ABOUT THIS INPUT, ONE TAP AWAY ON A PHONE (the release fix of 5 Oct
      2026). In a wide sans — CI's Linux DejaVu, or Verdana here — the span's
      line, the renovation's note (four lines), the deposit's (two) and a
@@ -58730,11 +58789,11 @@ function labKnob(P, lab, col, inp) {
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         row.classList.toggle('is-about', open);
       } }, [el('span', { class: 'lab-about-i', 'aria-hidden': 'true', html: icon('info', 15) }), el('span', { class: 'lab-about-word' }, 'About'),
-      el('span', { class: 'sr-only' }, ` ${inp.label()}`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
+      el('span', { class: 'sr-only' }, ` ${inp.label(col.work)}`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
     hd.append(btn);
   }
   const num = el('input', { type: 'number', inputmode: 'decimal', class: 'input input-inline lab-num', id: nid, step: inp.step,
-    value: String(col.work[k] ?? ''), 'aria-label': `${inp.label()} — type a figure`, 'aria-describedby': `${sid} ${eid}`,
+    value: String(col.work[k] ?? ''), 'aria-label': `${inp.label(col.work)} — type a figure`, 'aria-describedby': `${sid} ${eid}`,
     disabled: applies ? null : '' });
   row.append(hd);
   /* The slider, its box and its way back on one line: on a phone the knob,
@@ -58748,7 +58807,7 @@ function labKnob(P, lab, col, inp) {
      what-if tag takes the evidence tag's place, the two drawn in one cell. */
   /* The unit beside the box (data-unit): on a phone the chosen chip names
      the knob, and its label is for the ear (styles.css, layout-system). */
-  const ctl = el('div', { class: 'lab-knob-ctl', 'data-unit': (inp.label().match(/\((RM|%)\)\s*$/) || [])[1] || null });
+  const ctl = el('div', { class: 'lab-knob-ctl', 'data-unit': (inp.label(col.work).match(/\((RM|%)\)\s*$/) || [])[1] || null });
   row.append(ctl);
   const knob = { row, num, range: null, reset: null, whatIf: null, span: null, ev: null, ticks: null };
   if (!applies) {
@@ -58838,7 +58897,7 @@ function labTyped(P, lab, k, num) {
   const col = labActive(lab), inp = LAB_INPUT_BY_K[k];
   if (String(num.value).trim() === '') {
     num.value = String(col.work[k] ?? '');
-    toast(`An empty box is not zero — “${inp.label()}” stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}. Type 0 if you mean nought.`);
+    toast(`An empty box is not zero — “${inp.label(col.work)}” stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}. Type 0 if you mean nought.`);
     return;
   }
   let v = num0(num.value);
@@ -58852,7 +58911,7 @@ function labTyped(P, lab, k, num) {
   const refusal = LAB_REFUSES.has(k) ? dealEntryRefused(k, Number(num.value)) : null;
   if (refusal) {
     num.value = String(col.work[k] ?? '');
-    toast(`“${inp.label()}” ${refusal} — it stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}.`);
+    toast(`“${inp.label(col.work)}” ${refusal} — it stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}.`);
     return;
   }
   /* The box shows the figure the model is given: a deposit typed as 150
@@ -60780,7 +60839,7 @@ function labRenoCard(P, lab) {
     const r = renovationReturn(col.work, col.cur.m);
     card.hidden = false;
     card.replaceChildren(el('p', { class: 'metaline' }, r.applicable
-      ? `With and without the renovation (the calculator’s renovation return): rate of return ${fmtPct(r.irrWith, 2)} with it, ${fmtPct(r.irrWithout, 2)} without; cash required ${labMoney(r.cashWith)} with it, ${labMoney(r.cashWithout)} without. The share of the rent that depends on it is ${labPctIn(r.rentUpliftPct)} — set in the calculator, never by this knob.`
+      ? `With and without the renovation (the calculator’s renovation return): rate of return ${fmtPct(r.irrWith, 2)} with it, ${fmtPct(r.irrWithout, 2)} without; cash required ${labMoney(r.cashWith)} with it, ${labMoney(r.cashWithout)} without${pcShortOf(col.cur.m) ? ', so far' : ''}. The share of the rent that depends on it is ${labPctIn(r.rentUpliftPct)} — set in the calculator, never by this knob.`
       : r.why));
   }
 }
@@ -61130,7 +61189,12 @@ function priceSolveLoan(d) {
   return { kind: 'price' };
 }
 function priceSolveMoves(t, d) {
-  if (t.id !== 'monthly') return 'as the price rises the net yield falls, so the target holds below one price and fails above it';
+  /* The net operating income does not move with the price: the yield falls
+     as the price rises while it is positive, and rises towards nought while
+     it is negative (solveDealPrice, the 20 Oct 2026 sweep's stress-4). */
+  if (t.id !== 'monthly') return isNum(d && dealModel(d).noi) && dealModel(d).noi < 0
+    ? 'the net operating income is negative, so as the price rises the net yield rises towards nought: the target holds above one price and fails below it'
+    : 'as the price rises the net yield falls, so the target holds below one price and fails above it';
   const L = priceSolveLoan(d);
   if (L.kind === 'none') return 'with no loan, nothing in the monthly position moves with the price, so the target holds at every price or at none';
   if (L.kind === 'valuation') return `the loan is lent on the ${pqMoney(L.val)} valuation you entered, not on the price, so nothing in the monthly position moves with the price: the target holds at every price or at none`;
@@ -61146,12 +61210,21 @@ function priceSolveUnboundedWhy(s, d) {
 /* The solve, in words. */
 function priceSolveWords(s, d) {
   const t = s.target;
+  const rel = () => [isNum(s.vsPrice) && s.vsPrice !== 0 ? `${pqMoney(Math.abs(s.vsPrice))} ${s.vsPrice < 0 ? 'below' : 'above'} the ${pqMoney(num0(d.price))} modelled` : null,
+    isNum(s.vsAsking) && s.vsAsking !== 0 ? `${pqMoney(Math.abs(s.vsAsking))} ${s.vsAsking < 0 ? 'below' : 'above'} the asking price` : null].filter(Boolean);
+  /* Met from a price UP (solveDealPrice 'from': a net yield on a negative
+     income): the lowest price that meets it, as a price, never a dash. */
+  if (s.status === 'from') {
+    const r = rel();
+    return { figure: `From ${pqMoney(s.price)}`,
+      finding: `At ${pqMoney(s.price)} or more, the figures you entered give ${t.words} of at least ${t.fmt(s.value)}: the rent does not cover the running costs, so a higher price spreads that loss thinner.`,
+      sub: r.length ? `${r.join('; ')}.` : 'The price modelled.' };
+  }
   if (s.status === 'solved') {
-    const rel = [isNum(s.vsPrice) && s.vsPrice !== 0 ? `${pqMoney(Math.abs(s.vsPrice))} ${s.vsPrice < 0 ? 'below' : 'above'} the ${pqMoney(num0(d.price))} modelled` : null,
-      isNum(s.vsAsking) && s.vsAsking !== 0 ? `${pqMoney(Math.abs(s.vsAsking))} ${s.vsAsking < 0 ? 'below' : 'above'} the asking price` : null].filter(Boolean);
+    const r = rel();
     return { figure: pqMoney(s.price),
       finding: `At ${pqMoney(s.price)} or less, the figures you entered give ${t.words} of at least ${t.fmt(s.value)}.`,
-      sub: rel.length ? `${rel.join('; ')}.` : 'The price modelled.' };
+      sub: r.length ? `${r.join('; ')}.` : 'The price modelled.' };
   }
   if (s.status === 'infeasible') return { figure: 'No price',
     finding: `The figures you entered do not reach ${t.words} of ${t.fmt(s.value)} at any price from ${pqMoney(s.floor)}: at ${pqMoney(s.floor)} it is ${t.fmt(s.atFloor)}.`,
@@ -61166,7 +61239,12 @@ function priceSolveFormula(s, d) {
   const t = s.target && { ...s.target, fmt: s.target.id === 'monthly' ? (v) => fmtMoney(v, 'MYR', 2) : (v) => fmtPct(v, 4) };
   const how = `The calculator’s model (dealModel) is run at trial prices with every other figure as entered, halving the range each time between ${pqMoney(PRICE_SOLVE_FLOOR)} and four times the larger of the price and the asking price: ${priceSolveMoves(t || {}, d)}.`;
   if (s.status === 'solved') return `${how} Tolerance: one ringgit on the price, none on the target — at ${pqMoney(s.price)} ${t.label.toLowerCase()} is ${t.fmt(s.achieved)}, at least the ${t.fmt(s.value)} you set; at ${pqMoney(s.price + 1)} it is ${t.fmt(s.above)}${s.aboveMeets ? '' : ', short of it'}. ${s.runs} runs of the model.`;
-  if (s.status === 'infeasible') return `${how} At ${pqMoney(s.floor)}, the bottom of the range, ${t.label.toLowerCase()} is ${t.fmt(s.atFloor)} — short of ${t.fmt(s.value)} — so no price in the range meets it. ${s.runs} run${s.runs === 1 ? '' : 's'} of the model.`;
+  /* To six places where a yield's last ringgit moves it in the sixth. */
+  const f6 = t && t.id !== 'monthly' ? (v) => fmtPct(v, 6) : t && t.fmt;
+  if (s.status === 'from') return `${how} Tolerance: one ringgit on the price, none on the target — ${pqMoney(s.price)} is the lowest price that meets it: there ${t.label.toLowerCase()} is ${f6(s.achieved)}, at least the ${t.fmt(s.value)} you set; at ${pqMoney(s.price - 1)} it is ${f6(s.below)}, short of it. ${s.runs} runs of the model.`;
+  if (s.status === 'infeasible') return `${how} At ${pqMoney(s.floor)}, the bottom of the range, ${t.label.toLowerCase()} is ${t.fmt(s.atFloor)} — short of ${t.fmt(s.value)}`
+    + (isNum(s.widenedTo) ? `; it rises with the price, so the range was widened ten times at a time to ${pqMoney(s.widenedTo)}, where it is still short of it — so no price meets it.` : ' — so no price in the range meets it.')
+    + ` ${s.runs} run${s.runs === 1 ? '' : 's'} of the model.`;
   if (s.status === 'unbounded') return `${how} At ${pqMoney(s.ceiling)}, the top of the range, ${t.label.toLowerCase()} is still ${t.fmt(s.atCeiling)}. ${s.runs} runs of the model.`;
   return s.why || '';
 }
@@ -61209,7 +61287,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
     const solveKind = dealKind(d, null, { also: ['modelled'] });
     cards.append(lsInsightCard({ label: 'The price that makes this work', cls: 'pe-card pe-solve',
       badge: auBadge(solveKind.kind, solveKind.fine),
-      attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': s.status === 'solved' ? String(s.price) : '' },
+      attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': s.status === 'solved' || s.status === 'from' ? String(s.price) : '' },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
       sub: w.sub ? el('p', { class: 'ls-card-sub' }, w.sub) : null,
@@ -61360,7 +61438,7 @@ function pcPriceEvidence(d) {
   sec.append(priceEvidenceCards({ d, g, s, prefix: 'pc', gapWhy: () => lsOpenEvidence(gapDet), solveWhy: () => lsOpenEvidence(solveDet),
     setTarget: () => { const r = document.getElementById('pc-q-target-monthly'); if (r) { pcShowFor(r); r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
   sec.append(priceTargetControls({ d, prefix: 'pc', answer: (k, v) => { if (pqWriter(k, v)(d)) { saveDeal(); renderKeepFocus(); } } }));
-  if (s.status === 'solved' && Math.round(num0(d.price)) !== s.price) sec.append(el('p', { class: 'pe-try' }, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-pe-use',
+  if ((s.status === 'solved' || s.status === 'from') && Math.round(num0(d.price)) !== s.price) sec.append(el('p', { class: 'pe-try' }, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-pe-use',
     onclick: () => { d.price = s.price; markTouched(d, 'price'); saveDeal(); renderKeepFocus(); toast(`The purchase price is now ${pqMoney(s.price)} — every figure follows it.`); } },
     `Model it at ${pqMoney(s.price)}`)));
   /* The month with the tenancy that is in place, beside the expected rent's. */
@@ -61406,6 +61484,12 @@ const auNotFinal = (a) => (a.final ? '' : ' Not final.');
    the balance falls due × the instalment, each to the sen, so the product
    printed is the total printed. */
 const auMonths = (n) => `${fmtNum(n, n % 1 ? 2 : 0)} month${n === 1 ? '' : 's'}`;
+/* What the holding months' working says of the instalment: only where one
+   is charged does it name the days (the Day-8 review). */
+const auHoldInstalmentWords = (h) => (h.partial || h.status === 'partial' ? `${(h.why || '').charAt(0).toLowerCase()}${(h.why || '').slice(1, -1)}`
+  : h.instMonths > 0 ? `the instalment from the day the balance falls due, ${h.days} days after the sale (a month taken as 30 days)`
+  : h.instalment > 0 ? `no instalment: the balance falls due ${h.days} days after the sale, when these months have ended`
+  : 'no loan, so no instalment');
 const auHoldWorking = (s) => `${auMonths(s.months)} × ${fmtMoney(s.running, 'MYR', 2)} running costs`
   + (s.instMonths > 0 ? ` + ${auMonths(s.instMonths)} × ${fmtMoney(s.instalment, 'MYR', 2)} instalment` : '');
 
@@ -61443,7 +61527,7 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
     const fs = el('fieldset', { class: `au-group au-group-${g.id}`, id: `${prefix}-au-${g.id}` });
     fs.append(el('legend', { class: 'au-legend' }, g.legend));
     const note = g.id === 'costs'
-      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns: no rent, the running costs from the sale and the instalment from the day the balance falls due — in the effective cost, the cash required and the rate of return. The financing buffer is cash you set aside for the part of the balance the loan does not cover. Until you enter your lawyer’s quote, the legal fees are the fee rulebook’s — rule 1’s full scale on the bid, which Sarawak’s rules do not settle at auction (fee rulebook ${FEE_TABLE.version}); the searches stay its separate estimate.`
+      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns: no rent, the running costs owed with no tenancy and the instalment from the day the balance falls due — in the effective cost, the cash required and the rate of return. The financing buffer is cash you set aside for the part of the balance the loan does not cover. Until you enter your lawyer’s quote, the legal fees are the fee rulebook’s — rule 1’s full scale on the bid; Sarawak’s rules do not settle the purchaser’s share at auction (fee rulebook ${FEE_TABLE.version}). The searches stay its separate estimate.`
       : g.note;
     const grid = el('div', { class: 'au-grid' });
     for (const [k, label, step, opts] of g.fields) {
@@ -61545,7 +61629,7 @@ function auctionWaterfall(a, prefix) {
     if (isNum(a.market) && s.id !== 'market') svg.append(sv('line', { class: 'au-wf-mv', x1: `${X(a.market)}%`, x2: `${X(a.market)}%`, y1: '0', y2: '14' }));
     const label = add ? `+ ${s.label}` : s.label;
     const sub = s.id === 'market' && has ? `the median of ${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
-      : s.id === 'holding' && has ? auHoldWorking(s)
+      : s.id === 'holding' && has ? `${auHoldWorking(s)}${s.partial ? '; the instalment not priced' : ''}`
       : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced${s.gated ? ` — ${s.gated === s.unpriced ? '' : `${s.gated} of them `}not yet checked for ${FEE_CLASS_WORD[s.gatedCls]}` : ''}`
       : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of ${s.parts.length} not entered`
       : s.id === 'possession' && has && isNum(s.months) ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'}` : why;
@@ -61602,9 +61686,9 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
 /* THE BID CEILING'S CARD (L2): the bid, its kind, and what it leaves out. */
 /* The ceiling as its arithmetic has it (the 20 Oct 2026 sweep, auction-6):
    a cap that is not a whole ringgit to the sen, beside the costs to the
-   sen, and a margin to the places it was entered. */
+   sen, and a margin to the places it was entered, up to four. */
 const auCap = (v) => (Math.abs(v - Math.round(v)) < 0.005 ? auMoney(v) : fmtMoney(v, 'MYR', 2));
-const auMargin = (v) => fmtNum(v, Number.isInteger(v) ? 0 : Number.isInteger(Math.round(v * 1e6) / 1e5) ? 1 : 2);
+const auMargin = (v) => fmtNum(v, Math.min(4, (String(+(+v).toFixed(4)).split('.')[1] || '').length));
 const auCeilingTarget = (c) => (c.kind === 'margin' ? `${auMargin(c.value)}% under the market value your comparables imply` : `an effective cost of ${auCap(c.value)}, all in`);
 function auctionCeilingCard(c, a) {
   const ok = c.status === 'solved';
@@ -61642,7 +61726,7 @@ function auctionWaterfallFormula(a) {
   return `${mv} Reserve price: ${isNum(a.reserve) ? auMoney(a.reserve) : 'not entered'}. Winning bid: the purchase price, ${auMoney(a.bid)}. `
     + `Transaction costs: the ledger’s own fee lines — ${auList(tl)}. `
     + `Holding: ${hold.months == null ? 'no holding period entered' : !isNum(hold.amount) ? `${auMonths(hold.months)} entered, not priced — ${(hold.why || 'The monthly cost is not computable.').charAt(0).toLowerCase()}${(hold.why || 'The monthly cost is not computable.').slice(1, -1)}`
-      : `${auMonths(hold.months)} from the sale with no rent, ${auHoldWorking(hold)} = ${fmtMoney(hold.amount, 'MYR', 2)}: the running costs from the sale, the instalment from the day the balance falls due, ${hold.days} days after it (a month taken as 30 days). In the cash required too, and the rate of return counts the hold’s years from the end of these months`}. `
+      : `${auMonths(hold.months)} from the sale with no rent, ${auHoldWorking(hold)} = ${fmtMoney(hold.amount, 'MYR', 2)}: the running costs owed with no tenancy from the sale — maintenance, sinking fund, assessment, quit rent and insurance, no agent’s fee before a tenancy; ${auHoldInstalmentWords(hold)}. In the cash required too, and the rate of return counts the hold’s years from the end of these months`}. `
     + `Effective acquisition cost = the bid${sum.length ? ` + ${sum.join(' + ')}` : ''} = ${auMoney(a.effective)}${a.notEntered.length ? `; not entered and not counted: ${auList(a.notEntered.map(x => x.toLowerCase()))}` : ''}. `
     + (a.trueDiscount ? `True discount = (market value − effective cost) ÷ market value = (${auMoney(a.market)} − ${auMoney(a.effective)}) ÷ ${auMoney(a.market)} = ${a.trueDiscount.amount < 0 ? '−' : ''}${auPct(a.trueDiscount.pct)}. ` : '')
     + `${auctionFeeNote()} Every figure is yours or the fee rulebook’s, as each badge says. Not a valuation.`;
@@ -74407,8 +74491,11 @@ function decisionRecordProperty() {
      shortOf(['acquisition', 'financing'])],
    [cashRequiredLabel(m), isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null, shortOf(null)],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtMoney(m.cashflowMonthly, 'MYR', 0) : null],
-   ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : null],
-   ['Rate of return', isNum(m.irrPct) ? fmtPct(m.irrPct, 1) : null],
+   /* A class with no tenancy has no break-even rent: said for its own
+      reason (land-commercial-2). A rate of return that leaves out the
+      holding months' instalment is short, as the cash is (below). */
+   ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : m.letsToTenant === false ? 'Not a quantity this asset has' : null],
+   ['Rate of return', isNum(m.irrPct) ? fmtPct(m.irrPct, 1) : null, holdingShort(m) ? [{ label: 'Holding: the instalment from the day the balance falls due' }] : null],
    ['Grade', g.grade || null]]
     .forEach(([k, v, short]) => figs.append(el('div', { class: 'dr-fig' }, [
       el('div', { class: 'caption' }, k),
