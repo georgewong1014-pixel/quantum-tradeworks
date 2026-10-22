@@ -1420,7 +1420,7 @@ function labPriceSection(P, lab) {
       value: isNum(d.askingPrice) ? String(d.askingPrice) : '', placeholder: 'not entered',
       onchange: (e) => { const raw = String(e.target.value).trim(); labAnswer(P, lab, 'askingPrice', raw === '' ? null : raw); } }),
   ]) : null;
-  const pick = d ? comparablesPick({ d, prefix: P.idPrefix, legend: 'Comparables this price is set against — from your register', toggle: (ids) => labAnswer(P, lab, 'comparableIds', ids) }) : null;
+  const pick = d ? comparablesPick({ d, prefix: P.idPrefix, legend: 'Your register’s comparables for this price', toggle: (ids) => labAnswer(P, lab, 'comparableIds', ids) }) : null;
   card.append(route, cards, target, tryBox, ask, pick);
   P.els.pe = { card, route, cards, tryBox, sig: null };
   return card;
@@ -2225,9 +2225,12 @@ function labAlert(P, lab) {
   const d = labSubjectInputs(lab);
   const q = d && onCalc ? propertyReviewQueue(d) : [];
   if (!q.length) return null;
-  /* Named as the calculator names them (CL-02): "sample inputs". */
+  /* Named as the calculator names them (CL-02): "sample inputs". Without
+     the list of three it carried: the grade beside it names the four the
+     answer rests on, and the review it opens lists all of them — the
+     words the evidence tags took (the Day-10 pre-audit, CL-02: the
+     lab-words count stays where it was). */
   return lsAlertCard({ text: `${q.length} sample input${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
-    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''}.`,
     cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
 }
 /* Where a figure is entered, only while the column IS the calculator's
