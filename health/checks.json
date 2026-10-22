@@ -1,11 +1,11 @@
 {
   "kind": "quantum-tradeworks-checks",
   "schema": 1,
-  "commit": "fd8a9692be832d06adbdc2d16209d67fbc02713b",
-  "recordedAt": "2026-10-21T19:20:42.229Z",
-  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/39570590719",
-  "ranAt": "2026-10-21T09:59:10Z",
-  "event": "workflow_dispatch",
+  "commit": "48a01e21098e4248ee3c5a3cce548c13733467fc",
+  "recordedAt": "2026-10-22T08:14:35.862Z",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/39736410712",
+  "ranAt": "2026-10-22T08:14:22Z",
+  "event": "push",
   "conclusion": "success",
   "note": null,
   "suites": [
@@ -15,9 +15,9 @@
       "kind": "numbers",
       "job": "runtime",
       "status": "PASS",
-      "passed": 250,
+      "passed": 288,
       "failed": 0,
-      "said": "all 250 model invariants hold",
+      "said": "all 288 model invariants hold",
       "exit": 0
     },
     {
@@ -158,9 +158,9 @@
       "kind": "layout",
       "job": "runtime",
       "status": "PASS",
-      "passed": 42,
+      "passed": 44,
       "failed": 0,
-      "said": "no horizontal overflow at any width, and no focus stop hidden (42 ok, 0 FAIL)",
+      "said": "no horizontal overflow at any width, and no focus stop hidden (44 ok, 0 FAIL)",
       "exit": 0
     }
   ]
