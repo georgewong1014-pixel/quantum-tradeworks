@@ -1894,7 +1894,7 @@ const JOURNEYS = [
         })()`));
         if (!(r.shown > r.bid) || r.shown !== r.model) throw new StepError(`the effective acquisition cost reads ${r.shown}; the model gives ${r.model} on a bid of ${r.bid}`);
         if (r.final !== 'false' || !/Not final\./.test(r.text)) throw new StepError(`with every check open the effective cost does not say it is not final: “${r.text.slice(0, 120)}”`);
-        if (r.market !== 620000 || r.discount === '') throw new StepError(`the market value is ${r.market}, not the median of RM600,000 and RM640,000, and the true discount reads “${r.discount}”`);
+        if (r.market !== 620000 || r.discount === '') throw new StepError(`your comparables’ median is ${r.market}, not the median of RM600,000 and RM640,000, and the true discount reads “${r.discount}”`);
         if (!r.unwritten) throw new StepError('the auction was written to the saved property before Save');
         if (!/^Save what and how you are buying to/.test(r.save)) throw new StepError(`with the auction not saved, Save says “${r.save}”`);
       });
@@ -1909,11 +1909,12 @@ const JOURNEYS = [
        never Verified. "Use it in the Scenario Lab" names it in the Lab's
        comparables, a what-if until Save; with an asking price entered the
        price gap names it with its source and its date; and answered
-       Auction, the market value is the value it implies, named with its
+       Auction, its median — "your comparables’ median" (the owner, 23 Oct
+       2026) — is the value it implies, named with its
        source and date. Nothing is written to the calculator's deal. */
     id: 'evidence', name: 'Property evidence: record a comparable, use it in a scenario',
     outcomes: ['Record a transaction price, step by step: its locality, source and date', 'Use it in the Scenario Lab: it is named in the comparables',
-      'Enter an asking price: the price gap names it with its source and date', 'Choose Auction: the market value is the value it implies'],
+      'Enter an asking price: the price gap names it with its source and date', 'Choose Auction: your comparables’ median is the value it implies'],
     async run(j, tab) {
       const SRC = 'https://example.com/journey-listing';
       const work = `labActive(LAB[labSubject]).work`;
@@ -1962,14 +1963,14 @@ const JOURNEYS = [
         const t = await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="gap"]')?.textContent || '').replace(/\\s+/g, ' ')`);
         if (!t.includes(SRC) || !/Sept? 2026/.test(t)) throw new StepError(`the price gap does not name the record with its source and date: “${t.slice(0, 220)}”`);
       });
-      await step(j, tab, 'Choose Auction: the market value is the value it implies', BUDGET.action * 2, async () => {
+      await step(j, tab, 'Choose Auction: your comparables’ median is the value it implies', BUDGET.action * 2, async () => {
         if (await tab.eval(`(() => { const b = document.getElementById('lab-q-change'); return !!b && getComputedStyle(b).visibility !== 'hidden' && !!b.getClientRects().length && b.getAttribute('aria-expanded') === 'false'; })()`))
           await tab.click(`document.getElementById('lab-q-change')`, 'Change — what you are buying and how');
         await tab.click(`document.querySelector('label[for="lab-q-how-auction"]')`, 'How are you buying? — Auction');
         await tab.expect(`!!document.getElementById('lab-au')`, 'Auction chosen, the auction risk mode is not drawn');
         const r = JSON.parse(await tab.eval(`(() => { const a = auctionModel(${work}); const card = document.querySelector('#lab-au [data-au-fig="discount"]');
           return JSON.stringify({ market: a.market, named: a.marketFrom.named.map(c => c.id), text: (card?.textContent || '').replace(/\\s+/g, ' ') }); })()`));
-        if (r.market !== 540000 || JSON.stringify(r.named) !== JSON.stringify([recId])) throw new StepError(`the market value is ${r.market} from ${JSON.stringify(r.named)}, not the RM540,000 the record implies`);
+        if (r.market !== 540000 || JSON.stringify(r.named) !== JSON.stringify([recId])) throw new StepError(`your comparables’ median is ${r.market} from ${JSON.stringify(r.named)}, not the RM540,000 the record implies`);
         if (!r.text.includes(SRC) || !/Sept? 2026/.test(r.text)) throw new StepError(`the true discount does not name the record with its source and date: “${r.text.slice(0, 220)}”`);
       });
     },
