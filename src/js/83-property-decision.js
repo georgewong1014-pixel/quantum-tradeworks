@@ -220,30 +220,78 @@ function priceGapFormula(g) {
     + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a price of this kind of property.` : '')
     + ' Each comparable is a record you made; its standing is the register’s. Not a valuation.';
 }
+/* WHAT MOVES THE MEASURE WITH THE PRICE, by its cause (the 20 Oct 2026
+   sweep, stress-5). Every solve said the loan and its repayment rise with
+   the price, and every unbounded one that a valuation held the loan — a
+   purchase with no loan and no valuation included, where nothing in the
+   monthly position moves with the price at all. The loan is a share of the
+   price, of the lower of it and an entered valuation, or of the valuation
+   alone (dealModel's lender basis); net yield is before the loan. */
+function priceSolveLoan(d) {
+  if (num0(d?.downPct) >= 100) return { kind: 'none' };
+  const val = isNum(d?.bankValuation) && d.bankValuation > 0 ? d.bankValuation : null;
+  const rule = d?.valuationRule || 'lower_of';
+  if (val != null && rule === 'valuation_only') return { kind: 'valuation', val };
+  if (val != null && rule === 'lower_of') return { kind: 'capped', val };
+  return { kind: 'price' };
+}
+function priceSolveMoves(t, d) {
+  /* The net operating income does not move with the price: the yield falls
+     as the price rises while it is positive, and rises towards nought while
+     it is negative (solveDealPrice, the 20 Oct 2026 sweep's stress-4). */
+  if (t.id !== 'monthly') return isNum(d && dealModel(d).noi) && dealModel(d).noi < 0
+    ? 'the net operating income is negative, so as the price rises the net yield rises towards nought: the target holds above one price and fails below it'
+    : 'as the price rises the net yield falls, so the target holds below one price and fails above it';
+  const L = priceSolveLoan(d);
+  if (L.kind === 'none') return 'with no loan, nothing in the monthly position moves with the price, so the target holds at every price or at none';
+  if (L.kind === 'valuation') return `the loan is lent on the ${pqMoney(L.val)} valuation you entered, not on the price, so nothing in the monthly position moves with the price: the target holds at every price or at none`;
+  if (L.kind === 'capped') return `as the price rises the loan and its repayment rise up to the ${pqMoney(L.val)} valuation you entered and no further, so the monthly position falls until then and holds after it`;
+  return 'as the price rises the loan and its repayment rise and the monthly position falls, so the target holds below one price and fails above it';
+}
+function priceSolveUnboundedWhy(s, d) {
+  const t = s.target, L = t.id === 'monthly' ? priceSolveLoan(d) : { kind: 'yield' };
+  if (L.kind === 'none') return 'With no loan, the price does not move the monthly position.';
+  if (L.kind === 'valuation' || (L.kind === 'capped' && L.val < s.ceiling)) return 'A loan held to an entered valuation stops following the price.';
+  return `At ${pqMoney(s.ceiling)} the ${t.label.toLowerCase()} is still ${t.fmt(s.atCeiling)}.`;
+}
 /* The solve, in words. */
 function priceSolveWords(s, d) {
   const t = s.target;
+  const rel = () => [isNum(s.vsPrice) && s.vsPrice !== 0 ? `${pqMoney(Math.abs(s.vsPrice))} ${s.vsPrice < 0 ? 'below' : 'above'} the ${pqMoney(num0(d.price))} modelled` : null,
+    isNum(s.vsAsking) && s.vsAsking !== 0 ? `${pqMoney(Math.abs(s.vsAsking))} ${s.vsAsking < 0 ? 'below' : 'above'} the asking price` : null].filter(Boolean);
+  /* Met from a price UP (solveDealPrice 'from': a net yield on a negative
+     income): the lowest price that meets it, as a price, never a dash. */
+  if (s.status === 'from') {
+    const r = rel();
+    return { figure: `From ${pqMoney(s.price)}`,
+      finding: `At ${pqMoney(s.price)} or more, the figures you entered give ${t.words} of at least ${t.fmt(s.value)}: the rent does not cover the running costs, so a higher price spreads that loss thinner.`,
+      sub: r.length ? `${r.join('; ')}.` : 'The price modelled.' };
+  }
   if (s.status === 'solved') {
-    const rel = [isNum(s.vsPrice) && s.vsPrice !== 0 ? `${pqMoney(Math.abs(s.vsPrice))} ${s.vsPrice < 0 ? 'below' : 'above'} the ${pqMoney(num0(d.price))} modelled` : null,
-      isNum(s.vsAsking) && s.vsAsking !== 0 ? `${pqMoney(Math.abs(s.vsAsking))} ${s.vsAsking < 0 ? 'below' : 'above'} the asking price` : null].filter(Boolean);
+    const r = rel();
     return { figure: pqMoney(s.price),
       finding: `At ${pqMoney(s.price)} or less, the figures you entered give ${t.words} of at least ${t.fmt(s.value)}.`,
-      sub: rel.length ? `${rel.join('; ')}.` : 'The price modelled.' };
+      sub: r.length ? `${r.join('; ')}.` : 'The price modelled.' };
   }
   if (s.status === 'infeasible') return { figure: 'No price',
     finding: `The figures you entered do not reach ${t.words} of ${t.fmt(s.value)} at any price from ${pqMoney(s.floor)}: at ${pqMoney(s.floor)} it is ${t.fmt(s.atFloor)}.`,
     sub: t.id === 'monthly' ? 'The rent, the running costs or the loan terms, not the price, stand in the way.' : 'The rent and the running costs, not the price, stand in the way.' };
   if (s.status === 'unbounded') return { figure: `Above ${pqMoney(s.ceiling)}`,
     finding: `The figures you entered give ${t.words} of at least ${t.fmt(s.value)} at every price up to ${pqMoney(s.ceiling)}, the top of the range tried.`,
-    sub: 'A loan held to an entered valuation stops following the price.' };
+    sub: priceSolveUnboundedWhy(s, d) };
   return { figure: '—', finding: s.why || 'Not computable for these inputs.', sub: null };
 }
 function priceSolveFormula(s, d) {
   if (!s || s.status === 'no-target') return 'Set a target — a monthly position or a net yield — and the price that meets it is found by running the calculator’s own model at trial prices, every other input held.';
   const t = s.target && { ...s.target, fmt: s.target.id === 'monthly' ? (v) => fmtMoney(v, 'MYR', 2) : (v) => fmtPct(v, 4) };
-  const how = `The calculator’s model (dealModel) is run at trial prices with every other figure as entered, halving the range each time between ${pqMoney(PRICE_SOLVE_FLOOR)} and four times the larger of the price and the asking price: as the price rises the loan and its repayment rise and the net yield falls, so the target holds below one price and fails above it.`;
+  const how = `The calculator’s model (dealModel) is run at trial prices with every other figure as entered, halving the range each time between ${pqMoney(PRICE_SOLVE_FLOOR)} and four times the larger of the price and the asking price: ${priceSolveMoves(t || {}, d)}.`;
   if (s.status === 'solved') return `${how} Tolerance: one ringgit on the price, none on the target — at ${pqMoney(s.price)} ${t.label.toLowerCase()} is ${t.fmt(s.achieved)}, at least the ${t.fmt(s.value)} you set; at ${pqMoney(s.price + 1)} it is ${t.fmt(s.above)}${s.aboveMeets ? '' : ', short of it'}. ${s.runs} runs of the model.`;
-  if (s.status === 'infeasible') return `${how} At ${pqMoney(s.floor)}, the bottom of the range, ${t.label.toLowerCase()} is ${t.fmt(s.atFloor)} — short of ${t.fmt(s.value)} — so no price in the range meets it. ${s.runs} run${s.runs === 1 ? '' : 's'} of the model.`;
+  /* To six places where a yield's last ringgit moves it in the sixth. */
+  const f6 = t && t.id !== 'monthly' ? (v) => fmtPct(v, 6) : t && t.fmt;
+  if (s.status === 'from') return `${how} Tolerance: one ringgit on the price, none on the target — ${pqMoney(s.price)} is the lowest price that meets it: there ${t.label.toLowerCase()} is ${f6(s.achieved)}, at least the ${t.fmt(s.value)} you set; at ${pqMoney(s.price - 1)} it is ${f6(s.below)}, short of it. ${s.runs} runs of the model.`;
+  if (s.status === 'infeasible') return `${how} At ${pqMoney(s.floor)}, the bottom of the range, ${t.label.toLowerCase()} is ${t.fmt(s.atFloor)} — short of ${t.fmt(s.value)}`
+    + (isNum(s.widenedTo) ? `; it rises with the price, so the range was widened ten times at a time to ${pqMoney(s.widenedTo)}, where it is still short of it — so no price meets it.` : ' — so no price in the range meets it.')
+    + ` ${s.runs} run${s.runs === 1 ? '' : 's'} of the model.`;
   if (s.status === 'unbounded') return `${how} At ${pqMoney(s.ceiling)}, the top of the range, ${t.label.toLowerCase()} is still ${t.fmt(s.atCeiling)}. ${s.runs} runs of the model.`;
   return s.why || '';
 }
@@ -286,7 +334,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
     const solveKind = dealKind(d, null, { also: ['modelled'] });
     cards.append(lsInsightCard({ label: 'The price that makes this work', cls: 'pe-card pe-solve',
       badge: auBadge(solveKind.kind, solveKind.fine),
-      attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': s.status === 'solved' ? String(s.price) : '' },
+      attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': s.status === 'solved' || s.status === 'from' ? String(s.price) : '' },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
       sub: w.sub ? el('p', { class: 'ls-card-sub' }, w.sub) : null,
@@ -437,7 +485,7 @@ function pcPriceEvidence(d) {
   sec.append(priceEvidenceCards({ d, g, s, prefix: 'pc', gapWhy: () => lsOpenEvidence(gapDet), solveWhy: () => lsOpenEvidence(solveDet),
     setTarget: () => { const r = document.getElementById('pc-q-target-monthly'); if (r) { pcShowFor(r); r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
   sec.append(priceTargetControls({ d, prefix: 'pc', answer: (k, v) => { if (pqWriter(k, v)(d)) { saveDeal(); renderKeepFocus(); } } }));
-  if (s.status === 'solved' && Math.round(num0(d.price)) !== s.price) sec.append(el('p', { class: 'pe-try' }, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-pe-use',
+  if ((s.status === 'solved' || s.status === 'from') && Math.round(num0(d.price)) !== s.price) sec.append(el('p', { class: 'pe-try' }, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-pe-use',
     onclick: () => { d.price = s.price; markTouched(d, 'price'); saveDeal(); renderKeepFocus(); toast(`The purchase price is now ${pqMoney(s.price)} — every figure follows it.`); } },
     `Model it at ${pqMoney(s.price)}`)));
   /* The month with the tenancy that is in place, beside the expected rent's. */
@@ -458,7 +506,7 @@ function pcPriceEvidence(d) {
    Proclamation's terms — the reserve price, the deposit and what it is a
    share of, the days to pay the balance, the arrears it passes to the
    buyer; the market value's comparables; and the reader's estimates —
-   repairs, possession, the legal and search costs, a financing buffer and
+   repairs, possession, the lawyer's legal fees, a financing buffer and
    the holding period. The winning bid is the purchase price the model runs
    on (on the Lab, the Price slider).
    Outputs on the layout system: L1 the effective acquisition cost and the
@@ -478,6 +526,19 @@ const auBadge = (kind, fine = null) => kindBadge(kind, { fine: fine || (kind ===
 const AUCTION_LEAD = 'Nothing of the sale is assumed: its terms are the ones you enter from the Proclamation of Sale. Not a valuation.';
 const auLower = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 const auNotFinal = (a) => (a.final ? '' : ' Not final.');
+/* The holding months' working (the owner's rule of 21 Oct 2026; dealModel's
+   auctionHolding): months × the running costs a month, + the months after
+   the balance falls due × the instalment, each to the sen, so the product
+   printed is the total printed. */
+const auMonths = (n) => `${fmtNum(n, n % 1 ? 2 : 0)} month${n === 1 ? '' : 's'}`;
+/* What the holding months' working says of the instalment: only where one
+   is charged does it name the days (the Day-8 review). */
+const auHoldInstalmentWords = (h) => (h.partial || h.status === 'partial' ? `${(h.why || '').charAt(0).toLowerCase()}${(h.why || '').slice(1, -1)}`
+  : h.instMonths > 0 ? `the instalment from the day the balance falls due, ${h.days} days after the sale (a month taken as 30 days)`
+  : h.instalment > 0 ? `no instalment: the balance falls due ${h.days} days after the sale, when these months have ended`
+  : 'no loan, so no instalment');
+const auHoldWorking = (s) => `${auMonths(s.months)} × ${fmtMoney(s.running, 'MYR', 2)} running costs`
+  + (s.instMonths > 0 ? ` + ${auMonths(s.instMonths)} × ${fmtMoney(s.instalment, 'MYR', 2)} instalment` : '');
 
 /* THE INPUTS, in three groups. `answer(k, v)` writes one (the page's own
    writer); `evidence(k, label)` draws where a figure came from, where the
@@ -498,7 +559,7 @@ const AU_GROUPS = (d = null) => [
   { id: 'costs', legend: 'Your estimates',
     note: null,
     fields: [['auctionRepairs', 'Repairs (RM)', 500], ['possessionCost', 'Possession cost (RM)', 500], ['possessionMonths', 'Possession time (months)', 1],
-      ['auctionLegal', 'Legal and search costs — your lawyer’s quote (RM)', 100], ['auctionBuffer', 'Financing buffer (RM)', 1000], ['auctionHoldMonths', 'Holding period (months)', 1]] },
+      ['auctionLegal', 'Legal fees — your lawyer’s quote (RM)', 100], ['auctionBuffer', 'Financing buffer (RM)', 1000], ['auctionHoldMonths', 'Holding period (months)', 1]] },
   /* The bid ceiling (the validation pass, audit #4): the reader's, never a
      default. */
   { id: 'ceiling', legend: 'Your bid ceiling',
@@ -513,7 +574,7 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
     const fs = el('fieldset', { class: `au-group au-group-${g.id}`, id: `${prefix}-au-${g.id}` });
     fs.append(el('legend', { class: 'au-legend' }, g.legend));
     const note = g.id === 'costs'
-      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due. Until you enter your lawyer’s quote, the legal costs are the fee rulebook’s purchase legal fees — rule 1’s full scale on the bid; Sarawak’s rules do not settle the purchaser’s share at auction (fee rulebook ${FEE_TABLE.version}), so the quote is the way to price it.`
+      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns: no rent, the running costs owed with no tenancy and the instalment from the day the balance falls due — in the effective cost, the cash required and the rate of return. The financing buffer is cash you set aside for the part of the balance the loan does not cover. Until you enter your lawyer’s quote, the legal fees are the fee rulebook’s — rule 1’s full scale on the bid; Sarawak’s rules do not settle the purchaser’s share at auction (fee rulebook ${FEE_TABLE.version}). The searches stay its separate estimate.`
       : g.note;
     const grid = el('div', { class: 'au-grid' });
     for (const [k, label, step, opts] of g.fields) {
@@ -601,8 +662,9 @@ function auctionWaterfall(a, prefix) {
     const from = add ? (isNum(run) ? run : 0) : 0;
     const to = has ? (add ? from + s.amount : s.amount) : null;
     if (add && has && isNum(run)) run = to;
-    const word = !has ? 'Not entered' : add ? `+${auMoney(s.amount)}` : auMoney(s.amount);
-    const why = !has ? (s.id === 'market' ? 'No comparable entered or named' : s.id === 'bid' ? 'No purchase price' : s.id === 'transaction' ? 'No line priced' : s.id === 'holding' ? (s.months == null ? null : 'The monthly cost is not computable') : null) : null;
+    /* The holding to the sen, so its months × amounts below give it. */
+    const word = !has ? 'Not entered' : s.id === 'holding' ? `+${fmtMoney(s.amount, 'MYR', 2)}` : add ? `+${auMoney(s.amount)}` : auMoney(s.amount);
+    const why = !has ? (s.id === 'market' ? 'No comparable entered or named' : s.id === 'bid' ? 'No purchase price' : s.id === 'transaction' ? 'No line priced' : s.id === 'holding' ? (s.months == null ? null : s.why || 'The monthly cost is not computable') : null) : null;
     const svg = sv('svg', { class: 'au-wf-bar', width: '100%', height: '14', 'aria-hidden': 'true', focusable: 'false' });
     svg.append(sv('rect', { class: 'au-wf-track', x: '0', y: '2', width: '100%', height: '10', rx: '3' }));
     if (has && isNum(from)) {
@@ -614,7 +676,7 @@ function auctionWaterfall(a, prefix) {
     if (isNum(a.market) && s.id !== 'market') svg.append(sv('line', { class: 'au-wf-mv', x1: `${X(a.market)}%`, x2: `${X(a.market)}%`, y1: '0', y2: '14' }));
     const label = add ? `+ ${s.label}` : s.label;
     const sub = s.id === 'market' && has ? `the median of ${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
-      : s.id === 'holding' && has ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'} × ${auMoney(s.monthly)}`
+      : s.id === 'holding' && has ? `${auHoldWorking(s)}${s.partial ? '; the instalment not priced' : ''}`
       : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced${s.gated ? ` — ${s.gated === s.unpriced ? '' : `${s.gated} of them `}not yet checked for ${FEE_CLASS_WORD[s.gatedCls]}` : ''}`
       : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of ${s.parts.length} not entered`
       : s.id === 'possession' && has && isNum(s.months) ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'}` : why;
@@ -669,25 +731,32 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
 }
 
 /* THE BID CEILING'S CARD (L2): the bid, its kind, and what it leaves out. */
-const auCeilingTarget = (c) => (c.kind === 'margin' ? `${fmtNum(c.value, c.value % 1 ? 1 : 0)}% under the market value your comparables imply` : `an effective cost of ${auMoney(c.value)}, all in`);
+/* The ceiling as its arithmetic has it (the 20 Oct 2026 sweep, auction-6):
+   a cap that is not a whole ringgit to the sen, beside the costs to the
+   sen, and a margin to the places it was entered, up to four. */
+const auCap = (v) => (Math.abs(v - Math.round(v)) < 0.005 ? auMoney(v) : fmtMoney(v, 'MYR', 2));
+const auMargin = (v) => fmtNum(v, Math.min(4, (String(+(+v).toFixed(4)).split('.')[1] || '').length));
+const auCeilingTarget = (c) => (c.kind === 'margin' ? `${auMargin(c.value)}% under the market value your comparables imply` : `an effective cost of ${auCap(c.value)}, all in`);
 function auctionCeilingCard(c, a) {
   const ok = c.status === 'solved';
   const left = [c.notEntered?.length ? `Not entered, not counted: ${auList(c.notEntered.map(x => x.toLowerCase()))}` : null,
     c.unpriced ? `${c.unpriced} fee line${c.unpriced === 1 ? '' : 's'} not priced` : null].filter(Boolean);
   const sen = (v) => fmtMoney(v, 'MYR', 2);
   const sub = ok
-    ? `The figures you entered imply a winning bid of at most ${auMoney(c.bid)} to keep the effective cost at or under ${auMoney(c.cap)} — ${auCeilingTarget(c)}${c.kind === 'margin' ? ` (${auMoney(a.market)})` : ''}. At that bid it is ${sen(c.effective)}; one ringgit more, ${sen(c.above)}.${left.length ? ` ${left.join('; ')}.` : ''}${auNotFinal(a)}`
+    ? `The figures you entered imply a winning bid of at most ${auMoney(c.bid)} to keep the effective cost at or under ${auCap(c.cap)} — ${auCeilingTarget(c)}${c.kind === 'margin' ? ` (${auMoney(a.market)})` : ''}. At that bid it is ${sen(c.effective)}; one ringgit more, ${sen(c.above)}.${left.length ? ` ${left.join('; ')}.` : ''}${auNotFinal(a)}`
+    : c.status === 'below-reserve' ? `No winning bid fits these costs: a bid wins only at or above the ${auMoney(c.reserve)} reserve, and there the effective cost is ${sen(c.atReserve)}, over your ${auCap(c.cap)} ceiling — ${auCeilingTarget(c)}. The ceiling works out at ${auMoney(c.bid)}, below the reserve.${auNotFinal(a)}`
     : c.status === 'unavailable' ? `Unavailable: ${c.why}.`
-      : c.status === 'infeasible' ? `Even a bid of ${auMoney(c.floor)} gives an effective cost of ${auMoney(c.atFloor)}, over the ${auMoney(c.cap)} ceiling: the costs you entered, not the bid, stand in the way.`
+      : c.status === 'infeasible' ? `Even a bid of ${auMoney(c.floor)} gives an effective cost of ${auMoney(c.atFloor)}, over the ${auCap(c.cap)} ceiling: the costs you entered, not the bid, stand in the way.`
         : c.why || 'Not computable for these inputs.';
-  return lsMetricCard({ label: 'Bid ceiling', level: 2, cls: 'au-card au-ceiling', badge: auBadge(ok ? c.resultKind : 'unavailable', ok ? 'your ceiling, and the effective cost this model works out at each bid' : c.status === 'unavailable' ? 'no market value' : 'not computable'),
-    value: ok ? auMoney(c.bid) : 'Unavailable', attrs: { 'data-au-fig': 'ceiling', 'data-status': c.status, 'data-final': a.final ? 'true' : 'false' },
+  return lsMetricCard({ label: 'Bid ceiling', level: 2, cls: 'au-card au-ceiling', badge: auBadge(ok || c.status === 'below-reserve' ? c.resultKind : 'unavailable', ok || c.status === 'below-reserve' ? 'your ceiling, and the effective cost this model works out at each bid' : c.status === 'unavailable' ? 'no market value' : 'not computable'),
+    value: ok ? auMoney(c.bid) : c.status === 'below-reserve' ? 'No winning bid' : 'Unavailable', attrs: { 'data-au-fig': 'ceiling', 'data-status': c.status, 'data-final': a.final ? 'true' : 'false' },
     valueAttrs: { 'data-value': ok ? String(c.bid) : '' }, sub });
 }
 function auctionCeilingFormula(c, a) {
   if (!c || c.status === 'no-target') return 'No ceiling entered: choose what it is — a cost of your own, all in, or a margin under the market value — and its figure. Nothing is assumed.';
   if (c.status === 'unavailable' || c.status === 'invalid') return `Unavailable: ${c.why}. A margin is taken off the market value your comparables imply, never off a market figure.`;
-  const cap = c.kind === 'margin' ? `the market value ${auMoney(a.market)} × (1 − ${fmtNum(c.value, 2)}%) = ${auMoney(c.cap)}` : `your cost, ${auMoney(c.cap)}`;
+  const cap = c.kind === 'margin' ? `the market value ${auMoney(a.market)} × (1 − ${auMargin(c.value)}%) = ${auCap(c.cap)}` : `your cost, ${auCap(c.cap)}`;
+  if (c.status === 'below-reserve') return `Ceiling: ${cap}. The model is run at trial bids, to the ringgit, every other figure held: the cost stays at or under it up to ${auMoney(c.bid)} — below the ${auMoney(a.reserve)} reserve, where no bid can win. At the reserve the effective cost is ${fmtMoney(c.atReserve, 'MYR', 2)}, over it, so no winning bid fits these costs.`;
   if (c.status !== 'solved') return `Ceiling: ${cap}. ${c.status === 'infeasible' ? `At a bid of ${auMoney(c.floor)} the effective cost is already ${auMoney(c.atFloor)}.` : 'Not computable for these inputs.'}`;
   return `Ceiling: ${cap}. The model is run at trial bids, to the ringgit, every other figure held — the transfer duty, the scale fees and the loan follow the bid; the repairs, arrears and possession do not. At ${auMoney(c.bid)} the effective cost is ${fmtMoney(c.effective, 'MYR', 2)}, at or under the ceiling; at ${auMoney(c.bid + 1)} it is ${fmtMoney(c.above, 'MYR', 2)}, over it. What the figures you entered imply — not a recommendation to bid.`;
 }
@@ -703,7 +772,8 @@ function auctionWaterfallFormula(a) {
   const sum = a.adds.filter(x => isNum(x.amount)).map(x => `${x.label.toLowerCase()} ${auMoney(x.amount)}`);
   return `${mv} Reserve price: ${isNum(a.reserve) ? auMoney(a.reserve) : 'not entered'}. Winning bid: the purchase price, ${auMoney(a.bid)}. `
     + `Transaction costs: the ledger’s own fee lines — ${auList(tl)}. `
-    + `Holding: ${hold.months == null ? 'no holding period entered' : `${fmtNum(hold.months, 1)} months × ${auMoney(hold.monthly)} a month with no rent (the instalment and the running costs)`}. `
+    + `Holding: ${hold.months == null ? 'no holding period entered' : !isNum(hold.amount) ? `${auMonths(hold.months)} entered, not priced — ${(hold.why || 'The monthly cost is not computable.').charAt(0).toLowerCase()}${(hold.why || 'The monthly cost is not computable.').slice(1, -1)}`
+      : `${auMonths(hold.months)} from the sale with no rent, ${auHoldWorking(hold)} = ${fmtMoney(hold.amount, 'MYR', 2)}: the running costs owed with no tenancy from the sale — maintenance, sinking fund, assessment, quit rent and insurance, no agent’s fee before a tenancy; ${auHoldInstalmentWords(hold)}. In the cash required too, and the rate of return counts the hold’s years from the end of these months`}. `
     + `Effective acquisition cost = the bid${sum.length ? ` + ${sum.join(' + ')}` : ''} = ${auMoney(a.effective)}${a.notEntered.length ? `; not entered and not counted: ${auList(a.notEntered.map(x => x.toLowerCase()))}` : ''}. `
     + (a.trueDiscount ? `True discount = (market value − effective cost) ÷ market value = (${auMoney(a.market)} − ${auMoney(a.effective)}) ÷ ${auMoney(a.market)} = ${a.trueDiscount.amount < 0 ? '−' : ''}${auPct(a.trueDiscount.pct)}. ` : '')
     + `${auctionFeeNote()} Every figure is yours or the fee rulebook’s, as each badge says. Not a valuation.`;
@@ -1193,11 +1263,14 @@ function cmSustainWords(c) {
 const CM_UNIT_OPEN = new Set();
 function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, fold = false }) {
   const box = el('div', { class: 'au-inputs cm-inputs', id: `${prefix}-cm-inputs` });
-  const field = (k, label, control, fine = null) => {
+  /* `note`: a line in sight under the field, for what its badge's title
+     alone cannot carry to a phone. */
+  const field = (k, label, control, fine = null, note = null) => {
     const kind = auKindOfInput(d, k);
     return el('div', { class: 'au-field', 'data-cm': k, 'data-kind': kind }, [
       el('label', { for: `${prefix}-cm-${k}`, class: 'au-label' }, label), control,
-      el('p', { class: 'au-kind' }, [auBadge(kind, fine), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null])]);
+      el('p', { class: 'au-kind' }, [auBadge(kind, fine), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null]),
+      note ? el('p', { class: 'au-note', 'data-cm-note': k }, note) : null]);
   };
   const input = (k, attrs) => el('input', { class: 'input au-in', id: `${prefix}-cm-${k}`, value: d[k] ?? '', placeholder: 'Not entered',
     onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); }, ...attrs });
@@ -1238,7 +1311,12 @@ function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, 
     vacant ? null : field('cmRentFreeMonths', 'Rent-free months still to run', input('cmRentFreeMonths', { type: 'number', min: '0', max: '120', step: '1', inputmode: 'numeric', class: 'input au-in num' }), d.cmRentFreeMonths == null ? 'not entered — none counted' : 'from now, as the tenancy grants them'),
     vacant ? null : field('cmServiceCharge', 'Service charge the tenant pays you (RM a month)', money('cmServiceCharge', 10), d.cmServiceCharge == null ? 'not entered — none counted' : 'as the tenancy states it'),
     field('cmFitOut', 'Fit-out for a re-let (RM)', money('cmFitOut', 500), 'what letting it again would cost you'),
-    vacant ? null : field('cmEscalation', 'Escalation, as the tenancy states it', text('cmEscalation', 'e.g. 10% at each renewal')),
+    /* Words, not figures (70-property.js): the escalation is the tenancy's
+       record and moves no figure — the contract rent is held flat to the
+       expiry (cmTermFormula, cmLeaseDownFormula). Said beside the field, not
+       on the Learn page alone (the 20 Oct 2026 sweep, land-commercial-3). */
+    vacant ? null : field('cmEscalation', 'Escalation, as the tenancy states it', text('cmEscalation', 'e.g. 10% at each renewal'),
+      'recorded with the tenancy — no figure uses it', 'Recorded only: no figure applies it, and the contract rent is held flat to the expiry.'),
     vacant ? null : field('cmDeposit', 'Deposit held (months of rent)', input('cmDeposit', { type: 'number', min: '0', step: '0.5', inputmode: 'decimal', class: 'input au-in num' })),
     vacant ? null : field('cmTenant', 'Current tenant', text('cmTenant', 'As you know them')),
     field('cmBusiness', vacant ? 'Business the unit suits' : 'Tenant’s business', text('cmBusiness', 'e.g. clinic, café, office')),
@@ -1376,7 +1454,7 @@ function cmTermCard(c) {
     badge: auBadge(t.kind, ok ? 'the contract rent, its rent-free months and service charge as you entered them' : t.status === 'vacant' ? 'vacant — no contract' : 'not entered'),
     value: ok && isNum(t.effYield) ? `${fmtPct(t.effYield, 2)} a year` : 'Unavailable', attrs: { 'data-cm-fig': 'term', 'data-status': t.status },
     valueAttrs: { 'data-value': ok && isNum(t.effYield) ? String(auR4(t.effYield)) : '', 'data-monthly': ok && isNum(t.monthly) ? String(auR4(t.monthly)) : '' },
-    sub: ok ? `The figures you entered imply an effective yield of ${fmtPct(t.effYield, 2)} a year over the ${cmPlural(t.months, 'month')} to the expiry — ${cmTermWhat(t)} — and a monthly position of ${isNum(t.monthly) ? `${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))}` : 'Unavailable'} on average after the instalment.`
+    sub: ok ? `The figures you entered imply an effective yield of ${fmtPct(t.effYield, 2)} a year over the ${cmPlural(t.months, 'month')} to the expiry, the contract rent held flat — ${cmTermWhat(t)} — and a monthly position of ${isNum(t.monthly) ? `${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))}` : 'Unavailable'} on average after the instalment.`
       : t.status === 'vacant' ? 'The unit is vacant: there is no contract rent to run.'
         : t.status === 'expired' ? 'The lease expiry you entered has passed: no contract months are left to run.'
           : `Enter ${auList(t.missing)} — never assumed.` });
@@ -1386,7 +1464,7 @@ function cmTermFormula(c) {
   if (t.status !== 'ok') return t.status === 'vacant' ? 'The unit is vacant: no contract rent, so no contract cash flow.' : t.status === 'expired' ? 'The lease expiry has passed: no contract months remain.' : `Unavailable until you enter ${auList(t.missing)}.`;
   return `Over the ${t.months} months from ${cmMonthAt(L.now)} to the expiry: rent ${pqMoney(c.contract)} × (${t.months} − ${t.free} rent-free) = ${pqMoney(t.rentIn)}, of which ${fmtNum(L.rentKept * 100, 1)}% is kept after the management and repair shares; service charge received ${pqMoney(t.serviceCharge)} × ${t.months} = ${pqMoney(t.scIn)}, in full; fixed running costs ${pqMoney(L.fixedMonthly)} × ${t.months} = ${pqMoney(t.costs)}. `
     + `Net ${pqMoney(t.net)} ÷ ${fmtNum(t.months / 12, 2)} years ÷ the price ${pqMoney(L.price)} = ${fmtPct(t.effYield, 2)} a year; ${pqMoney(t.net)} ÷ ${t.months} − the instalment ${isNum(t.monthly) ? `= ${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))} a month` : 'cannot be worked out'}. `
-    + 'Rent-free months are taken from now; the service charge is received for every contract month, rent-free or not. No vacancy allowance: the tenancy is in place. What the figures you entered imply — not a forecast.';
+    + 'Rent-free months are taken from now; the service charge is received for every contract month, rent-free or not. No vacancy allowance: the tenancy is in place. The contract rent is held flat to the expiry: an escalation you record is not applied. What the figures you entered imply — not a forecast.';
 }
 
 /* THE FIGURES: L1 and L2. `why` holds what each "How … is worked out"

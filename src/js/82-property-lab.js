@@ -84,7 +84,8 @@ const LAB_INPUT_LIST = [
     span: (a) => [Math.max(0, labSnap(a * 0.75, 1000)), labSnap(a * 1.25, 1000)],
     basis: '±25% of as saved', why: ', to RM1,000 — five of the sensitivity panel’s 5% steps',
     shown: (v) => labMoney(v), spoken: (v) => `${fmtNum(v, 0)} ringgit` },
-  { k: 'downPct', label: () => ptr('in.downPct', 'Deposit (%)'), say: 'Deposit', short: 'Deposit', step: 1,
+  /* The down payment on the auction route, as the calculator's box names it (auctionDown). */
+  { k: 'downPct', label: (d) => (auctionDown(d) ? ptr('in.downPctAuction', 'Down payment (%)') : ptr('in.downPct', 'Deposit (%)')), say: 'Deposit', short: 'Deposit', step: 1,
     span: () => [0, 100], basis: 'the model’s own limits on a deposit',
     shown: (v) => labPctIn(v), spoken: (v, m) => `${fmtNum(v, 0)} percent${isNum(m?.deposit) ? `, ${fmtNum(m.deposit, 0)} ringgit` : ''}`,
     ticks: [10, 20, 30] },
@@ -131,9 +132,14 @@ const LAB_MORE_KEYS = ['tenureYears', 'vacancyPct', 'maintenance', 'holdYears'];
 const LAB_INPUTS = [...LAB_INPUT_LIST.filter(x => !LAB_MORE_KEYS.includes(x.k)), ...LAB_MORE_KEYS.map(k => LAB_INPUT_LIST.find(x => x.k === k))];
 const LAB_INPUT_BY_K = Object.fromEntries(LAB_INPUTS.map(x => [x.k, x]));
 /* The knobs whose typed entry the calculator's own refusal covers
-   (dealEntryRefused, 70-property.js): the four phase 2 added. The first five
-   keep the entry they have always taken. */
-const LAB_REFUSES = new Set(['tenureYears', 'vacancyPct', 'maintenance']);
+   (dealEntryRefused, 70-property.js, QT-001–003), with its reasons: the
+   rate, the rent and the renovation, and the four phase 2 added. A negative
+   rate, rent or renovation was taken here and priced — a repayment, a cash
+   required and a rate of return the calculator's own boxes refuse to make
+   (the 20 Oct 2026 sweep, lab-refurb-2). The price keeps its rule — 0 runs
+   no model and says it needs a price (L15) — and the deposit its clamp to
+   0–100 (F7). */
+const LAB_REFUSES = new Set(['ratePct', 'rent', 'renovation', 'tenureYears', 'vacancyPct', 'maintenance']);
 /* An end of a span, as the span note prints it. */
 const labEdge = (inp, v) => (inp.edge ? inp.edge(v) : inp.k === 'downPct' || inp.k === 'ratePct' ? `${fmtNum(v, inp.k === 'ratePct' ? 2 : 0)}%` : labMoney(v));
 /* Whether a knob means anything for this column's class: a parcel has no
@@ -157,6 +163,13 @@ const labWhose = (d, k) => (isTouched(d, k) ? 'your assumption' : 'sample assump
    development timed from vacant possession (ndTimingOf, 75-property-
    grade.js), "10 years after VP". */
 const labSaleWhen = (d) => { const n = normHoldYears(d?.holdYears); return d && ndTimingOf(d) ? `${n} year${n === 1 ? '' : 's'} after VP` : `year ${n}`; };
+/* What the yearly cash flows are after, in a row's words: tax on the rent
+   only where a marginal rate is entered (taxComputed, 75-property-grade.js),
+   as the monthly position's note says it. The rate of return and the total
+   profit said "after tax" with no rate entered, on flows no tax was taken
+   from (the 20 Oct 2026 sweep: taxed-7, land-commercial-6, stress-8). */
+const labFlowTax = (d, m) => (m.letsToTenant === false ? 'with no rent to tax'
+  : m.taxComputed ? `after tax on the rent at ${labPctIn(d.marginalTaxPct)}` : 'before tax on the rent (no marginal rate entered)');
 const LAB_FIGURES = [
   { key: 'instalment', label: () => 'Monthly repayment', fmt: 'money0', help: 'propInstalment',
     read: (m) => m.instalment,
@@ -188,7 +201,7 @@ const LAB_FIGURES = [
       m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ')),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
-      + ` = ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
+      + ` = ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}${pcShortWords(m, ['acquisition', 'financing'])}. `
       + (m.unconfirmedCost > 0
         ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
         : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
@@ -210,8 +223,12 @@ const LAB_FIGURES = [
     read: (m) => monthlyCommitment(m),
     /* A note only where there is no figure: "Funded from your income" and
        "Property funds itself", the calculator's tile lines, are said by the
-       row's opened formula — four words a row the first frame has not got. */
-    note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown' : null),
+       row's opened formula — four words a row the first frame has not got.
+       And where a marginal rate is entered: the commitment is the monthly
+       position's, before tax on the rent, under a row that gives the month
+       after it (the 20 Oct 2026 sweep, lab-refurb-6). With no rate, every
+       figure is before tax and the row says nothing more. */
+    note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown' : m.taxComputed ? 'before tax on the rent' : null),
     formula: (d, m) => {
       if (!isNum(m.cashflowMonthly)) return 'Not computable: with no repayment schedule the loan’s monthly cost is unknown, and so is what the owner funds.';
       const mc = monthlyCommitment(m), loan = m.loan > 0;
@@ -219,9 +236,11 @@ const LAB_FIGURES = [
          1.00×) is said here, beside the figure it explains: the rent's
          cover of the repayments, the commitment being what it leaves unmet. */
       const cover = isNum(m.dscr) ? ` Debt-service cover ${fmtX(m.dscr, 2)}: net operating income ${labMoney(m.noi)} a year ÷ ${labMoney(m.annualDebtService)} of loan repayments a year${m.dscr < 1 ? ' — below 1.00×, so the rent does not meet them' : ''}.` : '';
+      const taxed = m.taxComputed && isNum(m.path?.[0]?.cf)
+        ? ` That is before tax on the rent: after tax at ${labPctIn(d.marginalTaxPct)}, year 1’s position is ${labMoney(m.path[0].cf / 12)} a month.` : '';
       return (mc > 0
         ? `What the owner pays from their own income each month: ${m.letsToTenant ? `the part of the ${loan ? 'instalment and the running costs' : 'running costs'} that the rent, after vacancy, does not meet` : `the ${loan ? 'instalment and the running costs' : 'running costs'}, as this class earns no rent`} — the monthly position of ${labMoney(m.cashflowMonthly)} with its sign taken off = ${labMoney(mc)} a month.`
-        : `Nothing from the owner’s income: ${m.letsToTenant ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}. The monthly position is ${labMoney(m.cashflowMonthly)}.`) + cover;
+        : `Nothing from the owner’s income: ${m.letsToTenant ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}. The monthly position is ${labMoney(m.cashflowMonthly)}.`) + taxed + cover;
     } },
   { key: 'netYield', label: () => 'Net yield', fmt: 'pct2', help: 'netYield',
     read: (m) => m.netYield,
@@ -236,28 +255,33 @@ const LAB_FIGURES = [
       : m.breakEvenOccupancy > 100 ? 'cannot break even at this rent, however full' : null),
     formula: (d, m) => (!isNum(m.breakEvenOccupancy)
       ? (m.letsToTenant === false ? 'Not a quantity this asset has: there is no rent to fill.' : 'Not computable: the loan’s annual cost is unknown, or there is no rent to divide by.')
-      : `(${labMoney(m.fixedOperatingCosts)} fixed costs + ${labMoney(m.annualDebtService)} debt service) ÷ (${labMoney(m.grossAnnualRent)} rent × (1 − ${fmtPct(m.variableCostRate * 100, 1)} variable costs)) = ${fmtPct(m.breakEvenOccupancy, 1)}.`
+      : `(${labMoney((m.breakEvenOccupancyTerms || { fixed: m.fixedOperatingCosts }).fixed)} fixed costs + ${labMoney(m.annualDebtService)} debt service) ÷ (${labMoney(m.grossAnnualRent)} rent × (1 − ${fmtPct((m.breakEvenOccupancyTerms || { rate: m.variableCostRate }).rate * 100, 1)} variable costs)) = ${fmtPct(m.breakEvenOccupancy, 1)}.`
         + (m.breakEvenOccupancy > 100 ? ' Above 100% the property cannot cover its costs at this rent however full it is.' : '')) },
   { key: 'valueLessLoanAtExit', label: (d) => `Value less loan, ${labSaleWhen(d)} (before selling costs)`, fmt: 'money0', help: 'propValueLessLoan',
     read: (m) => m.valueLessLoanAtExit,
     note: (m) => (isNum(m.valueLessLoanAtExit) ? null : 'Not computable — the loan has no schedule'),
     formula: (d, m) => {
-      const n = normHoldYears(d.holdYears), t = m.ndTiming;
+      const n = normHoldYears(d.holdYears), t = m.ndTiming, sm = num0(d.sellMonths);
       /* Timed from VP: the price grows from signing, the years to VP and
-         the hold (ndTimingOf). */
+         the hold (ndTimingOf). The loan is the one still owed when the sale
+         completes — after the instalments paid while it sells (settledAt,
+         75-property-grade.js) — and the words say so on both branches: the
+         subsale's said "the loan still owed", read as year N's balance,
+         which the full report's year table prints RM4,912 higher on the
+         sample (the 20 Oct 2026 sweep, lab-refurb-7). */
       return t
         ? `Value ${n} year${n === 1 ? '' : 's'} after vacant possession ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — from signing: ${ndYears(t.saleYears)} years, vacant possession being ${t.vpAt} months after signing; plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed when the sale completes, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`
-        : `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
+        : `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed when the sale completes${sm > 0 ? `, ${sm} month${sm === 1 ? '' : 's'} after year ${n}` : ''}, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
     } },
   { key: 'irrPct', label: (d) => `If sold ${labSaleWhen(d).replace(/^year/, 'in year')}`, fmt: 'pct2', help: 'propIrr',
     read: (m) => m.irrPct,
-    note: (m, d) => (isNum(m.irrPct) ? `rate of return on ${labMoney(m.equityOut)} committed` : (m.irrWhy || 'Not computable')),
+    note: (m, d) => (isNum(m.irrPct) ? `rate of return on ${labMoney(m.equityOut)} committed${holdingShort(m) ? ', so far' : ''}` : (m.irrWhy || 'Not computable')),
     formula: (d, m) => {
       const n = normHoldYears(d.holdYears), rr = m.rpgtResult, t = m.ndTiming;
       const sale = t ? `a sale ${n} year${n === 1 ? '' : 's'} after vacant possession` : `a sale in year ${n}`;
       return (isNum(m.irrPct) ? (t
-          ? `The rate of return that sets every year’s cash flow after tax from vacant possession, ${t.vpAt} months after signing, and ${sale} — ${ndYears(t.saleYears)} years after signing — against the ${labMoney(m.equityOut)} committed at signing (the reserve comes back at the sale). No rent and no instalment come before vacant possession. The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth from signing — ${labWhose(d, 'apprecPct')}. `
-          : `The rate of return that sets every year’s cash flow after tax, and ${sale}, against the ${labMoney(m.equityOut)} committed at the start (the reserve comes back at the sale). The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth — ${labWhose(d, 'apprecPct')}. `)
+          ? `The rate of return that sets every year’s cash flow ${labFlowTax(d, m)} from vacant possession, ${t.vpAt} months after signing, and ${sale} — ${ndYears(t.saleYears)} years after signing — against the ${labMoney(m.equityOut)} committed at signing (the reserve comes back at the sale). No rent and no instalment come before vacant possession. The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth from signing — ${labWhose(d, 'apprecPct')}. `
+          : `The rate of return that sets every year’s cash flow ${labFlowTax(d, m)}, and ${sale}, against the ${labMoney(m.equityOut)} committed at the start (the reserve comes back at the sale). The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth — ${labWhose(d, 'apprecPct')}. `)
         : `No rate of return: ${m.irrWhy || 'the flows do not give one'}. `)
         + (rr ? `${t ? `Selling ${n} year${n === 1 ? '' : 's'} after vacant possession, ${ndYears(t.saleYears)} years after the SPA — gains tax counts from the SPA date` : `Selling in year ${n}`}: ${rr.why} ${rr.tax > 0 ? `That is ${labMoney(rr.tax)} on a gain of ${labMoney(rr.chargeableGain)} after ${labMoney(rr.allowable)} of allowable costs.` : 'Nothing is charged on this scenario.'} `
           + 'Rates are cited to Schedule 5 of the Real Property Gains Tax Act and have not been verified against the current schedule or any exemption order in force. Confirm before relying on the figure.' : '');
@@ -269,7 +293,7 @@ const LAB_PAID = [
   { key: 'netExitProceeds', label: 'Net sale proceeds', fmt: 'money0', help: 'propNetExit',
     formula: (d, m) => `${labMoney(m.valueLessLoanAtExit)} value less loan − agent ${labMoney(m.agentFee)} − legal ${labMoney(m.exitLegal)} − gains tax ${labMoney(m.rpgt)} − months carried while selling ${labMoney(m.carryWhileSelling)} = ${labMoney(m.netExitProceeds)}.` },
   { key: 'totalProfit', label: 'Total profit', fmt: 'money0', help: null,
-    formula: (d, m) => `Every year’s cash flow after tax, plus the net sale proceeds, less the ${labMoney(m.acquisitionCost)} of cash the purchase took (everything paid out but the reserve): ${labMoney(m.totalProfit)}.` },
+    formula: (d, m) => `Every year’s cash flow ${labFlowTax(d, m)}, plus the net sale proceeds, less the ${labMoney(m.acquisitionCost)} of cash the purchase took (everything paid out but the reserve): ${labMoney(m.totalProfit)}.` },
 ];
 const labPaid = (d) => !!d && propertyReportUnlocked(d.projectId);
 
@@ -1424,7 +1448,9 @@ function labPricePaint(P, lab, { initial = false } = {}) {
     setTarget: () => { const r = document.getElementById(`${P.idPrefix}-q-target-monthly`); if (r) { r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
   /* The solved price, tried in the column the sliders move — as a move,
      a what-if like any other, kept in this tab until saved. */
-  const solved = s.status === 'solved' && Math.round(num0(d.price)) !== s.price;
+  /* The lowest price that meets a target met from a price up is a price to
+     try as well (solveDealPrice 'from'). */
+  const solved = (s.status === 'solved' || s.status === 'from') && Math.round(num0(d.price)) !== s.price;
   pe.tryBox.replaceChildren(...(solved ? [el('button', { type: 'button', class: 'btn btn-ghost btn-sm pe-try-btn', id: labId(P, 'pe-try-btn'),
     onclick: () => {
       const L = LAB[P.key], c = labActive(L);
@@ -1762,7 +1788,7 @@ function labKnob(P, lab, col, inp) {
   const row = el('div', { class: `lab-knob${lab.input === k ? ' is-on' : ''}${applies ? '' : ' is-off'}${aboutOpen ? ' is-about' : ''}`, id: labId(P, `knob-${k}`), data: { k } });
   const rid = labId(P, `r-${k}`), nid = labId(P, `n-${k}`), lid = labId(P, `l-${k}`), sid = labId(P, `span-${k}`), eid = labId(P, `ev-${k}`);
   const hd = el('div', { class: 'lab-knob-hd' });
-  hd.append(el('label', { class: 'lab-knob-label', id: lid, for: noSlider ? nid : rid }, inp.label()));
+  hd.append(el('label', { class: 'lab-knob-label', id: lid, for: noSlider ? nid : rid }, inp.label(col.work)));
   /* ABOUT THIS INPUT, ONE TAP AWAY ON A PHONE (the release fix of 5 Oct
      2026). In a wide sans — CI's Linux DejaVu, or Verdana here — the span's
      line, the renovation's note (four lines), the deposit's (two) and a
@@ -1786,11 +1812,11 @@ function labKnob(P, lab, col, inp) {
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         row.classList.toggle('is-about', open);
       } }, [el('span', { class: 'lab-about-i', 'aria-hidden': 'true', html: icon('info', 15) }), el('span', { class: 'lab-about-word' }, 'About'),
-      el('span', { class: 'sr-only' }, ` ${inp.label()}`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
+      el('span', { class: 'sr-only' }, ` ${inp.label(col.work)}`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
     hd.append(btn);
   }
   const num = el('input', { type: 'number', inputmode: 'decimal', class: 'input input-inline lab-num', id: nid, step: inp.step,
-    value: String(col.work[k] ?? ''), 'aria-label': `${inp.label()} — type a figure`, 'aria-describedby': `${sid} ${eid}`,
+    value: String(col.work[k] ?? ''), 'aria-label': `${inp.label(col.work)} — type a figure`, 'aria-describedby': `${sid} ${eid}`,
     disabled: applies ? null : '' });
   row.append(hd);
   /* The slider, its box and its way back on one line: on a phone the knob,
@@ -1804,7 +1830,7 @@ function labKnob(P, lab, col, inp) {
      what-if tag takes the evidence tag's place, the two drawn in one cell. */
   /* The unit beside the box (data-unit): on a phone the chosen chip names
      the knob, and its label is for the ear (styles.css, layout-system). */
-  const ctl = el('div', { class: 'lab-knob-ctl', 'data-unit': (inp.label().match(/\((RM|%)\)\s*$/) || [])[1] || null });
+  const ctl = el('div', { class: 'lab-knob-ctl', 'data-unit': (inp.label(col.work).match(/\((RM|%)\)\s*$/) || [])[1] || null });
   row.append(ctl);
   const knob = { row, num, range: null, reset: null, whatIf: null, span: null, ev: null, ticks: null };
   if (!applies) {
@@ -1894,20 +1920,21 @@ function labTyped(P, lab, k, num) {
   const col = labActive(lab), inp = LAB_INPUT_BY_K[k];
   if (String(num.value).trim() === '') {
     num.value = String(col.work[k] ?? '');
-    toast(`An empty box is not zero — “${inp.label()}” stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}. Type 0 if you mean nought.`);
+    toast(`An empty box is not zero — “${inp.label(col.work)}” stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}. Type 0 if you mean nought.`);
     return;
   }
   let v = num0(num.value);
   if (k === 'downPct') v = clamp(v, 0, 100);
-  /* The four knobs added in phase 2 take an entry as the calculator's box
-     does: one the model cannot mean (dealEntryRefused) keeps the box's
-     figure, said; whole years are whole, and a holding period is held to the
-     model's own limits (normHoldYears, as the calculator's box does). */
+  /* The rate, the rent, the renovation and the four knobs added in phase 2
+     take an entry as the calculator's box does: one the model cannot mean
+     (dealEntryRefused) keeps the box's figure, said; whole years are whole,
+     and a holding period is held to the model's own limits (normHoldYears,
+     as the calculator's box does). */
   if (inp.whole) v = k === 'holdYears' ? normHoldYears(v) : Math.round(v);
   const refusal = LAB_REFUSES.has(k) ? dealEntryRefused(k, Number(num.value)) : null;
   if (refusal) {
     num.value = String(col.work[k] ?? '');
-    toast(`“${inp.label()}” ${refusal} — it stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}.`);
+    toast(`“${inp.label(col.work)}” ${refusal} — it stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}.`);
     return;
   }
   /* The box shows the figure the model is given: a deposit typed as 150
@@ -2249,13 +2276,18 @@ function labMetricView(metric, lab) {
       rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, r.m ? fmtPct(r.m.netYield, 2) : 'not computed yet', r.m ? fmtPct(r.m.grossYield, 2) : '—', r.m ? fmtPct(r.m.cashOnCash, 2) : '—']) };
   } else if (metric === 'cashflow') {
     const anyTax = rows.some(r => r.m?.taxComputed);
+    /* Year 1's month after tax, where the model has one: with a rate entered
+       on a loan with no schedule it has none (path[0].cf null), and null ÷ 12
+       printed RM0 beside a position of "—" (the 20 Oct 2026 sweep, taxed-1). */
+    const afterTax = (m) => (m.taxComputed && isNum(m.path?.[0]?.cf) ? m.path[0].cf / 12 : null);
     vm.tables.push(one('cashflowMonthly', 'money0', r => r.m.cashflowMonthly, {
-      ticks: r => (r.m.taxComputed && isNum(r.m.path?.[0]?.cf) ? [{ value: r.m.path[0].cf / 12, label: 'after tax' }] : []),
-      note: r => (r.m.taxComputed ? `after tax on the rent ${labMoney(r.m.path[0].cf / 12)}` : 'before tax on the rent'),
+      ticks: r => (isNum(afterTax(r.m)) ? [{ value: afterTax(r.m), label: 'after tax' }] : []),
+      note: r => (!r.m.taxComputed ? 'before tax on the rent' : isNum(afterTax(r.m)) ? `after tax on the rent ${labMoney(afterTax(r.m))}` : 'after tax on the rent: not computable — the loan has no schedule'),
       table: { form: 'diverging', title: 'Monthly position, about nought' } }));
     if (!anyTax) vm.words.push('Every column is before tax on the rent: no marginal tax rate is entered.');
     vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'Monthly position', 'After tax on the rent'],
-      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, r.m ? labMoney(r.m.cashflowMonthly) : 'not computed yet', r.m?.taxComputed ? labMoney(r.m.path[0].cf / 12) : 'no tax rate entered']) };
+      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, r.m ? labMoney(r.m.cashflowMonthly) : 'not computed yet',
+        !r.m ? '—' : !r.m.taxComputed ? 'no tax rate entered' : isNum(afterTax(r.m)) ? labMoney(afterTax(r.m)) : 'not computable']) };
   } else if (metric === 'entry') {
     vm.tables.push(one('safeCashRequired', 'money0', r => r.m.safeCashRequired, {
       parts: r => [{ part: 'transactionCash', value: r.m.transactionCash, label: 'to complete' },
@@ -3370,7 +3402,7 @@ function labRefurbCard(P, lab) {
     num('rfSettlement', 'Loan settlement (RM)', 1000, 'not entered — the loan as modelled'), basis('rfSettlementBasis', 'The settlement figure is')]));
   box.append(sf);
   const how = el('details', { class: 'pc-more ls-l3 au-more', id: labId(P, 'rf-how') }, [el('summary', { class: 'pc-more-sum' }, 'How each option is worked out'),
-    el('p', { class: 'pc-more-body au-note' }, 'Once let, an option’s monthly position and net operating income are the calculator’s own at your rent plus the uplift, every other figure held; its net yield is that income over the price plus the works. The monthly position shown averages the first twelve months: the months without rent cost what the property costs with no rent coming in (the instalment and the running costs). Cash required is the works plus those months. Improvement payback is the works’ cost ÷ the net operating income they add a year — “Not demonstrated” when they add none, or no uplift is entered. A sale is your price less the calculator’s agent’s and legal percentages and the loan settlement — your figure, or the loan as modelled before any repayment — before gains tax, which turns on how long you have held it.')]);
+    el('p', { class: 'pc-more-body au-note' }, 'Every option is worked on the column you are in, its moves included. Once let, an option’s monthly position and net operating income are the calculator’s at that column’s rent plus the uplift, every other figure held; its net yield is that income over the price plus the works. The monthly position shown averages the first twelve months: the months without rent cost what the property costs with no rent coming in (the instalment and the running costs). Cash required is the works plus those months. Improvement payback is the works’ cost ÷ the net operating income they add a year — “Not demonstrated” when they add none, or no uplift is entered. A sale is your price less the calculator’s agent’s and legal percentages and the loan settlement — your figure, or the loan as modelled before any repayment — before gains tax, which turns on how long you have held it.')]);
   box.append(how);
   /* The lens: which rows lead, never the options' order. */
   const fs = el('fieldset', { class: 'lab-pick lab-pick-lens' });
@@ -3413,13 +3445,19 @@ function labRfPaint(P, lab) {
   const lens = LAB_LENS_BY_ID[lab.lens] ? lab.lens : LAB_LENS_DEFAULT;
   const rows = RF_LENS_ORDER[lens].map((id, i) => ({ id, label: RF_ROW_LABEL[id], level: i < 2 ? 1 : 2, cells: r.options.map(o => rfCell(id, o, { d })) }));
   const pending = !!lab.model && labAnswersPending(lab);
-  const sig = JSON.stringify([lens, rows.map(x => [x.id, x.cells.map(c => [c.text, c.sub, c.kind, !!c.na])]), pending]);
-  labText(rf.say, `${rfWords(r)} ${LAB_LENS_BY_ID[lens].label} lens: ${RF_ROW_SHORT[rows[0].id]} and ${RF_ROW_SHORT[rows[1].id]} lead; the options keep their order.`);
+  /* WHOSE FIGURES, SAID (the 20 Oct 2026 sweep, lab-refurb-4). Every option
+     is worked on the active column — on a saved property B, a scenario or a
+     copy carrying the reader's moves — and the card called Do nothing "the
+     property as modelled" without naming it. The say line and Do nothing's
+     header name the column, as the chain's header does. */
+  const named = `${col.key} — ${labShownName(lab, col)}`;
+  const sig = JSON.stringify([lens, named, rows.map(x => [x.id, x.cells.map(c => [c.text, c.sub, c.kind, !!c.na])]), pending]);
+  labText(rf.say, `Worked on ${named}${labMoveCount(col) ? ', with its unsaved moves' : ''}. ${rfWords(r)} ${LAB_LENS_BY_ID[lens].label} lens: ${RF_ROW_SHORT[rows[0].id]} and ${RF_ROW_SHORT[rows[1].id]} lead; the options keep their order.`);
   if (rf.sig === sig) return;
   rf.sig = sig;
   const pre = labId(P, 'rf');
   const kids = [el('div', { class: 'lab-xr-row lab-xr-cols' }, r.options.map(o => el('div', { class: 'lab-xr-colhd lab-rf-colhd', 'data-col': o.id, 'data-option': o.id }, [
-    el('strong', { class: 'lab-xr-colname' }, o.label), el('span', { class: 'lab-xr-ra' }, o.id === 'none' ? 'the property as modelled' : o.id === 'sell' ? 'your price, less selling costs and the loan' : 'your cost, uplift and void')])))];
+    el('strong', { class: 'lab-xr-colname' }, o.label), el('span', { class: 'lab-xr-ra' }, o.id === 'none' ? `column ${col.key}, as it stands` : o.id === 'sell' ? 'your price, less selling costs and the loan' : 'your cost, uplift and void')])))];
   rows.forEach(row => {
     const hid = `${pre}-row-${row.id}`;
     const rowEl = el('div', { class: `lab-xr-row is-l${row.level}`, role: 'group', 'aria-labelledby': hid, 'data-row': row.id });
@@ -3710,7 +3748,10 @@ function labPaintPanel(P, { initial = false } = {}) {
       const moved = (f) => LAB_FORMATS[f.fmt](f.read(m, d)) !== LAB_FORMATS[f.fmt](f.read(ref, col.baseInputs));
       const movedRows = LAB_FIGURES.filter(moved).map(f => f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase().replace(/\bvp\b/g, 'VP'));
       if (labPaid(d)) LAB_PAID.forEach(f => { if (LAB_FORMATS[f.fmt](m[f.key]) !== LAB_FORMATS[f.fmt](ref[f.key])) movedRows.push(f.label.toLowerCase()); });
-      s = `Moved by ${col.key}’s moves (${moves.join(', ')}): ${movedRows.length ? movedRows.join('; ') : 'none of the seven'}.`;
+      /* "None of the results", not a count: "none of the seven" stood after
+         the chain grew to eight rows, ten with the report's two (the 20 Oct
+         2026 sweep, lab-refurb-8). */
+      s = `Moved by ${col.key}’s moves (${moves.join(', ')}): ${movedRows.length ? movedRows.join('; ') : 'none of the results'}.`;
       /* WHAT RENOVATION DOES NOT MOVE, said and nothing more. "Renovation
          moves only the cash required and the rate of return" was false
          wherever any of it is recovered at the sale (value less loan and
@@ -3821,7 +3862,7 @@ function labRenoCard(P, lab) {
     const r = renovationReturn(col.work, col.cur.m);
     card.hidden = false;
     card.replaceChildren(el('p', { class: 'metaline' }, r.applicable
-      ? `With and without the renovation (the calculator’s renovation return): rate of return ${fmtPct(r.irrWith, 2)} with it, ${fmtPct(r.irrWithout, 2)} without; cash required ${labMoney(r.cashWith)} with it, ${labMoney(r.cashWithout)} without. The share of the rent that depends on it is ${labPctIn(r.rentUpliftPct)} — set in the calculator, never by this knob.`
+      ? `With and without the renovation (the calculator’s renovation return): rate of return ${fmtPct(r.irrWith, 2)} with it, ${fmtPct(r.irrWithout, 2)} without; cash required ${labMoney(r.cashWith)} with it, ${labMoney(r.cashWithout)} without${pcShortOf(col.cur.m) ? ', so far' : ''}. The share of the rent that depends on it is ${labPctIn(r.rentUpliftPct)} — set in the calculator, never by this knob.`
       : r.why));
   }
 }

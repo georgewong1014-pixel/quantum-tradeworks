@@ -49,6 +49,9 @@ const PROPERTY_DRIVERS = [
     why: 'Longer lowers the instalment and raises the total interest.' },
 ];
 
+/* The drivers only a loan gives anything to move. */
+const LOAN_DRIVERS = new Set(['ratePct', 'tenureYears']);
+
 /* Computed here rather than inside dealModel, because dealModel is what it
    calls — putting it in the model would make the model run itself sixteen
    times per render, and then sixteen times inside each of those. */
@@ -62,8 +65,13 @@ function propertySensitivity(d) {
   /* Only drivers this class has. A parcel's rent, vacancy and service
      charge move nothing the model uses, so they ranked at 0.00 pp and were
      named as "the two that move it least" — a statement about inputs the
-     page says it withholds. */
-  const drivers = PROPERTY_DRIVERS.filter(p => propertyInputApplies(d, p.k)).map(p => {
+     page says it withholds. And only drivers this deal has: with no loan
+     the rate and the tenure move nothing either (the 20 Oct 2026 sweep,
+     land-commercial-5) — "the two that move it least are interest rate and
+     loan tenure, at 0.00 and 0.00 points" on every cash purchase, beside a
+     Lab saying nothing uses a tenure there. */
+  const noLoan = !(num0(base.loan) > 0);
+  const drivers = PROPERTY_DRIVERS.filter(p => propertyInputApplies(d, p.k) && !(noLoan && LOAN_DRIVERS.has(p.k))).map(p => {
     const cur = num0(d[p.k]);
     const step = isNum(p.step) ? p.step : Math.abs(cur * (p.pct / 100));
     if (!(step > 0)) return null;
@@ -206,7 +214,10 @@ function propertySensitivityPanel(d, m) {
   card.append(block);
 
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
-  t.append(el('thead', {}, el('tr', {}, ['Assumption', 'One step down', 'One step up', 'Swing']
+  /* The larger of the two one-step moves, which the ranking is by — not the
+     distance between the two ends beside it (the 20 Oct 2026 sweep,
+     stress-9). */
+  t.append(el('thead', {}, el('tr', {}, ['Assumption', 'One step down', 'One step up', 'Larger move']
     .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
   t.append(el('tbody', {}, s.drivers.map(x => el('tr', {}, [
     el('th', { scope: 'row', style: 'text-align:left' }, [
@@ -263,9 +274,11 @@ function propertySensitivityPanel(d, m) {
   /* Interest rate and the two term lengths carry no evidence grade because
      they are not observations. Saying so prevents the list above reading as
      though the ungraded drivers were verified. */
-  card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-    'Interest rate is quoted by a bank, and the holding period and loan tenure are your decisions, so none of the three '
-    + 'carries an evidence grade. Their absence from the list above is not a sign that they have been checked.'));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, num0(s.base.loan) > 0
+    ? 'Interest rate is quoted by a bank, and the holding period and loan tenure are your decisions, so none of the three '
+      + 'carries an evidence grade. Their absence from the list above is not a sign that they have been checked.'
+    : 'The holding period is your decision, so it carries no evidence grade. Its absence from the list above is not a sign '
+      + 'that it has been checked. With no loan, the interest rate and the loan tenure move nothing, so they are not ranked.'));
 
   /* ----------------------------------------------------------- break-points */
   card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' }, 'Where it stops covering itself'));
@@ -279,7 +292,7 @@ function propertySensitivityPanel(d, m) {
       fmt: v => fmtPct(v, 1), room: v => `${fmtPct(Math.abs(v - num0(d.vacancyPct)), 1)} more vacancy`,
       now: fmtPct(num0(d.vacancyPct), 1),
       none: 'Does not cover itself even at zero vacancy, so a perfect letting record does not fix it.' },
-  ].filter(r => propertyInputApplies(d, r.key))
+  ].filter(r => propertyInputApplies(d, r.key) && !(num0(s.base.loan) <= 0 && LOAN_DRIVERS.has(r.key)))
    .map(r => ({ ...r, res: propertyBreakPoint(d, r.key, { measure: 'cashflow', lo: r.lo, hi: r.hi }) }));
 
   const bt = el('table', { class: 'dt' });
@@ -322,28 +335,68 @@ function propertySensitivityPanel(d, m) {
      the interest, but what left the account is the whole instalment. The
      principal inside it is taxed in the year it is repaid while never being
      available to pay the tax on itself. */
-  if (m && m.taxComputed) {
+  /* TAX ALONE, AND ITS OWN REASONS (the 20 Oct 2026 sweep: taxed-3,
+     taxed-6). The cash break-even is a zero of the model's own month, and
+     year one's cash before tax is that month (check 2 of model-test), so
+     the after-tax figure exceeds it by the tax and nothing else. At the cash
+     break-even, what is taxed is what was paid and is not deductible: the
+     principal inside the instalment, and the first tenant's placement fee —
+     each named only where the deal has it. With neither (a cash purchase
+     with no placement fee) nothing is taxed there, and the two are one
+     figure; a cash purchase is not told about an instalment it does not
+     pay. */
+  /* ON ONE BASIS (the Day-8 review): the cash break-even is the steady
+     month, twelve instalments; the after-tax one is solved on year 1. Where
+     year 1 is not a full year of instalments — an auction whose balance
+     falls due after its holding months end — the two are not set against
+     each other, and the reason is said. A gap is never clamped: under a
+     ringgit either way it is the solver's rounding, and below that the
+     comparison is withheld with its reason. */
+  const y1 = m && m.path && m.path[0];
+  const steady = !y1 || !isNum(m.annualDebtService) || !isNum(y1.debt) || Math.abs(y1.debt - m.annualDebtService) < 0.005;
+  if (m && m.taxComputed && !steady) {
+    card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+      `Year 1 here pays ${(n => fmtNum(n, Number.isInteger(n) ? 0 : 2))(Math.round(y1.debt / m.instalment * 100) / 100)} of the 12 instalments — the balance falls due after the holding months end — so its after-tax break-even is not set against the monthly one, which counts all 12.`));
+  } else if (m && m.taxComputed) {
     const rentBase = num0(d.rent);
     const afterTax = propertyBreakPoint(d, 'rent', {
       measure: 'cashflowAfterTax', lo: 0, hi: Math.max(rentBase * 6, 30000),
     });
-    if (isNum(afterTax.value) && isNum(m.breakEvenRent)) {
-      const gap = afterTax.value - m.breakEvenRent;
-      card.append(el('div', { style: 'margin-top:var(--lg);padding:var(--md);border:1px solid var(--bronze);border-radius:var(--r-md)' }, [
-        el('p', { class: 'body', style: 'font-weight:600;margin:0' }, 'Breaking even on cash is not breaking even after tax.'),
-        el('p', { class: 'metaline', style: 'margin-top:6px' },
-          `Covering the outgoings takes ${fmtMoney(m.breakEvenRent, 'MYR', 0)} a month. Covering them and the tax on the rent takes `
-          + `${fmtMoney(afterTax.value, 'MYR', 0)} — ${fmtMoney(Math.abs(gap), 'MYR', 0)} more.`),
-        el('p', { class: 'metaline', style: 'margin-top:6px' },
-          'The two figures measure different things. At the cash break-even the whole instalment has left the account, but only '
-          + 'the interest inside it was deductible. The principal is taxed as income in the year it is repaid while never being '
-          + 'available to pay the tax on itself — so a property that exactly covers its costs still generates a bill.'),
-      ]));
+    const atBE = isNum(m.breakEvenRent) ? dealModel({ ...d, rent: m.breakEvenRent }).path?.[0] : null;
+    const gap0 = isNum(afterTax.value) && isNum(m.breakEvenRent) ? afterTax.value - m.breakEvenRent : null;
+    if (isNum(gap0) && gap0 < -0.5) {
+      card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+        `Covering the outgoings takes ${fmtMoney(m.breakEvenRent, 'MYR', 0)} a month; the after-tax figure works out below it, which tax cannot do, so it is not shown.`));
+    } else if (isNum(gap0) && atBE && isNum(atBE.taxable)) {
+      const principal = num0(atBE.principal);
+      const fee = atBE.taxable - (atBE.rent - atBE.opex - atBE.interest);
+      const gap = Math.abs(gap0) < 0.5 ? 0 : gap0;
+      /* What is taxed at the cash break-even is the principal and the fee
+         left out, and nothing else: with neither, no more than rounding. */
+      if (!(principal > 0) && !(fee >= 0.5)) {
+        card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+          `Covering the outgoings takes ${fmtMoney(m.breakEvenRent, 'MYR', 0)} a month, and at that rent no tax on the rent is due, so it is the after-tax break-even too.`));
+      } else {
+        const why = [
+          principal > 0 ? 'At the cash break-even the whole instalment has left the account, but only '
+            + 'the interest inside it was deductible. The principal is taxed as income in the year it is repaid while never being '
+            + 'available to pay the tax on itself — so a property that exactly covers its costs still generates a bill.' : null,
+          fee >= 0.5 ? `${principal > 0 ? 'The first tenant’s placement fee adds to it: it is paid' : 'At the cash break-even the first tenant’s placement fee has been paid'} `
+            + 'but is not deductible, so the rent that pays it is taxed.' : null,
+        ].filter(Boolean).join(' ');
+        card.append(el('div', { style: 'margin-top:var(--lg);padding:var(--md);border:1px solid var(--bronze);border-radius:var(--r-md)' }, [
+          el('p', { class: 'body', style: 'font-weight:600;margin:0' }, 'Breaking even on cash is not breaking even after tax.'),
+          el('p', { class: 'metaline', style: 'margin-top:6px' },
+            `Covering the outgoings takes ${fmtMoney(m.breakEvenRent, 'MYR', 0)} a month. Covering them and the tax on the rent takes `
+            + `${fmtMoney(afterTax.value, 'MYR', 0)} — ${fmtMoney(gap, 'MYR', 0)} more.`),
+          el('p', { class: 'metaline', style: 'margin-top:6px' }, `The two figures measure different things. ${why}`),
+        ]));
+      }
     }
   } else if (propertyInputApplies(d, 'rent')) {
     card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-      'These are before tax on the rent. Enter your marginal rate above and the after-tax break-even appears here — it is higher '
-      + 'than this one, because the principal inside the instalment is taxed but not deductible.'));
+      'These are before tax on the rent. Enter your marginal rate above and the after-tax break-even appears here'
+      + (num0(m && m.loan) > 0 ? ' — it is higher than this one, because the principal inside the instalment is taxed but not deductible.' : '.')));
   }
 
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },

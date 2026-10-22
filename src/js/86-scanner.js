@@ -1356,11 +1356,11 @@ function scanBoundaryDetails() {
   const det = el('details', { class: 'card scan-boundary' });
   det.append(el('summary', { class: 'h-card' }, 'What this will and will not do'));
   det.append(el('ul', { class: 'ticklist', style: 'margin-top:var(--sm)' }, [
-    el('li', {}, 'It reads only your own price history — data/price-history.json, built from your screen or your export under your subscription. No feed is licensed to this product, so no other data is scanned and none of this is offered to anyone else.'),
+    el('li', {}, 'It reads only your own price history, built from your screen or your export under your subscription. No feed is licensed to this product, so no other data is scanned and none of this is offered to anyone else.'),
     el('li', {}, 'A match is a record that the conditions you wrote held on a completed bar, with the values. It is not a signal, and no indicator here has been validated on point-in-time data, so none is claimed to work.'),
     el('li', {}, 'Nothing is ranked or sorted by strength. Matches appear in date order, then in the order of your setups and your instruments.'),
     el('li', {}, 'Nothing is delivered. The worker writes a file; these pages read it. Email, Telegram and push need a server and a contact address held under a privacy notice, and this build has neither.'),
-    el('li', {}, 'Setups are kept in this browser and in git-ignored files on this machine. That is not access control: there are no accounts, and anyone with this machine or browser profile can read them.'),
+    el('li', {}, 'Setups are kept in this browser and in files on this machine. That is not access control: there are no accounts, and anyone with this machine or browser profile can read them.'),
     /* It said weekly and monthly bars were "derived from" the daily ones
        after the engine had begun reading the reader's imported weeks and
        months wherever the history holds them (scanFrameBars). */
@@ -1444,7 +1444,7 @@ VIEWS.scannerSetups = () => {
     e.append(el('h2', { class: 'h-card' }, 'No setups saved in this browser'));
     e.append(el('p', { class: 'body', style: 'margin:6px auto 0' }, fileOnly.length
       ? `The worker’s file holds ${scanPlural(fileOnly.length, 'setup')} this browser has not adopted. Adopt them above to see their versions here and edit them in the builder, or write a new one.`
-      : 'Write a setup from conditions you choose — the builder offers every indicator and operator the engine evaluates, and refuses a comparison of two unrelated scales. A committed example of the file is at scanner/setups.example.json.'));
+      : 'Write a setup from conditions you choose — the builder offers every indicator and operator the engine evaluates, and refuses a comparison of two unrelated scales.'));
     /* One primary action on the page (Release B, B5): the head's "New setup"
        is it, and this, the same address, stays quiet beside the words. */
     e.append(el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--md)' }, scanLink('/app/scanner/setups/new', 'Write a setup', { class: 'btn btn-ghost btn-sm' })));
@@ -2470,7 +2470,7 @@ VIEWS.scannerWatchlists = () => {
       el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => {
         scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); scanRender();
       } }, 'Export for the scanner')));
-    xc.append(el('p', { class: 'metaline', style: 'max-width:80ch' }, 'Save the download as data/watchlists.json (git-ignored) where the worker runs. A setup set to resolve from your latest export reads its list from that file at every run; the worker cannot read this browser, so the list it sees is the one you last exported, and a setup whose list is not in the file is evaluated on its own snapshot and the run marked partial. Setups on a snapshot never read the file.'));
+    xc.append(el('p', { class: 'metaline', style: 'max-width:80ch' }, 'Save the download as data/watchlists.json where the worker runs. A setup set to resolve from your latest export reads its list from that file at every run; the worker cannot read this browser, so the list it sees is the one you last exported, and a setup whose list is not in the file is evaluated on its own snapshot and the run marked partial. Setups on a snapshot never read the file.'));
     wrap.append(xc);
   }
   const history = scanHistoryFile;
@@ -3194,7 +3194,7 @@ VIEWS.scannerAlert = () => {
    /app/scanner/settings
    ===================================================================== */
 const SCAN_CHANNELS = [
-  { id: 'EMAIL', label: 'Email', why: 'No server, and no contact address is held under a privacy notice. Delivery by email waits on an operating entity and a backend.' },
+  { id: 'EMAIL', label: 'Email', why: 'No server, and no contact address is held under a privacy notice. Email delivery is not available.' },
   { id: 'TELEGRAM', label: 'Telegram', why: 'A Telegram bot token has to live on a server, and there is none.' },
   { id: 'PUSH', label: 'Push', why: 'Push needs a push service and a live scanner; neither exists in this build.' },
 ];
@@ -3258,6 +3258,6 @@ VIEWS.scannerSettings = () => {
   g.append(pick('Recorded values', prefs.precision, [['full', 'As computed — twelve significant digits'], ['rounded', 'Rounded as the tables round']], 'precision'));
   c2.append(g);
   wrap.append(c2);
-  wrap.append(el('p', { class: 'caption' }, 'Kept under scanPrefs, scanAlertState and scanSetups in this browser’s storage, and carried by the export on the Your data page. A second device keeps its own.'));
+  wrap.append(el('p', { class: 'caption' }, 'Kept in this browser’s storage, and carried by the export on Your data & settings. A second device keeps its own.'));
   return wrap;
 };

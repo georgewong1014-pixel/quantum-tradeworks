@@ -767,8 +767,12 @@ VIEWS.comparables = () => {
   admin.append(actorRow);
   /* The integrity line. A history that cannot account for the figures beside
      it is worse than no history, because it invites trust it has not earned. */
+  /* Not on an empty register: "replaying all 0 events reproduces every one
+     of the 0 records held" stood above "No changes recorded yet" (the 20
+     Oct 2026 sweep, copy-property-19). With nothing held there is nothing
+     for the history to account for; a mismatch is still said. */
   const integ = registerIntegrity();
-  admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+  if (!(integ.state === 'ok' && !integ.held)) admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     integ.state === 'ok'
       ? `History checked: replaying all ${integ.events} events reproduces every one of the ${integ.held} record${integ.held === 1 ? '' : 's'} held, exactly.`
       : integ.state === 'unverifiable'
@@ -800,8 +804,14 @@ VIEWS.comparables = () => {
     head.append(el('div', { class: tiles.length > 4 ? 'grid grid-5' : 'grid g-4', style: 'margin-top:var(--md)' },
       tiles.map(([k, v]) => el('div', { class: 'panel' }, statTile(k, String(v))))));
   } else {
+    /* What the data-sources page reviews, counted from the list it prints
+       (SARAWAK_TRANSACTION_SOURCES, 19-data-licence.js). "Roughly forty
+       sources were tested" named a review published nowhere; that page
+       reviews seven, of transactions (the 20 Oct 2026 sweep,
+       copy-property-8). */
+    const nSources = SARAWAK_TRANSACTION_SOURCES.length;
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
-      'Roughly forty sources were tested for Sarawak transaction and rental evidence and none can be redistributed by this product — the review is on the data-sources page. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.'));
+      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.`));
     head.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, WORKED_EXAMPLE_NOTE));
     head.append(workedExampleControls({ primary: false }));
     head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
@@ -810,7 +820,7 @@ VIEWS.comparables = () => {
         'Open the calculator to record one'),
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/data-sources'),
         onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/data-sources'); } },
-        'Why nothing can be loaded'),
+        'Why no market data can be loaded'),
     ]));
   }
   wrap.append(head);
@@ -928,7 +938,7 @@ VIEWS.comparables = () => {
   const rules = el('div', { class: 'card' });
   rules.append(cardHead('What this register will not do', 'Named, because each one is a way a comparables list normally goes wrong.'));
   const rl = el('ul', { class: 'ticklist blocklist' });
-  ['Ship with rows already in it. A populated register on a build that holds no licensed Sarawak evidence would be inventing the market this layer exists because nobody publishes.',
+  ['Ship with rows already in it. No licensed Sarawak evidence is held here, so rows put in before yours could only be invented.',
    'Republish anyone\'s listing or transaction data. What is here is what you recorded from something you can point at.',
    'Average asking against achieved. A quoted rent and a signed tenancy are different facts about different things.',
    'Rank districts or call one a better area. It reports what was recorded and how many readings that is.',

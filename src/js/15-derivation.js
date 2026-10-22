@@ -119,6 +119,12 @@ function modelMoveText(then) {
   return moved.length ? moved.join(', ') : `${then} → ${MODEL_VERSION}`;
 }
 const shortHash = (h) => h ? String(h).slice(0, 7) : 'unrecorded';
+/* A dataset named as a reader knows it, not by its file (the 20 Oct 2026
+   sweep, copy-equities-24): Saved work said "this build: us.json a635756".
+   The key stays the file's, so a stamp still compares; only its name in a
+   sentence changes. */
+const DATA_NAME = { 'us.json': 'SEC filings', 'personal-fundamentals.json': 'your statements' };
+const dataName = (k) => DATA_NAME[k] || k;
 function stampDiff(stamp, legacy = null) {
   if (!stamp || typeof stamp !== 'object' || !stamp.model) {
     const model = legacy?.model || null;
@@ -138,7 +144,7 @@ function stampDiff(stamp, legacy = null) {
   if (modelMoved) parts.push(`Model moved: ${modelMoveText(stamp.model)}.`);
   moved.forEach(m => parts.push(m.key === ILLUS_SET
     ? `Data moved: the illustrative set was dated ${m.then}; it is now dated ${m.now}.`
-    : `Data moved: saved against ${m.key} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; this build carries ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`));
+    : `Data moved: saved against ${dataName(m.key)} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; this build carries ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`));
   const status = modelMoved && dataMoved ? 'both' : modelMoved ? 'model' : dataMoved ? 'data' : 'current';
   return { status, stamped: true, modelMoved, dataMoved, moved,
     label: { both: 'Model and data moved', model: 'Model moved', data: 'Data moved', current: 'Current' }[status],
@@ -148,7 +154,7 @@ function stampDiff(stamp, legacy = null) {
 function stampDataText(stamp) {
   if (!stamp?.data) return 'not recorded';
   const bits = Object.entries(stamp.data).map(([k, d]) => k === ILLUS_SET ? `illustrative set ${d.v}`
-    : d.v ? `${k} ${shortHash(d.v)}${d.generated ? ` (${String(d.generated).slice(0, 10)})` : ''}` : `${k} (${d.note || 'unversioned'})`);
+    : d.v ? `${dataName(k)} ${shortHash(d.v)}${d.generated ? ` (${String(d.generated).slice(0, 10)})` : ''}` : `${dataName(k)} (${d.note || 'unversioned'})`);
   return bits.length ? bits.join(' · ') : 'no dataset — your own inputs';
 }
 /* The data this build carries now, in the same words — for an export
@@ -1040,22 +1046,40 @@ const anchor = (v, lo, hi, invert = false) => {
    strength pillar is section 14's separate balance-sheet weight. Moat is absent
    from both, as declared in the coverage table below.
    ========================================================================== */
+/* NAMED FOR WHAT IT AVERAGES (the 20 Oct 2026 sweep, copy-equities-3). The
+   first pillar was "Business Quality", the name the Scorecard beside it uses
+   for one of the three scores averaged here: Apple read 78 here and 93
+   there, and a filed REIT with no business-quality score at all read
+   "Business Quality 54" over a note naming three pillars when two were
+   averaged. The name now says what the figure is, and the note names the
+   Scorecard scores it averaged and any it could not. Weights and arithmetic
+   are unchanged. */
+const QUALITY_PARTS = [['quality', 'business quality'], ['growth', 'growth quality'], ['capital', 'capital allocation']];
 const COMPOSITE_PILLARS = [
-  { id:'quality', label:'Business Quality', w:35,
+  { id:'quality', label:'Quality, growth and capital allocation', w:35,
     get: (r) => {
       /* Equal thirds of the section 7 pillars this build actually scores. */
       const parts = [r.scores.quality?.score, r.scores.growth?.score, r.scores.capital?.score].filter(isNum);
       return parts.length ? parts.reduce((a, b) => a + b, 0) / parts.length : null;
     },
-    from: 'the business quality, growth quality and capital allocation pillars' },
+    from: (r) => {
+      const held = QUALITY_PARTS.filter(([k]) => isNum(r.scores[k]?.score)).map(([, n]) => n);
+      const not = QUALITY_PARTS.filter(([k]) => !isNum(r.scores[k]?.score)).map(([, n]) => n);
+      return `The average of the Scorecard’s ${andList(held)} scores${not.length ? ` only — ${andList(not)} could not be scored` : ''}.`;
+    },
+    absent: 'None of the Scorecard’s business quality, growth quality and capital allocation scores could be computed.' },
+  /* A pillar not tested says why, as the two below it do: the Source cell
+     was empty. */
   { id:'value',  label:'Valuation Evidence', w:30, get: (r) => r.scores.value?.score,
-    from: 'the valuation pillar' },
+    from: 'the valuation pillar',
+    absent: (r) => isNum(r.c.px?.p) ? 'None of the valuation inputs could be computed.' : 'Every valuation input needs a price, and none is held for this company.' },
   { id:'risk',   label:'Balance Sheet and Risk', w:15, get: (r) => r.scores.strength?.score,
-    from: 'the financial strength pillar' },
+    from: 'the financial strength pillar',
+    absent: 'None of the financial strength inputs could be computed.' },
   { id:'catalysts', label:'Catalysts and Change', w:10, get: () => null,
-    absent:'The catalyst registry of section 11 does not exist, so no catalyst has been counted, dated or expired for any company.' },
+    absent:'No catalyst registry exists in this build, so no catalyst has been counted, dated or expired for any company.' },
   { id:'macro',  label:'Macro and Sector Context', w:10, get: () => null,
-    absent:'The macro engine of section 6 does not exist — no cycle state, rate context, currency exposure or policy evidence is carried.' },
+    absent:'No macro engine exists in this build — no cycle state, rate context, currency exposure or policy evidence is carried.' },
 ];
 
 /* Section 14.2, in the section 2 language: a state, never an instruction. */
@@ -1291,7 +1315,11 @@ function riskFlags(c, d) {
   if (c.type === 'reit' && isNum(m.gearing) && m.gearing > 40)
     add('warning', 'Gearing approaching the regulatory ceiling', `Gearing of ${fmtPct(m.gearing)} leaves limited headroom for debt-funded acquisition.`, 'gearing');
   if (c.flags?.pn17) add('critical', 'PN17 status', 'Company is classified under Practice Note 17 and is subject to a regularisation plan.', null);
-  if (c.qrisk) add('warning', 'Qualitative risk (analyst review)', c.qrisk, null);
+  /* A filer's qualitative risk was named "(analyst review)" over a line
+     saying nobody had researched it (the 20 Oct 2026 sweep,
+     copy-equities-34). The illustrative set's is written text and keeps
+     its name. The flag and its weight are unchanged. */
+  if (c.qrisk) add('warning', c.real ? 'Qualitative risk (not researched)' : 'Qualitative risk (analyst review)', c.qrisk, null);
   return out;
 }
 

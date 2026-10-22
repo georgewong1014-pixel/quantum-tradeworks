@@ -225,7 +225,9 @@ const METRIC_HELP = {
   propIrr: { label: 'Rate of return if sold',
     simple: 'The yearly return on the cash committed at the start, counting every year’s cash flow and the sale at the end, each at the time it arrives.',
     context: 'Measured on all the cash committed, the reserve included — which comes back at the sale. Where the cash flow changes direction more than once, more than one rate can fit, and the page says so rather than choosing one.',
-    technical: 'The rate r at which −cash committed + Σ (after-tax cash flow in year t) ÷ (1 + r)^t + (net sale proceeds + the reserve) ÷ (1 + r)^N equals zero, N being the holding period.' },
+    /* After tax only where a marginal rate is entered (the 20 Oct 2026
+       sweep, stress-8): the Lab says which; this says both. */
+    technical: 'The rate r at which −cash committed + Σ (cash flow in year t — after tax on the rent where you entered a marginal rate, before it where you did not) ÷ (1 + r)^t + (net sale proceeds + the reserve) ÷ (1 + r)^N equals zero, N being the holding period.' },
 };
 
 /* Remembered so a reader who wants the technical depth is not returned to the
@@ -338,7 +340,13 @@ const STORE_SHAPES = {
   portfolios: { list: true, nonEmpty: true, what: 'a portfolio with a list of holdings',
                 item: (p) => isRecord(p) && Array.isArray(p.holdings) && p.holdings.every(isRecord),
                 emptied: () => [{ id: 'pf-user', name: 'My portfolio', cash: 0, cashCcy: 'MYR', holdings: [] }] },
-  /* The case card and its evaluation read these three lists unguarded. */
+  /* The case card and its evaluation read these three lists unguarded. The
+     fields a case gained in Day 8 (QT-D08-01) — `suggested` (which defaults
+     are still the tool's), `suggested` on a condition, and `snapshot` (the
+     research when it was started) — are optional and every reader guards
+     them, so they are not required here: a case from before them is as
+     valid as one with them, and neither is refused for lacking or holding
+     them. */
   theses: { list: true, what: 'an investment case with its lists of conditions, catalysts and risks',
             item: (t) => isRecord(t) && ['conds', 'catalysts', 'risks'].every(k => Array.isArray(t[k])), emptied: () => [] },
   /* migrateWatchlists makes the one empty list of the reader's own. */
@@ -423,6 +431,34 @@ const store = {
 };
 const STORE_REFUSED = 'Not saved — this browser refused the write (its storage is full or switched off), so nothing was kept.';
 
+/* A RESTORE FROM A FILE IS KEPT WHOLE, OR NOT AT ALL. "Restore from a file"
+   wrote one stored record per kind its file carries, one after the other, and
+   checked none: a browser that refused the third write (its storage full, or
+   switched off part-way) kept the first two from the file and the rest as
+   they were, and the page reloaded into that mixture, saying nothing — the
+   half-merged state the backup's restore (restoreBackup, 15-derivation.js)
+   already refuses to make. A refused write now puts back every record already
+   written, as it was, and the caller says the restore did not happen. Returns
+   { ok:true }, or { ok:false, unrestored }: how many of the records already
+   written could not be put back. */
+function writeAllOrNothing(entries) {
+  const before = [];
+  for (const [k, v] of entries) {
+    let prior = null;
+    try { prior = localStorage.getItem('vl.' + k); } catch { /* storage unreadable: the write below is refused too */ }
+    if (!store.write(k, v)) {
+      let unrestored = 0;
+      before.reverse().forEach(([key, raw]) => {
+        try { if (raw === null) localStorage.removeItem('vl.' + key); else localStorage.setItem('vl.' + key, raw); }
+        catch { unrestored++; }
+      });
+      return { ok:false, unrestored };
+    }
+    before.push([k, prior]);
+  }
+  return { ok:true };
+}
+
 /* EVERYTHING A READER HAS MADE, IN ONE PLACE.
    ---------------------------------------------------------------------------
    All of it lives in this browser's localStorage. A cleared browser, a second
@@ -500,6 +536,11 @@ const PORTABLE_KEYS = [
      (BACKUP_UNCOUNTED). */
   { k:'furthestStep',      label:'How far you have got' },
 ];
+const portableLabel = (k) => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k;
+/* Which of these kinds this browser holds something of: what a restore of a
+   file without them keeps as it is, and names (openRestoreDrawer, 65-learn.js;
+   the backup's restore, 55-views-public.js). */
+const heldKinds = (keys) => keys.filter(k => { const v = store.read(k, null); return v !== null && v !== undefined && (!Array.isArray(v) || v.length > 0); });
 
 /* The format version this build writes, and the highest it reads in full. */
 const EXPORT_VERSION = 1;
@@ -563,6 +604,13 @@ function importEverything(doc) {
   const version = Number.isFinite(Number(doc.version)) ? Number(doc.version) : null;
   return { ok:true, incoming, ignored, refused, missing, version, newer: version !== null && version > EXPORT_VERSION,
     model: typeof doc.model === 'string' ? doc.model : null, exportedAt:doc.exportedAt,
-    apply() { incoming.forEach(k => store.write(k, doc.data[k])); } };
+    /* Every kind replaced, or none (writeAllOrNothing): { ok:true }, or
+       { ok:false, error } with what this browser held left as it was. */
+    apply() {
+      const w = writeAllOrNothing(incoming.map(k => [k, doc.data[k]]));
+      if (w.ok) return { ok:true, restored: incoming.length };
+      return { ok:false, error: 'Not restored — this browser refused part of the file (its storage is full or switched off), so what it held before is left as it was.'
+        + (w.unrestored ? ` ${w.unrestored} of the items already written could not be put back as they were.` : '') };
+    } };
 }
 

@@ -744,9 +744,11 @@ VIEWS.alerts = () => {
     const e = evaluateThesis(t);
     e.breaches.forEach(b => items.push({
       sev:'serious', kind:'thesis', id:t.ticker,
-      title:`${BY_ID.get(t.ticker).c.tk}${illusText(BY_ID.get(t.ticker).c)} — thesis condition breached`,
+      /* A condition the tool added and the reader has not confirmed is said to be
+         the tool's, not the reader's. */
+      title:`${BY_ID.get(t.ticker).c.tk}${illusText(BY_ID.get(t.ticker).c)} — ${b.suggested === true ? 'suggested condition breached, not yet confirmed by you' : 'thesis condition breached'}`,
       what:b.label,
-      detail:`Current value ${(b.type === 'val' ? fmtPct(b.actual, 1) : fmtFor(b.k)(b.actual))} against your threshold of ${b.op} ${b.type === 'val' ? fmtPct(b.v, 1) : fmtFor(b.k)(b.v)}.`,
+      detail:`Current value ${(b.type === 'val' ? fmtPct(b.actual, 1) : fmtFor(b.k)(b.actual))} against ${b.suggested === true ? 'the tool’s suggested' : 'your'} threshold of ${b.op} ${b.type === 'val' ? fmtPct(b.v, 1) : fmtFor(b.k)(b.v)}.`,
       source:`FY${latestFy(BY_ID.get(t.ticker).c)} reported · ${dataDateLabel(BY_ID.get(t.ticker).c)}`,
     }));
   });
@@ -868,7 +870,7 @@ VIEWS.alerts = () => {
       b.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px' }, [
         el('span', { class: 'metaline' }, a.source),
         el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(a.id) }, 'Open evidence'),
-        el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('thesis') }, 'Review thesis'),
+        el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('thesis') }, 'Review case'),
       ]));
       item.append(b);
       l.append(item);
@@ -893,7 +895,7 @@ VIEWS.alerts = () => {
        My Workspace's pages since they are served pre-rendered: the 9 Oct
        2026 audit, #7). */
     pac.append(cardHead(`Price alerts — ${ownAlertCount() ? `${ownAlertCount()}/${LIMITS.priceAlerts}` : `none of your own yet, ${LIMITS.priceAlerts} on this plan`}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
-      'Research alerts you set yourself: thresholds that fire on price alone, which is why they are the one alert type off by default in the list below.',
+      'Research alerts you set yourself: thresholds that fire on price alone, which is why Price move is off by default in the list below.',
       el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPriceAlertEditor(), html: `${icon('plus', 13)} Add` })));
     if (!State.priceAlerts.length) pac.append(el('p', { class: 'caption' }, 'No price alerts set.'));
     const pal = el('div', { style: 'display:flex;flex-direction:column' });

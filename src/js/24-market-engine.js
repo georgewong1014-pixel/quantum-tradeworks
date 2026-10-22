@@ -245,7 +245,7 @@ function scanBarStatus(market, sessionDate, capturedAt, heldAt = null) {
 }
 
 /* ------------------------------------------------------------- timeframes -- */
-const SCAN_INTRADAY_WHY = 'intraday data is not held — your history carries one bar per session, and intraday bars need a licensed feed (SC-317)';
+const SCAN_INTRADAY_WHY = 'intraday data is not held — your history carries one bar per session, and intraday bars need a licensed feed';
 const SCAN_TIMEFRAMES = {
   '1D': { id: '1D', label: 'Daily', built: true, legacy: 'daily', note: 'one bar per session, dated by the exchange session in its own time zone' },
   '1W': { id: '1W', label: 'Weekly', built: true, legacy: 'weekly', derivedFrom: '1D',

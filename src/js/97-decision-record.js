@@ -97,8 +97,11 @@ function decisionRecordProperty() {
      shortOf(['acquisition', 'financing'])],
    [cashRequiredLabel(m), isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null, shortOf(null)],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtMoney(m.cashflowMonthly, 'MYR', 0) : null],
-   ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : null],
-   ['Rate of return', isNum(m.irrPct) ? fmtPct(m.irrPct, 1) : null],
+   /* A class with no tenancy has no break-even rent: said for its own
+      reason (land-commercial-2). A rate of return that leaves out the
+      holding months' instalment is short, as the cash is (below). */
+   ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : m.letsToTenant === false ? 'Not a quantity this asset has' : null],
+   ['Rate of return', isNum(m.irrPct) ? fmtPct(m.irrPct, 1) : null, holdingShort(m) ? [{ label: 'Holding: the instalment from the day the balance falls due' }] : null],
    ['Grade', g.grade || null]]
     .forEach(([k, v, short]) => figs.append(el('div', { class: 'dr-fig' }, [
       el('div', { class: 'caption' }, k),

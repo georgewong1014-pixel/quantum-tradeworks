@@ -4,45 +4,51 @@
    its selection reason, its assumptions, and its limitations.
    ========================================================================== */
 
+/* Each `why` opens with whom the pack is for, not with a statement about the
+   company it is routed to. "Mature, profitable … with positive and
+   reasonably predictable free cash flow" printed on Air Products' card read
+   as a fact about Air Products, above "Free cash flow in the latest year for
+   APD is negative" (the 20 Oct 2026 sweep, copy-equities-5). The pack is
+   routed by business type alone. */
 const MODEL_PACKS = {
   dcf: {
     id:'dcf', name:'FCFF discounted cash flow',
-    why:'Mature, profitable non-financial business with positive and reasonably predictable free cash flow.',
+    why:'For a mature, profitable non-financial business with positive and reasonably predictable free cash flow.',
     secondary:['EV / EBIT', 'Free cash flow yield', 'Historical multiple range'],
     limits:['Terminal value typically carries more than half of the total — small changes in the terminal assumption move the answer a long way.','Assumes the capital structure and reinvestment rate stay broadly stable.','Enterprise value is not adjusted for leases, minority interests, associates or non-controlling interests — those lines are not carried in this dataset.'] },
   dcfMid: {
     id:'dcfMid', name:'Mid-cycle normalised FCFF',
-    why:'Cyclical or commodity-linked business. Free cash flow is normalised to the five-year average so the model is not anchored to a peak or a trough year.',
+    why:'For a cyclical or commodity-linked business. Free cash flow is normalised to the five-year average so the model is not anchored to a peak or a trough year.',
     secondary:['Cycle-adjusted EV / EBIT', 'Replacement asset value', 'Price / book through the cycle'],
     limits:['A five-year window may not span a full cycle for this industry.','Normalisation deliberately ignores the current spot price environment.'] },
   scenario: {
     id:'scenario', name:'Scenario revenue → margin → FCF',
-    why:'High-growth business where current cash flow is small relative to the opportunity. Revenue, operating margin and cash conversion are modelled separately so the margin the business settles at is an explicit assumption rather than something buried inside one cash-flow growth rate.',
+    why:'For a high-growth business where current cash flow is small relative to the opportunity. Revenue, operating margin and cash conversion are modelled separately so the margin the business settles at is an explicit assumption rather than something buried inside one cash-flow growth rate.',
     secondary:['EV / revenue against growth and margin peers', 'Base-case EV against terminal-year operating profit', 'Rule-of-40 style checks'],
     limits:['Value is dominated by the terminal margin assumption, which has no observed history at the modelled scale.','Competitive response is not modelled — the revenue path is independent of what rivals do.','Share issuance is modelled as a constant annual rate, not as discrete raises.'] },
   ri: {
     id:'ri', name:'Residual income / justified price-to-book',
-    why:'Deposit-taking institution. Free cash flow is not meaningful for a bank balance sheet, so value is built from book equity and the spread of return on equity over the cost of equity.',
+    why:'For a deposit-taking institution. Free cash flow is not meaningful for a bank balance sheet, so value is built from book equity and the spread of return on equity over the cost of equity.',
     secondary:['Price / earnings against sustainable ROE', 'Dividend capacity at target CET1'],
     limits:['Assumes a sustainable ROE through the credit cycle, not the latest reported ROE.','Ignores the option value and the tail risk in the loan book.'] },
   ddm: {
     id:'ddm', name:'Distribution discount / AFFO',
-    why:'Real estate investment trust. Income is contracted and distributed, so the distribution stream discounted at a required return is the primary model.',
+    why:'For a real estate investment trust. Income is contracted and distributed, so the distribution stream discounted at a required return is the primary model.',
     secondary:['Price / net asset value', 'Distribution yield spread over the 10-year government bond', 'Implied capitalisation rate'],
     limits:['Assumes the distribution policy and the gearing level hold.','Asset revaluation gains are excluded — only recurring income is modelled.'] },
   insurer: {
     id:'insurer', name:'Residual income with an underwriting check',
-    why:'Insurer. Free cash flow is not meaningful for a balance sheet built on float and reserves, so value is built from book equity and the spread of a sustainable return on equity over the cost of equity — with the combined ratio carried as the underwriting quality check.',
+    why:'For an insurer. Free cash flow is not meaningful for a balance sheet built on float and reserves, so value is built from book equity and the spread of a sustainable return on equity over the cost of equity — with the combined ratio carried as the underwriting quality check.',
     secondary:['Combined ratio against the peer set', 'Price / book against sustainable ROE', 'Solvency headroom over the required capital ratio'],
     limits:['Reserve adequacy is an estimate made by the company; a valuation built on reported book value inherits that estimate.','Embedded value is not disclosed in this dataset, so a life-style embedded-value model cannot be run.','Investment portfolio risk is not modelled separately from underwriting.'] },
   early: {
     id:'early', name:'Probability-weighted scenario with financing need',
-    why:'Loss-making or early-stage business. A single discounted-cash-flow path would imply precision that does not exist, so a success case is modelled explicitly, the financing needed to reach it is priced as dilution, and the result is weighted against a downside floor.',
+    why:'For a loss-making or early-stage business. A single discounted-cash-flow path would imply precision that does not exist, so a success case is modelled explicitly, the financing needed to reach it is priced as dilution, and the result is weighted against a downside floor.',
     secondary:['Cash runway against the burn rate', 'EV / revenue against loss-making peers', 'Liquidation or net-cash floor'],
     limits:['The probability of success is a judgement, not an observable — it is exposed as an input for that reason.','New shares are assumed to be issued at today’s price; a real raise would very likely price lower.','The downside floor assumes an orderly outcome, which a distressed restructuring may not deliver.'] },
   sotp: {
     id:'sotp', name:'Consolidated FCFF with a holding-company discount',
-    why:'Holding company with unlike operating segments. A true sum of the parts needs segment-level earnings and capital, which this dataset does not carry — so the group is valued on consolidated cash flow and an explicit holding-company discount is applied rather than implied.',
+    why:'For a holding company with unlike operating segments. A true sum of the parts needs segment-level earnings and capital, which this dataset does not carry — so the group is valued on consolidated cash flow and an explicit holding-company discount is applied rather than implied.',
     secondary:['Segment peer multiples once segment financials are available', 'Observed discounts at comparable listed holding companies'],
     limits:['This is not a true sum of the parts. Segment disclosure here is revenue-weighted only, so the parts cannot be valued separately.','The holding-company discount is a judgement, not an observable — it is exposed as an input for exactly that reason.','A single blended discount rate is applied to businesses with different risk profiles.'] },
 };
@@ -67,16 +73,19 @@ function defaultInputs(c, d) {
   const beta = { mature:0.95, growth:1.45, saas:1.20, cyclical:1.30, bank:0.95, reit:0.85, holding:1.10 }[c.type] || 1;
   const coe = riskFree + beta * erp;
   /* A line the loader withheld from the shipped file (withholdMisassembled in
-     the universe module) is named as withheld, not left to read as unreported. */
+     the universe module) is named as withheld, not left to read as unreported
+     — in place of "carry no share count", which a withheld count is not, and
+     in a reader's words: the rule and file it came from are not theirs (the
+     20 Oct 2026 sweep, copy-equities-9). */
   const heldBack = (line) => { const fy = last(c.years || []), w = c.withheld?.[line];
-    return w && w.years.includes(fy) ? ` The figure for FY${fy} is withheld rather than unreported: ${w.why}. The ingest rule has been corrected, and it returns when the statements are regenerated.` : ''; };
+    return w && w.years.includes(fy) ? `its FY${fy} ${line === 'sh' ? 'share count' : 'debt figure'} is withheld until the next data update, because ${w.why}` : ''; };
 
   /* BOOK VALUE PER SHARE IS THE BASE OF BOTH RESIDUAL-INCOME MODELS. Without
      a share count there is none — and `null * justifiedPB` is nought, which
      valued Berkshire at $0.00 a share under a named model with a confidence
      grade. No estimate, and the reason, instead. */
   if ((pack.id === 'ri' || pack.id === 'insurer') && !isNum(m.bvps)) return { model:'unavailable', pack: pack.id,
-    reason: `Book value per share could not be computed for ${c.tk || c.code}: the latest statements carry no share count. A residual-income estimate is not available, and no figure has been assumed.${heldBack('sh')}` };
+    reason: `Book value per share could not be computed for ${c.tk || c.code}: ${heldBack('sh') || 'the latest statements carry no share count'}. A residual-income estimate is not available, and no figure has been assumed.` };
   /* THE SUSTAINABLE ROE IS A HAIRCUT ON THE REPORTED ONE, OR THERE IS NONE.
      With the return on equity withheld — Schwab's, because its earnings and
      dividend disagree on scale by a thousand — the model ran on a flat 10%
@@ -119,9 +128,10 @@ function defaultInputs(c, d) {
     /* The downside floor is net cash per share and the equity bridge is net
        debt; neither exists without both balance-sheet lines. */
     if (!isNum(m.netDebt) || !isNum(last(d.cash))) return { model:'unavailable', pack: pack.id,
-      reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt or cash line. A financing-adjusted estimate is not available, and no balance has been assumed.${heldBack('debt')}` };
+      reason: `Net debt could not be established for ${c.tk || c.code}: ${heldBack('debt') || 'the latest statements carry no debt or cash line'}. A financing-adjusted estimate is not available, and no balance has been assumed.` };
     if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
-      reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share.${heldBack('sh')}` };
+      reason: heldBack('sh') ? `Nothing can be stated per share for ${c.tk || c.code}: ${heldBack('sh')}.`
+        : `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share.` };
     /* Years to break even, from the current loss and the assumed improvement. */
     const burn = c.early?.burn ?? Math.max(0.05, -last(d.fcf) || 0.2);
     const cashNow = last(d.cash);
@@ -176,9 +186,16 @@ function defaultInputs(c, d) {
      error string, which every caller checks. Using it here means the company
      loads, its statements and scorecard work, and only the valuation reports
      itself unavailable — which is the truthful outcome and the useful one. */
+  /* Which line is missing, said as it is. Free cash flow needs both lines in
+     one year, and Eli Lilly's card said its statements carry no operating
+     cash flow line beside a snapshot showing one: it is the capital-
+     expenditure line that is absent (the 20 Oct 2026 sweep, copy-equities-4). */
+  const anyOcf = (d.ocf || []).some(isNum), anyCapex = (d.capex || []).some(isNum);
   if (!isNum(baseFcf)) return { model:'unavailable', pack: pack.id,
     reason: !anyFcf
-      ? `No free cash flow could be computed for ${c.tk || c.code}: the statements carry no operating cash flow line for any year retrieved. A discounted-cash-flow estimate is not available, and no substitute has been assumed.`
+      ? `No free cash flow could be computed for ${c.tk || c.code}: ${!anyOcf ? 'the statements carry no operating cash flow line for any year retrieved'
+        : !anyCapex ? 'the statements carry no capital-expenditure line for any year retrieved'
+        : 'no year retrieved carries both an operating cash flow and a capital-expenditure line'}. A discounted-cash-flow estimate is not available, and no substitute has been assumed.`
       : pack.id === 'dcfMid'
       ? `The mid-cycle model averages five years of free cash flow and ${c.tk || c.code} does not carry all five — a capital-expenditure line is absent in at least one. Averaging the years that exist would be a different measure under the same name, so no estimate is shown.`
       : `Free cash flow for ${c.tk || c.code}'s latest year could not be computed — its capital-expenditure line is absent — and an older year is not a substitute for it. No estimate is shown.` };
@@ -196,7 +213,8 @@ function defaultInputs(c, d) {
   if (pack.id !== 'scenario' && baseFcf <= 0) return { model:'unavailable', pack: pack.id,
     reason: `${pack.id === 'dcfMid' ? 'The five-year average of free cash flow' : 'Free cash flow in the latest year'} for ${c.tk || c.code} is ${baseFcf < 0 ? 'negative' : 'nil'} (${fmtCap(baseFcf, c.ccy)}). A discounted-cash-flow model grows its starting cash flow into perpetuity, so from this base it values a loss, not the business — no estimate is shown, and no other year has been substituted.` };
   if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
-    reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share. No estimate is shown.${heldBack('sh')}` };
+    reason: heldBack('sh') ? `Nothing can be stated per share for ${c.tk || c.code}: ${heldBack('sh')}. No estimate is shown.`
+      : `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share. No estimate is shown.` };
   /* NET DEBT IS THE BRIDGE, AND A MISSING BRIDGE IS NOT A ZERO-LENGTH ONE.
      ---------------------------------------------------------------------
      `ev - (netDebt || 0)` valued twelve filers — Ford, General Motors and

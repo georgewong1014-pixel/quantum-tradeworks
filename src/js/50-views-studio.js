@@ -1062,9 +1062,9 @@ function openRunDrawer(runId, ticker, from = 'workspace') {
 
 function seedTheses() {
   return [
-    { id:'t1', ticker:'MAYBANK', oneLine:'A low-cost deposit franchise that should sustain a mid-teens return on equity while paying most of it out.',
-      quality:'CASA of 36.5% funds the book below peers, and the domestic branch network is not economically replicable at current returns.',
-      valCase:'Residual income on a 12.5% sustainable ROE against a 9.0% cost of equity supports a justified price-to-book above the current multiple.',
+    { id:'t1', ticker:'MAYBANK', oneLine:'Invented example — not a view on Malayan Banking Berhad: the test is whether a low-cost deposit franchise can sustain a mid-teens return on equity while paying most of it out.',
+      quality:'The test is whether a CASA ratio of 36.5% keeps funding the book below peers, and whether the domestic branch network can be replicated at current returns.',
+      valCase:'Residual income on a 12.5% sustainable ROE against a 9.0% cost of equity, set beside the current price-to-book, is the test this example case would run.',
       catalysts:['Net interest margin stabilising as the rate cycle turns', 'Loan growth returning to nominal GDP', 'Credit costs normalising below the guided range'],
       risks:['Regional credit variance from the Indonesian book', 'Payout near the top of policy leaves less retained capital'],
       conds:[
@@ -1076,9 +1076,9 @@ function seedTheses() {
       horizon:'3–5 years', review:'2026-10-30', conf:'Medium',
       questions:['How much of the margin improvement is structural rather than cyclical?', 'What is the through-cycle credit cost for the Indonesian book?'],
       created:'2026-05-14' },
-    { id:'t2', ticker:'AXREIT', oneLine:'Industrial rent reversion is real, but unit issuance has been absorbing most of it — the test is distribution per unit, not total distributions.',
-      quality:'Logistics demand supports positive reversion; the assets themselves are replicable, so the moat rating is deliberately low.',
-      valCase:'Distribution discount model on a 2% growth assumption against a required return near 8% leaves little difference to model estimate at the current unit price.',
+    { id:'t2', ticker:'AXREIT', oneLine:'Invented example — not a view on Axis Real Estate Investment Trust: the test is whether industrial rent reversion outruns unit issuance — distribution per unit, not total distributions.',
+      quality:'Logistics demand and rent reversion are the evidence this example case would check. The assets themselves are replicable, so its moat rating would be set low.',
+      valCase:'A distribution discount model on a 2% growth assumption against a required return near 8%, set beside the current unit price, is the test this example case would run.',
       catalysts:['A full year without a placement', 'Occupancy recovering above 96%'],
       risks:['Continued unit issuance diluting distribution per unit', 'Gearing rising toward the ceiling'],
       conds:[
@@ -1092,6 +1092,28 @@ function seedTheses() {
   ];
 }
 if (!State.theses) { State.theses = seedTheses(); store.write('theses', State.theses); }
+/* The seeded cases once stated conclusions about two named companies in the
+   product's voice ("supports a justified price-to-book above the current
+   multiple"). They now open "Invented example — not a view on <company>:" and
+   word each conclusion as the test the case would run (owner decision, 21 Oct
+   2026; the 20 Oct sweep, copy-equities-17). A browser that stored the earlier
+   wording gets the new, but only where a field is still exactly the seeded
+   text, so a case a reader has edited or made is never touched. */
+const SEED_WORDING_BEFORE = {
+  t1: { oneLine: "A low-cost deposit franchise that should sustain a mid-teens return on equity while paying most of it out.",
+    quality: "CASA of 36.5% funds the book below peers, and the domestic branch network is not economically replicable at current returns.",
+    valCase: "Residual income on a 12.5% sustainable ROE against a 9.0% cost of equity supports a justified price-to-book above the current multiple." },
+  t2: { oneLine: "Industrial rent reversion is real, but unit issuance has been absorbing most of it — the test is distribution per unit, not total distributions.",
+    quality: "Logistics demand supports positive reversion; the assets themselves are replicable, so the moat rating is deliberately low.",
+    valCase: "Distribution discount model on a 2% growth assumption against a required return near 8% leaves little difference to model estimate at the current unit price." },
+};
+(function refreshSeedWording() {
+  let changed = false;
+  const now = Object.fromEntries(seedTheses().map(t => [t.id, t]));
+  State.theses.forEach(t => { const before = SEED_WORDING_BEFORE[t?.id];
+    if (before) for (const k of Object.keys(before)) if (t[k] === before[k] && now[t.id]) { t[k] = now[t.id][k]; changed = true; } });
+  if (changed) store.write('theses', State.theses);
+})();
 
 function saveTheses() { store.write('theses', State.theses); }
 
@@ -1203,7 +1225,7 @@ function evaluateThesis(t) {
   const r = BY_ID.get(t.ticker);
   if (!r) return { breaches: [], ok: [] };
   const breaches = [], ok = [];
-  t.conds.forEach(cd => {
+  t.conds.forEach((cd, ci) => {
     let actual, label = cd.label;
     /* No model difference — every unpriced filer — is no value, not a value
        of nought: `?? 0` reported "within threshold, 0.0%" on a condition that
@@ -1217,24 +1239,109 @@ function evaluateThesis(t) {
       actual = isNum(base) && base > 0 && isNum(price) ? (price - base) / base * 100 : null;
     }
     else actual = r.m[cd.k];
-    if (!isNum(actual)) { ok.push({ ...cd, actual: null, c: r.c, note: 'Input not available — condition cannot be evaluated, and is not treated as passing.' }); return; }
+    if (!isNum(actual)) { ok.push({ ...cd, ci, actual: null, c: r.c, note: 'Input not available — condition cannot be evaluated, and is not treated as passing.' }); return; }
     const hit = cd.op === '<' ? actual < cd.v : actual > cd.v;
-    (hit ? breaches : ok).push({ ...cd, actual, c: r.c });
+    (hit ? breaches : ok).push({ ...cd, ci, actual, c: r.c });
   });
   return { breaches, ok, row: r };
+}
+
+/* WHAT "SAVE RESEARCH" CREATES, AND WHAT A CASE KEEPS (the 21 Oct 2026 Day-8
+   report, QT-D08-01).
+   ---------------------------------------------------------------------------
+   Starting a case writes a draft at once, and the draft arrives with a review
+   date ninety days out, a horizon of three to five years, low confidence and
+   one condition. Those are the tool's defaults, not the reader's decisions,
+   and a case that read them as the reader's plan overstated what the reader
+   had done. Each is therefore kept marked as suggested until the reader
+   changes it or presses Confirm beside it:
+
+     suggested   { review, horizon, conf }  true while still the tool's;
+                 false once the reader changed or confirmed it. A case saved
+                 before this has no such field and is shown as it is — a mark
+                 is never invented for it.
+     conds[i].suggested   true on the condition the tool added, false once
+                 confirmed; absent on a condition the reader or an older build
+                 wrote.
+     snapshot    the research as it stood (caseSnapshot): taken when the case
+                 is started and again only when the reader asks for it
+                 ("Review against today's research"). Values, not functions;
+                 a figure the page did not have is null, never a number. A
+                 case with none reads "Saved before snapshots". */
+const CASE_DRAFT_LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your research case.';
+const SUGGESTED_MARK = 'Suggested default — not yet confirmed by you.';
+const SUGGESTED_FIELDS = [['review', 'Next review date'], ['horizon', 'Intended holding horizon'], ['conf', 'Confidence']];
+/* Still the tool's: only a flag that is true. false is confirmed; absent is a
+   case from before the flags, which is neither. */
+const suggestedFields = (t) => isRecord(t?.suggested) ? SUGGESTED_FIELDS.filter(([k]) => t.suggested[k] === true) : [];
+const suggestedConds = (t) => (Array.isArray(t?.conds) ? t.conds : []).filter(cd => isRecord(cd) && cd.suggested === true);
+const hasSuggested = (t) => suggestedFields(t).length > 0 || suggestedConds(t).length > 0;
+const isSuggested = (t, k) => isRecord(t?.suggested) && t.suggested[k] === true;
+/* The reader changed the field, or confirmed it: no longer the tool's. */
+function settleSuggested(t, k) { if (isRecord(t.suggested) && t.suggested[k] === true) t.suggested[k] = false; }
+
+/* Every figure the case page and the company page draw from, as they stand
+   now, for the snapshot to keep and for the case to be set beside. Each comes
+   from the page's own function; no score, weight or threshold is touched. */
+function caseSnapshot(r, t = null) {
+  const c = r.c;
+  /* Each default's confirmation as the case holds it: 'suggested' until the
+     reader confirms or changes it, 'confirmed' after, and null where the case
+     does not track it (a case from before the flags, or none given). */
+  const stateOf = (flag) => flag === true ? 'suggested' : flag === false ? 'confirmed' : null;
+  const fy = latestFy(c);
+  const num = (v) => isNum(v) ? v : null;
+  const rc = researchComposite(r);
+  const lens = strategyLens(r);
+  const v = r.val || {};
+  const priced = !v.err && isRecord(v.vals);
+  const edit = valuationEdits()[c.id];
+  const over = isRecord(edit) && isRecord(edit.over) && Object.keys(edit.over).length ? edit.over : null;
+  const scored = [['quality', PILLARS.quality?.label], ['growth', PILLARS.growth?.label], ['strength', PILLARS.strength?.label],
+    ['capital', PILLARS.capital?.label], ['value', VALUE_PILLAR.label]];
+  return JSON.parse(JSON.stringify({
+    at: new Date().toISOString(),
+    stamp: buildStamp(c),
+    composite: {
+      score: num(rc.score), classified: !!rc.classified, band: rc.classified && rc.band ? rc.band.state : null,
+      dataCompleteness: num(r.m?.coverage), testedWeight: num(rc.testedWeight),
+      pillars: rc.parts.map(p => ({ id: p.id, label: p.label, weight: p.w, score: num(p.score) })),
+      gates: rc.gates.map(g => ({ id: g.id, state: g.state })),
+    },
+    lenses: lens.fits.map(f => {
+      const st = FIT_STATES[f.state] || FIT_STATES.missing;
+      return { key: f.key, label: f.label, state: f.state, shown: bandText(f.state === 'graded' ? f.grade : st.token), score: num(f.score) };
+    }),
+    scorecard: scored.map(([k, label]) => ({ key: k, label: label || k, score: num(r.scores?.[k]?.score) })),
+    tier: { id: lens.tier.id, label: lens.tier.label },
+    valuation: {
+      pack: v.pack?.name ?? null, ccy: c.ccy ?? null,
+      base: priced ? num(v.vals.base) : null, bear: priced ? num(v.vals.bear) : null, bull: priced ? num(v.vals.bull) : null,
+      conf: priced ? num(v.conf) : null, confBand: priced ? (v.confBand ?? null) : null,
+    },
+    edits: over,
+    /* What the figures rest on: the methodology and model version, and the
+       dates of the statements and the price. */
+    methodology: { version: MODEL_VERSION, valuationModel: v.pack?.name ?? null, valuationModelId: v.pack?.id ?? null },
+    sources: { retrieved: c.retrieved ?? null, fy: num(fy), fyEnd: (num(fy) !== null ? fyEndOf(c, fy) : null) ?? null, priceAsOf: c.px?.asOf ?? null },
+    defaults: { review: stateOf(t?.suggested?.review), horizon: stateOf(t?.suggested?.horizon), conf: stateOf(t?.suggested?.conf),
+      conditions: (Array.isArray(t?.conds) ? t.conds : []).map(cd => stateOf(isRecord(cd) ? cd.suggested : undefined)) },
+  }));
 }
 
 function addToThesis(id) {
   const existing = State.theses.find(t => t.ticker === id);
   if (existing) { go('thesis'); toast(`${id} already has a thesis — opened`); return; }
   const r = BY_ID.get(id);
-  State.theses = [...State.theses, {
+  const made = {
     id: 't' + Date.now(), ticker: id, oneLine: '', quality: '', valCase: '',
     catalysts: [], risks: r.flags.filter(f => f.sev !== 'good').slice(0, 2).map(f => f.title),
-    conds: [{ type:'val', op:'>', v:15, label:'Price moves more than 15% above the base-case model estimate' }],
+    /* The condition is the tool's: marked, until the reader confirms it. */
+    conds: [{ type:'val', op:'>', v:15, label:'Price moves more than 15% above the base-case model estimate', suggested: true }],
     /* Ninety days from creation. A fixed '2026-10-30' became a review date
        already in the past for any thesis started after it. */
     horizon: '3–5 years', review: localDay(new Date(Date.now() + 90 * 86400000)), conf: 'Low', questions: [],
+    suggested: { review: true, horizon: true, conf: true },
     /* Both on the reader's calendar (localDay, 00-core.js). The UTC date
        dated a case started on a Los Angeles evening the next day. */
     created: localDay(),
@@ -1242,10 +1349,162 @@ function addToThesis(id) {
        was written against is worth keeping: the workspace can then say the
        model or the statements have moved under it. */
     stamp: buildStamp(r.c),
-  }];
+  };
+  made.snapshot = caseSnapshot(r, made);
+  State.theses = [...State.theses, made];
   saveTheses();
   go('thesis');
-  toast(`Draft thesis created for ${r.c.tk}`);
+  /* In sight on arrival: the page lists every case, and a new one is last. */
+  document.getElementById(`thesis-card-${made.id}`)?.scrollIntoView({ block: 'start', behavior: 'instant' });
+  toast(CASE_DRAFT_LINE);
+}
+
+/* Pressing Confirm: the field (or the condition at that place in the list)
+   is now the reader's. The control pressed is gone with the redraw, so focus
+   goes to the next one to confirm in the same case, or else to its Edit. */
+function confirmSuggestion(t, key) {
+  let said;
+  if (typeof key === 'number') {
+    if (!isRecord(t.conds?.[key]) || t.conds[key].suggested !== true) return;
+    t.conds[key].suggested = false; said = 'Condition confirmed';
+  } else {
+    if (!isSuggested(t, key)) return;
+    settleSuggested(t, key); said = `${SUGGESTED_FIELDS.find(f => f[0] === key)?.[1] || key} confirmed`;
+  }
+  saveTheses(); render();
+  (document.querySelector(`#thesis-card-${t.id} .case-confirm`) || document.getElementById(`thesis-edit-${t.id}`))?.focus({ preventScroll: true });
+  toast(said);
+}
+
+/* A Confirm control: a 44px target (.case-confirm), named for what it confirms. */
+const confirmButton = (t, key, what) => el('button', { class: 'btn btn-ghost btn-sm case-confirm',
+  id: `case-confirm-${t.id}-${key}`, 'aria-label': `Confirm ${what}`, onclick: () => confirmSuggestion(t, key) }, 'Confirm');
+
+/* The draft line and, under it, each default still the tool's with its mark
+   and its Confirm. It stays until every one is confirmed or changed. */
+function suggestedBlock(t) {
+  const box = el('div', { class: 'case-draft', id: `thesis-draft-${t.id}` });
+  box.append(el('p', { class: 'case-draft-line' }, CASE_DRAFT_LINE));
+  suggestedFields(t).forEach(([k, label]) => box.append(el('div', { class: 'case-sug' }, [
+    el('div', { class: 'case-sug-what' }, [el('strong', {}, `${label}: ${t[k]}`), el('span', { class: 'caption' }, SUGGESTED_MARK)]),
+    confirmButton(t, k, label.toLowerCase()),
+  ])));
+  return box;
+}
+
+/* THE RESEARCH AS IT STOOD, SET BESIDE TODAY'S. Each row is one figure the
+   snapshot holds, as text the reader can read; a row is marked when today's
+   text differs. Nothing here writes: the saved snapshot and the reader's
+   assumptions stay as they were until the reader asks for a new snapshot. */
+function snapshotRows(s, r) {
+  if (!isRecord(s)) return [];
+  /* A snapshot is the reader's stored record, and a restored file may hold one
+     that is not in the shape this build writes: its readable entries are
+     used and the rest are left out. */
+  const recs = (a) => Array.isArray(a) ? a.filter(isRecord) : [];
+  const n0 = (v, unit = '') => isNum(v) ? `${fmtNum(v, 0)}${unit}` : null;
+  const money = (v) => isNum(v) ? fmtMoney(v, s.valuation?.ccy || r?.c?.ccy || 'USD') : null;
+  const comp = isRecord(s.composite) ? s.composite : {};
+  const GATE = { governance: 'Governance gate', coverage: 'Coverage gate' };
+  const GATE_STATE = { manual_review: 'manual review', not_classified: 'not classified' };
+  const labelOf = Object.fromEntries(r ? assumptionList(r.inputs, r.val?.pack?.id).map(a => [a.k, a]) : []);
+  const rows = [
+    ['Research case score', isNum(comp.score) ? `${comp.score}/100${comp.classified ? (comp.band ? `, ${comp.band}` : '') : ', not classified'}` : 'no score'],
+    ['Data completeness', n0(comp.dataCompleteness, '%') || 'not recorded'],
+    ['Weight tested', n0(comp.testedWeight, '%') || 'not recorded'],
+    ...recs(comp.pillars).map(p => [`${p.label} (${p.weight}%)`, n0(p.score) ?? 'not tested']),
+    ...recs(comp.gates).map(g => [GATE[g.id] || g.id, GATE_STATE[g.state] || g.state]),
+    ...recs(s.scorecard).map(p => [`Scorecard: ${p.label}`, n0(p.score) ?? 'not scored']),
+    ['Coverage tier', s.tier?.label || 'not recorded'],
+    ...recs(s.lenses).map(f => [`Strategy Lens: ${f.label}`, `${f.shown}${isNum(f.score) ? `, ${fmtNum(f.score, 0)}/100` : ''}`]),
+  ];
+  const v = isRecord(s.valuation) ? s.valuation : {};
+  rows.push(['Base-case estimate', money(v.base) ?? 'not computed']);
+  rows.push(['Range, bear to bull', isNum(v.bear) && isNum(v.bull) ? `${money(v.bear)} to ${money(v.bull)}` : 'not computed']);
+  rows.push(['Valuation confidence', isNum(v.conf) ? `${v.confBand}, ${fmtNum(v.conf, 0)}/100` : 'not computed']);
+  const ed = isRecord(s.edits) ? Object.entries(s.edits) : [];
+  rows.push(['Assumptions you edited', ed.length
+    ? ed.sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => `${labelOf[k]?.label || k} ${labelOf[k] ? fmtAssumption(labelOf[k], x) : (isNum(x) ? fmtNum(x, 2) : 'empty')}`).join('; ')
+    : 'none']);
+  return rows;
+}
+
+/* What a snapshot was taken against, in words: the dates of the statements and
+   the price, the valuation model, and each default's state when it was saved.
+   A snapshot from before these were kept says nothing of them. */
+function savedWith(s) {
+  const bits = [];
+  const src = isRecord(s.sources) ? s.sources : null;
+  if (src) {
+    bits.push(src.retrieved ? `Statements retrieved ${src.retrieved}` : 'Statements retrieval date not held');
+    if (isNum(src.fy)) bits.push(`FY${src.fy}${src.fyEnd ? ` ended ${src.fyEnd}` : ''}`);
+    bits.push(src.priceAsOf ? `Price as of ${src.priceAsOf}` : 'No price');
+  }
+  if (isRecord(s.methodology) && s.methodology.valuationModel) bits.push(`Valuation model: ${s.methodology.valuationModel}`);
+  const d = isRecord(s.defaults) ? s.defaults : null;
+  if (d) {
+    const named = [['review date', d.review], ['horizon', d.horizon], ['confidence', d.conf], ...(Array.isArray(d.conditions) ? d.conditions : []).map((x, i) => [`condition ${i + 1}`, x])].filter(([, x]) => x);
+    if (named.length) bits.push(`When saved: ${named.map(([k, x]) => `${k} ${x}`).join(', ')}`);
+  }
+  return bits.join(' · ');
+}
+
+/* The case card's research record: what was saved, under which versions, and
+   how today's research reads beside it. */
+function researchRecord(t, r) {
+  const box = el('div', { class: 'case-record', id: `thesis-record-${t.id}` });
+  const snap = isRecord(t.snapshot) ? t.snapshot : null;
+  const sample = SEEDED_THESIS_IDS.includes(t.id);
+  const retake = () => {
+    const co = BY_ID.get(t.ticker);
+    if (!co) return;
+    t.snapshot = caseSnapshot(co, t); saveTheses(); render();
+    document.getElementById(`case-review-${t.id}`)?.focus({ preventScroll: true });
+    toast('Saved research replaced with today’s');
+  };
+  const action = () => sample || !r ? null : el('div', { class: 'case-review' }, [
+    el('button', { class: 'btn btn-ghost btn-sm case-review-btn', id: `case-review-${t.id}`, onclick: retake }, 'Review against today’s research'),
+    el('p', { class: 'caption' }, snap
+      ? 'Replaces the saved research above with today’s; your assumptions stay.'
+      : 'Saves today’s research with this case. Your conditions, assumptions and notes are not changed.'),
+  ]);
+  if (!snap) {
+    box.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:4px' }, 'Saved before snapshots'));
+    box.append(el('p', { class: 'caption' }, 'No record of the research when it was saved.'));
+    const a = action(); if (a) box.append(a);
+    return box;
+  }
+  const diff = stampDiff(snap.stamp);
+  box.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:4px' }, `Research when saved, ${fmtSaved(snap.at)}`));
+  box.append(el('p', { class: 'metaline' }, [
+    `Model version ${snap.stamp?.model || 'not recorded'} · Data version ${stampDataText(snap.stamp)}`,
+    ' ', diff.status === 'current' ? null : sevChip('warning', diff.label),
+  ]));
+  if (diff.status !== 'current' && diff.stamped) box.append(el('p', { class: 'caption', style: 'margin-top:2px' }, diff.text));
+  if (r) {
+    const then = snapshotRows(snap, r), now = snapshotRows(caseSnapshot(r), r);
+    const key = (rows) => new Map(rows.map(([l, x]) => [l, x]));
+    const nowBy = key(now);
+    const moved = then.filter(([l, x]) => nowBy.has(l) && nowBy.get(l) !== x).length;
+    const det = el('details', { class: 'case-moves' });
+    det.append(el('summary', {}, moved ? `Beside today’s: ${moved} of ${then.length} moved` : `Beside today’s: none of ${then.length} moved`));
+    const tab = el('table', { class: 'dt' });
+    tab.append(el('thead', {}, el('tr', {}, ['Figure', 'When saved', 'Today'].map(h => el('th', { style: 'text-align:left' }, h)))));
+    const tb = el('tbody');
+    then.forEach(([l, x]) => {
+      const y = nowBy.has(l) ? nowBy.get(l) : 'not recorded', mv = nowBy.has(l) && y !== x;
+      tb.append(el('tr', { class: mv ? 'case-moved' : null }, [
+        el('td', { style: 'text-align:left;white-space:normal' }, l), el('td', { style: 'text-align:left;white-space:normal' }, x),
+        el('td', { style: 'text-align:left;white-space:normal' }, mv ? [y, ' ', el('span', { class: 'chip chip-bronze' }, 'Moved')] : y)]));
+    });
+    tab.append(tb);
+    det.append(el('div', { class: 'tablewrap' }, tab));
+    const said = savedWith(snap);
+    if (said) det.append(el('p', { class: 'caption case-saved-with' }, said));
+    box.append(det);
+  }
+  const a = action(); if (a) box.append(a);
+  return box;
 }
 
 /* An original seven-step review. Each step reports a status computed from the
@@ -1306,20 +1565,22 @@ function sevenSteps(r, t) {
        and 7 on a first visit ("6 of 7 satisfied … computed from the work
        done in the product") though the reader had written nothing. */
     { n:6, title:'Write down what would prove you wrong',
-      ok: !sample && !!(t && t.conds?.length && t.oneLine),
+      /* A condition the tool added and the reader has not confirmed is not what
+         would prove the reader wrong. */
+      ok: !sample && !!(t && t.conds?.length > suggestedConds(t).length && t.oneLine),
       note: sample ? 'The case here is a sample written into this browser, not yours — this step is open until you write your own.'
-        : t ? `${t.conds.length} invalidation condition(s)${t.oneLine ? '' : ', but no investment case written yet'}.`
+        : t ? `${t.conds.length} invalidation condition(s)${suggestedConds(t).length ? ` (${suggestedConds(t).length} suggested, not confirmed)` : ''}${t.oneLine ? '' : ', but no investment case written yet'}.`
               : 'No thesis written for this company yet.',
       go: () => openResearch(c.id, 'thesis') },
     /* A review date that has passed is a check that was missed, not one that
        is scheduled — so it no longer satisfies the step. Today is the
        reader's own date, as the review date is (localDay). */
     { n:7, title:'Set when you will check again',
-      ok: !sample && !!(t && t.review) && t.review >= localDay(),
+      ok: !sample && !!(t && t.review) && t.review >= localDay() && !isSuggested(t, 'review'),
       note: sample ? 'The review date here is the sample case’s, not one you set.'
         : !t?.review ? 'No review date set.'
         : t.review < localDay() ? `The review date ${t.review} has passed. Set the next one.`
-        : `Next review ${t.review}, horizon ${t.horizon}.`,
+        : `Next review ${t.review}${isSuggested(t, 'review') ? ' (suggested, unconfirmed)' : ''}, horizon ${t.horizon}${isSuggested(t, 'horizon') ? ' (suggested, unconfirmed)' : ''}.`,
       go: () => openResearch(c.id, 'thesis') },
   ];
 }
@@ -1329,7 +1590,7 @@ function sevenStepCard(r, t) {
   const done = steps.filter(s => s.ok).length;
   const card = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   card.append(cardHead(`Seven-step review — ${done} of 7 satisfied`,
-    'An original review sequence. Each step reports a status computed from the work done in the product, so it reflects what has actually been checked rather than what has been ticked.'));
+    'An original review sequence. Each status is computed from work done here, not ticked.'));
   const bar = el('div', { class: 'pillbar', style: 'height:8px;margin-bottom:var(--md)' });
   steps.forEach(s => bar.append(el('i', { style: `width:${100 / 7}%;background:var(${s.ok ? '--ok' : '--line-2'})`, title: s.title })));
   card.append(bar);
@@ -1373,16 +1634,17 @@ function thesisCard(t, expanded) {
      The case is the reader's and is kept, with the reason its conditions are
      not evaluated — and, as everywhere, not evaluated is not passing. */
   if (!r) {
-    const card = el('div', { class: 'card' });
+    const card = el('div', { class: 'card', id: `thesis-card-${t.id}`, style: 'scroll-margin-top:90px' });
     card.append(cardHead(`${t.ticker} — not in the companies loaded now`,
       'This case is kept, but the company it is about is not in the set this page has loaded — the SEC-filed companies may be switched off or may have failed to load, or the company may have left the dataset. Its conditions cannot be evaluated, and none is treated as passing.',
       el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openThesisEditor(t) }, 'Edit')));
     card.append(el('p', { class: 'body-lg', style: 'font-size:14px;color:var(--ink);margin-top:var(--sm)' }, t.oneLine || 'No investment case written yet.'));
-    card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, `Created ${t.created} · next review ${t.review} · ${(t.conds || []).length} condition${(t.conds || []).length === 1 ? '' : 's'}, not evaluated`));
+    card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, `Created ${t.created} · next review ${t.review}${isSuggested(t, 'review') ? ' (suggested)' : ''} · ${(t.conds || []).length} condition${(t.conds || []).length === 1 ? '' : 's'}, not evaluated`));
+    if (isRecord(t.snapshot)) card.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, `Research when saved, ${fmtSaved(t.snapshot.at)}`));
     return card;
   }
   const evalr = evaluateThesis(t);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card', id: `thesis-card-${t.id}`, style: 'scroll-margin-top:90px' });
   const hd = el('div', { class: 'card-hd' });
   hd.append(el('div', {}, [
     el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:3px' }, [
@@ -1390,10 +1652,10 @@ function thesisCard(t, expanded) {
       /* A seeded case says so wherever it is shown, as the research home and
          Saved Models do: on the company page it had no mark at all. */
       SEEDED_THESIS_IDS.includes(t.id) ? el('span', { class: 'chip chip-bronze', title: 'Written into this browser on a first visit to show what a case looks like. Not your work.' }, 'sample') : null,
-      el('span', { class: 'chip' }, `${t.conf} confidence`),
+      el('span', { class: 'chip' }, `${t.conf} confidence${isSuggested(t, 'conf') ? ' (suggested)' : ''}`),
       evalr.breaches.length ? sevChip('serious', `${evalr.breaches.length} condition breached`) : sevChip('good', 'No condition breached'),
     ]),
-    el('p', { class: 'metaline' }, `Created ${t.created} · next review ${t.review} · horizon ${t.horizon}`),
+    el('p', { class: 'metaline' }, `Created ${t.created} · next review ${t.review}${isSuggested(t, 'review') ? ' (suggested)' : ''} · horizon ${t.horizon}${isSuggested(t, 'horizon') ? ' (suggested)' : ''}`),
   ]));
   hd.append(el('div', { class: 'row', style: 'gap:6px' }, [
     el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(t.ticker) }, 'Research'),
@@ -1402,6 +1664,7 @@ function thesisCard(t, expanded) {
     el('button', { class: 'btn btn-quiet btn-sm', id: `thesis-edit-${t.id}`, onclick: () => openThesisEditor(t) }, 'Edit'),
   ]));
   card.append(hd);
+  if (hasSuggested(t)) card.append(suggestedBlock(t));
 
   card.append(el('p', { class: 'body-lg', style: 'font-size:14px;color:var(--ink);margin-bottom:var(--md)' }, t.oneLine || 'No investment case written yet.'));
 
@@ -1425,7 +1688,7 @@ function thesisCard(t, expanded) {
     ? el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openSavedRun(t) },
         `Linked run ${linkedRun.runId} · ${linkedRun.saved}`)
     : el('p', { class: 'metaline' },
-        'No valuation run linked yet. Save a run in the Valuation Studio and it attaches to this thesis automatically.')));
+        'No valuation run linked. A run saved in the Valuation Studio attaches here.')));
   right.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Key risks'));
   const rl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   (t.risks.length ? t.risks : ['—']).forEach(x => rl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
@@ -1434,7 +1697,7 @@ function thesisCard(t, expanded) {
   card.append(g);
 
   /* invalidation conditions, evaluated live */
-  card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Invalidation conditions — evaluated against the latest data'));
+  card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Invalidation conditions, against the latest data'));
   const tw = el('div', { class: 'tablewrap' });
   const tab = el('table', { class: 'dt' });
   tab.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Condition'), el('th', {}, 'Threshold'), el('th', {}, 'Current'),
@@ -1445,7 +1708,14 @@ function thesisCard(t, expanded) {
     const st = conditionState(cd);
     const dist = conditionDistance(cd);
     tb.append(el('tr', {}, [
-      el('td', { class: 'ident', style: 'white-space:normal;max-width:280px' }, cd.label),
+      /* Who set it, where the case says. A tool-added condition is marked until
+         confirmed; one confirmed says so; one from before the flag says nothing,
+         because which it was is not known. */
+      el('td', { class: 'ident', style: 'white-space:normal;max-width:280px' }, [
+        cd.label,
+        cd.suggested === true ? el('div', { class: 'case-sug-cond' }, [el('span', { class: 'caption' }, SUGGESTED_MARK), confirmButton(t, cd.ci, `condition: ${cd.label}`)])
+          : cd.suggested === false ? el('div', { class: 'case-sug-cond' }, el('span', { class: 'caption' }, 'Confirmed by you.')) : null,
+      ]),
       el('td', {}, `${cd.op} ${fmt(cd.v)}`),
       el('td', { html: isNum(cd.actual) ? fmt(cd.actual) : NA }),
       /* The number the label was derived from. Without it, "Approaching" is a
@@ -1453,8 +1723,9 @@ function thesisCard(t, expanded) {
       el('td', { class: 'num' }, dist
         ? `${formatConditionGap(Math.abs(dist.abs), fmt)} · ${fmtPct(dist.rel * 100, 1)} of threshold`
         : '—'),
-      el('td', { title: st.rule || '' },
-        st.sev === 'muted' ? el('span', { class: 'caption' }, st.label) : sevChip(st.sev, st.label)),
+      el('td', { title: st.rule || '' }, st.sev === 'muted'
+        ? [el('span', { class: 'caption' }, st.label), cd.actual == null ? el('div', { class: 'caption' }, 'Not counted as passing.') : null]
+        : sevChip(st.sev, st.label)),
     ]));
   });
   tab.append(tb); tw.append(tab); card.append(tw);
@@ -1483,8 +1754,12 @@ function thesisCard(t, expanded) {
     `Distance is shown two ways: the absolute gap in the metric's own unit — percentage points where the metric is a percentage — and that gap as a proportion of the threshold, which is the figure the ${Math.round(APPROACH_MARGIN * 100)}% margin is measured against.`
     + (isNum(age) ? ` The oldest statements behind any condition are ${age} months old; a company's are treated as stale beyond ${STALE_AFTER_MONTHS}.` : '')));
   card.append(ruleBox);
+  /* The rule for each state is in the table above, so this says only what the
+     table does not lead with. (It restated Breached, Approaching and Within in
+     forty words, to make room for the research record below.) */
   card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    `A condition reads Breached when it evaluates true, Approaching threshold when it does not but sits within ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value — |actual − threshold| ÷ |threshold| — and Within threshold beyond that. A condition with no current value, or one resting on stale statements, is never counted as passing.`));
+    'No current value, or stale statements: never counted as passing.'));
+  card.append(researchRecord(t, r));
 
   if (t.questions?.length) {
     card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Unanswered questions'));
@@ -1499,7 +1774,7 @@ function thesisCard(t, expanded) {
     reviewCount ? `Decision reviews (${reviewCount})` : 'Run a decision review'));
   foot.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(t.ticker, 'valuation') }, 'Re-run valuation'));
   foot.append(el('span', { class: 'spacer' }));
-  foot.append(el('span', { class: 'metaline' }, 'Alerts fire only when a condition above changes state — they describe the change, never an action.'));
+  foot.append(el('span', { class: 'metaline' }, 'Alerts describe a change in a condition, never an action.'));
   card.append(foot);
   return card;
 }
@@ -1515,6 +1790,8 @@ function openThesisEditor(t) {
      on. */
   const page = location.pathname;
   let redrawTimer = null;
+  /* The mark goes the moment the reader changes the field. */
+  const settle = (k) => { settleSuggested(t, k); document.getElementById(`th-sug-${k}`)?.remove(); };
   const keep = () => {
     saveTheses();
     clearTimeout(redrawTimer);
@@ -1552,15 +1829,19 @@ function openThesisEditor(t) {
   ['horizon', 'review'].forEach(k => {
     const f = el('div', { class: 'field' });
     f.append(el('label', { for: `th-${k}` }, k === 'horizon' ? 'Intended holding horizon' : 'Next review date'));
-    f.append(el('input', { class: 'input', id: `th-${k}`, type: k === 'review' ? 'date' : 'text', value: t[k], oninput: e => { t[k] = e.target.value; keep(); } }));
+    /* Changing it makes it the reader's: the mark goes. */
+    f.append(el('input', { class: 'input', id: `th-${k}`, type: k === 'review' ? 'date' : 'text', value: t[k], oninput: e => { t[k] = e.target.value; settle(k); keep(); } }));
+    if (isSuggested(t, k)) f.append(el('p', { class: 'metaline', id: `th-sug-${k}` }, SUGGESTED_MARK));
     row.append(f);
   });
   body.append(row);
   const cf = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   cf.append(el('label', { for: 'th-conf' }, 'Confidence'));
-  const cs = el('select', { class: 'select', id: 'th-conf', onchange: e => { t.conf = e.target.value; keep(); } });
+  const cs = el('select', { class: 'select', id: 'th-conf', onchange: e => { t.conf = e.target.value; settle('conf'); keep(); } });
   ['Low', 'Medium', 'High'].forEach(v => cs.append(el('option', { value: v, selected: t.conf === v ? '' : null }, v)));
-  cf.append(cs); body.append(cf);
+  cf.append(cs);
+  if (isSuggested(t, 'conf')) cf.append(el('p', { class: 'metaline', id: 'th-sug-conf' }, SUGGESTED_MARK));
+  body.append(cf);
 
   body.append(el('div', { class: 'row', style: 'gap:8px' }, [
     /* An explicit save re-stamps the case: the reader has read it against
@@ -1662,7 +1943,7 @@ VIEWS.thesis = () => {
   /* The one head (pageHead, 36-layouts.js), under My workspace's header. */
   wrap.append(pageHead({ title: 'What you believe, and what would prove you wrong', lede: 'Your investment cases, each checked against the latest data held.',
     note: 'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.',
-    action: el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }) }));
+    action: el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New case from a screen` }) }));
   /* Under the heading, on every personal page: the page says what it is
      before it says whose data is on it. */
   appendSampleBanner(wrap);
@@ -1686,7 +1967,7 @@ VIEWS.thesis = () => {
      every thesis has one — a new thesis starts without. */
   const covered = State.watchlist.filter(id => State.theses.some(t => t.ticker === id)).length;
   const linked = State.theses.filter(t => t.runRef).length;
-  [['Open theses', String(State.theses.length), `${linked} linked to a saved valuation run`],
+  [['Open cases', String(State.theses.length), `${linked} linked to a saved valuation run`],
    ['Conditions breached', String(breached), breached ? 'Read the evidence before acting' : 'Nothing has changed state'],
    ['Reviews due within 30 days', String(dueSoon), 'Overdue included. Review discipline is scored, not returns'],
    ['Watchlist coverage', `${covered}/${State.watchlist.length}`, 'Watchlist entries with a written thesis']]
@@ -1784,7 +2065,7 @@ function fyAlignment(rows) {
   const same = labels.length === 1;
   const ends = known.map((x, i) => (i && same ? `${x.tk}’s ends ${FY_MONTHS[x.month]}` : `${x.tk}’s FY${x.fy} ends ${FY_MONTHS[x.month]}`));
   const notHeld = !unknown.length ? ''
-    : `The year-end month is not held for ${andList(unknown.map(x => x.tk))} in this dataset — the shipped statements predate the ingest that records it — so ${known.length
+    : `The year-end month is not held for ${andList(unknown.map(x => x.tk))} in this dataset — the statements held were stored before it was recorded — so ${known.length
       ? `${unknown.length === 1 ? 'that column' : 'those columns'} cannot be placed against the others`
       : `whether ${same ? `these FY${labels[0]} columns` : 'these columns'} cover the same twelve months cannot be checked here`}.`;
   if (known.length >= 2 && months.size > 1)
@@ -2206,7 +2487,7 @@ VIEWS.compare = () => {
     el('p', { class: 'body', style: 'flex:1 1 320px;font-size:13px;margin:0' }, pack.why),
   ]));
   if (pack.id === 'general' && kinds.length > 1) packNote.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    `The selection mixes ${kinds.join(', ')}. Only measures that mean the same thing across all of them are shown — select one business model to get its own comparison.`));
+    `The selection mixes ${kinds.map(archetypeName).join(', ')}. Only measures that mean the same thing across all of them are shown — select one business model to get its own comparison.`));
   wrap.append(packNote);
 
   /* Totals in the chosen currency, converted at the rate the chip above
@@ -2261,7 +2542,7 @@ VIEWS.compare = () => {
   const METRIC_ROWS = [
     ['Price', r => isNum(r.c.px?.p) ? fmtMoney(r.c.px.p, r.c.ccy) : absentCell('needs a price', NO_PRICE)],
     ['Market capitalisation', r => fmtCap(showLocal ? r.m.mcap : toBase(r.m.mcap, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy), 'mcap'],
-    ['Business model', r => r.c.type],
+    ['Business model', r => archetypeName(r.c.type)],
     /* Which twelve months, and under which standard — so a column is read as
        what it is before any figure in it is compared. Where the filed
        columns' latest years differ, whether this is the company's latest. */
@@ -2309,7 +2590,7 @@ VIEWS.compare = () => {
     el('p', { class: 'metaline', style: 'flex:1 1 260px;margin:0' },
       `Kept in this browser only, with the model and data versions and every cell as it reads now, so reopening it shows what has moved. ${nSaved ? `${nSaved} saved so far.` : ''}`),
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/my/workspace'),
-      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } }, 'Workspace'),
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } }, 'Saved work'),
   ]));
   wrap.append(saveBar);
 
@@ -2389,7 +2670,7 @@ VIEWS.compare = () => {
      a common year the chart says it does not. */
   const chartYears = yrs.mode === 'common' && shown.some(r => r.c.asAt)
     ? ` Each company’s latest year, against a price held now — not FY${yrs.common}.` : '';
-  mx.append(cardHead('Quality against valuation', `Same axes as the Value Radar, restricted to the selected companies.${chartYears}`, null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
+  mx.append(cardHead('Quality against valuation', `Same axes as the Quality vs Value Map, restricted to the selected companies.${chartYears}`, null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
   const host = el('div', { style: 'width:100%' });
   mx.append(host);
   mx.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' }, [
@@ -2678,7 +2959,7 @@ VIEWS.portfolio = () => {
                      : (pos.length ? 'No holding here has a price, so there is no return to measure' : 'No holdings yet'),
       tone: !totalCost ? null : securities >= totalCost ? '--ok-text' : '--dn-text', ...(totalCost ? PK : { kind: 'unavailable', fine: 'No priced holding' }) })));
   const withThesis = pos.filter(p => p.thesis);
-  tiles.append(el('div', { class: 'card' }, statTile('Covered by a thesis', `${withThesis.length}/${pos.length}`,
+  tiles.append(el('div', { class: 'card' }, statTile('Covered by a case', `${withThesis.length}/${pos.length}`,
     { sub: securities ? `${fmtPct(sum(withThesis.map(p => p.valBase)) / securities * 100, 0)} of securities value` : '—', ...PK })));
   tiles.append(el('div', { class: 'card' }, statTile('Transaction costs paid', fmtAmount(feeTotal, State.baseCcy),
     { sub: 'Fees net of rebates, included in the cost base', ...PK })));
@@ -2756,15 +3037,17 @@ VIEWS.portfolio = () => {
        missing from (WS-06, equity-test) — not said once for both. */
     if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
+    /* A business model by its name, not its key (copy-equities-20). */
+    const nameOf = label === 'Business-model exposure' ? archetypeName : (x => x);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     /* Widths rounded to 1/10000 of a per cent, as the range strip's are: /my/portfolio
        is pre-rendered, and a served page must match its render on Linux and Windows. */
-    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${Math.round(v / totalVal * 100 * 1e4) / 1e4}%;background:var(${SERIES[i % 8]})`, title: k })));
+    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${Math.round(v / totalVal * 100 * 1e4) / 1e4}%;background:var(${SERIES[i % 8]})`, title: nameOf(k) })));
     card.append(bar);
     const l = el('div');
     entries.forEach(([k, v], i) => l.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
       el('span', { class: 'legend-key', style: `background:var(${SERIES[i % 8]})` }),
-      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, k),
+      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, nameOf(k)),
       el('span', { class: 'spacer' }),
       el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtPct(v / totalVal * 100, 1)),
     ])));

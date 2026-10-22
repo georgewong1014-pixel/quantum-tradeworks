@@ -2781,11 +2781,15 @@ const UNIVERSE_VIEWS = new Set([
    pack. Drawn before the filings land, it listed the illustrative
    stand-ins a filer replaces as they load — "AAPL · illustrative", "JPM ·
    illustrative", seventeen companies whose own pages say Filed — and that
-   first draw was what /methodology served. So that one tab of Learn waits
-   for the filings as the views above do, and is served drawn with them in;
-   the other four read no company and draw at once. Every "does this page
+   first draw was what /methodology served. So that tab of Learn waits
+   for the filings as the views above do, and is served drawn with them in.
+   The metric dictionary (/learn, /learn/glossary) reads every company too —
+   its Computable column counts them — and was served over the 36 stand-ins,
+   price measures computable for 34 of 36, where no filed company carries a
+   price (the 20 Oct 2026 sweep, copy-property-3); it waits as well. The
+   other four read no company and draw at once. Every "does this page
    wait" asks viewWaits, here and in prerender.mjs and coverage-frames.mjs. */
-const UNIVERSE_TABS = { learn: ['models'] };
+const UNIVERSE_TABS = { learn: ['models', 'dictionary'] };
 function viewWaits(view = State.view) {
   if (UNIVERSE_VIEWS.has(view)) return true;
   if (view !== State.view || !UNIVERSE_TABS[view]) return false;
@@ -3143,11 +3147,15 @@ const SERVED_READS = {
      opens on a filed company (HIW_PICKS, 55-views-public.js): the
      calculator's deal its "Your calculator, as it stands" card reads. */
   howItWorks: ['deal'],
-  /* /methodology, the one tab of Learn that waits (UNIVERSE_TABS): the
+  /* /methodology, a tab of Learn that waits (UNIVERSE_TABS): the
      router table reads the universe and nothing this browser keeps. Keyed
      view:tab (servedKeyOf), so Learn's other tabs, which do not wait, are
      served as before. */
   'learn:models': [],
+  /* /learn and /learn/glossary, the metric dictionary, which waits too: its
+     Computable column counts the companies a measure is computable for,
+     and a price typed in or closes pasted make price measures computable. */
+  'learn:dictionary': ['manualPrices', 'userData'],
 };
 /* The SERVED_READS row of the page on screen: a view's, or — for a tab
    that waits (UNIVERSE_TABS) — that tab's. */

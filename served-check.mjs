@@ -742,6 +742,13 @@ const HOME_PAGE = read(HOME);
        below); an illustrative company's carries none. */
     if (skeleton(r.body, renderFileOf(co.path)) !== PAGE_SKELETON) p.push(`${co.path}: differs from index.html outside its own head, ${co.company.real ? 'its committed render, ' : ''}and the two app files it loads`);
     p.push(...headerProblems(r));
+    /* The button that starts a case reads "Start a research case" (the 21 Oct
+       2026 Day-8 report, QT-D08-01): it was "Save research", which made a
+       draft with defaults in it and said nothing of that. A filer's page
+       carries its committed render, which holds the button; a company with a
+       sample case reads "Open the sample investment case" instead. */
+    if (/>Save research</.test(r.body)) p.push(`${co.path}: its committed render still offers "Save research"`);
+    if (co.company.real && !/>Start a research case</.test(r.body)) p.push(`${co.path}: its committed render does not offer "Start a research case"`);
     const size = Buffer.byteLength(r.body, 'utf8');
     total += size;
     if (size > largest[1]) largest = [co.path, size];
@@ -805,7 +812,7 @@ const HOME_PAGE = read(HOME);
 
   /* /company/AAPL-SEC, a filer's id, is a 308 to its own page since the 9 Oct
      2026 audit (deep-links, below). */
-  judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative, the illustrative ones (noindex) asking not to be indexed — is index.html in every other byte but the two app files (and a filer's page its committed render), carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
+  judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative, the illustrative ones (noindex) asking not to be indexed — is index.html in every other byte but the two app files (and a filer's page its committed render), carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); a filer's committed render offers "Start a research case" and none offers "Save research"; each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
     'a company\'s own address is not served its own head, or another form of it is not the generic page');
 }
 /* ---- end releaseB: D ---- */
@@ -2875,7 +2882,7 @@ const HOME_PAGE = read(HOME);
   const sitemap = (await get('/sitemap.xml')).body;
   const mine = statics.filter(path => myWorkspace({ path, head: router.headAt(path) }));
   const SAMPLE_BANNER = /Sample data These holdings, investment cases, watchlists and price alerts were written into this browser .* They are not yours/;
-  const NONE = { '/my/reports': /No reports yet/, '/my/watchlists': /None of your own yet/, '/my/alerts': /Price alerts — none of your own yet/, '/my/data': /Saved work — none yet/ };
+  const NONE = { '/my/reports': /No reports yet/, '/my/watchlists': /None of your own yet/, '/my/alerts': /Price alerts — none of your own yet/, '/my/data': /Tool snapshots — none yet/ };
   const pages = await getAll(mine);
   for (const path of mine) {
     const r = pages.get(path);
@@ -3118,11 +3125,11 @@ const HOME_PAGE = read(HOME);
     if (!group) p.push('/property/lab serves no "More inputs" group');
     else {
       if (attr(group, 'open') !== null) p.push('the "More inputs" group is served open');
-      if (JSON.stringify(grouped) !== JSON.stringify(['Loan tenure (years)', 'Vacancy allowance (%)', 'Monthly maintenance (RM)', 'Holding period (years)']))
+      if (JSON.stringify(grouped) !== JSON.stringify(['Loan tenure (years)', 'Vacancy allowance (% of the year)', 'Monthly maintenance (RM)', 'Holding period (years)']))
         p.push(`the "More inputs" group holds ${grouped.join(' | ') || 'no input'}, not tenure, vacancy, maintenance and holding period`);
       if (!all(group).some(n => /^More inputs \(4\)$/.test(rawText(n).trim()))) p.push('the group\'s button does not read "More inputs (4)"');
     }
-    for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (%)', 'Holding period (years)'])
+    for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (% of the year)', 'Holding period (years)'])
       if (!labels.includes(want)) p.push(`/property/lab does not list the input “${want}”`);
     /* A row's whole text, its closed body too: the cover is said in the body, one tap away. */
     const rows = inside.filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')).map(n => [attr(n, 'data-row'), sight(all(n).find(x => x.tag === 'summary') || n), rawText(n)]);

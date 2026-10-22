@@ -908,7 +908,7 @@ const PM_FIELD_WORDS = {
   /* The auction risk mode's answers (P3). */
   reservePrice: 'Reserve price (RM)', auctionComp1: 'Comparable price 1 (RM)', auctionComp2: 'Comparable price 2 (RM)', auctionComp3: 'Comparable price 3 (RM)',
   arrearsMaintenance: 'Arrears: maintenance (RM)', arrearsQuitRent: 'Arrears: quit rent (RM)', arrearsAssessment: 'Arrears: assessment (RM)', arrearsUtilities: 'Arrears: utilities (RM)',
-  auctionRepairs: 'Repairs (RM)', possessionCost: 'Possession cost (RM)', possessionMonths: 'Possession time (months)', auctionLegal: 'Legal and search costs (RM)',
+  auctionRepairs: 'Repairs (RM)', possessionCost: 'Possession cost (RM)', possessionMonths: 'Possession time (months)', auctionLegal: 'Legal fees — your lawyer’s quote (RM)',
   auctionDepositPct: 'Deposit (%)', auctionDepositOf: 'Deposit of', auctionBalanceDays: 'Days to pay the balance', auctionBuffer: 'Financing buffer (RM)',
   auctionHoldMonths: 'Holding period (months)', auctionChecks: 'Auction checks ticked',
   /* The developer premium model's answers (P4). */

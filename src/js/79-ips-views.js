@@ -187,6 +187,7 @@ function rentVersusBuyPanel(d, m) {
        reader saying the words on screen reached nothing (WCAG 2.5.3). */
     /* renderKeepFocus, for the reason the demand selects above use it. */
     onchange: e => { State.deal.ownUseWeeks = Number(e.target.value) || 0; saveDeal(); renderKeepFocus(); } }));
+  f.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, 'Used here only: every other figure assumes no own use.'));
   card.append(f);
 
   const r = rentVersusBuy(d, m, weeks > 0 ? weeks : null);
@@ -209,8 +210,7 @@ function rentVersusBuyPanel(d, m) {
   card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:6px' }, r.why));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'Classifying a purchase as consumption is not a judgement about whether to make it. People buy things they enjoy, and that is a '
-    + 'complete reason. It matters here only because consumption modelled as income overstates what the property returns, '
-    + 'and every figure elsewhere in this report would inherit that.'));
+    + 'complete reason. It matters here only because consumption modelled as income overstates what the property returns.'));
   return card;
 }
 
@@ -222,7 +222,7 @@ VIEWS.ips = () => {
     el('h1', {}, 'Investment Policy Statement'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'The governing document. Everything this product computes is an execution of what is written here, and where the two '
-      + 'ever disagree, this page is what is wrong — not the code.'),
+      + 'ever disagree, that is a defect — report it under Corrections.'),
     el('p', { class: 'metaline', style: 'margin-top:6px' }, IPS_VERSION),
   ])));
 
@@ -348,7 +348,7 @@ VIEWS.ips = () => {
       const ul = el('ul', { class: 'ticklist blocklist', style: 'margin-top:var(--md)' });
       [
         'IPS §4 tier 3 — no market-data provider is licensed to this product. NAPIC transaction data can be sourced and analysed; record-level republication is licence-pending, and the data-sources page lists the seven permissions still to be confirmed.',
-        'IPS §5 — the equity engine answers the eight gates only for property so far. Equities and the cash wheel still use their own scorecards.',
+        'IPS §5 — the engine answers the eight gates only for property so far. Equities and the cash wheel still use their own scorecards.',
         'IPS §7 — cross-asset comparison of after-cost risk-adjusted forward return is not built.',
         'IPS §9 — portfolio-level correlation, concentration and stress testing across positions is not built.',
         'IPS §6.2 — the mortgage stress test here uses three percentage points, not the one point the IPS specifies. The more conservative figure was already in place and has been kept; this is a deliberate departure and not an oversight.',

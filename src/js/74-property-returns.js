@@ -153,8 +153,11 @@ function irrOf(flows, times = null) {
    final years when principal dominates the payment.
 
    The first-tenancy letting fee is the second one. Getting a property into a
-   lettable state is capital in nature; keeping it let is not. So year one's
-   placement fee is excluded and every later one is allowed.
+   lettable state is capital in nature; keeping it let is not. So the first
+   tenant's placement fee is excluded and every replacement tenant's is
+   allowed, whatever the tenancy length: the model spreads each fee over its
+   tenancy, and leaves out of the deduction the part of each year's charge
+   that falls in the first tenancy's months (dealModel's yearFlow).
 
    NO RATE TABLE. This product holds no schedule of Malaysian personal tax
    bands. Rates are set each Budget and a stale table stated confidently is
@@ -260,7 +263,7 @@ function returnsAndTaxPanel(d, m) {
     isNum(m.irrPct) ? fmtPct(m.irrPct, 2) : '—',
     { sub: isNum(m.irrPct)
         ? (nt ? `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed at signing; held ${d.holdYears} years from vacant possession, sold ${ndYears(nt.saleYears)} years after signing`
-          : `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`)
+          : `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`) + holdingShortWords(m)
         : (m.irrWhy || 'Not computable') })));
   g.append(el('div', { class: 'panel ls-fig' }, statTile('Annualised multiple',
     isNum(m.annualisedMultiplePct) ? fmtPct(m.annualisedMultiplePct, 2) : '—',
@@ -268,7 +271,7 @@ function returnsAndTaxPanel(d, m) {
   g.append(el('div', { class: 'panel ls-fig' }, statTile(`Value against ${fmtPct(m.hurdlePct, 1)} elsewhere`,
     isNum(m.npvAtHurdle) ? fmtMoney(m.npvAtHurdle, 'MYR', 0) : '—',
     { sub: isNum(m.npvAtHurdle)
-        ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named')
+        ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named') + holdingShortWords(m)
         /* A return entered and a value still missing means the flows are
            unknown; asking for the return again would send the reader to a
            box that is already filled. */
@@ -393,31 +396,51 @@ function returnsAndTaxPanel(d, m) {
   /* THE LINE THAT EARNS THIS PANEL.
      Year one is where the trap is widest, so year one is what gets shown. */
   const p1 = m.path[0];
-  if (p1) {
-    /* The same deductions with the principal added to them, which is what
-       "deducting the whole instalment" means. This was rent less all of the
-       outgoings less the instalment, and the outgoings include the first
-       tenant's placement fee, which is not deductible either — so on a managed
-       deal the understatement credited to the instalment was the principal
-       plus that fee: RM8,266 against RM6,466 of principal. */
-    const naive = p1.taxable - p1.principal;
-    const over = p1.taxable - naive;
-    card.append(el('div', { style: 'margin-top:var(--lg);padding:var(--md);border:1px solid var(--bronze);border-radius:var(--r-md)' }, [
-      el('p', { class: 'body', style: 'font-weight:600;margin:0' }, 'The instalment is not deductible. The interest inside it is.'),
-      el('p', { class: 'metaline', style: 'margin-top:6px' },
-        `In year one this property pays ${fmtMoney(p1.debt, 'MYR', 0)} to the bank, of which `
-        + `${fmtMoney(p1.interest, 'MYR', 0)} is interest and ${fmtMoney(p1.principal, 'MYR', 0)} is principal. `
-        + 'Only the interest is deductible — principal is repayment of borrowing, not a cost of earning rent. '
-        + `Deducting the whole instalment would put taxable income at ${fmtMoney(naive, 'MYR', 0)} instead of `
-        + `${fmtMoney(p1.taxable, 'MYR', 0)}, understating it by ${fmtMoney(Math.abs(over), 'MYR', 0)}.`),
-      el('p', { class: 'metaline', style: 'margin-top:6px' },
-        'The gap widens every year as principal takes a larger share of the same payment — by the final year of this hold '
-        + `the split is ${fmtMoney(m.path[m.path.length - 1].interest, 'MYR', 0)} interest to `
-        + `${fmtMoney(m.path[m.path.length - 1].principal, 'MYR', 0)} principal.`),
-      el('p', { class: 'metaline', style: 'margin-top:6px' },
-        'The fee for finding the first tenant is also excluded: getting a property into a lettable state is capital in nature. '
-        + 'Finding a replacement tenant in later years is deductible.'),
-    ]));
+  /* EACH PART SAID WHERE THE DEAL HAS IT (the 20 Oct 2026 sweep, taxed-6,
+     taxed-2, managed-8). The instalment's part only with a loan whose
+     instalment repays principal in year one — a cash purchase read "pays
+     RM0 to the bank … understating it by RM0"; its last split from the last
+     year the loan runs, not a year after it ("RM0 interest to RM0
+     principal"). The first tenant's fee only where year one leaves one out
+     of the deduction: the outgoings less what is deducted of them. */
+  const leftOut = (p) => (isNum(p.taxable) ? p.taxable - (p.rent - p.opex - p.interest) : 0);
+  const hasPrincipal = !!p1 && num0(p1.principal) > 0;
+  const fee1 = p1 ? leftOut(p1) : 0;
+  if (hasPrincipal || fee1 >= 0.5) {
+    const box = el('div', { style: 'margin-top:var(--lg);padding:var(--md);border:1px solid var(--bronze);border-radius:var(--r-md)' });
+    if (hasPrincipal) {
+      /* The same deductions with the principal added to them, which is what
+         "deducting the whole instalment" means. This was rent less all of the
+         outgoings less the instalment, and the outgoings include the first
+         tenant's placement fee, which is not deductible either — so on a managed
+         deal the understatement credited to the instalment was the principal
+         plus that fee: RM8,266 against RM6,466 of principal. */
+      const naive = p1.taxable - p1.principal;
+      const over = p1.taxable - naive;
+      const last = m.path.filter(p => num0(p.principal) > 0).pop();
+      const endsInside = last.y < m.path.length;
+      box.append(
+        el('p', { class: 'body', style: 'font-weight:600;margin:0' }, 'The instalment is not deductible. The interest inside it is.'),
+        el('p', { class: 'metaline', style: 'margin-top:6px' },
+          `In year one this property pays ${fmtMoney(p1.debt, 'MYR', 0)} to the bank, of which `
+          + `${fmtMoney(p1.interest, 'MYR', 0)} is interest and ${fmtMoney(p1.principal, 'MYR', 0)} is principal. `
+          + 'Only the interest is deductible — principal is repayment of borrowing, not a cost of earning rent. '
+          + `Deducting the whole instalment would put taxable income at ${fmtMoney(naive, 'MYR', 0)} instead of `
+          + `${fmtMoney(p1.taxable, 'MYR', 0)}, understating it by ${fmtMoney(Math.abs(over), 'MYR', 0)}.`),
+        el('p', { class: 'metaline', style: 'margin-top:6px' },
+          (endsInside
+            ? `The gap widens each year the loan runs as principal takes a larger share of the same payment — in its last year, year ${last.y}, `
+            : 'The gap widens every year as principal takes a larger share of the same payment — by the final year of this hold ')
+          + `the split is ${fmtMoney(last.interest, 'MYR', 0)} interest to ${fmtMoney(last.principal, 'MYR', 0)} principal.`
+          + (endsInside ? ' After it there is no instalment.' : '')));
+    }
+    if (fee1 >= 0.5) {
+      box.append(el('p', { class: hasPrincipal ? 'metaline' : 'body', style: hasPrincipal ? 'margin-top:6px' : 'margin:0' },
+        `The first tenant’s placement fee is not deductible${hasPrincipal ? ' either' : ''} — getting a property into a lettable state is capital in nature — `
+        + `but a replacement tenant’s is. Each fee is spread over its ${m.monthsPerCycle}-month tenancy, so the first is left out `
+        + `of the deduction while its tenancy runs: ${fmtMoney(fee1, 'MYR', 0)} in year one, inside the outgoings in the table below.`));
+    }
+    card.append(box);
   }
 
   /* ---- year by year ---- */
@@ -436,6 +459,8 @@ function returnsAndTaxPanel(d, m) {
   ]))));
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
   gridKeyboard(t, 'Year by year rent, interest, tax and cash after tax. Arrow keys move between cells.');
+  /* A year's cash without the holding months' instalment, said (auctionHolding partial). */
+  if (holdingShort(m)) card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, `So far: ${holdingShort(m)}`));
 
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'A year whose outgoings exceed its rent produces no tax and no credit: a rental loss from a non-business source is not '

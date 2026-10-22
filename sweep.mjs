@@ -1979,7 +1979,7 @@ for (const route of ROUTES) {
         rows: [...g.querySelectorAll('[data-result], .search-off')].map(r => ({ tag: r.tagName, href: r.getAttribute('href'), result: r.hasAttribute('data-result'),
           name: (r.querySelector('.search-name, .search-co-tk')?.textContent || r.textContent).trim().slice(0, 90), kind: (r.querySelector('.search-in')?.textContent || '').trim(),
           off: r.classList.contains('search-off'), badge: r.querySelector('.status-badge')?.textContent.trim() || null,
-          note: (r.querySelector('.search-note')?.textContent || '').trim(), text: r.textContent.replace(/\\s+/g, ' ').trim().slice(0, 160) })) }; }); })()`;
+          note: (r.querySelector('.search-note')?.textContent || '').trim(), chips: [...r.querySelectorAll('.chip')].map(c => c.textContent.trim()), text: r.textContent.replace(/\\s+/g, ' ').trim().slice(0, 160) })) }; }); })()`;
   const group = (gs, id) => (gs || []).find(g => g.id === id) || null;
   const b3 = [], b4 = [];
   const hrefs = new Set();
@@ -2041,7 +2041,7 @@ for (const route of ROUTES) {
       }
     }
     const may = group(await ev(LISTED('maybank')), 'saved');
-    if (!may || !may.rows.some(r => /^Investment case/.test(r.kind) && /sample/i.test(r.text))) b3.push(`"maybank" does not list the sample investment case, labelled a sample, under Your saved work: ${JSON.stringify(may?.rows || null)}`);
+    if (!may || !may.rows.some(r => /^Investment case/.test(r.kind) && r.chips.includes('sample'))) b3.push(`"maybank" does not list the sample investment case, labelled a sample, under Your saved work: ${JSON.stringify(may?.rows || null)}`);
 
     /* The public pages, by name, as links to their own address. */
     for (const [label, path] of [['How it works', '/how-it-works'], ['Pricing', '/pricing'], ['Methodology', '/methodology'], ['Data sources', '/data-sources'], ['Glossary', '/learn/glossary']]) {

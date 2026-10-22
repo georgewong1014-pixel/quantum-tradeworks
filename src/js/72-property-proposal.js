@@ -440,7 +440,8 @@ const CP_IN = {
   tenancyMonths: (v) => cpPlural(v, 'month'), daysToFirstTenant: (v) => cpPlural(v, 'day'), depositMonths: (v) => `${cpPlural(num0(v), 'month')} of rent`,
   repairApprovalLimit: (v) => cpMoneyIn(num0(v)), inspectionsPerYear: (v) => `${cpN(num0(v))} a year`, arrearsChaseDays: (v) => cpPlural(v, 'day'),
   ownerReportCadence: (v) => cpCap(String(v || 'not agreed')), tenantPaysUtilities: (v) => (v ? 'By the tenant' : 'By the owner'),
-  ownUseWeeks: (v) => `${cpPlural(num0(v), 'week')} a year`,
+  /* Recorded, not used: dealModel never reads the weeks, so no figure in this proposal allows for them (the 20 Oct 2026 sweep, taxed-8). */
+  ownUseWeeks: (v) => `${cpPlural(num0(v), 'week')} a year${num0(v) > 0 ? ' — recorded; no figure here allows for it' : ''}`,
   holdYears: (v) => cpPlural(v, 'year'), apprecPct: (v) => `${cpPct(v)} a year`, sellMonths: (v) => cpPlural(num0(v), 'month'),
   agentPct: (v) => cpPct(num0(v)), exitLegalPct: (v) => cpPct(num0(v)),
   disposerCategory: (v) => rpgtCategory(v).label, marginalTaxPct: (v) => (num0(v) > 0 ? cpPct(v) : 'Not entered'),
@@ -757,9 +758,9 @@ function cpAcquisitionSection(d, m, cash) {
   const lets = m.letsToTenant;
   s.append(cpList([
     cash.paid > 0 ? ['Cash already paid', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), 'The booking deposit handed over at offer — part of the deposit, not on top of it.'] : null,
-    ['Cash still to complete', cpFig('cashStillRequiredToComplete', cpMoney(cash.complete)), `Paid out on completion day: the deposit, any valuation gap, the duties, the legal fees and the financing costs${cash.paid > 0 ? ', less what was paid at offer' : ''}.`],
+    ['Cash still to complete', cpFig('cashStillRequiredToComplete', cpMoney(cash.complete)), `Paid out on completion day: the deposit, any valuation gap, the duties, the legal fees and the financing costs${cash.paid > 0 ? ', less what was paid at offer' : ''}${pcShortWords(m, ['acquisition', 'financing'])}.`],
     [lets ? 'Cash to make it rent-ready' : 'Cash to make it ready', cpFig('improvementCash', cpMoney(cash.improvement)),
-      lets ? 'Spent after completion, before it can earn: renovation, furnishing and deposits.' : 'Spent after completion: renovation, furnishing and deposits.'],
+      (lets ? 'Spent after completion, before it can earn: renovation, furnishing and deposits' : 'Spent after completion: renovation, furnishing and deposits') + `${pcShortWords(m, ['improvement'])}.`],
     ['Cash to keep untouched', isNum(cash.reserve) ? cpFig('reserveCash', cpMoney(cash.reserve)) : el('span', { class: 'cp-unpriced' }, 'not priced'),
       `${cpPlural(m.reserveMonths, 'month')} of instalment and owner-paid running costs, held in the owner’s account rather than spent.`],
     [cashRequiredLabel(m), cpFig('safeCashRequired', cpMoney(cash.safe)), missing.length ? 'Everything priced so far — short by the lines named above.' : 'Everything together: the cash that decides whether the purchase can be carried.'],
@@ -788,9 +789,12 @@ function cpFinancingSection(d, m) {
     ['Monthly instalment', cpFig('instalment', cpMoney(m.instalment)), !loan ? 'Nothing is owed to a lender: there is no loan.'
       : isNum(m.instalment) ? `Owed to the lender each month: ${cpPct(d.ratePct, 2)} a year over ${cpPlural(d.tenureYears, 'year')}` : 'Not computed: the loan has no repayment schedule at the entered tenure'],
     loan ? ['Loan repayments a year', cpFig('annualDebtService', cpMoney(m.annualDebtService))] : null,
-    !isNum(cf) ? null : [LAB_FIGURES.find(f => f.key === 'monthlyCommitment').label(d), cpFig('monthlyCommitment', cpMoney(mc)), mc > 0
+    /* Before tax on the rent where a rate is entered, as the Lab's row says
+       (the 20 Oct 2026 sweep, lab-refurb-6). */
+    !isNum(cf) ? null : [LAB_FIGURES.find(f => f.key === 'monthlyCommitment').label(d), cpFig('monthlyCommitment', cpMoney(mc)), (mc > 0
       ? `What the owner pays from their own income each month: ${lets ? `the part of the ${loan ? 'instalment and the running costs' : 'running costs'} that the rent, after vacancy, does not meet` : `the ${loan ? 'instalment and the running costs' : 'running costs'}, as this class earns no rent`}.`
-      : `Nothing from the owner’s income: ${lets ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}.`],
+      : `Nothing from the owner’s income: ${lets ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}.`)
+      + (m.taxComputed ? ' Before tax on the rent.' : '')],
     !isNum(cf) || !(m.annualOwnerSubsidy > 0) ? null : ['From the owner’s own income, a year', cpFig('annualOwnerSubsidy', cpMoney(m.annualOwnerSubsidy)),
       lets ? `The monthly commitment over a year — what the rent, after vacancy and running costs, leaves unpaid${loan ? ' of the loan repayments' : ' of the running costs'} — before any major repair.`
         : `The ${loan ? 'loan repayments and the running costs together' : 'running costs'}: this class earns no rent to meet them.`],
@@ -912,7 +916,8 @@ function cpExitSection(d, m, paid = false) {
      gains tax of nil read "−RM0", a sign on a zero. */
   const less = (key, v) => cpFig(key, !isNum(v) ? '—' : cpMoney(v) === 'RM0' ? 'RM0' : `−${cpMoney(v)}`, { 'data-cp-sign': '-' });
   const lets = m.letsToTenant;
-  const rate = () => (isNum(m.irrPct) ? cpFig('irrPct', fmtPct(m.irrPct, 2)) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
+  /* Short of the holding months' instalment where it is not priced (auctionHolding partial). */
+  const rate = () => (isNum(m.irrPct) ? (holdingShort(m) ? el('span', {}, [cpFig('irrPct', fmtPct(m.irrPct, 2)), ' so far']) : cpFig('irrPct', fmtPct(m.irrPct, 2))) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
   if (!paid) {
     const label = (key) => LAB_FIGURES.find(f => f.key === key).label(d);
     s.append(cpTable(m.ndTiming ? soldWhen : `If it is sold after ${d.holdYears} years`, null, [
@@ -1091,8 +1096,19 @@ function cpSplitItems(d, m, cash, paid = false) {
   const stressRow = (label, v, note) => put('risks', label, isNum(v) ? `${cpSignedMoney(v)} a month` : 'not computed', isNum(v) ? (sample.size ? 'illustrative' : 'modelled') : 'unavailable', note, 'stress');
   if (isNum(m.cashflowMonthly) && m.cashflowMonthly < 0) put('risks', 'Monthly position as modelled', `${cpSignedMoney(m.cashflowMonthly)} a month`, sample.size ? 'illustrative' : 'modelled', 'Met from the owner’s own income every month.', 'position');
   if (loan) for (const r of (m.stress?.rate || []).slice(1)) stressRow(`Interest rate ${r.label} (${cpPct(r.ratePct, 2)})`, r.monthly, 'The monthly position with the rate raised and everything else held.');
-  if (lets) for (const r of (m.stress?.vacancy || []).slice(1)) stressRow(`Vacancy at ${r.label}`, r.monthly, 'The monthly position with that share of the year empty.');
-  if (num0(d.renovation) > 0) for (const r of (m.stress?.renovation || []).slice(1, 3)) put('risks', `Renovation ${r.label}`, `${cpMoney(r.cash)} cash required`, sample.size ? 'illustrative' : 'modelled', `The renovation at ${cpMoney(r.renovation)}; every other line as entered.`, 'stress');
+  /* Only the fixed levels above the vacancy entered are a risk: one at or
+     below it reads better than the deal itself (the 20 Oct 2026 sweep, stress-6). */
+  if (lets) for (const r of (m.stress?.vacancy || []).slice(1).filter(r => r.vacancyPct > num0(d.vacancyPct))) stressRow(`Vacancy at ${r.label}`, r.monthly, 'The monthly position with that share of the year empty.');
+  /* An overrun row's cash is the ledger before the reserve (the model's
+     stress rows; the calculator's "Cash before reserve", QT-002). Printed as
+     "cash required" it read RM2,138 under the headline that counts the
+     reserve (the 20 Oct 2026 sweep, stress-3): with the reserve added back,
+     as the calculator's "Cash required including reserve" column does, it
+     is the headline's figure at that renovation — and where the reserve
+     cannot be priced, it is said to be without it. */
+  if (num0(d.renovation) > 0) for (const r of (m.stress?.renovation || []).slice(1, 3)) put('risks', `Renovation ${r.label}`,
+    isNum(m.reserveCash) ? `${cpMoney(r.cash + m.reserveCash)} cash required` : `${cpMoney(r.cash)} cash before the reserve`, sample.size ? 'illustrative' : 'modelled',
+    `The renovation at ${cpMoney(r.renovation)}; every other line as entered${isNum(m.reserveCash) ? `, the ${cpMoney(m.reserveCash)} reserve included` : ''}.`, 'stress');
   if (cashPartial(m)) put('risks', 'Cash required — partial', cpMoney(cash.total), 'unavailable', `${cpCap(cashPartial(m).words)}: the total is short by whatever ${cashPartial(m).n === 1 ? 'that line comes' : 'those lines come'} to.`, 'gated');
   if (cm && !cm.lease.missing.length) for (const s of cm.lease.scenarios || []) {
     if (s.status === 'unavailable') continue;
