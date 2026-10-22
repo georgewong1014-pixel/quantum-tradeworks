@@ -6701,7 +6701,7 @@ try {
     if (r.noComps !== null) p.push(`with no comparable the true discount is ${JSON.stringify(r.noComps)}, not Unavailable`);
     if (r.subsale !== 0) p.push(`the same deal as a subsale still carries ${r.subsale} auction line(s)`);
     if (p.length) fail('p3 A1: the auction waterfall adds up', p);
-    else ok(`p3 A1: the waterfall — market value RM600,000 (the median of three comparables), reserve RM420,000, bid RM500,000, + repairs 15,000 + arrears 4,200 + possession 6,000 + transaction ${Math.round(r.transaction)} (the ledger's fee lines, the RM7,000 legal quote in the scale's place) + holding ${Math.round(r.holding)} (3 × ${Math.round(r.burn)}) = effective RM${Math.round(r.effective)}, a true discount of ${r.td.pct.toFixed(2)}%; a cost not entered named and not counted; no comparable, no discount; the subsale carries none of it`);
+    else ok(`p3 A1: the waterfall — market value RM600,000 (the median of three comparables), reserve RM420,000, bid RM500,000, + repairs 15,000 + arrears 4,200 + possession 6,000 + transaction ${Math.round(r.transaction)} (the ledger's fee lines, the RM7,000 legal quote in the scale's place) + holding ${Math.round(r.holding)} (3 × RM${(r.holding / 3).toFixed(2)} running costs, no instalment — the balance due as the months end) = effective RM${Math.round(r.effective)}, a true discount of ${r.td.pct.toFixed(2)}%; a cost not entered named and not counted; no comparable, no discount; the subsale carries none of it`);
   });
   /* A1b — THE LAWYER'S QUOTE IS LEGAL FEES ONLY (the owner, 21 Oct 2026;
            the 20 Oct sweep, auction-2). The input, its ledger line and its
@@ -7823,10 +7823,10 @@ try {
     });
 
     /* V3b — THE HOLDING MONTHS, ONE RULE EVERYWHERE (the owner, 21 Oct
-       2026; the 20 Oct sweep, auction-3, auction-5, auction-8). On V3's
-       auction (a RM360,000 loan at 0% over 30 years: RM1,000 a month),
-       with RM300 a month of maintenance and RM600 a year of assessment —
-       RM350 a month of running costs with no rent — by hand:
+       2026; the 20 Oct sweep, auction-3, auction-5, auction-8; the Day-8
+       review). On V3's auction (a RM360,000 loan at 0% over 30 years:
+       RM1,000 a month), with RM300 a month of maintenance and RM600 a year
+       of assessment — RM350 a month owed with no tenancy — by hand:
        - holding 4 months, the balance due in 90 days: 4 × RM350.00 running
          costs from the sale + (4 − 90 ÷ 30 =) 1 month × RM1,000.00
          instalment = RM2,400.00, in the effective cost, and in the cash
@@ -7840,9 +7840,22 @@ try {
        - holding 2 months: the balance falls due a month after it ends, so
          no instalment in the holding (RM700.00), year 1 pays 11, and the
          sale settles 360,000 − 125 × 1,000 = RM235,000;
-       - the days not entered: the instalment's start is not known, so the
-         holding is not priced, not counted, and the cash required names
-         it with its reason;
+       - managed at 8% with a RM200 minimum and a month's placement each
+         12-month tenancy: the same RM2,400.00 — no agent's fee and no
+         placement before a tenancy;
+       - bought with no loan and no days entered: 4 × RM350.00 = RM1,400.00,
+         and the working says "no loan, so no instalment", no days;
+       - a loan and no days: the running costs priced (RM1,400.00), the
+         instalment a line not priced, named with its reason; still no rent
+         in the 4 months (year 1 at 1.33 years) and the loan from year 1
+         (RM234,000 settled); the rate of return and the year-by-year cash
+         say "so far" with the reason;
+       - at 4.3%, taxed at 24%: year 1's interest is the loan's months 1 to
+         13 — 12 instalments less the principal they repay, by the annuity
+         written out here — and its tax 24% of the rent less the running
+         costs and that interest;
+       - 2.125 months is held to the hundredth, 2.13: 2.13 × RM350.00 =
+         RM745.50, the row's own working;
        - the holding row prints "4 months × RM350.00 running costs + 1
          month × RM1,000.00 instalment" beside "+RM2,400.00". */
     await vtry('val V3b: the auction holding months — one rule in the effective cost, the cash required and the flows', async () => {
@@ -7852,25 +7865,45 @@ try {
           maintenance: 300, assessment: 600 });
         const one = (d) => { const m = dealModel(d), a = auctionModel(d, m), h = a.adds.find(s => s.id === 'holding');
           const line = m.costGroups.flatMap(g => g.items).find(it => it[2]?.id === 'auctionHolding');
+          const fig = typeof auctionWaterfall === 'function' ? auctionWaterfall(a, 'mt') : null; const li = fig?.querySelector?.('[data-step="holding"]');
+          const W = auctionWaterfallFormula(a);
           return { hold: h.amount, eff: a.effective, line: line ? [line[0], line[1]] : null, cash: m.safeCashRequired, missing: m.missingCostLines.map(x => x.label + ': ' + (x.why || '')),
-            times: m.auctionHolding?.flowTimes?.slice(0, 3) || null, flow0: m.flows[0], debt1: m.path[0].debt, out: m.outstanding, notEntered: a.notEntered, holdYears: d.holdYears, sell: d.sellMonths,
-            row: (() => { const fig = typeof auctionWaterfall === 'function' ? auctionWaterfall(a, 'mt') : null; const li = fig?.querySelector?.('[data-step="holding"]'); return li ? li.textContent.replace(/\\s+/g, ' ').trim() : null; })() };
+            times: m.auctionHolding?.flowTimes?.slice(0, 3) || null, flow0: m.flows[0], debt1: m.path[0].debt, int1: m.path[0].interest, tax1: m.path[0].tax, out: m.outstanding, notEntered: a.notEntered,
+            holdYears: d.holdYears, sell: d.sellMonths, inst: m.instalment,
+            row: li ? li.textContent.replace(/\\s+/g, ' ').trim() : null, working: W.slice(W.indexOf('Holding:'), W.indexOf('Effective acquisition')),
+            returns: returnsAndTaxPanel(d, m).textContent.replace(/\\s+/g, ' '),
+            sens: d.marginalTaxPct ? propertySensitivityPanel(d, m).textContent.replace(/\\s+/g, ' ') : '' };
         };
         const noHold = { ...au, auctionHoldMonths: null };
-        return JSON.stringify({ four: one(au), two: one({ ...au, auctionHoldMonths: 2 }), noDays: one({ ...au, auctionBalanceDays: null }), none: one(noHold) }); })()`));
-      const p = [], { four, two, noDays, none } = r;
+        return JSON.stringify({ four: one(au), two: one({ ...au, auctionHoldMonths: 2 }), noDays: one({ ...au, auctionBalanceDays: null }), noDaysTax: one({ ...au, auctionBalanceDays: null, marginalTaxPct: 24 }), none: one(noHold),
+          managed: one({ ...au, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 200, leasingFeeMonths: 1, tenancyMonths: 12 }),
+          cash: one({ ...au, downPct: 100, auctionBalanceDays: null }), taxed: one({ ...au, ratePct: 4.3, marginalTaxPct: 24 }),
+          short: one({ ...au, ratePct: 4.3, marginalTaxPct: 24, auctionHoldMonths: 1 }), odd: one({ ...au, auctionHoldMonths: 2.125 }) }); })()`));
+      const p = [], { four, two, noDays, noDaysTax, none, managed, cash, taxed, short, odd } = r;
       if (four.holdYears !== 10 || four.sell !== 6) p.push(`the hold is not the one worked by hand: ${four.holdYears} years, ${four.sell} months selling`);
       if (!near(four.hold, 2400) || !near(four.eff - none.eff, 2400)) p.push(`holding 4 months: ${four.hold} (effective ${four.eff} against ${none.eff} with none) — by hand RM2,400.00`);
       if (!four.line || four.line[0] !== 'Holding until it earns: 4 months, no rent' || !near(four.line[1], 2400) || !near(four.cash - none.cash, 2400)) p.push(`the cash required's holding line ${JSON.stringify(four.line)}, the cash required ${four.cash} against ${none.cash} — by hand +RM2,400.00`);
       if (!four.times || !near(four.times[1], 4 / 12 + 1, 1e-12) || four.times[0] !== 0 || !near(four.flow0, -four.cash)) p.push(`the flows' moments ${JSON.stringify(four.times)}, the first flow ${four.flow0} — by hand 0, 1.3333, the cash required`);
       if (!near(four.debt1, 12000) || !near(four.out, 233000)) p.push(`4 months: year 1 pays ${four.debt1}, the sale settles ${four.out} — by hand 12,000 and 233,000`);
       if (!near(two.hold, 700) || !near(two.debt1, 11000) || !near(two.out, 235000)) p.push(`2 months: holding ${two.hold}, year 1 pays ${two.debt1}, the sale settles ${two.out} — by hand 700, 11,000 and 235,000`);
-      if (noDays.hold !== null || !noDays.notEntered.includes('Holding') || !noDays.missing.some(x => /^Holding until it earns: 4 months, no rent: Needs the days to pay the balance/.test(x)) || noDays.times !== null) p.push(`the days not entered: holding ${noDays.hold}, missing ${JSON.stringify(noDays.missing)}`);
+      if (!/no instalment: the balance falls due 90 days after the sale, when these months have ended/.test(two.working)) p.push(`2 months' working: "${two.working}"`);
+      if (!near(managed.hold, 2400) || /placement|minimum/.test(managed.working) || !/no agent’s fee before a tenancy/.test(managed.working)) p.push(`managed: holding ${managed.hold}, "${managed.working.slice(0, 200)}" — by hand RM2,400.00, no agent's fee or placement`);
+      if (!near(cash.hold, 1400) || !/no loan, so no instalment/.test(cash.working) || /days after|null|from the day the balance falls due/.test(cash.working)) p.push(`no loan, no days: holding ${cash.hold}, "${cash.working}" — by hand RM1,400.00 and no instalment`);
+      if (!near(noDays.hold, 1400) || !noDays.notEntered.includes('Holding’s instalment') || !noDays.missing.some(x => /^Holding: the instalment from the day the balance falls due: The holding months’ instalment is not priced/.test(x))
+        || !noDays.times || !near(noDays.times[1], 4 / 12 + 1, 1e-12) || !near(noDays.debt1, 12000) || !near(noDays.out, 234000)) p.push(`a loan and no days: ${JSON.stringify({ hold: noDays.hold, missing: noDays.missing, times: noDays.times, debt1: noDays.debt1, out: noDays.out })} — by hand RM1,400.00 priced, the instalment named, year 1 at 1.33, RM234,000`);
+      if ((noDays.returns.match(/so far — the holding months’ instalment is not priced/g) || []).length < 2 || !/So far: The holding months’ instalment is not priced/.test(noDaysTax.returns)) p.push('a loan and no days: the rate of return, the NPV or the year-by-year cash do not say they are short');
+      if (/so far — the holding months’|So far: The holding/.test(four.returns)) p.push('a priced holding says it is short');
+      const i = 0.043 / 12, pmt = 360000 * i / (1 - Math.pow(1 + i, -360)), bal = (n) => 360000 * Math.pow(1 + i, n) - pmt * (Math.pow(1 + i, n) - 1) / i;
+      const int1 = 12 * pmt - (bal(1) - bal(13)), tax1 = 0.24 * (24000 - 4200 - int1);
+      if (!near(taxed.inst, pmt, 1e-6) || !near(taxed.int1, int1, 1e-6) || !near(taxed.tax1, tax1, 1e-6) || !near(taxed.hold, 1400 + Math.round(pmt * 100) / 100)) p.push(`at 4.3% and 24%: interest ${taxed.int1}, tax ${taxed.tax1}, holding ${taxed.hold} — by hand ${int1.toFixed(4)}, ${tax1.toFixed(4)}, ${(1400 + Math.round(pmt * 100) / 100).toFixed(2)}`);
+      if (!/Year 1 here pays 10 of the 12 instalments/.test(short.sens) || /Breaking even on cash is not breaking even after tax/.test(short.sens)) p.push(`a balance due after the holding months: the after-tax break-even is set against the monthly one ("${(short.sens.match(/Covering the outgoings[^.]*\./) || short.sens.match(/Year 1 here[^.]*\./) || [''])[0]}")`);
+      if (!near(odd.hold, 745.5) || !odd.row || !odd.row.includes('2.13 months × RM350.00 running costs') || !odd.row.includes('+RM745.50')) p.push(`2.125 months: holding ${odd.hold}, the row "${odd.row}" — by hand 2.13 × RM350.00 = RM745.50`);
       if (none.line || none.times !== null) p.push('with no holding months entered the deal carries a holding line or a timed hold');
       if (!r.four.row || !r.four.row.includes('+RM2,400.00') || !r.four.row.includes('4 months × RM350.00 running costs + 1 month × RM1,000.00 instalment')) p.push(`the holding row reads "${r.four.row}"`);
       if (p.length) fail('val V3b: the auction holding months — one rule in the effective cost, the cash required and the flows', p);
-      else ok('val V3b: the auction holding months, worked by hand — 4 × RM350.00 running costs from the sale + 1 × RM1,000.00 instalment from the day the balance falls due = RM2,400.00, in the effective cost and the cash required alike; the flows count the hold from the end of the holding (year 1 at 1.33 years), the loan from the day it was drawn (RM233,000 settled); 2 months: no instalment, RM700.00, RM235,000; without the days, not priced and named; the row prints its own working');
+      else ok('val V3b: the auction holding months, worked by hand — 4 × RM350.00 owed with no tenancy + 1 × RM1,000.00 instalment from the day the balance falls due = RM2,400.00, in the effective cost and the cash required alike, managed or not; the flows count the hold from the end of the holding (year 1 at 1.33 years), the loan from the day it was drawn (RM233,000 settled); 2 months: no instalment, RM700.00, RM235,000; no loan: RM1,400.00, no instalment; a loan and no days: RM1,400.00 priced, the instalment named, no rent in the months, the rate of return "so far"; 4.3%: year 1\'s interest and tax by the annuity; the after-tax break-even withheld where year 1 pays 10 instalments; 2.13 months × RM350.00 = RM745.50');
     });
+
 
     /* V3c — THE AUCTION'S WORDS SAY WHAT ITS FIGURES ARE (the 20 Oct 2026
        sweep, auction-1, auction-6, auction-7, auction-9). On V3's auction:
@@ -7901,16 +7934,18 @@ try {
         const odd = card({ ...au, auctionComp1: 500001, auctionCapValue: 10.05 });
         const notes = auctionInputs({ d: au, prefix: 'mt', answer: () => {} }).textContent.replace(/\\s+/g, ' ');
         const down = pcDealField(au, 'downPct').textContent.trim();
-        const ledger = dealModel(au).costGroups.flatMap(g => g.items).map(it => it[0]);
+        const ledger = dealModel(au).costGroups.flatMap(g => g.items).map(it => ledgerLineLabel(au, it[0]));
+        const lab = LAB_INPUTS.find(x => x.k === 'downPct'), labDown = lab.label(au), labSub = lab.label({ ...au, route: undefined });
+        const model0 = dealModel({ ...au, auctionDepositPct: null }).costGroups[0].items[0][0];
         const sub = pcDealField({ ...au, route: undefined }, 'downPct').textContent.trim();
-        return JSON.stringify({ high, odd, notes, down, sub, ledger: ledger.slice(0, 3), cap: 500001 * (1 - 10.05 / 100) }); })()`));
+        return JSON.stringify({ high, odd, notes, down, sub, ledger: ledger.slice(0, 3), labDown, labSub, model0, cap: 500001 * (1 - 10.05 / 100) }); })()`));
       const p = [], h = r.high, o = r.odd;
       if (h.status !== 'below-reserve' || h.bid !== 383103 || !near(h.atReserve, 432153.35)) p.push(`with a RM390,000 reserve: ${h.status} at ${h.bid}, the cost at the reserve ${h.atReserve} — by hand below the reserve, RM432,153.35`);
       if (!/No winning bid/.test(h.text) || !/No winning bid fits these costs/.test(h.text) || !h.text.includes('RM432,153.35') || /a winning bid of at most/.test(h.text)) p.push(`the card reads "${h.text.slice(0, 260)}"`);
       if (!/no winning bid fits these costs/.test(h.formula)) p.push(`the working reads "${h.formula.slice(0, 200)}"`);
       if (!near(r.cap, 449750.8995, 1e-6) || !o.text.includes('10.05% under the market value') || !o.text.includes('at or under RM449,750.90')) p.push(`a 10.05% margin on RM500,001: "${o.text.slice(0, 260)}"`);
       if (!/The financing buffer is cash you set aside for the part of the balance the loan does not cover\./.test(r.notes) || /late or short/.test(r.notes)) p.push('the buffer is not defined as what it is set against');
-      if (r.down !== 'Down payment (%)' || r.ledger[0] !== 'Down payment' || r.sub !== 'Deposit (%)') p.push(`the loan's deposit on the auction route reads "${r.down}" and "${r.ledger[0]}" (on a subsale "${r.sub}")`);
+      if (r.down !== 'Down payment (%)' || r.ledger[0] !== 'Down payment' || r.sub !== 'Deposit (%)' || r.labDown !== 'Down payment (%)' || r.labSub !== 'Deposit (%)' || r.model0 !== 'Deposit') p.push(`the Lab's slider reads "${r.labDown}" (on a subsale "${r.labSub}"); the model's line "${r.model0}"`), p.push(`the loan's deposit on the auction route reads "${r.down}" and "${r.ledger[0]}" (on a subsale "${r.sub}")`);
       if (p.length) fail('val V3c: the auction ceiling, buffer and deposit words say what their figures are', p);
       else ok('val V3c: a ceiling below the reserve reads "No winning bid", the cost at the reserve RM432,153.35 worked by hand; a 10.05% margin prints as entered beside its cap; the buffer is the cash for the balance beyond the loan; the loan\'s deposit is the down payment on the auction route');
     });

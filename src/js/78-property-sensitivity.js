@@ -345,16 +345,32 @@ function propertySensitivityPanel(d, m) {
      with no placement fee) nothing is taxed there, and the two are one
      figure; a cash purchase is not told about an instalment it does not
      pay. */
-  if (m && m.taxComputed) {
+  /* ON ONE BASIS (the Day-8 review): the cash break-even is the steady
+     month, twelve instalments; the after-tax one is solved on year 1. Where
+     year 1 is not a full year of instalments — an auction whose balance
+     falls due after its holding months end — the two are not set against
+     each other, and the reason is said. A gap is never clamped: under a
+     ringgit either way it is the solver's rounding, and below that the
+     comparison is withheld with its reason. */
+  const y1 = m && m.path && m.path[0];
+  const steady = !y1 || !isNum(m.annualDebtService) || !isNum(y1.debt) || Math.abs(y1.debt - m.annualDebtService) < 0.005;
+  if (m && m.taxComputed && !steady) {
+    card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+      `Year 1 here pays ${(n => fmtNum(n, Number.isInteger(n) ? 0 : 2))(Math.round(y1.debt / m.instalment * 100) / 100)} of the 12 instalments — the balance falls due after the holding months end — so its after-tax break-even is not set against the monthly one, which counts all 12.`));
+  } else if (m && m.taxComputed) {
     const rentBase = num0(d.rent);
     const afterTax = propertyBreakPoint(d, 'rent', {
       measure: 'cashflowAfterTax', lo: 0, hi: Math.max(rentBase * 6, 30000),
     });
     const atBE = isNum(m.breakEvenRent) ? dealModel({ ...d, rent: m.breakEvenRent }).path?.[0] : null;
-    if (isNum(afterTax.value) && isNum(m.breakEvenRent) && atBE && isNum(atBE.taxable)) {
+    const gap0 = isNum(afterTax.value) && isNum(m.breakEvenRent) ? afterTax.value - m.breakEvenRent : null;
+    if (isNum(gap0) && gap0 < -0.5) {
+      card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+        `Covering the outgoings takes ${fmtMoney(m.breakEvenRent, 'MYR', 0)} a month; the after-tax figure works out below it, which tax cannot do, so it is not shown.`));
+    } else if (isNum(gap0) && atBE && isNum(atBE.taxable)) {
       const principal = num0(atBE.principal);
       const fee = atBE.taxable - (atBE.rent - atBE.opex - atBE.interest);
-      const gap = Math.max(0, afterTax.value - m.breakEvenRent);
+      const gap = Math.abs(gap0) < 0.5 ? 0 : gap0;
       /* What is taxed at the cash break-even is the principal and the fee
          left out, and nothing else: with neither, no more than rounding. */
       if (!(principal > 0) && !(fee >= 0.5)) {

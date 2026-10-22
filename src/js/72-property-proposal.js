@@ -916,7 +916,8 @@ function cpExitSection(d, m, paid = false) {
      gains tax of nil read "−RM0", a sign on a zero. */
   const less = (key, v) => cpFig(key, !isNum(v) ? '—' : cpMoney(v) === 'RM0' ? 'RM0' : `−${cpMoney(v)}`, { 'data-cp-sign': '-' });
   const lets = m.letsToTenant;
-  const rate = () => (isNum(m.irrPct) ? cpFig('irrPct', fmtPct(m.irrPct, 2)) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
+  /* Short of the holding months' instalment where it is not priced (auctionHolding partial). */
+  const rate = () => (isNum(m.irrPct) ? (holdingShort(m) ? el('span', {}, [cpFig('irrPct', fmtPct(m.irrPct, 2)), ' so far']) : cpFig('irrPct', fmtPct(m.irrPct, 2))) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
   if (!paid) {
     const label = (key) => LAB_FIGURES.find(f => f.key === key).label(d);
     s.append(cpTable(m.ndTiming ? soldWhen : `If it is sold after ${d.holdYears} years`, null, [

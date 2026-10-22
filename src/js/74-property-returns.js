@@ -263,7 +263,7 @@ function returnsAndTaxPanel(d, m) {
     isNum(m.irrPct) ? fmtPct(m.irrPct, 2) : '—',
     { sub: isNum(m.irrPct)
         ? (nt ? `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed at signing; held ${d.holdYears} years from vacant possession, sold ${ndYears(nt.saleYears)} years after signing`
-          : `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`)
+          : `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`) + holdingShortWords(m)
         : (m.irrWhy || 'Not computable') })));
   g.append(el('div', { class: 'panel ls-fig' }, statTile('Annualised multiple',
     isNum(m.annualisedMultiplePct) ? fmtPct(m.annualisedMultiplePct, 2) : '—',
@@ -271,7 +271,7 @@ function returnsAndTaxPanel(d, m) {
   g.append(el('div', { class: 'panel ls-fig' }, statTile(`Value against ${fmtPct(m.hurdlePct, 1)} elsewhere`,
     isNum(m.npvAtHurdle) ? fmtMoney(m.npvAtHurdle, 'MYR', 0) : '—',
     { sub: isNum(m.npvAtHurdle)
-        ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named')
+        ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named') + holdingShortWords(m)
         /* A return entered and a value still missing means the flows are
            unknown; asking for the return again would send the reader to a
            box that is already filled. */
@@ -459,6 +459,8 @@ function returnsAndTaxPanel(d, m) {
   ]))));
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
   gridKeyboard(t, 'Year by year rent, interest, tax and cash after tax. Arrow keys move between cells.');
+  /* A year's cash without the holding months' instalment, said (auctionHolding partial). */
+  if (holdingShort(m)) card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, `So far: ${holdingShort(m)}`));
 
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'A year whose outgoings exceed its rent produces no tax and no credit: a rental loss from a non-business source is not '

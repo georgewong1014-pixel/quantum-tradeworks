@@ -84,7 +84,8 @@ const LAB_INPUT_LIST = [
     span: (a) => [Math.max(0, labSnap(a * 0.75, 1000)), labSnap(a * 1.25, 1000)],
     basis: '±25% of as saved', why: ', to RM1,000 — five of the sensitivity panel’s 5% steps',
     shown: (v) => labMoney(v), spoken: (v) => `${fmtNum(v, 0)} ringgit` },
-  { k: 'downPct', label: () => ptr('in.downPct', 'Deposit (%)'), say: 'Deposit', short: 'Deposit', step: 1,
+  /* The down payment on the auction route, as the calculator's box names it (auctionDown). */
+  { k: 'downPct', label: (d) => (auctionDown(d) ? ptr('in.downPctAuction', 'Down payment (%)') : ptr('in.downPct', 'Deposit (%)')), say: 'Deposit', short: 'Deposit', step: 1,
     span: () => [0, 100], basis: 'the model’s own limits on a deposit',
     shown: (v) => labPctIn(v), spoken: (v, m) => `${fmtNum(v, 0)} percent${isNum(m?.deposit) ? `, ${fmtNum(m.deposit, 0)} ringgit` : ''}`,
     ticks: [10, 20, 30] },
@@ -274,7 +275,7 @@ const LAB_FIGURES = [
     } },
   { key: 'irrPct', label: (d) => `If sold ${labSaleWhen(d).replace(/^year/, 'in year')}`, fmt: 'pct2', help: 'propIrr',
     read: (m) => m.irrPct,
-    note: (m, d) => (isNum(m.irrPct) ? `rate of return on ${labMoney(m.equityOut)} committed` : (m.irrWhy || 'Not computable')),
+    note: (m, d) => (isNum(m.irrPct) ? `rate of return on ${labMoney(m.equityOut)} committed${holdingShort(m) ? ', so far' : ''}` : (m.irrWhy || 'Not computable')),
     formula: (d, m) => {
       const n = normHoldYears(d.holdYears), rr = m.rpgtResult, t = m.ndTiming;
       const sale = t ? `a sale ${n} year${n === 1 ? '' : 's'} after vacant possession` : `a sale in year ${n}`;
@@ -1787,7 +1788,7 @@ function labKnob(P, lab, col, inp) {
   const row = el('div', { class: `lab-knob${lab.input === k ? ' is-on' : ''}${applies ? '' : ' is-off'}${aboutOpen ? ' is-about' : ''}`, id: labId(P, `knob-${k}`), data: { k } });
   const rid = labId(P, `r-${k}`), nid = labId(P, `n-${k}`), lid = labId(P, `l-${k}`), sid = labId(P, `span-${k}`), eid = labId(P, `ev-${k}`);
   const hd = el('div', { class: 'lab-knob-hd' });
-  hd.append(el('label', { class: 'lab-knob-label', id: lid, for: noSlider ? nid : rid }, inp.label()));
+  hd.append(el('label', { class: 'lab-knob-label', id: lid, for: noSlider ? nid : rid }, inp.label(col.work)));
   /* ABOUT THIS INPUT, ONE TAP AWAY ON A PHONE (the release fix of 5 Oct
      2026). In a wide sans — CI's Linux DejaVu, or Verdana here — the span's
      line, the renovation's note (four lines), the deposit's (two) and a
@@ -1811,11 +1812,11 @@ function labKnob(P, lab, col, inp) {
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         row.classList.toggle('is-about', open);
       } }, [el('span', { class: 'lab-about-i', 'aria-hidden': 'true', html: icon('info', 15) }), el('span', { class: 'lab-about-word' }, 'About'),
-      el('span', { class: 'sr-only' }, ` ${inp.label()}`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
+      el('span', { class: 'sr-only' }, ` ${inp.label(col.work)}`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
     hd.append(btn);
   }
   const num = el('input', { type: 'number', inputmode: 'decimal', class: 'input input-inline lab-num', id: nid, step: inp.step,
-    value: String(col.work[k] ?? ''), 'aria-label': `${inp.label()} — type a figure`, 'aria-describedby': `${sid} ${eid}`,
+    value: String(col.work[k] ?? ''), 'aria-label': `${inp.label(col.work)} — type a figure`, 'aria-describedby': `${sid} ${eid}`,
     disabled: applies ? null : '' });
   row.append(hd);
   /* The slider, its box and its way back on one line: on a phone the knob,
@@ -1829,7 +1830,7 @@ function labKnob(P, lab, col, inp) {
      what-if tag takes the evidence tag's place, the two drawn in one cell. */
   /* The unit beside the box (data-unit): on a phone the chosen chip names
      the knob, and its label is for the ear (styles.css, layout-system). */
-  const ctl = el('div', { class: 'lab-knob-ctl', 'data-unit': (inp.label().match(/\((RM|%)\)\s*$/) || [])[1] || null });
+  const ctl = el('div', { class: 'lab-knob-ctl', 'data-unit': (inp.label(col.work).match(/\((RM|%)\)\s*$/) || [])[1] || null });
   row.append(ctl);
   const knob = { row, num, range: null, reset: null, whatIf: null, span: null, ev: null, ticks: null };
   if (!applies) {
@@ -1919,7 +1920,7 @@ function labTyped(P, lab, k, num) {
   const col = labActive(lab), inp = LAB_INPUT_BY_K[k];
   if (String(num.value).trim() === '') {
     num.value = String(col.work[k] ?? '');
-    toast(`An empty box is not zero — “${inp.label()}” stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}. Type 0 if you mean nought.`);
+    toast(`An empty box is not zero — “${inp.label(col.work)}” stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}. Type 0 if you mean nought.`);
     return;
   }
   let v = num0(num.value);
@@ -1933,7 +1934,7 @@ function labTyped(P, lab, k, num) {
   const refusal = LAB_REFUSES.has(k) ? dealEntryRefused(k, Number(num.value)) : null;
   if (refusal) {
     num.value = String(col.work[k] ?? '');
-    toast(`“${inp.label()}” ${refusal} — it stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}.`);
+    toast(`“${inp.label(col.work)}” ${refusal} — it stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}.`);
     return;
   }
   /* The box shows the figure the model is given: a deposit typed as 150

@@ -723,12 +723,10 @@ function dealModel(d) {
   const asLine = (r) => [r.label, r.amount, r];
   const costGroups = [
     { id:'acquisition', label:'Acquisition costs', items:[
-        /* On the auction route the Proclamation has a deposit of its own (the
-           forfeiture's), so the loan's is the down payment there (the 20 Oct
-           2026 sweep, auction-9): one name for each figure, once that deposit is
-           entered — a deal answered Auction with nothing entered is the deal
-           it was, line for line (P1 R1). */
-        [auctionRoute && isNum(d.auctionDepositPct) ? 'Down payment' : 'Deposit', deposit],
+        /* "Down payment" on the auction route, where it is drawn (ledgerLineLabel):
+           the line is the deal's, so a deal answered Auction with nothing
+           entered is the deal it was, line for line (P1 R1). */
+        ['Deposit', deposit],
         /* Only when it exists. A zero row for a gap there isn't would train the
            reader to skip the line that matters when there is one. */
         ...(valuationGapCash > 0 ? [['Valuation-gap cash', valuationGapCash]] : []),
@@ -951,12 +949,15 @@ function dealModel(d) {
   /* THE AUCTION'S HOLDING MONTHS, ONE RULE EVERYWHERE (the owner, 21 Oct
      2026, on the 20 Oct sweep's auction-3, auction-5 and auction-8). The
      months from the sale until the property earns: no rent; the running
-     costs from the sale — the model's own at no rent, opexAt(0), as the
-     reserve's no-rent month has them; the instalment only from the day the
-     balance falls due, the days the reader entered (a month taken as 30
-     days, as the implied vacancy takes it), when the loan is drawn. Each a
-     month to the sen, and the months after the balance date to the
-     hundredth, so the printed months × amounts give the printed total.
+     costs owed with no tenancy, from the sale — the maintenance, the
+     sinking fund, the assessment, the quit rent and the insurance, and no
+     agent's fee: no placement (the first tenant's is charged once, in year
+     1) and no minimum management fee before a tenancy (the Day-8 review);
+     the instalment only from the day the balance falls due, the days the
+     reader entered (a month taken as 30 days, as the implied vacancy
+     takes it), when the loan is drawn. The months, the months after the
+     balance date and each month's amounts to the hundredth, so the
+     printed months × amounts give the printed total.
      One figure, read by everything: the effective cost and the bid ceiling
      (auctionModel's holding step), the cash required (a line of its own,
      below) and the flows — the rate of return, the NPV and each year's
@@ -967,35 +968,46 @@ function dealModel(d) {
      schedule, its interest and its balance at the sale run from the day
      it was drawn. It counted every holding month at the full instalment
      from the sale, in the effective cost and the ceiling only, while the
-     cash required and the flows took rent from completion. Without the
-     days the instalment's start is not known and nothing is assumed: the
-     holding is not priced, and says why. Not on any other route, and not
-     until the holding months are entered: every other deal is the deal
-     it was. */
+     cash required and the flows took rent from completion.
+     PARTIAL, NEVER RENT (the Day-8 review): on a loan whose instalment's
+     start is not known — the days to pay the balance not entered, or no
+     schedule — nothing is assumed of it: the running costs are priced and
+     the holding months still earn no rent (the hold's years still count
+     from their end, the loan's from year 1), the instalment is a line not
+     priced, and every figure that leaves it out — the cash required, the
+     rate of return, the NPV, a year's cash — says so with its reason.
+     Not on any other route, and not until the holding months are entered:
+     every other deal is the deal it was. */
   const auctionHold = (() => {
     if (!auctionRoute || !isNum(d.auctionHoldMonths) || !(d.auctionHoldMonths >= 0)) return null;
-    const months = d.auctionHoldMonths;
-    const days = isNum(d.auctionBalanceDays) && d.auctionBalanceDays >= 0 ? d.auctionBalanceDays : null;
     const sen = (v) => Math.round(v * 100) / 100;
-    const running = sen(opexAt(0) / 12);
+    const months = sen(d.auctionHoldMonths);
+    const days = isNum(d.auctionBalanceDays) && d.auctionBalanceDays >= 0 ? d.auctionBalanceDays : null;
+    const running = sen((maintenanceY + sinkingY + statutoryY + insuranceY) / 12);
+    const partial = (why) => ({ status: 'partial', months, days, running, instMonths: null, instalment: null, lag: 0, amount: sen(months * running), why });
     /* With no loan there is no instalment to start, and the days do not matter. */
-    if (days == null && loan > 0) return { status: 'unavailable', months, days, running, why: 'Needs the days to pay the balance: the instalment starts when the balance falls due.' };
-    if (debtUnknown) return { status: 'unavailable', months, days, running, why: 'The loan has no schedule of repayments, so its instalment is not known.' };
+    if (loan > 0 && debtUnknown) return partial('The loan has no schedule of repayments, so the holding months’ instalment is not priced.');
+    if (loan > 0 && days == null) return partial('The holding months’ instalment is not priced: it starts when the balance falls due, and the days to pay the balance are not entered.');
     const lag = loan > 0 ? sen(months - days / 30) : 0;
     const instMonths = loan > 0 ? Math.min(Math.max(0, lag), tenureMonths) : 0;
     const inst = loan > 0 ? sen(num0(instalment)) : 0;
     return { status: 'ok', months, days, running, instMonths, instalment: inst, lag, amount: sen(months * running + instMonths * inst) };
   })();
   /* In the cash required: what it takes to make the property earn, beside
-     the renovation — or, not priced, a missing line that says why. */
+     the renovation — and, where its instalment is not priced, a missing
+     line that says why. */
   if (auctionHold) {
     const label = `Holding until it earns: ${fmtNum(auctionHold.months, auctionHold.months % 1 ? 2 : 0)} month${auctionHold.months === 1 ? '' : 's'}, no rent`;
-    costGroups.find(g => g.id === 'improvement').items.push([label, auctionHold.status === 'ok' ? auctionHold.amount : null,
-      auctionHold.status === 'ok' ? { id: 'auctionHolding' } : { id: 'auctionHolding', status: 'unset', why: auctionHold.why }]);
-    if (auctionHold.status === 'ok') acquisitionCost += auctionHold.amount;
-    else missingCostLines.push({ group: 'Initial improvement costs', groupId: 'improvement', label, why: auctionHold.why });
+    const imp = costGroups.find(g => g.id === 'improvement').items;
+    imp.push([label, auctionHold.amount, { id: 'auctionHolding' }]);
+    acquisitionCost += auctionHold.amount;
+    if (auctionHold.status === 'partial') {
+      const iLabel = 'Holding: the instalment from the day the balance falls due';
+      imp.push([iLabel, null, { id: 'auctionHoldingInstalment', status: 'unset', why: auctionHold.why }]);
+      missingCostLines.push({ group: 'Initial improvement costs', groupId: 'improvement', label: iLabel, why: auctionHold.why });
+    }
   }
-  const auctionLead = auctionHold?.status === 'ok' ? auctionHold.months / 12 : 0;
+  const auctionLead = auctionHold ? auctionHold.months / 12 : 0;
   const lag = auctionHold?.status === 'ok' ? auctionHold.lag : 0;
   /* The months the loan has run at month t of the hold, on the auction's
      clock; on every other deal the hold's months are the loan's. */
@@ -1863,7 +1875,9 @@ function auctionModel(d, m = dealModel(d)) {
       { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance, ...(it[2].gated ? { gated: it[2].gated } : {}) })), unpriced: fees.length - feesPriced.length,
         /* Of those, the ones not yet checked for the class (the rulebook 1.2.0). */
         gated: fees.filter(it => it[2]?.gated).length, gatedCls: fees.find(it => it[2]?.gated)?.[2].gated || null }),
-    step('holding', 'Holding', hold?.status === 'ok' ? hold.amount : null, 'modelled', { months: holdMonths, running: hold?.running ?? null,
+    /* Partial where the instalment's start is not known: the running costs
+       counted, the instalment named as not (the Day-8 review). */
+    step('holding', 'Holding', hold ? hold.amount : null, 'modelled', { months: holdMonths, running: hold?.running ?? null, partial: hold?.status === 'partial',
       instMonths: hold?.instMonths ?? null, instalment: hold?.instalment ?? null, days: hold?.days ?? null, why: hold?.why || null }),
   ];
   const counted = adds.filter(a => a.amount != null);
@@ -1903,7 +1917,7 @@ function auctionModel(d, m = dealModel(d)) {
       ...adds,
       step('effective', 'Effective acquisition cost', effective, effectiveKind, { total: true }),
     ],
-    adds, notEntered: adds.filter(a => a.amount == null).map(a => a.label),
+    adds, notEntered: [...adds.filter(a => a.amount == null).map(a => a.label), ...(hold?.status === 'partial' ? ['Holding’s instalment'] : [])],
     effective, effectiveKind,
     trueDiscount: vs(effective), bidDiscount: vs(bid), reserveDiscount: vs(reserve),
     forfeiture, checksTicked: ticked, checksOpen, final: checksOpen.length === 0,
@@ -2975,9 +2989,9 @@ function pcDealField(d, k) {
   const [, defLabel, step] = PC_FIELD_DEF[k];
   /* The loan's deposit is the down payment on the auction route, beside the
      Proclamation's own "Deposit (%)" (auction-9). */
-  const auctionDown = k === 'downPct' && dealRoute(d) === 'auction';
-  const label = auctionDown ? 'Down payment (%)' : defLabel;
-  const pkey = auctionDown ? 'in.downPctAuction' : `in.${k}`;
+  const downHere = k === 'downPct' && auctionDown(d);
+  const label = downHere ? 'Down payment (%)' : defLabel;
+  const pkey = downHere ? 'in.downPctAuction' : `in.${k}`;
   const f = el('div', { class: 'assumption' });
   /* Two non-numeric kinds, because a management mandate is made of
      commitments and cadences as well as amounts. */
@@ -3063,6 +3077,18 @@ function pcDealField(d, k) {
 /* ---------------------------------------------- the one-page answer's parts */
 /* The four answer cards' label, figure, line and tone, for the full model's
    one-page answer; the Quick model shows two of them as they are. */
+/* ONE NAME FOR EACH FIGURE ON THE AUCTION ROUTE (the 20 Oct 2026 sweep,
+   auction-9; the Day-8 review): the Proclamation has a deposit of its own,
+   so the loan's is the down payment there — in the calculator's box, its
+   ledger and the Lab's slider alike, by the route alone. */
+const auctionDown = (d) => !!d && dealRoute(d) === 'auction';
+const ledgerLineLabel = (d, label) => (label === 'Deposit' && auctionDown(d) ? 'Down payment' : label);
+/* THE HOLDING MONTHS' INSTALMENT NOT PRICED (dealModel's auctionHolding,
+   partial): the reason every figure that leaves it out says beside it —
+   the rate of return, the NPV, a year's cash; the cash required names it
+   among its missing lines. Null on every other deal. */
+const holdingShort = (m) => (m?.auctionHolding?.status === 'partial' ? m.auctionHolding.why : null);
+const holdingShortWords = (m) => { const w = holdingShort(m); return w ? `; so far — ${w.charAt(0).toLowerCase()}${w.slice(1, -1)}` : ''; };
 /* Said beside a monthly figure, a break-even and a commitment when a
    marginal rate is entered (the 20 Oct 2026 sweep, taxed-5): the
    calculator's monthly figures are before tax on the rent by design, as
@@ -4506,7 +4532,7 @@ VIEWS.property = () => {
     g.items.forEach(it => {
       cashB.append(el('tr', {}, [
         el('td', { style: 'padding-left:var(--md)' }, [
-          it[0],
+          ledgerLineLabel(d, it[0]),
           /* Marked at every appearance, by the fee rulebook (70-property.js):
              the D6 kind badge — Placeholder for an estimate,
              Derived for a verified scale computed, Yours for the reader's
@@ -5225,7 +5251,10 @@ VIEWS.property = () => {
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
-      { sub: m.taxComputed ? 'Year 1’s cash flow before tax ÷ cash required including reserve' : 'Annual cash flow ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+      { sub: !m.taxComputed ? 'Annual cash flow ÷ cash required including reserve'
+        /* Year 1 is a full year of instalments, or it is not the figure (an auction whose balance falls due after its holding months). */
+        : Math.abs(num0(m.path?.[0]?.debt) - num0(m.annualDebtService)) < 0.005 ? 'Year 1’s cash flow before tax ÷ cash required including reserve'
+        : 'A full year’s cash flow before tax, 12 instalments, ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
       { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
     inv.append(ig);
@@ -5259,6 +5288,7 @@ VIEWS.property = () => {
       el('td', {}, fmtAmount(p2.value, 'MYR')), el('td', {}, fmtAmount(p2.balance, 'MYR')),
     ]))));
     stw.append(st); sc2.append(stw);
+    if (holdingShort(m)) sc2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, `So far: ${holdingShort(m)}`));
     reportCards.push(sc2);
 
 
