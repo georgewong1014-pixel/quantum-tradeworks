@@ -463,7 +463,7 @@ function flagNoticeFor(row) {
       el('strong', {}, row.name)]),
     el('p', {}, row.flag),
     el('p', { class: 'metaline' }, [`Usable as it stands. `,
-      el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Build status')]),
+      el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Checks and status')]),
   ]);
 }
 /* Where the notice goes: under the page heading when the view has one, and on

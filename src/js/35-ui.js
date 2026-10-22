@@ -383,7 +383,10 @@ function toast(msg) {
    The homepage card shows each product's; Property's is shown wherever its
    badge is (qualifyBadge: the header's menu and the phone sheet, the
    sidebar, the footer, the tab row, How it works, the search), because
-   "Live" alone read as live market data. The full note stays the badge's
+   "Live" alone read as live market data: it reads "Calculations on your
+   figures; no live market data" (the owner, 23 Oct 2026; it was "Your
+   figures, sample to start"). The sample deal is labelled where it is drawn.
+   The full note stays the badge's
    title and the link's description, and the card's ⓘ prints it. */
 const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
@@ -407,7 +410,7 @@ const PRODUCTS = [
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
-    boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
+    boundary: 'The worker is not distributed yet; setups can be tested here on prices you supply.',
     statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
@@ -416,7 +419,7 @@ const PRODUCTS = [
        (D5(d)) — until the map ships, when the card's action becomes
        "Explore Property". */
     also: { label: 'Try the Scenario Lab', path: '/property/lab' },
-    status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
+    status: 'live', qualifier: 'Calculations on your figures; no live market data', qualifyBadge: true,
     /* What the calculator does not do, in sight beside the homepage card's
        action (QT-D02-02, the 15 Oct report): served-check holds the words. */
     outcome: 'See the cash required, the monthly position and scenarios for a deal.',
@@ -443,7 +446,7 @@ const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
    for el() children; its own markup when put in a template string, because
    the pages that call it build both ways. */
 /* D17 (N2a, the 5 Oct audit; the owner's decision). Property's badge reads
-   "Live · Your figures, sample to start" wherever it appears — the tab row
+   "Live · Calculations on your figures; no live market data" wherever it appears — the tab row
    above /property's Scenario Lab, the header's Products menu, the phone
    sheet, the sidebar, the footer, /how-it-works and the homepage card. The
    qualifier is drawn here, as visible text beside the badge's word, never
@@ -905,11 +908,10 @@ const chromeOf = (view) => (PUBLIC_VIEWS.has(view) ? 'public' : 'app');
 const RESOURCES = [
   { label: 'Methodology',                   path: '/methodology',               group: 'method' },
   { label: 'Data sources',                  path: '/data-sources',              group: 'method' },
-  { label: 'Glossary',                      path: '/learn/glossary',            group: 'method' },
-  { label: 'Learn',                         path: '/learn',                     group: 'method' },
+  { label: 'Metric dictionary',             path: '/learn/glossary',            group: 'method' },
   { label: 'Corrections',                   path: '/corrections',               group: 'method' },
   { label: 'What this product will not do', path: '/learn/product-boundaries',  group: 'method' },
-  { label: 'Build status',                  path: '/status',                    group: 'company' },
+  { label: 'Checks and status',             path: '/status',                    group: 'company' },
   { label: 'About',                         path: '/about',                     group: 'company' },
   { label: 'Contact',                       path: '/contact',                   group: 'company' },
   { label: 'Privacy',                       path: '/privacy',                   group: 'company' },
@@ -1143,7 +1145,7 @@ const POSITIONING = {
   title: 'Quantum Tradeworks — your financial decision workspace',
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
-  kicker: 'Research · Monitor · Model · Plan',
+  kicker: 'Research · Follow · Model · Plan',
   /* The hero's lede under the held h1 (D5): with it, 14 words. */
   lede: 'Companies, market setups and property, in one workspace.',
   /* The footer's line on every page. Business planning is "planned, not
@@ -1236,7 +1238,7 @@ const ROUTES = [
   { path: '/app/scanner/alerts/:alert',      view: 'scannerAlert',      title: 'Scanner alert' },
   { path: '/app/scanner/settings',           view: 'scannerSettings',   title: 'Scanner settings' },
   /* end Phase 3 — user */
-  { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
+  { path: '/start',               view: 'launcher',  title: 'Start with a task' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data & settings' },
   { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
   { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
@@ -1288,7 +1290,7 @@ const ROUTES = [
   { path: '/methodology/property', view: 'learn',   tab: 'property',  title: 'Property routes and assets' },
   { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
-  { path: '/status',              view: 'status',    title: 'Build status' },
+  { path: '/status',              view: 'status',    title: 'Checks and status' },
   { path: '/decision-record',     view: 'decisionRecord', title: 'Decision record' },
   { path: '/methodology/ips',     view: 'ips',       title: 'Investment Policy Statement' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
@@ -1341,9 +1343,9 @@ const META = {
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
-  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you monitor and what you have saved — read from this browser and the scanner’s own record.',
+  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you follow and what you have saved — read from this browser and the scanner’s own record.',
   onboarding:  'Four questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in — and where you start.',
-  launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
+  launcher:    'Start with a task: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
   thesis:      'What you believe about a company and what would prove you wrong, checked against the latest data.',
@@ -2051,7 +2053,7 @@ function resourceLists(prefix) {
     el('ul', { class: 'rs-list', 'aria-labelledby': `${prefix}-rs-${g}` },
       RESOURCES.filter(r => r.group === g).map(r => el('li', {}, shellLink(r.path, { class: 'rs-link' }, r.label)))),
   ]);
-  return [group('method', 'Method and data'), group('company', 'This build and its terms')];
+  return [group('method', 'Method and data'), group('company', 'This site and its terms')];
 }
 
 /* A disclosure menu of the public header: a button that says whether it is
@@ -2131,7 +2133,7 @@ const NAV_MARKUP = {
     /* The property landing (/property-investing): one link, the footer's
        only — not in the header's Resources menu, which it would crowd. */
     el('li', {}, shellLink('/property-investing', {}, 'Property investing in Sarawak')),
-    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')),
+    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Record a data error here')),
   ],
 };
 

@@ -7825,12 +7825,13 @@ try {
     if (home.h1 !== 'Make financial decisions with greater clarity.') p.push(`homepage h1: "${home.h1}"`);
     /* D5: the kicker is the footer's tagline only; the hero is the h1, the
        lede and one action, with no "Explore products". */
-    if (home.kicker != null || home.tagline !== 'Research · Monitor · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
+    if (home.kicker != null || home.tagline !== 'Research · Follow · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
     if (home.primary.length !== 1 || home.primary[0][0] !== 'Choose a tool' || home.primary[0][1] !== '#products')
       p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
     if (home.explore !== null) p.push(`"Explore products" is back on the homepage (${home.explore})`);
     if (home.cards.length !== home.want.filter(w => w.path).length) p.push(`${home.cards.length} product cards for ${home.want.filter(w => w.path).length} built products`);
-    if (!home.soon || home.soon.links || home.soon.badge !== 'Coming soon') p.push(`Business on the homepage: ${JSON.stringify(home.soon)}`);
+    /* The owner, 23 Oct 2026: Business is not on the homepage's choice of tools. */
+    if (home.soon) p.push(`Business is on the homepage: ${JSON.stringify(home.soon)}`);
     home.want.filter(w => w.path).forEach((want, i) => {
       const c = home.cards[i] || {};
       if (c.title !== want.task) p.push(`card ${i + 1} is titled "${c.title}", not "${want.task}"`);

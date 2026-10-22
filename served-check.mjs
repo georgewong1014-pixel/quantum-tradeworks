@@ -2333,8 +2333,9 @@ const HOME_PAGE = read(HOME);
         details", 300 words or fewer outside it, the coverage line once, and
         "not on sale" beside every link to /pricing in a page's main;
    N2a  on /, /property, /property/calculator, /property/lab, /how-it-works,
-        /about and /status, every Property Live badge with "Your figures,
-        sample to start" in sight beside it, as many qualifiers as badges. */
+        /about and /status, every Property Live badge with "Calculations on your
+        figures; no live market data" in sight beside it, as many qualifiers
+        as badges. */
 {
   const B = await import('./build.mjs');
   const P = RENDER_PLAN.POSITIONING || {};
@@ -2403,7 +2404,7 @@ const HOME_PAGE = read(HOME);
      is the 15 Oct report's boundary, word for word. */
   const lines = (cls) => cards.flatMap(c => all(c).filter(n => has(n, cls)).map(n => [attr(c, 'data-product'), sight(n)]));
   const wantOut = [['equities', 'Read a company’s filed financials and compare companies side by side.'], ['scanner', 'Write your own setup rules and see where they held in your price history.'], ['property', 'See the cash required, the monthly position and scenarios for a deal.']];
-  const wantBound = [['equities', 'US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.'], ['scanner', 'No hosted monitoring: the worker runs on your computer, on price history you supply.'], ['property', 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.']];
+  const wantBound = [['equities', 'US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.'], ['scanner', 'The worker is not distributed yet; setups can be tested here on prices you supply.'], ['property', 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.']];
   if (JSON.stringify(lines('pub-card-outcome')) !== JSON.stringify(wantOut)) p.push(`/: the cards' outcome lines are not one each, as stated (${JSON.stringify(lines('pub-card-outcome'))})`);
   if (JSON.stringify(lines('pub-card-bound')) !== JSON.stringify(wantBound)) p.push(`/: the cards' limits are not one each, as stated (${JSON.stringify(lines('pub-card-bound'))})`);
   const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
@@ -2411,11 +2412,16 @@ const HOME_PAGE = read(HOME);
   const WANT = { equities: 'Beta', scanner: 'Beta', property: 'Live', business: 'Coming soon' };
   const badgeIn = (n) => { const b = n && all(n).find(x => has(x, 'status-badge')); return b ? sight(b) : null; };
   for (const [id, want] of Object.entries(WANT)) {
-    const onHome = id === 'business' ? badgeIn(hm && all(hm).find(n => has(n, 'pub-soon'))) : badgeIn(cardOf(id));
+    if (id === 'business') continue;
+    const onHome = badgeIn(cardOf(id));
     if (onHome !== want) p.push(`/: the ${id} badge reads ${JSON.stringify(onHome)}, not "${want}"`);
   }
-  const soon = hm && all(hm).find(n => has(n, 'pub-soon'));
-  if (!soon || all(soon).some(n => n.tag === 'a') || !/Business Intelligence · Plan my business ·/.test(sight(soon))) p.push(`/: Business is not one line of text, "Business Intelligence · Plan my business · Coming soon" (${soon ? sight(soon) : 'none'})`);
+  /* The owner, 23 Oct 2026: Business is not on the homepage's choice of
+     tools. It is one line of text on /pricing, and a row in the footer. */
+  if (hm && /Business Intelligence|Plan my business/.test(sight(hm))) p.push('/: Business Intelligence is on the homepage, which does not offer it');
+  const priceMain = mainOf(got.get('/pricing')?.body || '');
+  const soon = priceMain && all(priceMain).find(n => has(n, 'pub-soon'));
+  if (!soon || all(soon).some(n => n.tag === 'a') || !/Business Intelligence · Plan my business · Coming soon/.test(sight(soon))) p.push(`/pricing: Business is not one line of text, "Business Intelligence · Plan my business · Coming soon" (${soon ? sight(soon) : 'none'})`);
   const hiw = got.get('/how-it-works')?.body || '';
   const hiwNodes = all(T(hiw));
   for (const [id, want] of Object.entries(WANT)) {
@@ -2558,11 +2564,11 @@ const HOME_PAGE = read(HOME);
     const body = got.get(path)?.body || (await get(path)).body || '';
     const nodes = all(T(body));
     const badges = nodes.filter(n => has(n, 'status-live') && attr(n, 'title') === PROPERTY_NOTE && B.inSight(n));
-    const quals = nodes.filter(n => has(n, 'pbadge-q') && sight(n) === 'Your figures, sample to start');
-    const beside = badges.filter(b => { const i = b.parent.kids.indexOf(b); return has(b.parent, 'pbadge') && b.parent.kids.slice(i + 1).some(k => has(k, 'pbadge-q') && sight(k) === 'Your figures, sample to start'); });
+    const quals = nodes.filter(n => has(n, 'pbadge-q') && sight(n) === 'Calculations on your figures; no live market data');
+    const beside = badges.filter(b => { const i = b.parent.kids.indexOf(b); return has(b.parent, 'pbadge') && b.parent.kids.slice(i + 1).some(k => has(k, 'pbadge-q') && sight(k) === 'Calculations on your figures; no live market data'); });
     said.qual.push(`${path} ${badges.length}`);
     if (!badges.length) p.push(`${path}: serves no Property Live badge in sight`);
-    if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Live badges, ${beside.length} with "Your figures, sample to start" in sight beside them, ${quals.length} qualifiers`);
+    if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Live badges, ${beside.length} with "Calculations on your figures; no live market data" in sight beside them, ${quals.length} qualifiers`);
   }
   judge(p, `the homepage cleanup as served: the strip a <details> on ${said.strips} pages, the warning and "No licensed prices" in its summary, Research mode and the links in its Details; the hero ${said.hero} words with one action; three cards, each 12 words or fewer, described by qualifier and note, the Property card to /property/lab, badges Beta · Beta · Live · Coming soon on /, /how-it-works and the footer; the example path ${said.path} words, 5 and 4 links served 200, no digit or name; #views within 16kB on ${said.views} pages; one variant of each positioning string; budgets ${JSON.stringify(said.budget)}; ${said.visuals} visuals, Apple's ${said.years} columns as filed; /pricing ${said.pricing} words outside "Compare details", three cards, no button outside it; Property's qualifier beside every Live badge (${said.qual.join(', ')})`,
     'the homepage cleanup (plan 3.1–3.6, 3.8, N8, N9, D17) is not served as accepted');
@@ -4223,7 +4229,7 @@ const HOME_PAGE = read(HOME);
   if (!/Version \d+\.\d+\.\d+, checked \d{1,2} [A-Z][a-z]{2} \d{4}/.test(mainOf('/data-sources'))) p.push('/data-sources does not carry the fee rulebook\'s "Version N, checked <day>"');
   const cmp = mainOf('/compare');
   if (/feature-flagged|not counted as operational|\bP1\b/.test(cmp)) p.push('/compare still serves the register\'s words (feature-flagged, not counted as operational or a priority code)');
-  if (!/Partial\s+Company comparison[\s\S]{0,400}Usable as it stands\. Build status/.test(cmp)) p.push('/compare\'s partial-feature notice does not read "Partial", the feature, what is missing, "Usable as it stands." and the Build status link');
+  if (!/Partial\s+Company comparison[\s\S]{0,400}Usable as it stands\. Checks and status/.test(cmp)) p.push('/compare\'s partial-feature notice does not read "Partial", the feature, what is missing, "Usable as it stands." and the Checks and status link');
   if (!/Flagged: /.test(mainOf('/status'))) p.push('/status no longer lists the flagged rows');
   for (const path of ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists']) {
     const t = mainOf(path);
