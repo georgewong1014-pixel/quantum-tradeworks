@@ -2090,7 +2090,7 @@ function labChain(P, lab, col) {
   const verdict = el('p', { class: 'ls-card-title lab-grade-verdict' }, '');
   const gate = el('p', { class: 'ls-card-sub lab-grade-gate' }, '');
   const seeWhy = lsCta('See why', { id: labId(P, 'see-why'), sr: ' — every gate behind the grade', onclick: () => lsOpenEvidence(P.els.grade?.why) });
-  const grade = lsInsightCard({ label: 'Underwriting grade', figure: letter, finding: verdict, sub: gate, cta: seeWhy, cls: 'lab-grade', attrs: { id: labId(P, 'grade') } });
+  const grade = lsInsightCard({ label: 'Research grade', figure: letter, finding: verdict, sub: gate, cta: seeWhy, cls: 'lab-grade', attrs: { id: labId(P, 'grade') } });
   seeWhy.setAttribute('aria-controls', labId(P, 'grade-why'));
   card.append(grade);
   P.els.grade = { letter, verdict, gate, seeWhy };

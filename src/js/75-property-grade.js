@@ -550,10 +550,10 @@ function propertyGrade(d, m) {
     else if (score >= 50) grade = 'C';
     else grade = 'D';
     if (capB && grade === 'A') grade = 'B';
-    verdict = { A:'Meets the selected underwriting criteria',
+    verdict = { A:'Meets the selected criteria',
                 B:'Conditional — verify the named items',
                 C:'Does not yet meet several criteria',
-                D:'Does not meet the selected underwriting criteria' }[grade];
+                D:'Does not meet the selected criteria' }[grade];
   }
 
   return { grade, verdict, score, coverage, scores, notes, gates,
@@ -3367,7 +3367,10 @@ function pcQuickView(d, m, g, DK) {
     !lets ? 'Not a quantity this asset has — it earns no rent' : isNum(m.grossYield) ? `Rent less running costs, before the loan; gross ${fmtPct(m.grossYield, 2)}` : 'Not computable',
     labTag(lets && isNum(m.netYield) ? labTileKind(d, LAB_TILE_RESTS.netYield) : { kind: 'unavailable', words: 'No figure — the line says why' })));
   const gradeKind = kindFirst([DK.kind, 'modelled']);
-  cards.append(pcQuickCard('grade', 2, 'Underwriting grade', g.grade, g.verdict,
+  /* "Research grade", as the sentence beside it calls it: underwriting is a
+     lender's credit decision, which it says it is not (the Day-10
+     pre-audit, CL-07). */
+  cards.append(pcQuickCard('grade', 2, 'Research grade', g.grade, g.verdict,
     kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
     PC_GRADE_TONE[g.grade]));
   ans.append(cards);
@@ -3551,7 +3554,7 @@ VIEWS.property = () => {
       /* The card's heading. It was a paragraph, so the page went from its h1
          straight to the h4 below ("Why this cannot be graded") — the first
          heading a screen reader met after the title skipped two levels. */
-      el('h3', { class: 'eyebrow', id: 'pc-answer-h', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
+      el('h3', { class: 'eyebrow', id: 'pc-answer-h', style: 'margin-bottom:2px' }, 'QT Property Research Grade'),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
         el('span', { class: 'num', style: `font-size:var(--ls-metric);font-weight:700;color:var(${gradeTone})` }, g.grade),
         el('span', { style: 'font-size:var(--ls-body);font-weight:600' }, g.verdict),

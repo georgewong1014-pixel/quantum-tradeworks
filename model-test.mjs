@@ -2350,7 +2350,7 @@ try {
         const g = propertyGrade(d, dealModel(d));
         State.deal = d; navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render();
         await new Promise(res => setTimeout(res, 150));
-        const card = [...document.querySelectorAll('main h3')].find(x => /Underwriting Grade/.test(x.textContent))?.closest('.card');
+        const card = [...document.querySelectorAll('main h3')].find(x => /Research Grade/.test(x.textContent))?.closest('.card');
         const text = card ? card.textContent : '';
         out[name] = { grade: g.grade, verdict: g.verdict, coverage: g.coverage, reachable: g.reachable, gates: g.gates.length,
           noEvidence: /no further evidence changes that/.test(text), wantOfCoverage: /could be scored, against the 80% a grade requires/.test(text),

@@ -1084,7 +1084,7 @@ function propertyScenariosPanel(d = State.deal) {
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } },
     'Open these in the Scenario Lab')));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Each column is the calculator’s own model run on that column’s inputs: monthly position after vacancy, costs and the loan; cash required including the reserve; net yield on the price; the rent at which the monthly position is nil; and the underwriting grade. Scenarios, not forecasts — and nothing here is ranked.'));
+    'Each column is the calculator’s own model run on that column’s inputs: monthly position after vacancy, costs and the loan; cash required including the reserve; net yield on the price; the rent at which the monthly position is nil; and the research grade. Scenarios, not forecasts — and nothing here is ranked.'));
   return card;
 }
 
