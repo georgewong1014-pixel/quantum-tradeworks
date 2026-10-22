@@ -3863,7 +3863,7 @@ try {
           openPropertyModel(A.id, { show: false });
           navigate('/property/calculator'); await w(400);
           const n0 = pmAll().length;
-          document.getElementById('wb-property-list').click(); await w(400);
+          navigate('/property/models'); await w(400);
           document.getElementById('pm-open-' + B.id).click(); await w(500);
           const onB = State.deal.modelId === B.id;
           history.back(); await w(600);
@@ -3873,7 +3873,7 @@ try {
           /* A duplicate has the same figures, so the same address: Back from
              it to the property it copies is still Back to that property. */
           const C = duplicatePropertyModel(A.id);
-          document.getElementById('wb-property-list').click(); await w(400);
+          navigate('/property/models'); await w(400);
           document.getElementById('pm-open-' + C.id).click(); await w(500);
           const onC = State.deal.modelId === C.id;
           history.back(); await w(600);
