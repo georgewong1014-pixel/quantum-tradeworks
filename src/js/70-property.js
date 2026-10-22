@@ -3567,7 +3567,7 @@ const PROPERTY_I18N = {
      item 4): the vacancy of the year; the fee and the reserve of the rent
      collected, after vacancy (dealModel's mgmtY and repairY); the exit
      costs of the sale price (its RM500 minimum in the box's note). */
-  'in.vacancyPct':{ en:'Vacancy allowance (% of the year)', ms:'Peruntukan kekosongan (% setahun)', zh:'空置预留 (占全年 %)' },
+  'in.vacancyPct':{ en:'Vacancy allowance (% of the year)', ms:'Peruntukan kekosongan (% daripada setahun)', zh:'空置预留 (占全年 %)' },
   'in.maintenance':{ en:'Monthly maintenance (RM)', ms:'Penyelenggaraan bulanan (RM)', zh:'每月维修费 (RM)' },
   'in.sinkingFund':{ en:'Monthly sinking fund (RM)', ms:'Sinking fund bulanan (RM)', zh:'每月储备金 (RM)' },
   'in.assessment':{ en:'Annual assessment (RM)', ms:'Cukai pintu tahunan (RM)', zh:'每年门牌税 (RM)' },

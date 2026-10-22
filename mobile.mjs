@@ -5358,9 +5358,11 @@ for (const w of [360, 390]) {
     const firstInput = document.querySelector('#pc-quick .pc-q-inputs input')?.getBoundingClientRect();
     const name = (n) => (n.id ? '#' + n.id : n.tagName.toLowerCase() + (n.getAttribute('class') ? '.' + n.getAttribute('class').trim().split(/\\s+/)[0] : '')) + ' “' + (n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30) + '”';
     const small = []; let controls = 0;
-    /* A checkbox's target is its whole label (.checkline, 44px on a phone),
-       as the other checks here count it: the tick beside the fee box. */
-    for (const c of main.querySelectorAll('a[href], button, input:not([type="hidden"]):not([type="checkbox"]), label.checkline, select, summary, [role="button"]')) {
+    /* A checkbox inside a .checkline is reached by its whole label (44px on
+       a phone), as the other checks here count it: the tick beside the fee
+       box. Any other checkbox is measured itself. */
+    for (const c of main.querySelectorAll('a[href], button, input:not([type="hidden"]), label.checkline, select, summary, [role="button"]')) {
+      if (c.matches('input[type="checkbox"]') && c.closest('label.checkline')) continue;
       if (!shown(c) || !c.checkVisibility({ checkVisibilityCSS: true })) continue;
       if (c.closest('p, li') && c.tagName === 'A' && !c.matches('.btn, .ls-cta, .kind-badge, .pc-view-link')) continue;
       controls++;

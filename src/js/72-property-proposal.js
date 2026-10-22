@@ -758,9 +758,9 @@ function cpAcquisitionSection(d, m, cash) {
   const lets = m.letsToTenant;
   s.append(cpList([
     cash.paid > 0 ? ['Cash already paid', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), 'The booking deposit handed over at offer — part of the deposit, not on top of it.'] : null,
-    ['Cash still to complete', cpFig('cashStillRequiredToComplete', cpMoney(cash.complete)), `Paid out on completion day: the deposit, any valuation gap, the duties, the legal fees and the financing costs${cash.paid > 0 ? ', less what was paid at offer' : ''}.`],
+    ['Cash still to complete', cpFig('cashStillRequiredToComplete', cpMoney(cash.complete)), `Paid out on completion day: the deposit, any valuation gap, the duties, the legal fees and the financing costs${cash.paid > 0 ? ', less what was paid at offer' : ''}${pcShortWords(m, ['acquisition', 'financing'])}.`],
     [lets ? 'Cash to make it rent-ready' : 'Cash to make it ready', cpFig('improvementCash', cpMoney(cash.improvement)),
-      lets ? 'Spent after completion, before it can earn: renovation, furnishing and deposits.' : 'Spent after completion: renovation, furnishing and deposits.'],
+      (lets ? 'Spent after completion, before it can earn: renovation, furnishing and deposits' : 'Spent after completion: renovation, furnishing and deposits') + `${pcShortWords(m, ['improvement'])}.`],
     ['Cash to keep untouched', isNum(cash.reserve) ? cpFig('reserveCash', cpMoney(cash.reserve)) : el('span', { class: 'cp-unpriced' }, 'not priced'),
       `${cpPlural(m.reserveMonths, 'month')} of instalment and owner-paid running costs, held in the owner’s account rather than spent.`],
     [cashRequiredLabel(m), cpFig('safeCashRequired', cpMoney(cash.safe)), missing.length ? 'Everything priced so far — short by the lines named above.' : 'Everything together: the cash that decides whether the purchase can be carried.'],
@@ -1096,7 +1096,9 @@ function cpSplitItems(d, m, cash, paid = false) {
   const stressRow = (label, v, note) => put('risks', label, isNum(v) ? `${cpSignedMoney(v)} a month` : 'not computed', isNum(v) ? (sample.size ? 'illustrative' : 'modelled') : 'unavailable', note, 'stress');
   if (isNum(m.cashflowMonthly) && m.cashflowMonthly < 0) put('risks', 'Monthly position as modelled', `${cpSignedMoney(m.cashflowMonthly)} a month`, sample.size ? 'illustrative' : 'modelled', 'Met from the owner’s own income every month.', 'position');
   if (loan) for (const r of (m.stress?.rate || []).slice(1)) stressRow(`Interest rate ${r.label} (${cpPct(r.ratePct, 2)})`, r.monthly, 'The monthly position with the rate raised and everything else held.');
-  if (lets) for (const r of (m.stress?.vacancy || []).slice(1)) stressRow(`Vacancy at ${r.label}`, r.monthly, 'The monthly position with that share of the year empty.');
+  /* Only the fixed levels above the vacancy entered are a risk: one at or
+     below it reads better than the deal itself (the 20 Oct 2026 sweep, stress-6). */
+  if (lets) for (const r of (m.stress?.vacancy || []).slice(1).filter(r => r.vacancyPct > num0(d.vacancyPct))) stressRow(`Vacancy at ${r.label}`, r.monthly, 'The monthly position with that share of the year empty.');
   /* An overrun row's cash is the ledger before the reserve (the model's
      stress rows; the calculator's "Cash before reserve", QT-002). Printed as
      "cash required" it read RM2,138 under the headline that counts the

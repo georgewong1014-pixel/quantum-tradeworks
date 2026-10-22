@@ -436,7 +436,7 @@ function returnsAndTaxPanel(d, m) {
     }
     if (fee1 >= 0.5) {
       box.append(el('p', { class: hasPrincipal ? 'metaline' : 'body', style: hasPrincipal ? 'margin-top:6px' : 'margin:0' },
-        'The first tenant’s placement fee is not deductible either — getting a property into a lettable state is capital in nature — '
+        `The first tenant’s placement fee is not deductible${hasPrincipal ? ' either' : ''} — getting a property into a lettable state is capital in nature — `
         + `but a replacement tenant’s is. Each fee is spread over its ${m.monthsPerCycle}-month tenancy, so the first is left out `
         + `of the deduction while its tenancy runs: ${fmtMoney(fee1, 'MYR', 0)} in year one, inside the outgoings in the table below.`));
     }

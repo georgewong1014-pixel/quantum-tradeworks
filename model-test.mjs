@@ -1773,7 +1773,7 @@ try {
     if (!near(r.b.l1, want.b.l1) || !near(r.b.l2, 0) || !near(r.b.t1, want.b.t1)) p.push(`6-month tenancies: left out ${r.b.l1} / ${r.b.l2}, year one's tax ${r.b.t1}; by hand 1,850 / 0 and ${want.b.t1.toFixed(2)}`);
     if (!near(r.c.l1, want.c.l1) || !near(r.c.l2, 0)) p.push(`12-month tenancies: left out ${r.c.l1} / ${r.c.l2}; by hand 1,850 / 0`);
     if (/to the bank|The instalment is not deductible|is principal/.test(r.cashManaged)) p.push('a cash purchase is told about an instalment it does not pay');
-    if (!/The first tenant’s placement fee is not deductible either/.test(r.cashManaged) || !/RM925 in year one/.test(r.cashManaged) || !/24-month tenancy/.test(r.cashManaged)) p.push('the managed cash purchase does not say its first tenant\'s fee is left out (RM925 in year one, over its 24-month tenancy)');
+    if (!/The first tenant’s placement fee is not deductible — /.test(r.cashManaged) || /not deductible either/.test(r.cashManaged) || !/RM925 in year one/.test(r.cashManaged) || !/24-month tenancy/.test(r.cashManaged)) p.push('the managed cash purchase does not say its first tenant\'s fee is left out (RM925 in year one, over its 24-month tenancy)');
     if (/not deductible|to the bank/.test(r.cashSelf)) p.push('a cash purchase with no placement fee shows the box');
     if (!r.shortLoan.includes(`in its last year, year ${r.shortLast.y}, the split is ${r.shortLast.i} interest to ${r.shortLast.pr} principal. After it there is no instalment.`) || r.shortLast.after !== 0 || /widens every year/.test(r.shortLoan)) p.push(`a 5-year loan in a 10-year hold: the split is not from its last year (${JSON.stringify(r.shortLast)})`);
     if (/not breaking even after tax|whole instalment/.test(r.sensSelf) || !/no tax on the rent is due, so it is the after-tax break-even too/.test(r.sensSelf)) p.push('the after-tax break-even of a cash purchase with no placement fee: ' + (r.sensSelf.match(/Covering the outgoings[^.]*\./) || ['—'])[0]);
@@ -6362,7 +6362,8 @@ try {
          88aa4cd7:31266.
          Recorded again for "managed" only, for two fixes of the 20 Oct 2026
          sweep (track T1, Day 8), each shown alone by a probe run commit by
-         commit on these nine deals (no other deal moves at any commit of the
+         commit on these nine deals (handoff results/day8-t1-r1-diff.mjs, its
+         output day8-t1-r1-diff.txt: no other deal moves at any commit of the
          branch, the sample a27fbebd:31517 throughout):
          (managed-1 and five more) the break-even rent and occupancy are
          zeros of the model's own month — managed's minimum fee and
@@ -11308,7 +11309,7 @@ try {
     if (!near(r.mgmtY, 1332) || !near(r.repairY, 832.5)) p.push(`the fee ${r.mgmtY} and the reserve ${r.repairY} — by hand 1,332 and 832.50, on the rent collected`);
     if (!near(r.exitValue, 50000 * 1.03 * 1.03) || !near(r.agent, 50000 * 1.03 * 1.03 * 0.02) || r.legal !== 500) p.push(`the exit: value ${r.exitValue}, agent ${r.agent}, legal ${r.legal} — by hand 53,045, 1,060.90 and 500`);
     const want = {
-      vacancyPct: ['Vacancy allowance (% of the year)', 'Peruntukan kekosongan (% setahun)', '空置预留 (占全年 %)'],
+      vacancyPct: ['Vacancy allowance (% of the year)', 'Peruntukan kekosongan (% daripada setahun)', '空置预留 (占全年 %)'],
       mgmtPct: ['Letting and management fee (% of rent collected)', 'Fi sewaan dan pengurusan (% sewa yang dikutip)', '出租与管理费 (占实收租金 %)'],
       repairReservePct: ['Repair reserve (% of rent collected)', 'Rizab pembaikan (% sewa yang dikutip)', '维修储备 (占实收租金 %)'],
       agentPct: ['Agent commission on exit (% of the sale price)', 'Komisen ejen semasa jualan (% harga jualan)', '出售时经纪佣金 (占售价 %)'],

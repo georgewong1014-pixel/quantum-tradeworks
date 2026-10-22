@@ -225,7 +225,9 @@ const METRIC_HELP = {
   propIrr: { label: 'Rate of return if sold',
     simple: 'The yearly return on the cash committed at the start, counting every year’s cash flow and the sale at the end, each at the time it arrives.',
     context: 'Measured on all the cash committed, the reserve included — which comes back at the sale. Where the cash flow changes direction more than once, more than one rate can fit, and the page says so rather than choosing one.',
-    technical: 'The rate r at which −cash committed + Σ (after-tax cash flow in year t) ÷ (1 + r)^t + (net sale proceeds + the reserve) ÷ (1 + r)^N equals zero, N being the holding period.' },
+    /* After tax only where a marginal rate is entered (the 20 Oct 2026
+       sweep, stress-8): the Lab says which; this says both. */
+    technical: 'The rate r at which −cash committed + Σ (cash flow in year t — after tax on the rent where you entered a marginal rate, before it where you did not) ÷ (1 + r)^t + (net sale proceeds + the reserve) ÷ (1 + r)^N equals zero, N being the holding period.' },
 };
 
 /* Remembered so a reader who wants the technical depth is not returned to the

@@ -733,9 +733,9 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
 /* THE BID CEILING'S CARD (L2): the bid, its kind, and what it leaves out. */
 /* The ceiling as its arithmetic has it (the 20 Oct 2026 sweep, auction-6):
    a cap that is not a whole ringgit to the sen, beside the costs to the
-   sen, and a margin to the places it was entered. */
+   sen, and a margin to the places it was entered, up to four. */
 const auCap = (v) => (Math.abs(v - Math.round(v)) < 0.005 ? auMoney(v) : fmtMoney(v, 'MYR', 2));
-const auMargin = (v) => fmtNum(v, Number.isInteger(v) ? 0 : Number.isInteger(Math.round(v * 1e6) / 1e5) ? 1 : 2);
+const auMargin = (v) => fmtNum(v, Math.min(4, (String(+(+v).toFixed(4)).split('.')[1] || '').length));
 const auCeilingTarget = (c) => (c.kind === 'margin' ? `${auMargin(c.value)}% under the market value your comparables imply` : `an effective cost of ${auCap(c.value)}, all in`);
 function auctionCeilingCard(c, a) {
   const ok = c.status === 'solved';
