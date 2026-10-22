@@ -11315,6 +11315,43 @@ try {
     else ok(`qt-words: "Negative even at 0%: the loan’s repayment is more than the rent leaves" (RM${inst0.toFixed(2)} against RM${left.toFixed(2)}, by hand); "At fixed vacancy levels"; "Larger move"; the RM300 minimum named, owed whatever is collected, ${r.money} above 8% at this rent`);
   }
 
+  /* nav-07 — A PRICE CARRIED IN A LINK OPENS AS THAT PRICE (the Day-10
+     pre-audit, NAV-07). The homepage card's slider is to carry the price
+     the reader moved it to, as ?d=price:…, to the calculator and to the
+     Scenario Lab: the calculator read it, the Lab opened at the sample's
+     RM572,000. Both open at RM486,000 now, the deal they replace kept
+     aside to restore, and the Lab's columns drawn on the linked deal. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal'), before = localStorage.getItem('vl.dealBeforeLink');
+      const out = {};
+      try {
+        store.write('dealBeforeLink', null);
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, price: 640000 }; saveDeal();
+        navigate('/property/lab?d=price:486000'); render(); await w(500);
+        const L = LAB[labSubject];
+        out.lab = { view: State.view, deal: State.deal.price, cols: L ? L.cols.map(c => c.key + ':' + c.work.price) : null,
+          kept: store.read('dealBeforeLink', null)?.price ?? null };
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, price: 640000 }; saveDeal();
+        navigate('/property/calculator?d=price:486000'); render(); await w(500);
+        out.calc = { view: State.view, deal: State.deal.price };
+      } finally {
+        State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); saveDeal();
+        if (before == null) localStorage.removeItem('vl.dealBeforeLink'); else localStorage.setItem('vl.dealBeforeLink', before);
+        delete LAB.deal; navigate(back, { replace: true }); render(); await w(250);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (r.lab.view !== 'propertyLab' || r.lab.deal !== 486000) p.push(`/property/lab?d=price:486000 opened ${r.lab.view} on RM${r.lab.deal}`);
+    if (!r.lab.cols || !r.lab.cols.length || r.lab.cols.some(c => !c.endsWith(':486000'))) p.push(`the Lab's columns stand at ${JSON.stringify(r.lab.cols)}, not RM486,000`);
+    if (r.lab.kept !== 640000) p.push(`the deal it replaced (RM640,000) is not kept aside to restore: ${r.lab.kept}`);
+    if (r.calc.view !== 'property' || r.calc.deal !== 486000) p.push(`/property/calculator?d=price:486000 opened ${r.calc.view} on RM${r.calc.deal}`);
+    if (p.length) fail('nav-07: a price carried in a link opens the calculator and the Scenario Lab at that price', p);
+    else ok(`nav-07: ?d=price:486000 opens the Scenario Lab on a RM486,000 deal (columns ${r.lab.cols.join(', ')}), the RM640,000 deal it replaced kept aside to restore, and the calculator on RM486,000`);
+  }
+
   /* qt-bases — EACH PERCENTAGE SAYS WHAT IT IS A PERCENTAGE OF (the Day-8
      report, item 4), and the model charges it on that: the fee and the
      reserve on the rent collected after vacancy, the exit costs on the sale

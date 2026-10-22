@@ -697,6 +697,21 @@ function labArrive() {
       return;
     }
   }
+  /* A DEAL LINKED HERE, ?d=…, read as the calculator reads it (the Day-10
+     pre-audit, NAV-07): the homepage card's slider carries the price the
+     reader moved it to, and the Lab opened at the sample's RM572,000. The
+     linked deal becomes the calculator's deal — the one there kept aside to
+     restore, as for any link (arrivePropertyUrl, 70-property.js) — and the
+     Lab opens on it, its columns drawn afresh: a what-if moved on the deal
+     it replaced is not carried onto this one. Not with a property or a
+     saved comparison named: those open what they name. */
+  {
+    const q0 = new URLSearchParams(location.search);
+    if (q0.get('d') && !q0.get('model') && !q0.get('compare') && arrivePropertyUrl().changed) {
+      delete LAB.deal;
+      if (labSubject === 'deal') labSubject = null;
+    }
+  }
   const key = location.pathname + location.search;
   const q = new URLSearchParams(location.search);
   /* A saved comparison (P6), ?compare=<id>: its property, its columns and
