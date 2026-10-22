@@ -962,14 +962,17 @@ function cpDisclosures(rec, d, m) {
   const ul = el('ul', { class: 'cp-points' });
   [
     'Research and illustration, not financial advice and not a recommendation to buy, sell, let or finance this property. It does not take account of anyone’s objectives, financial situation or needs; before acting, take advice from someone licensed to give it.',
-    /* The duties and fees come from the registry's amounts and scales as
+    /* The duties and fees come from the rulebook's amounts and scales as
        well as from the inputs: a fixed RM1,200 of registration and searches
-       is computed from no input listed. */
-    'Every figure is computed by the model the Quantum Tradeworks property calculator runs: from the inputs listed under “The property and what it assumes”, and — for the duties and fees — from the amounts and scales of the fee registry this build carries, each fee line marked as it stands. None is a forecast, a quotation or an offer.',
+       is computed from no input listed. Named as every other page names it,
+       by its version and the day it was checked (the Day-10 pre-audit,
+       IW-13): "the fee registry this build carries" was a developer's words
+       in a document handed to a client. */
+    `Every figure is computed by the model the Quantum Tradeworks property calculator runs: from the inputs listed under “The property and what it assumes”, and — for the duties and fees — from fee rulebook ${FEE_TABLE.version} (checked ${feeDay(FEE_TABLE.checkedOn)}), each fee line marked as it stands. None is a forecast, a quotation or an offer.`,
     'Not a valuation. In Malaysia an official valuation must be carried out by a registered valuer, and nothing here is a price opinion.',
     placeholders || unverified
       ? `Fee lines are marked as they stand, by the fee rulebook ${FEE_TABLE.version} (checked ${feeDay(FEE_TABLE.checkedOn)}): ${placeholders ? `${placeholders} ${placeholders === 1 ? 'is an estimate' : 'are estimates'} — a commonly quoted approximation, not a quotation` : ''}${placeholders && unverified ? ', and ' : ''}${unverified ? `${unverified} ${unverified === 1 ? 'rests' : 'rest'} on a rule that could not be verified for this jurisdiction from an official source` : ''}. Duties and fees change without notice; confirm every one with the lender, the solicitor and the local authority.`
-      : 'Duties and fees follow the fee registry this build carries, which changes without notice; confirm every one with the lender, the solicitor and the local authority.',
+      : `Duties and fees follow fee rulebook ${FEE_TABLE.version}, which changes without notice; confirm every one with the lender, the solicitor and the local authority.`,
     samples
       ? `Sample marks ${samples === 1 ? 'an input' : `${samples} inputs`} still at the calculator’s illustrative starting value, chosen for no property and taken from no market.`
       : 'Every input here was entered or changed by the preparer; none is the calculator’s illustrative starting value.',
@@ -978,7 +981,7 @@ function cpDisclosures(rec, d, m) {
       : 'Title, tenure and eligibility are recorded from the preparer’s input and have not been verified. Confirm them with a property lawyer and the land office before relying on them.',
   ].forEach(x => ul.append(el('li', {}, x)));
   s.append(ul);
-  s.append(el('p', { class: 'cp-stamp' }, `Prepared ${caseRaisedAt(new Date())} with Quantum Tradeworks (${MODEL_VERSION}), from the saved property “${rec.name}”, as saved ${cpWhen(pmUpdated(rec))}.`));
+  s.append(el('p', { class: 'cp-stamp' }, `Prepared ${caseRaisedAt(new Date())} with Quantum Tradeworks (fee rulebook ${FEE_TABLE.version}), from the saved property “${rec.name}”, as saved ${cpWhen(pmUpdated(rec))}.`));
   return s;
 }
 
