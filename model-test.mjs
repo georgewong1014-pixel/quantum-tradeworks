@@ -750,7 +750,7 @@ try {
     })()`));
     const p = [];
     for (const path of ['/property/calculator?', '/property/calculator?view=full', '/property', '/data-sources']) if (r[path]) p.push(`${path} says “…${r[path]}…”`);
-    if (!(r.unconfirmed > 0) || !/rests on unverified or unknown lines/.test(r.formula) || !/on unverified lines/.test(r.note)) p.push(`the Lab's cash required row: note “${r.note}”, formula “${String(r.formula).slice(0, 140)}”`);
+    if (!(r.unconfirmed > 0) || !/rests on estimated lines/.test(r.formula) || !/on estimated lines/.test(r.note)) p.push(`the Lab's cash required row: note “${r.note}”, formula “${String(r.formula).slice(0, 140)}”`);
     if (p.length) fail('no total is called verified while an unverified line is in it', p);
     else ok(`no “fully verified” claim on the calculator, the Lab or /data-sources with RM${Math.round(r.unconfirmed).toLocaleString('en')} on unverified lines in the sample's total; the Lab's row says “${r.note}”`);
   }
@@ -883,7 +883,7 @@ try {
     if (!r.lines.some(l => l.provenance === 'quote' && l.badge === 'quoted')) p.push('no quoted line was drawn with the Quoted badge');
     if (!r.optRow || !/^Optional: mortgage protection/.test(r.optRow) || !/not included/.test(r.optRow)) p.push(`on the sample the optional row reads "${r.optRow}"`);
     if (!/^By kind: statutory charges RM/.test(r.split || '') || !/Optional, left out: mortgage protection is not included\./.test(r.split || '')) p.push(`the ledger's split reads "${(r.split || '').slice(0, 160)}"`);
-    if (!r.safe.includes(`${r.want} of this rests on unverified or unknown lines`)) p.push(`"Cash required (with a 3-month reserve)" reads "${r.safe}", without "${r.want} of this rests on unverified or unknown lines"`);
+    if (!r.safe.includes(`${r.want} of this rests on estimated lines`)) p.push(`"Cash required (with a 3-month reserve)" reads "${r.safe}", without "${r.want} of this rests on estimated lines" (the sample's uncertain lines are all estimates)`);
     if (!r.note.startsWith(`${r.want} of this`)) p.push(`the ledger's note reads "${r.note.slice(0, 120)}"`);
     if (!r.book) p.push('/data-sources has no #fee-rulebook');
     else {
@@ -4201,7 +4201,7 @@ try {
         const hsT = tables.find(t => t.textContent.includes('Rental cash to date'));
         const hsLast = hsT ? [...hsT.querySelectorAll('tbody tr')].pop() : null;
         calc.holdLast = hsLast ? [...hsLast.children].map(txt) : null;
-        calc.unconfirmed = ([...document.querySelectorAll('#views td, #views p, #views .metaline')].map(txt).filter(x => x.length < 600).find(x => /of this — [\\d.]+% — rests on unverified or unknown lines/.test(x)) || '').match(/of this — ([\\d.]+%) —/)?.[1] || null;
+        calc.unconfirmed = ([...document.querySelectorAll('#views td, #views p, #views .metaline')].map(txt).filter(x => x.length < 600).find(x => /of this — [\\d.]+% — rests on (?:estimated|unverified or unknown) lines/.test(x)) || '').match(/of this — ([\\d.]+%) —/)?.[1] || null;
         /* The loan at the entered margin, in the table of margins — the loan
            card's list is drawn only once a valuation is entered. */
         const mofT = tables.find(t => t.textContent.includes('Cash equity needed'));
@@ -6283,7 +6283,7 @@ try {
       })()`));
       const p = [], s = r.sample, W = r.want;
       if (r.view !== 'propertyLab') p.push(`/property opened ${r.view}`);
-      if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on unverified lines`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on unverified lines`);
+      if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on estimated lines`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on estimated lines`);
       if (s.cashflowMonthly?.value !== W.monthly) p.push(`Monthly position: ${s.cashflowMonthly?.value}, the model's ${W.monthly}`);
       if (s.netYield?.value !== W.yield || s.netYield?.sub !== `gross ${W.gross}`) p.push(`Net yield: ${JSON.stringify(s.netYield)}, the model's ${W.yield}, gross ${W.gross}`);
       if (['safeCashRequired', 'cashflowMonthly', 'netYield', 'next'].some(k => s[k]?.kind !== 'illustrative_default')) p.push(`on the sample every tile is "Illustrative default": ${JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.kind])))}`);

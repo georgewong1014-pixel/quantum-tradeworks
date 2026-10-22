@@ -2403,7 +2403,17 @@ function ledgerSplitWords(m, money = (v) => fmtAmount(v, 'MYR')) {
   const out = (s.optionalOut || []).map(x => `${x.label.replace(/^Optional: /, '')} is not included`);
   return `By kind: ${parts.join('; ')}.${out.length ? ` Optional, left out: ${out.join('; ')}.` : ''}`;
 }
-const feeUncertainHeadline = (m) => `${fmtAmount(m.unconfirmedCost, 'MYR')} of this rests on unverified or unknown lines`;
+/* WHAT THE UNCERTAIN LINES ARE, IN ONE WORD (the Day-10 pre-audit, CL-10):
+   "estimated" where every one of them is an estimate — the sample's four
+   are — and "unverified or unknown" only where a line really rests on a
+   rule not known. The Lab's card said "unverified", the calculator
+   "unverified or unknown" and /property-investing "estimated", of one set.
+   `short`: the Lab card's one word. */
+const feeUncertainKind = (m, short = false) => {
+  const xs = m?.unconfirmedLines || [];
+  return xs.length && xs.every(x => x.provenance === 'estimated') ? 'estimated' : short ? 'unverified' : 'unverified or unknown';
+};
+const feeUncertainHeadline = (m) => `${fmtAmount(m.unconfirmedCost, 'MYR')} of this rests on ${feeUncertainKind(m)} lines`;
 
 /* A rule's jurisdiction, dates and source, as list entries. */
 const feeBookFacts = (x) => {
