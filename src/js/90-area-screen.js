@@ -1577,9 +1577,9 @@ VIEWS.plans = () => {
   t.append(el('caption', { class: 'sr-only' }, 'What each proposed plan would include'));
   /* The table compares the plans that could be bought; All-Access has not launched, and the line
      below it says what it would include (Day-10 pre-audit CL-32). */
-  const PLT = PL.filter(pl => pl.launched !== false);
-  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PLT.map(head)])));
-  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PLT.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
+  const PL_COMPARED = PL.filter(pl => pl.launched !== false);
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PL_COMPARED.map(head)])));
+  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PL_COMPARED.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
   tw.append(t);
   body.append(tw);
   /* Said once each: the size of the universe, from the universe on screen,

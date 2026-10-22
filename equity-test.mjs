@@ -1430,11 +1430,11 @@ try {
     const p = [];
     if (!r.local) p.push('the mixed-currency warning says "converted" in Local-currency mode');
     if (r.wholeUniverse) p.push('a "Whole universe" preset is still offered');
-    if (r.counter !== 'Step 1 of 4') p.push(`onboarding counter reads "${r.counter}"`);
+    if (r.counter !== 'Step 1 of 3') p.push(`onboarding counter reads "${r.counter}"`);
     if (r.focus !== 'H1') p.push(`focus after an onboarding answer is on ${r.focus}`);
     if (!r.landed.real || r.landed.universe !== 'US') p.push(`onboarding US answer: ${JSON.stringify(r.landed)}`);
     if (p.length) fail('compare and onboarding do what their labels say', p);
-    else ok(`compare and onboarding do what their labels say — local-currency warning, no uncapped preset, "Step 1 of 4", focus on the question, US lands on ${r.landed.id}`);
+    else ok(`compare and onboarding do what their labels say — local-currency warning, no uncapped preset, "Step 1 of 3", focus on the question, US lands on ${r.landed.id}`);
   }
 
   /* MY INVESTMENTS: THE EDITORS, THE LISTS AND THE FEED SAY WHAT THEY DO.
@@ -7825,7 +7825,7 @@ try {
     if (home.h1 !== 'Make financial decisions with greater clarity.') p.push(`homepage h1: "${home.h1}"`);
     /* D5: the kicker is the footer's tagline only; the hero is the h1, the
        lede and one action, with no "Explore products". */
-    if (home.kicker != null || home.tagline !== 'Research · Monitor · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
+    if (home.kicker != null || home.tagline !== 'Research · Follow · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
     if (home.primary.length !== 1 || home.primary[0][0] !== 'Choose a tool' || home.primary[0][1] !== '#products')
       p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
     if (home.explore !== null) p.push(`"Explore products" is back on the homepage (${home.explore})`);
@@ -10761,6 +10761,65 @@ try {
     if (!/not on sale/i.test(r.meta)) p.push(`the page's description reads "${r.meta}"`);
     if (p.length) fail('audit content C1: /pricing says the plans are not on sale and no control on it reads as a purchase', p);
     else ok(`audit content C1: /pricing reads "${r.h1}", its lead says nothing can be bought, no payment provider exists and no refund policy is needed; each paid plan is marked not on sale at a proposed price, its button previews it in this browser, and it stays in the header and the sitemap`);
+  }
+  /* THE SUPPORT ROUTE, PREPARED (Day-10 F3; the owner's decision of 23 Oct 2026).
+     Support is an address the owner monitors, and none is supplied: nothing
+     visible changes while LAUNCH.contactEmail is empty. When it is set — here,
+     at run time, never in committed source — /contact shows it, the last step of
+     "Report a data error" offers "Copy the report" with the address as text and a
+     mailto convenience and says the visitor's own email program sends it, the
+     case is recorded "recorded here, not confirmed received", and the waitlist
+     does NOT switch on. Emptied again, the copy is the interim copy. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = {};
+      const was = LAUNCH.contactEmail, had = new Set(State.corrections || []);
+      const record = async () => {
+        openReportError(); await w(200);
+        const d = document.getElementById('err-description'); d.value = 'the figure is wrong'; d.dispatchEvent(new Event('input'));
+        [...document.querySelectorAll('#drawer button')].find(b => b.textContent.trim() === 'Record this case').click(); await w(400);
+        const dr = document.getElementById('drawer');
+        const o = { text: dr.innerText, buttons: [...dr.querySelectorAll('button')].map(b => b.textContent.trim()),
+          mailto: dr.querySelector('a[data-support-mailto]')?.getAttribute('href') || null,
+          address: dr.querySelector('[data-support-address]')?.textContent || null, status: State.corrections[0]?.status };
+        closeDrawer({ restore: false });
+        return o;
+      };
+      try {
+        LAUNCH.contactEmail = '';
+        out.emptyWaitlist = waitlistReady();
+        navigate('/contact'); await w(250);
+        out.emptyContact = document.querySelector('main').innerText;
+        out.empty = await record();
+        LAUNCH.contactEmail = 'support@example.test';
+        out.setWaitlist = waitlistReady();
+        navigate('/contact'); await w(250);
+        out.setContact = document.querySelector('main').innerText;
+        out.setMailtos = [...document.querySelectorAll('main a[href^="mailto:"]')].map(a => a.getAttribute('href'));
+        out.set = await record();
+        navigate('/corrections'); await w(250);
+        out.setCard = [...document.querySelectorAll('#my-cases')].map(n => n.innerText).join(' ');
+      } finally {
+        LAUNCH.contactEmail = was;
+        State.corrections = (State.corrections || []).filter(c => had.has(c));
+        saveCorrections();
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (r.emptyWaitlist || r.setWaitlist) p.push(`waitlistReady() is ${r.emptyWaitlist} with no address and ${r.setWaitlist} with one: a support address must not switch the waitlist on`);
+    if (!/Customer support is not available yet\./.test(r.emptyContact) || /support@example\.test/.test(r.emptyContact)) p.push('with no address, /contact does not read as the interim copy');
+    if (r.empty.address || r.empty.mailto || !r.empty.buttons.includes('Copy the case') || r.empty.status !== 'recorded — not sent' || !/no contact address is published yet/.test(r.empty.text))
+      p.push(`with no address, the last step changed: ${JSON.stringify(r.empty).slice(0, 300)}`);
+    if (!/support@example\.test/.test(r.setContact) || /Customer support is not available yet\./.test(r.setContact) || !r.setMailtos.some(h => h === 'mailto:support@example.test'))
+      p.push(`with an address set, /contact does not show it: ${r.setMailtos.join(',')} ${r.setContact.replace(/\s+/g, ' ').slice(0, 200)}`);
+    if (r.set.address !== 'support@example.test' || !r.set.buttons.includes('Copy the report') || !/^mailto:support@example\.test\?subject=.*&body=/.test(r.set.mailto || '')
+      || !/not confirmed received/.test(r.set.text) || !/your own email program/.test(r.set.text) || /Nothing has been sent and nobody has received it/.test(r.set.text))
+      p.push(`with an address set, the last step reads ${JSON.stringify(r.set).slice(0, 400)}`);
+    if (r.set.status !== 'recorded here, not confirmed received') p.push(`with an address set, the case is "${r.set.status}"`);
+    if (p.length) fail('the support route switches on with LAUNCH.contactEmail and leaves the waitlist off; with no address nothing changes', p);
+    else ok('the support route: with no address /contact, the report form and the waitlist read as before; with an address set at run time /contact shows it, the report\'s last step offers "Copy the report", the address as text and a mailto, the case reads "recorded here, not confirmed received", and the waitlist stays off');
   }
   {
     const { readFileSync, readdirSync } = await import('node:fs');
