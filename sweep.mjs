@@ -1007,12 +1007,14 @@ for (const route of ROUTES) {
   const home = await ev(`({ cards: [...document.querySelectorAll('#views .pub-card')].map(c => { const a = c.querySelector('.pub-card-link'); return { tag: c.tagName, href: a?.getAttribute('href') || null,
       task: (a?.textContent || '').trim() }; }),
     soon: (() => { const s = document.querySelector('#views .pub-soon'); return s ? { text: s.textContent.replace(/\\s+/g, ' ').trim(), links: s.querySelectorAll('a').length } : null; })(),
+    business: /Business Intelligence|Plan my business/.test(document.querySelector('#views')?.textContent || ''),
     want: PRODUCTS.map(p => ({ action: p.action, task: p.task, href: p.actionPath ? href(p.actionPath) : null })) })`);
   const words = ['Start research', 'Create a setup', 'Analyse a property'];
   if (JSON.stringify(home.want.slice(0, 3).map(w => w.action)) !== JSON.stringify(words)) p.push(`PRODUCTS' actions: ${JSON.stringify(home.want.map(w => w.action))}`);
   home.cards.slice(0, 3).forEach((c, i) => { if (c.tag !== 'ARTICLE' || c.task !== home.want[i].task || c.href !== home.want[i].href) p.push(`homepage card ${i + 1}: ${JSON.stringify(c)}, not "${home.want[i].task}" to ${home.want[i].href}`); });
   if (home.cards.length !== 3) p.push(`${home.cards.length} homepage cards, not three`);
-  if (!home.soon || home.soon.links || !/Business Intelligence · Plan my business · Coming soon/.test(home.soon.text)) p.push(`Business on the homepage: ${JSON.stringify(home.soon)}, not "Coming soon" as text`);
+  /* The owner, 23 Oct 2026: Business is not on the homepage's choice; /pricing and the footer carry it. */
+  if (home.soon || home.business) p.push(`Business is on the homepage: ${JSON.stringify(home.soon)}`);
   await load(BASE + '/how-it-works');
   const hiw = await ev(`[...document.querySelectorAll('#views .hiw-product-ft a')].map(a => a.textContent.trim())`);
   if (JSON.stringify(hiw) !== JSON.stringify(words)) p.push(`How it works' product actions: ${JSON.stringify(hiw)}`);
@@ -1470,7 +1472,7 @@ for (const route of ROUTES) {
       if (h.navs !== 1) p.push(`${path}: ${h.navs} navs in the product header, not one`);
       else {
         if (h.name !== want.name || h.badge !== want.badge) p.push(`${path}: the header names ${JSON.stringify(h.name)} ${JSON.stringify(h.badge)}, not ${want.name} ${want.badge}`);
-        if (pid === 'property' && h.qual !== 'Your figures, sample to start') p.push(`${path}: Property's badge carries ${JSON.stringify(h.qual)} beside it, not "Your figures, sample to start" (D17)`);
+        if (pid === 'property' && h.qual !== 'Calculations on your figures; no live market data') p.push(`${path}: Property's badge carries ${JSON.stringify(h.qual)} beside it, not "Calculations on your figures; no live market data" (D17)`);
         if (JSON.stringify(h.tabs) !== JSON.stringify(want.tabs)) p.push(`${path}: the header's tabs ${JSON.stringify(h.tabs)} are not the registry's ${JSON.stringify(want.tabs)}`);
         if (JSON.stringify(h.current) !== JSON.stringify(want.here)) p.push(`${path}: the current tab is ${JSON.stringify(h.current)}, not ${JSON.stringify(want.here)}`);
       }
@@ -2044,7 +2046,7 @@ for (const route of ROUTES) {
     if (!may || !may.rows.some(r => /^Investment case/.test(r.kind) && r.chips.includes('sample'))) b3.push(`"maybank" does not list the sample investment case, labelled a sample, under Your saved work: ${JSON.stringify(may?.rows || null)}`);
 
     /* The public pages, by name, as links to their own address. */
-    for (const [label, path] of [['How it works', '/how-it-works'], ['Pricing', '/pricing'], ['Methodology', '/methodology'], ['Data sources', '/data-sources'], ['Glossary', '/learn/glossary']]) {
+    for (const [label, path] of [['How it works', '/how-it-works'], ['Pricing', '/pricing'], ['Methodology', '/methodology'], ['Data sources', '/data-sources'], ['Metric dictionary', '/learn/glossary']]) {
       const pg = group(await ev(LISTED(label)), 'pages');
       const r = pg?.rows.find(x => x.name === label);
       if (!pg) b3.push(`"${label}" lists no "Pages and tools" group`);

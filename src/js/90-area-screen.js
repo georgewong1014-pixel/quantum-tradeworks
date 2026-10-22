@@ -1545,6 +1545,9 @@ VIEWS.plans = () => {
   det.append(body);
   wrap.append(det);
 
+  /* The product that is not built, as text with its badge (pubSoonLine). */
+  PRODUCTS.filter(p => !p.path).forEach(p => wrap.append(pubSoonLine(p)));
+
   /* What is deliberately not monetised, and why: one link. */
   wrap.append(el('p', { class: 'plan-boundary' }, [
     'What would never be charged for, or sold: ',

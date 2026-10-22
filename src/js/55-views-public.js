@@ -31,8 +31,10 @@ const pubBadge = (p) => productBadge(p.id) || pubStatusBadge(p.status, p.statusN
 /* An in-app link that keeps the browser's own link behaviour: a modified or
    middle click opens a tab, as every other internal link in the product does. */
 function pubLink(path, attrs, ...kids) {
+  /* data-to is where the link goes now, when a page changes it after the
+     draw (pubCalcTo: the Property card carries the price the reader set). */
   return el('a', { href: href(path), ...attrs,
-    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, ...kids);
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(e.currentTarget.dataset.to || path); } }, ...kids);
 }
 /* A link to a section of this page. Scrolled here rather than left to the
    fragment: a changed hash fires popstate, and the router would repaint the
@@ -75,8 +77,8 @@ const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true
    It said everything in prose — 557 drawn words, no figure — and twice
    said what the data is. Now: the held headline, a lede of eight words and
    one action; three products, each a task, a qualifier with its ⓘ, and a
-   visual of what the product does, drawn from its own engine; Business as
-   one line of text; and an example path through the work, drawn, with no
+   visual of what the product does, drawn from its own engine; Business (23 Oct 2026: on /pricing
+   and in the footer, not here); and an example path through the work, drawn, with no
    figure, name or count in it. The strip above every page carries the one
    disclosure line; every sentence that left is one action away — in an ⓘ,
    the strip's Details, /how-it-works or /my/data.
@@ -159,7 +161,7 @@ function pubVisScanner() {
     el('div', { class: 'pub-record', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('div', { class: 'pub-record-row' }, [el('i'), el('i'), el('i')]))),
     el('figcaption', { class: 'pub-vis-cap pub-vis-empty' }, [
       el('span', { class: 'pub-vis-empty-mark', 'aria-hidden': 'true' }),
-      el('span', {}, 'Matches are recorded by a worker you run, not by this site'),
+      el('span', {}, 'Matches are recorded by the worker, not by this site'),
     ]),
   ]);
 }
@@ -181,6 +183,13 @@ const pubUnverified = (m) => (m?.unconfirmedCost > 0 ? `${labMoney(m.unconfirmed
    stored: the page reads nothing the reader keeps) so a redraw — the
    filings landing a moment after the page opens — leaves it where it was. */
 let pubLabAt = null;
+/* Where the Property card's action goes: the calculator, on the sample deal
+   at the price the reader moved the slider to (?d=price:…, as the
+   calculator's own links write it). At the sample's price, or before it
+   moves, the plain address. The price is not lost at the next step. */
+function pubCalcTo(path, price) {
+  return isNum(price) && price !== num0(PROPERTY_DEFAULT_DEAL.price) ? `${path}?d=price:${Math.round(price)}` : path;
+}
 function pubLabRun(price) {
   const d = pmCopy(PROPERTY_DEFAULT_DEAL);
   d.price = price;
@@ -233,6 +242,9 @@ function pubVisProperty({ badgeLink = true } = {}) {
   range.addEventListener('input', () => {
     const v = Number(range.value);
     pubLabAt = v;
+    /* The card's action opens the calculator at this price. */
+    const go = fig.closest('.pub-card')?.querySelector('.pub-card-link');
+    if (go) { const to = pubCalcTo(PRODUCTS.find(x => x.id === 'property').actionPath, v); go.dataset.to = to; go.setAttribute('href', href(to)); }
     val.textContent = inp.shown(v);
     range.setAttribute('aria-valuetext', inp.shown(v));
     paint(v);
@@ -259,18 +271,27 @@ function pubVisProperty({ badgeLink = true } = {}) {
 }
 const PUB_VISUALS = { equities: pubVisEquities, scanner: pubVisScanner, property: pubVisProperty };
 
+/* A product that is not built, as one line of text with its badge: no link,
+   no button. On /pricing, beside the plans (the owner, 23 Oct 2026: it left
+   the homepage's choice of tools); the footer lists it too (footProducts). */
+function pubSoonLine(p) {
+  return el('p', { class: 'pub-soon', 'data-product': p.id }, [
+    el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
+  ]);
+}
+
 /* ONE PRODUCT, AS A CARD (plan 3.3). An <article>: its name, its task — the
    card's one action, an <h3> link stretched over the card — its qualifier
    with the ⓘ, and its visual. What sits over the stretched link (the ⓘ,
    the visual's own link and control, a badge, the Property card's second
    action) is its own target: no link, button or <details> inside a link.
-   Business, which is not built, is not a card: one line of text below. */
+   Business, which is not built, is not on the homepage (pubSoonLine). */
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') },
-    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
+    pubLink(p.id === 'property' ? pubCalcTo(p.actionPath, pubLabAt) : p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
   if (p.outcome) card.append(el('p', { class: 'pub-card-outcome', id: id('out') }, p.outcome));
   card.append(pubQualifier(p, id));
   if (p.boundary) card.append(el('p', { class: 'pub-card-bound', id: id('bound') }, p.boundary));
@@ -306,11 +327,9 @@ VIEWS.marketing = () => {
   products.append(el('h2', { class: 'sr-only', id: 'pub-products-h' }, 'What would you like to do?'));
   const built = PRODUCTS.filter(p => p.path && p.actionPath);
   products.append(el('div', { class: 'pub-cards' }, built.map(pubProductCard)));
-  for (const p of PRODUCTS.filter(x => !x.path)) {
-    products.append(el('p', { class: 'pub-soon', 'data-product': p.id }, [
-      el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
-    ]));
-  }
+  /* Business Intelligence, which is not built, is not a choice here: it is
+     one line of text on /pricing (pubSoonLine) and a row in the footer
+     (the owner, 23 Oct 2026). */
   wrap.append(products);
 
   /* -- 3. an example path through the work (plan 3.4, D22) ------------------
@@ -329,7 +348,7 @@ VIEWS.marketing = () => {
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A match, if you run the worker', '/app/scanner', 'bell'], ['Back to the company', '/research', 'loop']]),
+      ['A recorded match', '/app/scanner', 'bell'], ['Back to research', '/research', 'loop']]),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
@@ -848,7 +867,7 @@ VIEWS.launcher = () => {
 
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Start here'),
-    el('h1', {}, 'Start with your goal'),
+    el('h1', {}, 'Start with a task'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Five things this product does. Pick one and it opens the right tool with what you tell it already filled in. '
       + 'These questions route a workflow — they are not a suitability assessment and nothing here recommends an investment.'),
