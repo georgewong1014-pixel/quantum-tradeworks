@@ -62,10 +62,10 @@ const KM_CONF = {
     said: 'OpenStreetMap lanes carry the scheme’s name; it is drawn round the middle of those lanes.' },
 };
 const KM_NOT = {
-  weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap: held for review, not guessed.' },
+  weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap, so not placed.' },
   street: { label: 'Not placed — named after a street', said: 'A street is a line, often kilometres long; a neighbourhood’s mark on it would claim more than the name says.' },
   none: { label: 'Not placed — no OpenStreetMap match', said: 'No OpenStreetMap name matches it, and no other source this map may use places it.' },
-  'not-a-place': { label: 'Not a place', said: 'An extraction label from NAPIC’s rental table — a floor of a building — not a scheme’s name.' },
+  'not-a-place': { label: 'Not a place', said: 'A label from NAPIC’s rental table — a floor of a building — not a scheme’s name.' },
 };
 const kmReason = (s) => (s.status === 'not-a-place' ? 'not-a-place' : s.reason);
 
@@ -130,7 +130,7 @@ function kmFigures(scheme, { change = false } = {}) {
 /* --------------------------------------------------------------- the page */
 VIEWS.areaMap = () => {
   const wrap = el('div', { class: 'km-page' });
-  if (!KM_DATA) { wrap.append(emptyState('The Kuching map is not in this build.')); return wrap; }
+  if (!KM_DATA) { wrap.append(emptyState('The Kuching map is not available here.')); return wrap; }
   /* NAPIC's Kuching file, asked for as the page is first drawn: the figures
      under each scheme come with it (loadNapic redraws the page). */
   if (!napicDivisions.has('Kuching')) loadNapic('Kuching');

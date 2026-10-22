@@ -1583,7 +1583,7 @@ function workspaceLinkBanner(kind, plan, save) {
 
   const card = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
   if (!link.row) {
-    card.append(cardHead('That link names a company this build does not hold',
+    card.append(cardHead('That link names a company not held here',
       `The link asked for “${link.asked}”, which is not in the universe. Nothing has been filled in — a plan that cannot name its company is not one worth saving.`));
     return card;
   }

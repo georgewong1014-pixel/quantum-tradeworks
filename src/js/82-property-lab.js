@@ -3718,7 +3718,7 @@ function labPaintPanel(P, { initial = false } = {}) {
       const rank = { critical: 0, serious: 1, warning: 2 };
       const gates = g ? [...g.gates].sort((a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3)) : [];
       const score = !g ? 'No grade: the column needs a purchase price.'
-        : `${!isNum(g.score) ? 'Not scored' : g.grade === 'U' ? `Model score ${g.score}/100 — not carried into a grade` : `Score ${g.score}/100`}, on ${fmtPct(g.coverage * 100, 0)} of the framework’s weight. `
+        : `${!isNum(g.score) ? 'Not scored' : g.grade === 'U' ? `Model score ${g.score}/100 — not graded` : `Score ${g.score}/100`}; ${fmtPct(g.coverage * 100, 0)} of the score’s weighting could be assessed. `
           + 'A research grade on the evidence entered: not a bank decision, not a valuation and not legal clearance. How it is reached, pillar by pillar, is in the calculator.';
       const sig = JSON.stringify([score, gates.map(x => [x.severity, x.text, x.who || ''])]);
       if (P.els.grade.whyAt !== sig) {

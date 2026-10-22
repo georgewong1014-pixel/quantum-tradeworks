@@ -192,7 +192,7 @@ function loanReadiness(b, m) {
      answer they could give would settle it, so it is not listed with the
      ones a total waits for. */
   scores.structure = null;
-  notes.structure = 'Not tested: this build has no input for the number of applicants or for how the loan tenure fits their ages, and joint-applicant evidence and declared source of funds are not modelled.';
+  notes.structure = 'Not tested: there is no input for the number of applicants or for how the loan tenure fits their ages, and joint-applicant evidence and declared source of funds are not modelled.';
 
   const tested = READINESS_COMPONENTS.filter(c => isNum(scores[c.k]));
   const testedWeight = tested.reduce((s, c) => s + c.weight, 0);
@@ -294,9 +294,9 @@ function propertyFinanceability(d, m) {
   if (d.titleType === 'strata') {
     scores.status = 70;
     notes.status = 'Strata parcel. Whether the strata title has actually issued, or the property is still on a master title, changes what a lender will accept.';
-  } else { scores.status = 80; notes.status = 'Completion and occupancy documentation is not modelled in this build.'; }
+  } else { scores.status = 80; notes.status = 'Completion and occupancy documentation is not modelled here.'; }
 
-  if (d.titleType === 'strata') { scores.tenure = 90; notes.tenure = 'Not applicable to a strata parcel in this build.'; }
+  if (d.titleType === 'strata') { scores.tenure = 90; notes.tenure = 'Not applicable to a strata parcel.'; }
   else {
     const yrs = num0(d.remainingLease);
     scores.tenure = yrs === 0 ? 100 : Math.round(clamp((yrs - 30) / 60 * 100, 0, 100));
@@ -520,7 +520,7 @@ function propertyGrade(d, m) {
   const adverseN = SARAWAK_CHECKS.filter(c => c.adverse && d.checks?.[c.id] === c.adverse).length;
   const openN = SARAWAK_CHECKS.length - settled - adverseN;
   scores.demand = Math.round(settled / SARAWAK_CHECKS.length * 100);
-  notes.demand = `${settled} of ${SARAWAK_CHECKS.length} checklist questions settled without an adverse finding; ${adverseN} adverse, ${openN} open or not sure. Management readiness is not yet modelled in this build and contributes nothing to this pillar either way.`;
+  notes.demand = `${settled} of ${SARAWAK_CHECKS.length} checklist questions settled without an adverse finding; ${adverseN} adverse, ${openN} open or not sure. Management readiness is not modelled here and contributes nothing to this pillar either way.`;
 
 
   /* ---- weighted score over what was actually tested -------------------- */
@@ -3742,7 +3742,7 @@ VIEWS.property = () => {
   bd.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
     b.assessed ? 'Your financing position — entered' : 'Assess your loan readiness'));
   bd.append(el('p', { class: 'metaline', style: 'margin:8px 0' },
-    'Held in this browser under its own key, never written into the page address, never included in the property export, and never used for anything but this calculation. It does not reach the equity research anywhere in this product — the same analysis is shown to everyone regardless of their circumstances, and that is deliberate.'));
+    'Kept separately in this browser, never written into the page address, never included in the property export, and never used for anything but this calculation. It does not reach the equity research anywhere in this product — the same analysis is shown to everyone regardless of their circumstances, and that is deliberate.'));
 
   const bnum = (k, label, step) => {
     const f = el('div', { class: 'assumption' });
@@ -4167,7 +4167,7 @@ VIEWS.property = () => {
     const aff = affordabilityPanel(cityDef.name);
     if (aff) mapWrap.append(el('div', { style: 'margin-top:12px' }, aff));
     else mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
-      'District household income is not loaded. It is cached locally by ingest/sarawak-geo.mjs and is not published with the site while its licence is unconfirmed.'));
+      'District household income is not shown: its licence is not yet confirmed.'));
     explore.push(mapWrap);
     loc.append(pcL3('district', `${d.district}: what moves demand, the map and your records`, explore));
   }
@@ -5217,7 +5217,7 @@ VIEWS.property = () => {
       comps.append(cardHead(`Comparable transactions — ${m.proj.area}`,
         'None held for this location.', null, { kind: 'unavailable', fine: 'None held for this location' }));
       comps.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' },
-        `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
+        `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them is licensed to this product.`));
       comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
         /* This said "Every figure above came from you" while the provenance table
            three cards up correctly reported all four critical figures as

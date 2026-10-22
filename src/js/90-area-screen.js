@@ -156,7 +156,7 @@ VIEWS.areas = () => {
       ? 'Loading locality positions…'
       : geoLoadState === 'failed'
         ? `The locality positions could not be loaded, and nothing is recorded for ${city.name} yet. Reload the page to try again.`
-        : `No mapped localities are held for ${city.name}. The map draws only places this build has a recorded position for; none has been invented.`));
+        : `No mapped localities are held for ${city.name}. The map draws only places this product has a recorded position for; none has been invented.`));
     return wrap;
   }
 
@@ -790,7 +790,7 @@ VIEWS.comparables = () => {
   const head = el('div', { class: 'card' });
   head.append(cardHead(`${rows.length} record${rows.length === 1 ? '' : 's'}`,
     rows.length ? 'Standing is decided by the source, not by the number.'
-                : 'The register is empty, which is the true state of the evidence rather than a gap in the software.'));
+                : 'The register is empty: no evidence has been recorded yet.'));
   if (rows.length) {
     /* Every standing has a tile, so the tiles add up to the count above them.
        A worked-example row has its own standing and had no tile: with the
