@@ -98,7 +98,7 @@ function piCashStack() {
    title, one line, one call to action), in the product's tab order. */
 const PI_TOOLS = [
   { title: 'Scenario Lab', line: 'Move price, deposit, rate, rent and renovation; up to three scenarios side by side, nothing ranked.', cta: 'Open the Lab', path: '/property' },
-  { title: 'Calculator', line: 'Cash required, monthly cash flow, yield and break-even rent, each fee line marked Verified or Estimated with its source.', cta: 'Open the calculator', path: '/property/calculator' },
+  { title: 'Calculator', line: 'Cash required, monthly position, yield and break-even rent, each fee line marked Verified or Estimated with its source.', cta: 'Open the calculator', path: '/property/calculator' },
   { title: 'Comparables register', line: 'Record a transacted price or an achieved rent with what it rests on, then use it in a scenario.', cta: 'Record a comparable', path: '/property/comparables' },
   { title: 'Area screen', line: 'The localities of a town, shaded by what you have recorded; an area with no record stays hollow.', cta: 'Screen a town', path: '/property/areas' },
 ];

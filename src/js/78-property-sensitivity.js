@@ -287,7 +287,13 @@ function propertySensitivityPanel(d, m) {
     { key: 'ratePct', label: 'Interest rate', lo: 0, hi: 25,
       fmt: v => fmtPct(v, 2), room: v => `${fmtPct(Math.abs(v - num0(d.ratePct)), 2)} of rate rises`,
       now: fmtPct(num0(d.ratePct), 2),
-      none: 'Does not cover itself even at a 0% rate, so no rate cut fixes this one.' },
+      /* What was computed and why (the 20 Oct 2026 sweep, stress-7): it was
+         the stress card's "Breaks even at" tile, which this row replaces
+         (the Day-10 pre-audit, CL-20) — on the sample the interest is most
+         of the shortfall, so not "the rate is not the cause". */
+      none: !m?.letsToTenant ? 'Negative even at 0%: with no rent coming in, no rate cut makes it positive.'
+        : isNum(m.noi) && m.noi <= 0 ? 'Negative even at 0%: the rent does not cover the running costs, so no rate cut fixes it.'
+        : 'Negative even at 0%: the loan’s repayment is more than the rent leaves, so no rate cut alone fixes it.' },
     { key: 'vacancyPct', label: 'Vacancy', lo: 0, hi: 100,
       fmt: v => fmtPct(v, 1), room: v => `${fmtPct(Math.abs(v - num0(d.vacancyPct)), 1)} more vacancy`,
       now: fmtPct(num0(d.vacancyPct), 1),

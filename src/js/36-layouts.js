@@ -89,7 +89,7 @@ const START_HERE = {
   },
   property: {
     does: 'Models what buying and letting a property does to your cash.',
-    gets: 'You get the monthly cash flow, rental yield, break-even rent and cash needed up front, from the figures you enter — saved to My properties with its scenarios.',
+    gets: 'You get the monthly position, rental yield, break-even rent and cash needed up front, from the figures you enter — saved to My properties with its scenarios.',
   },
 };
 /* Apple Inc., by the registry's id for the filed company. */

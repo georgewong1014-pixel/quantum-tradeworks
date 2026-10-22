@@ -2426,7 +2426,7 @@ function propertyRiskFlags(d, m) {
      the vacancy allowance, with the repair reserve among the costs. It said
      "before any repairs or void periods", which made the figure sound as if
      it would grow once those were counted. */
-  if (m.cashflowMonthly < 0) out.push({ sev:'warning', t:'Negative monthly cash flow',
+  if (m.cashflowMonthly < 0) out.push({ sev:'warning', t:'Negative monthly position',
     n: m.letsToTenant === false
       ? `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, with no rent to set against it.`
       : `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, after the ${fmtPct(num0(d.vacancyPct), 0)} vacancy allowance and the ${fmtPct(num0(d.repairReservePct), 0)} repair reserve modelled here.` });
@@ -4397,15 +4397,17 @@ VIEWS.property = () => {
   if (queue.length) free.append(pcReviewCard(d, queue, { sub: null }));
   const summaryCard = free;
 
-  /* The four headline numbers, in the section whose inputs make them. */
+  /* The yield and the instalment, in the section whose inputs make them.
+     It was "Free calculator", a card inside the calculator, with four
+     tiles — two of them the monthly position and the break-even rent the
+     headline row already shows, the one under another name (the Day-10
+     pre-audit, CL-06, CL-20). The break-even rent stays drawn against the
+     rent below. */
   const headline = el('div', { class: 'card ls-section' });
-  headline.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.', null, DK));
-  const fg = el('div', { class: 'grid g-4' });
+  headline.append(cardHead('Yield and instalment', null, null, DK));
+  const fg = el('div', { class: 'grid g-2' });
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
-  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly cash flow', fmtAmount(m.cashflowMonthly, 'MYR'),
-    { sub: `After costs, vacancy and the loan${pcBeforeTax(m)}`, tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
-  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: `Rent needed to cover everything${pcBeforeTax(m)}` })));
   headline.append(fg);
 
   /* THE SAME PRICE, IN THE UNITS IT WILL BE ARGUED IN.
@@ -4462,8 +4464,8 @@ VIEWS.property = () => {
   /* Per unit of area: on a phone a drawer (L3, #6). */
   buyCard.append(pcL3('unit', 'Per unit: floor area, land and maintenance', unitCard));
 
-  /* The two rent tiles above, drawn against each other. One series, so no
-     legend — the title names it and both marks are directly labelled. */
+  /* The rent and the break-even rent, drawn against each other. One series,
+     so no legend — the title names it and both marks are directly labelled. */
   if (isNum(m.breakEvenRent) && m.breakEvenRent > 0 && isNum(d.rent)) {
     const rb = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
     rb.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
@@ -4847,52 +4849,11 @@ VIEWS.property = () => {
     ? 'This class earns no rent, so no interest rate makes it pay for itself: whatever it costs to hold — the outgoings, and the instalment where there is a loan — comes from you until it is sold.'
     : 'This deal is cash-flow negative even at a 0% interest rate with the unit never empty. No interest rate or occupancy level makes it pay for itself — the shortfall is structural, in the price against the rent.'));
 
-  const stressGrid = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
-  /* The three cases are displayed as three different things, because they are:
-     it crosses somewhere, it is never positive, or it is always positive. */
-  const beTile = (label, value, why, entered, fmt, copy) => {
-    const never = why === 'never-positive', always = why === 'always-positive';
-    /* A fourth case: no monthly position to cross zero, because the loan's
-       instalment could not be computed. It used to fall through to "any
-       rate", in green. */
-    if (why === 'unknown') return el('div', { class: 'panel ls-fig' }, statTile(label, '—',
-      { sub: 'Not computable — the loan’s instalment could not be worked out from the entered tenure.' }));
-    return el('div', { class: 'panel ls-fig' }, statTile(label,
-      isNum(value) ? fmt(value) : never ? copy.neverValue : copy.alwaysValue,
-      { sub: isNum(value) ? copy.crosses(entered) : never ? copy.never : copy.always,
-        tone: isNum(value) ? (copy.good(value, entered) ? '--ok-text' : '--dn-text')
-            : never ? '--dn-text' : '--ok-text' }));
-  };
-  stressGrid.append(beTile('Breaks even at', m.breakEvenRate, m.breakEvenRateWhy, d.ratePct,
-    v => fmtPct(v, 2), {
-      neverValue: 'no rate', alwaysValue: 'any rate',
-      crosses: e => `Interest rate at which monthly cash flow reaches zero. You entered ${fmtPct(e, 2)}.`,
-      /* What was computed: no rate down to 0% makes the month positive (the
-         20 Oct 2026 sweep, stress-7) — and why, not that the rate is not the
-         cause: on the sample the interest is most of the shortfall. */
-      never: !m.letsToTenant ? 'Negative even at 0%: with no rent coming in, no rate cut makes it positive.'
-        : isNum(m.noi) && m.noi <= 0 ? 'Negative even at 0%: the rent does not cover the running costs, so no rate cut fixes it.'
-        : 'Negative even at 0%: the loan’s repayment is more than the rent leaves, so no rate cut alone fixes it.',
-      always: 'Stays positive at every rate tested, up to 25%.',
-      good: (v, e) => v > e + 1,
-    }));
-  /* Vacancy and a break-even rent are tenancy quantities. The rail says they
-     are withheld for a class with no tenant, and this card went on printing
-     them — "You expect RM1.9k" of a bare parcel. */
-  if (m.letsToTenant) {
-    stressGrid.append(beTile('Survives vacancy to', m.breakEvenVacancy, m.breakEvenVacancyWhy, d.vacancyPct,
-      v => fmtPct(v, 0), {
-        neverValue: 'none', alwaysValue: 'fully vacant',
-        crosses: e => `Vacancy at which it reaches zero. You assumed ${fmtPct(e, 0)}.`,
-        never: 'Negative even with the unit never empty. Vacancy is not what makes this negative.',
-        always: 'Covers its costs even with no tenant at all.',
-        good: (v, e) => v > e + 10,
-      }));
-    stressGrid.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
-      { sub: `Rent needed to cover everything${pcBeforeTax(m)}. You expect ${fmtAmount(d.rent, 'MYR')}.`,
-        tone: !isNum(m.breakEvenRent) ? null : d.rent > m.breakEvenRent ? '--ok-text' : '--dn-text' })));
-  }
-  stressCard.append(stressGrid);
+  /* No break-even tiles here (the Day-10 pre-audit, CL-20): "Where it stops
+     covering itself", the card before this one, gives the same rate,
+     vacancy and rent break-points — with the reason a 0% rate does not
+     fix it (the 20 Oct 2026 sweep, stress-7) — and the break-even rent
+     stands in the headline row. This card is the stress tables. */
   if (!m.letsToTenant) stressCard.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
     'No vacancy or break-even rent is tested: this class has no tenancy. The rate stress below is the carrying cost of the loan and the outgoings.'));
 
@@ -4911,14 +4872,14 @@ VIEWS.property = () => {
 
   stressCard.append(stressTable('If the interest rate rises', m.stress.rate, [
     { label: 'Rate', get: r2 => `${r2.label} · ${fmtPct(r2.ratePct, 2)}` },
-    { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
+    { label: 'Monthly position', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
   ]));
   /* Fixed levels, not moves from the entered vacancy (the 20 Oct 2026
      sweep, stress-6): above 15% entered, a row reads better than the base. */
   if (m.letsToTenant) stressCard.append(stressTable('At fixed vacancy levels', m.stress.vacancy, [
     { label: 'Vacancy', get: r2 => r2.label },
-    { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
+    { label: 'Monthly position', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
   ]));
   stressCard.append(stressTable('If the renovation overruns', m.stress.renovation, [
