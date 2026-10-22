@@ -1726,7 +1726,7 @@ function scanDraftCheck(d, { mode = 'new', st = scanStoreRead() } = {}) {
     idOk = false;
     idProblems.push({ path: 'id', code: 'DUPLICATE_ID', text: st.setups[d.id].deleted
       ? 'is the id of a deleted setup — restore that one from the setups page, or choose another id'
-      : 'is already the id of a setup saved here — ids are part of every alert key, so each is used once' });
+      : 'is already the id of a setup saved here — each id is used once' });
   } else if (mode === 'new' && d.id && scanFileSetupIds().has(d.id)) {
     /* Only the browser's setups were asked, so an id the worker's file
        held and this browser had not adopted saved as a new setup's v1 —

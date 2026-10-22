@@ -1776,7 +1776,7 @@ for (const route of ROUTES) {
       const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       for (let t = w.nextNode(); t; t = w.nextNode()) {
         const s = t.nodeValue.trim();
-        if (!s || t.parentElement.closest('script,style,select,option,textarea,svg') || inGradeColumn(t.parentElement)) continue;
+        if (!s || t.parentElement.closest('script,style,select,option,textarea,svg,[data-no-figure]') || inGradeColumn(t.parentElement)) continue;
         let c = cos.find(c => tokenRe.get(c.id).test(s) || s === c.name);
         if (!c && s.length <= 80) c = cos.find(c => anyRe.get(c.id)?.test(s));
         if (c) occ.push({ node: t.parentElement, c, svg: false });

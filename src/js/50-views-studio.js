@@ -3042,7 +3042,7 @@ VIEWS.portfolio = () => {
     card.append(cardHead(label, label === 'Sector exposure' ? 'Share of portfolio value. Concentration is a fact to notice, not a score.' : 'Share of portfolio value.', null, PK));
     /* Kept in each card: a holding left out is named beside the shares it is
        missing from (WS-06, equity-test) — not said once for both. */
-    if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
+    if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)', 'data-no-figure': '' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     /* A business model by its name, not its key (copy-equities-20). */
     const nameOf = label === 'Business-model exposure' ? archetypeName : (x => x);
