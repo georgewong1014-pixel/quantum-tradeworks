@@ -556,7 +556,7 @@ function fitGrade(r, key, tier) {
   if (key === 'trend') {
     out.state = 'not_built';
     out.missing.push('An observed, corporate-action-adjusted price history under a licence that permits its use.');
-    out.cap = 'No licensed price history exists in this build, for any company. A reconstructed series may not be substituted.';
+    out.cap = 'No licensed price history is held for any company. A reconstructed series may not be substituted.';
     return out;
   }
 
@@ -624,7 +624,7 @@ function fitGrade(r, key, tier) {
   else if (key === 'catalyst') {
     out.state = 'not_built';
     out.missing.push('A dated, sourced event with dependencies and a failure case.');
-    out.cap = 'No catalyst registry exists in this build, for any company. This is a missing feature rather than a missing figure.';
+    out.cap = 'No catalyst data is held for any company.';
     return out;
   }
 
@@ -636,7 +636,7 @@ function fitGrade(r, key, tier) {
        coverage tier, so it cannot be reported as a data problem. */
     const q = r.scores?.quality?.score;
     if (!need(isNum(q), 'A business-quality assessment of the underlying.')) return out;
-    out.missing.push('A verified contract, its deliverable, an authorised quote and your full collateral. Those are entered in the Wheel workspace, and no chain data exists in this build.');
+    out.missing.push('A verified contract, its deliverable, an authorised quote and your full collateral. Those are entered in the Cash Wheel, and no option-chain data is held.');
     /* The evidence and the strategy's own threshold, never a verdict on the
        company: "a business you would not want to own" was said of 54 named
        filers below 60 (the 20 Oct 2026 sweep, copy-equities-1). */
@@ -736,7 +736,7 @@ const RESEARCH_TABS = [
   { id:'risks',     label:'Risks' },
   { id:'ownership', label:'Ownership & actions' },
   { id:'filings',   label:'Filings' },
-  { id:'thesis',    label:'Thesis' },
+  { id:'thesis',    label:'Investment case' },
 ];
 
 /* Where a company lists, said honestly. The illustrative and personal sets
@@ -779,8 +779,9 @@ function companyActions(r) {
   /* ONE NEXT ACTION (audit 1, #9). The page had four equal buttons and no
      way forward marked. The next step of the connected journey is the
      primary one: "Add to watchlist" until the company is on the list, then
-     "Create a setup for <ticker>" — the builder with the symbol — and the
-     rest stay quiet. */
+     "Start an investment case" — Equities' own next step; the scanner, which
+     cannot test anything without the reader's price history, stays quiet
+     (Day-10 pre-audit NAV-03) — and the rest stay quiet. */
   /* An id, because its words change with what it does: render() finds the
      control in use again by id first, and by its words it found nothing and
      left focus on <main> after every press (35-ui.js, giveFocusBack). */
@@ -800,7 +801,7 @@ function companyActions(r) {
   /* The seeded case is not the reader's (SEEDED_THESIS_IDS), and the button
      called it "your investment case" on a first visit. */
   const sampleCase = !!thesis && SEEDED_THESIS_IDS.includes(thesis.id);
-  acts.append(el('button', { class: 'btn btn-ghost btn-sm',
+  acts.append(el('button', { class: `btn ${watching ? 'btn-primary' : 'btn-ghost'} btn-sm`,
     title: sampleCase ? 'A sample investment case, written into this browser on a first visit to show what one looks like. Not your work.'
       : 'Your investment case for this company: one line, quality, valuation, catalysts, risks and the conditions that would change your mind',
     onclick: () => addToThesis(c.id) }, sampleCase ? 'Open the sample investment case' : thesis ? 'Open your investment case' : 'Start an investment case'));
@@ -811,7 +812,7 @@ function companyActions(r) {
      under the actions says whether that history is here. The link passes
      the shell's gate (toolLink), as every link to a tool does. */
   const setupPath = `/app/scanner/setups/new?from=${encodeURIComponent(c.id)}&symbol=${encodeURIComponent(sym)}`;
-  acts.append(toolLink(setupPath, { class: `btn ${watching ? 'btn-primary' : 'btn-ghost'} btn-sm`, 'aria-describedby': `scan-off-${c.id}` }, `Create a setup for ${sym}`));
+  acts.append(toolLink(setupPath, { class: 'btn btn-ghost btn-sm', 'aria-describedby': `scan-off-${c.id}` }, `Create a setup for ${sym}`));
   box.append(acts);
   box.append(el('p', { class: 'metaline', id: `scan-off-${c.id}`, style: 'margin-top:6px;text-align:right' },
     on ? `A setup is kept in this browser and checked only on price history you supplied${scanHistoryFile.series[sym] ? `, which holds ${sym}` : `, which holds no series for ${sym}`}.`
@@ -975,9 +976,9 @@ VIEWS.researchHome = () => {
       el('span', { class: 'rf-mine-tk' }, r.c.tk || r.c.code), el('span', { class: 'rf-mine-name' }, r.c.name),
       r.c.real ? null : el('span', { class: 'chip chip-bronze' }, 'illustrative')]))),
       'None yet — companies you open are listed here.'),
-    col('rf-cases-hd', 'Saved cases', own.map(t => { const r = BY_ID.get(t.ticker);
+    col('rf-cases-hd', 'Investment cases', own.map(t => { const r = BY_ID.get(t.ticker);
       return el('li', {}, link('/my/theses', [el('span', { class: 'rf-mine-tk' }, r?.c.tk || t.ticker), r ? el('span', { class: 'rf-mine-name' }, r.c.name) : null])); }),
-      'None yet — a case records your reasoning on a company.'),
+      'None yet — an investment case records your reasoning on a company.'),
   ]));
 
   /* More ways in: the six lenses, each a link to the screen it opens — the
@@ -1047,7 +1048,7 @@ VIEWS.research = () => {
   if (!allowed) {
     wrap.append(reportRefusedHead(c));
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
-      `The Free plan covers ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''} Equities Research removes the limit.`));
+      `The Free plan covers ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''} Previewing Equities Research lifts it.`));
     const back = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
     back.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }) }, 'Back to the screener'));
     State.reportLog.ids.slice(0, 5).forEach(id => {
@@ -1159,7 +1160,7 @@ VIEWS.research = () => {
          words, not the pipeline's (the 20 Oct 2026 sweep, copy-equities-9). */
       !c.personal ? (c.ingestVersion
         ? el('span', { class: 'chip', title: 'The version of the rules that read these statements from the SEC filings.' }, `import ${c.ingestVersion.replace(/^sec /, '')}`)
-        : el('span', { class: 'chip chip-bronze', title: 'These statements were stored before each import recorded its version. Figures known to have been read wrongly are withheld on this page; the next data update records the version here.' }, 'import version not recorded')) : null,
+        : el('span', { class: 'chip chip-bronze', title: 'The data version of these statements was not recorded. Figures known to have been read wrongly are withheld on this page; the next data update records the version here.' }, 'data version not recorded')) : null,
       c.px?.eod ? (c.pricePersonal
           ? el('span', { class: 'chip chip-bronze' }, `read from your screen${c.px.asOf ? ' ' + c.px.asOf : ''}`)
           : sevChip('good', `end-of-day close${c.px.asOf ? ' ' + c.px.asOf : ''}`))
@@ -1172,7 +1173,7 @@ VIEWS.research = () => {
     ]));
     const mixed = Object.entries(c.provenance || {}).filter(([, p]) => p.mixedTags);
     if (mixed.length) rp.append(el('p', { class: 'metaline', style: 'margin-bottom:6px' },
-      `Assembled from more than one XBRL tag: ${mixed.map(([k, p]) => `${k} (${p.concept})`).join('; ')}. Comparability across peers is weaker where this happens.`));
+      `${mixed.map(([k]) => LINE_LABEL[k] || k).join(', ').replace(/^./, ch => ch.toUpperCase())} ${mixed.length === 1 ? 'combines' : 'combine'} more than one reported line, so ${mixed.length === 1 ? 'it compares' : 'they compare'} less well with peers.`));
     /* Restatements: a record from the corrected ingest keeps the first-filed
        figure beside the latest. Read defensively — the shipped file predates
        it and carries none. */
@@ -1282,7 +1283,7 @@ VIEWS.research = () => {
   const wsLinks = [];
   const wheelFitRow = lens.fits.find(f => f.key === 'wheel');
   if (wheelFitRow && wheelFitRow.state === 'graded')
-    wsLinks.push([`/us-options/wheel${ctx}`, `Open the Cash Wheel workspace`,
+    wsLinks.push([`/us-options/wheel${ctx}`, `Open the Cash Wheel`,
       'Collateral, assignment and the covered-call cycle, from figures you enter.']);
   wsLinks.push([`/research/trading-index${ctx}`, 'Record timing evidence',
     'Multi-timeframe trend and your own first-tranche rules. It carries no weight in any score above.']);
@@ -1296,9 +1297,9 @@ VIEWS.research = () => {
   lensCard.append(wsRow);
   lensCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     wheelFitRow && wheelFitRow.state === 'not_applicable'
-      ? `The Cash Wheel does not apply to this company — ${wheelFitRow.cap} Neither workspace changes any evidence band above.`
-      : wsLinks.length === 1 ? 'This workspace changes no evidence band above. It records your own plan and is weighted zero in the research composite.'
-      : 'Neither workspace changes any evidence band above. Both record your own plan and are weighted zero in the research composite.'));
+      ? `The Cash Wheel does not apply to this company — ${wheelFitRow.cap} Neither tool changes any evidence band above.`
+      : wsLinks.length === 1 ? 'This tool changes no evidence band above. It records your own plan and is weighted zero in the research composite.'
+      : 'Neither tool changes any evidence band above. Both record your own plan and are weighted zero in the research composite.'));
 
   /* Counted per state, because "not assessable from the data held" was false
      for more than half of them. A strategy that does not apply to this business
@@ -1490,7 +1491,7 @@ function companySummary(r) {
   grid.append(block('What changed recently',
     changes.length
       ? changes.map(f => el('p', { class: 'body', style: 'margin:0 0 4px' }, f.title))
-      : ['Nothing has changed state since the last model run.'],
+      : ['No change in the reported figures since the last data update.'],
     changes.length ? 'Computed from the reported figures, not from news.' : null));
 
   /* 3. What needs attention — the most serious risk flags, worst first. */
@@ -1570,7 +1571,7 @@ function overviewTiles(r) {
   const badge = c.real
     ? (c.personal
         ? kindBadge('yours', { link: false, fine: 'Annual statements you supplied for personal research. Not redistributable' })
-        : kindBadge('filed', { link: false, fine: `From EDGAR companyfacts, CIK ${c.cik}` }))
+        : kindBadge('filed', { link: false, fine: `From SEC EDGAR financial data, CIK ${c.cik}` }))
     : kindBadge('illustrative', { link: false, fine: ILLUS_TITLE.replace(/\.$/, '') });
   const card = el('div', { class: 'card' });
   card.append(cardHead('Latest reported year',
@@ -2214,8 +2215,8 @@ function statementsCsv(r) {
   out.push(`# Quantum Tradeworks statements export · ${c.name} (${c.tk}) · ${MODEL_VERSION}`);
   out.push(`# ${src}. ${dataDateLabel(c)}.`);
   out.push(`# Units: ${c.ccy} billions; shares in billions; per-share lines in ${c.ccy} per share. Values are stored figures at full precision.`);
-  if (c.real && !c.personal && !anyEnd) out.push('# period_end: not in this dataset yet — the statements were retrieved before the ingest recorded it.');
-  if (c.real && !c.personal && !anyFiled) out.push('# filed, form: not in this dataset yet — the statements were retrieved before the ingest recorded them.');
+  if (c.real && !c.personal && !anyEnd) out.push('# period_end: not recorded for these statements yet.');
+  if (c.real && !c.personal && !anyFiled) out.push('# filed, form: not recorded for these statements yet.');
   if (!c.real) out.push('# Illustrative: every figure here is synthetic, created for interface demonstration. Not filed and not real.');
   out.push('# Research only. Not for investment use.');
   return out.join('\n');
@@ -2265,7 +2266,7 @@ function statementTable(r) {
      pressing it. */
   stmt.append(el('p', { class: 'metaline stmt-note', id: 'stmt-csv-note' },
     c.personal ? 'CSV is not offered here: these statements are personal research and not redistributable.'
-    : !lim('exports') ? 'CSV export is part of Equities Research; on the Free plan the button explains and does not download.'
+    : !lim('exports') ? 'CSV export is part of Equities Research; on the Free plan the button opens Plans instead.'
     : c.real ? 'CSV: every line and year at full precision, with unit, currency, source and the XBRL concept for each cell.'
     : 'CSV: every line and year at full precision, with unit, currency and source — every figure labelled illustrative.'));
 
@@ -2828,7 +2829,7 @@ function tabFilings(r) {
        links come from edgarLinks, the builder every source drawer uses. */
     const hd = el('div', { class: 'card' });
     hd.append(cardHead('SEC filings',
-      'This build holds no filing index. The statements on this page are XBRL facts from EDGAR’s companyfacts record — the numbers, not the documents — and the documents themselves are one link away on SEC.gov. Nothing here stands in for them.'));
+      'No filing list is held here. The figures on this page come from the SEC’s data — the numbers, not the documents — and the documents themselves are one link away on SEC.gov. Nothing here stands in for them.'));
     hd.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
       el('span', { class: 'chip chip-brand' }, 'SEC-filed statements'),
       el('span', { class: 'chip' }, `CIK ${c.cik}`),
@@ -2845,7 +2846,7 @@ function tabFilings(r) {
       card.append(changedTable(ch));
       const drivers = driverImpact(c, r.d, r.inputs).slice(0, 3);
       if (drivers.length) {
-        card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Potential thesis impacts'));
+        card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Potential investment case impacts'));
         const imp = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
         drivers.forEach(dr => imp.append(el('div', { class: 'evidence', style: 'font-size:13px' },
           `${dr.label} is the ${drivers.indexOf(dr) === 0 ? 'largest' : 'next largest'} driver of the valuation range — a ${dr.unit === 'pp' ? fmtNum(dr.step, 2) + ' point' : dr.unit} change moves the base-case model estimate about ${fmtNum(dr.span, 1)}%.`)));
@@ -2888,7 +2889,7 @@ function tabFilings(r) {
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--sm) 0 6px' }, 'What changed'));
       card.append(changedTable(doc.changed));
 
-      card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Potential thesis impacts'));
+      card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Potential investment case impacts'));
       const imp = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
       const drivers = driverImpact(c, r.d, r.inputs).slice(0, 3);
       drivers.forEach(dr => imp.append(el('div', { class: 'evidence', style: 'font-size:13px' },

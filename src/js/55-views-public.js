@@ -939,7 +939,7 @@ VIEWS.launcher = () => {
   }
 
   if (L.goal === 'wheel') {
-    q('Start from what?', 'This build carries no option-chain data, so a contract is entered by hand either way.');
+    q('Start from what?', 'No option-chain data is held, so a contract is entered by hand either way.');
     const mode = seg('mode', [['own', 'My own contract'], ['example', 'A worked contract']], 'example');
     open = () => {
       /* A contract the reader entered is theirs, as the worked-example
@@ -958,8 +958,8 @@ VIEWS.launcher = () => {
   }
 
   if (L.goal === 'trading') {
-    q('Start from what?', 'Phase 1 reads nothing from your screenshot — every panel is transcribed by you.');
-    const mode = seg('mode', [['own', 'My own chart evidence'], ['example', 'The §14 worked example']], 'example');
+    q('Start from what?', 'Nothing is read from your screenshot; you record each panel.');
+    const mode = seg('mode', [['own', 'My own chart evidence'], ['example', 'The worked example']], 'example');
     open = () => {
       /* Chart evidence the reader transcribed — a symbol, or a panel marked
          present — is kept the same way as a contract. */
@@ -967,7 +967,7 @@ VIEWS.launcher = () => {
       const own = !!q && JSON.stringify(q) !== JSON.stringify(qttiWorkedExample())
         && (String(q.symbol || '').trim() !== '' || ['daily', 'weekly', 'monthly'].some(t => q.timeframes?.[t]?.present));
       if (own && mode === 'own') { navigate('/trading-index'); toast('Your chart evidence is open as you left it'); return; }
-      if (own && !confirm('Replace the chart evidence you entered with the §14 worked example? Yours is not kept.')) return;
+      if (own && !confirm('Replace the chart evidence you entered with the worked example? Yours is not kept.')) return;
       if (mode === 'example') State.qtti = qttiWorkedExample();
       else State.qtti = { ...State.qtti, symbol:'',
         timeframes:{ daily:qttiBlankPanel(), weekly:qttiBlankPanel(), monthly:qttiBlankPanel() },
@@ -1272,7 +1272,7 @@ VIEWS.userdata = () => {
     ]),
     el('p', { class: 'body', style: FILE_HOLDS_P }, 'Left out, because they belong to this browser:'),
     el('ul', { class: 'explain-list' }, [
-      el('li', {}, 'a fingerprint of what this browser keeps, which the pages make again from the rest;'),
+      el('li', {}, 'a check value the pages rebuild from the rest;'),
       el('li', {}, 'when this browser last exported — a file restored elsewhere was not exported from there.'),
     ]),
   ]));
@@ -1541,7 +1541,7 @@ VIEWS.watchlists = () => {
      above it, the one page of the four that looked like a different
      product. */
   wrap.append(pageHead({ title: 'Watchlists', lede: 'Companies you follow, in lists of your own.',
-    note: 'Adding one here does not imply a view on it — it decides which companies the What changed list shows first, and a list can be handed to the scanner as its universe.' }));
+    note: 'Adding one here does not imply a view on it — it decides which companies the Current conditions list shows first, and a list can be handed to the scanner as its universe.' }));
   appendSampleBanner(wrap);
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
   /* A control of the page drawn again, by its label — where focus goes when
@@ -1609,7 +1609,7 @@ VIEWS.watchlists = () => {
       toast('Exported watchlists.json — save it as data/watchlists.json on the machine the scanner’s worker runs on');
     } }, 'Export for the scanner') : null]));
   ctl.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'The export carries each member’s canonical instrument id and market — the shape a scanner takes as its universe — and says it belongs to this browser. “Export for the scanner” writes the same file as watchlists.json: the scanner’s worker cannot read this browser, so a setup resolved from your latest export sees the lists as they were when you last exported them.'));
+    'The export lists each company and its market, for use as a scanner list, and says it belongs to this browser. “Export for the scanner” writes the same file as watchlists.json: the scanner’s worker cannot read this browser, so a setup resolved from your latest export sees the lists as they were when you last exported them.'));
   wrap.append(ctl);
 
   /* What to do next, with the one action the page has for it: Create, above.
@@ -1627,7 +1627,7 @@ VIEWS.watchlists = () => {
     head.append(el('input', { class: 'input input-inline', value: w.name, 'aria-label': `Name of watchlist ${w.name}`, style: 'flex:1 1 180px;font-weight:600',
       onchange: e => { const r = wlRename(w.id, e.target.value); toast(r.ok ? 'Renamed' : r.why); render(); } }));
     head.append(el('span', { class: 'chip' }, `${items.length}/${LIMITS.watchlistStocks}`));
-    head.append(el('span', { class: 'chip', title: w.createdAt ? null : (w.createdAtSource || null) }, w.createdAt ? `created ${localDayOf(w.createdAt)}` : 'created: date unknown'));
+    head.append(el('span', { class: 'chip' }, w.createdAt ? `created ${localDayOf(w.createdAt)}` : 'created: date not recorded'));
     if (w.updatedAt) head.append(el('span', { class: 'chip' }, `updated ${localDayOf(w.updatedAt)}`));
     head.append(el('span', { class: 'spacer' }));
     head.append(el('button', { class: 'btn btn-ghost btn-sm', title: 'Open the scanner builder with this list as the universe', onclick: () => {
@@ -1811,7 +1811,6 @@ function openTrendDrawer(row, t) {
   const vCard = el('div', { class: 'panel' });
   vCard.append(el('div', { class: 'row', style: 'gap:8px' }, [
     el('span', { style: 'font-weight:600;font-size:13px' }, 'Volume context'),
-    el('span', { class: 'metaline', style: 'margin-left:auto' }, 'section 13.3'),
   ]));
   if (vol.pending || !vol.points) {
     vCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },

@@ -104,8 +104,8 @@ function provenance(row, extra = [], { freshness = false } = {}) {
      the data holds it and said to be missing where it does not. */
   const fy = latestFy(c), end = fyEndOf(c, fy);
   const lead = freshness ? [
-    `<b>Statements</b> FY${fy}${end ? ` ended ${esc(fmtFyEnd(end))}` : c.real && !c.personal ? ' <span title="The period end date is not in this dataset yet: the statements were retrieved before the ingest recorded it.">(period end not yet held)</span>' : ''}`,
-    `<b>Source</b> ${c.real ? (c.personal ? 'your annual statements, personal research' : `SEC EDGAR companyfacts, CIK ${esc(String(Number(c.cik)))}`) : 'synthetic sample, not a filing'}`,
+    `<b>Statements</b> FY${fy}${end ? ` ended ${esc(fmtFyEnd(end))}` : c.real && !c.personal ? ' <span title="The period end date is not recorded for these statements yet.">(period end not yet held)</span>' : ''}`,
+    `<b>Source</b> ${c.real ? (c.personal ? 'your annual statements, personal research' : `SEC EDGAR financial data, CIK ${esc(String(Number(c.cik)))}`) : 'synthetic sample, not a filing'}`,
     `<b>As of</b> ${esc(dataDateLabel(c))}`,
   ] : [];
   const bits = [
@@ -135,7 +135,7 @@ const illusText = (c) => c?.real ? '' : ' · illustrative';
    cut off or never drawn. dataChip and dataText say which, the personal
    lane's statements included; a chart mark's name carries dataTag. The
    one-sided pair stays where only the synthetic needs saying. */
-const FILED_TITLE = 'SEC-filed — figures from the audited statements the company filed with the SEC (EDGAR companyfacts), not adjusted.';
+const FILED_TITLE = 'SEC-filed — from the audited statements the company filed with the SEC (EDGAR), not adjusted.';
 const PERSONAL_TITLE = 'Personal research — figures from annual statements you supplied on this machine: not an SEC filing, and not redistributable.';
 const dataTag = (c) => (!c ? '' : !c.real ? 'illustrative' : c.personal ? 'personal research' : 'SEC-filed');
 const dataChip = (c) => (!c ? null : !c.real ? illusChip(c)
@@ -401,14 +401,14 @@ const PRODUCTS = [
     statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
      promised a watch this site never keeps — it ships no prices, and the
-     worker that records a match runs on the reader's own computer. */
+     worker that records a match is not distributed yet (23 Oct 2026). */
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
     task: 'Build my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
     boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
-    statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
+    statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
@@ -555,7 +555,7 @@ const TOOLS = [
     status: 'beta', statusNote: 'Companies side by side on the measures that fit each business model, every period, basis and absent cell stated; period-end months cannot be aligned yet.',
     action: { label: 'Compare companies', path: '/compare' } },
   { id: 'queue', product: 'equities', label: 'Research queue', path: '/research/queue', views: ['researchQueue'], tab: true, needs: ['filings'],
-    status: 'beta', statusNote: 'What changed in the reported figures, your watchlist first, with the data’s freshness — each company labelled filed or illustrative, nothing recommended.',
+    status: 'beta', statusNote: 'What holds in the reported figures, your watchlist first, with the data’s freshness — each company labelled filed or illustrative, nothing recommended.',
     action: { label: 'Open the research queue', path: '/research/queue' } },
   { id: 'sarawak', product: 'equities', label: 'Sarawak watch', path: '/discover/sarawak', views: ['sarawak'], tab: true,
     status: 'beta', statusNote: 'Names the Bursa companies that operate in Sarawak; no statements are held for them, and each one’s exposure stays empty until you record it.',
@@ -597,13 +597,13 @@ const TOOLS = [
      says, as the strip did, that it screens the reader's own series, not the
      market. */
   { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'], tab: true,
-    status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from the worker’s records on your own computer — or from files you open here.',
+    status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from files you open here; the worker that writes them is not distributed yet.',
     action: { label: 'Open the scanner', path: '/app/scanner' } },
   { id: 'market', product: 'scanner', label: 'Market (your series)', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'], tab: true,
     status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
     action: { label: 'Screen your series', path: '/app/scanner/market' } },
   { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'], tab: true,
-    status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; the worker on your computer runs them once exported, and evaluating one here needs your price history.',
+    status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; evaluating one here needs your price history.',
     action: { label: 'Create a setup', path: '/app/scanner/setups/new' } },
   { id: 'scanWatchlists', product: 'scanner', label: 'Watchlist scanner', path: '/app/scanner/watchlists', views: ['scannerWatchlists'], tab: true,
     status: 'beta', statusNote: 'Your watchlists as the universe a setup checks, exported to the file the worker reads.',
@@ -632,7 +632,7 @@ const TOOLS = [
     proof: { journey: 'equities', step: 'The watchlist lists it' },
     action: { label: 'Create a watchlist', path: '/my/watchlists' } },
   { id: 'myAlerts', product: null, label: 'My Alerts', path: '/my/alerts', views: ['alerts'],
-    status: 'live', statusNote: 'Both kinds, each labelled: the facts that changed in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.',
+    status: 'live', statusNote: 'Both kinds, each labelled: the conditions that hold now in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.',
     proof: { journey: 'cases', step: 'Set a price threshold: crossed, and listed with its source once price moves are shown' },
     action: { label: 'Review your alerts', path: '/my/alerts' } },
   { id: 'saved', product: null, label: 'Saved work', path: '/my/workspace', views: ['workspace'],
@@ -1238,8 +1238,8 @@ const ROUTES = [
   /* end Phase 3 — user */
   { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data & settings' },
-  { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
-  { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
+  { path: '/my/workspace',        view: 'workspace', title: 'Saved work' },
+  { path: '/app/workspace',       view: 'workspace', title: 'Saved work', alias: true },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
   /* /PROPERTY OPENS THE SCENARIO LAB (N3, the owner's decision D18). The
      product's landing is the Lab on the calculator's deal — the sample on a
@@ -1347,7 +1347,7 @@ const META = {
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
   thesis:      'What you believe about a company and what would prove you wrong, checked against the latest data.',
-  alerts:      'Your alerts, each labelled by kind: the facts that changed in the research you follow, with their source period, and your scanner setups’ recorded matches. Nothing is sent outside this browser.',
+  alerts:      'Your alerts, each labelled by kind: the conditions that hold now in the research you follow, with their source period, and your scanner setups’ recorded matches. Nothing is sent outside this browser.',
   reports:     'Every report your own work in this browser can print — company research reports, property investor reports, decision records and client proposals — each saved as PDF through your browser’s print.',
   tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
   userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',

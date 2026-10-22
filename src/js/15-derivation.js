@@ -130,10 +130,10 @@ function stampDiff(stamp, legacy = null) {
     const model = legacy?.model || null;
     const modelMoved = model ? model !== MODEL_VERSION : null;
     return { status: 'unstamped', stamped: false, modelMoved, dataMoved: null, moved: [],
-      label: 'Saved before stamping',
+      label: 'Saved before versions were recorded',
       text: model
-        ? `Saved before data versions were recorded. It was saved under ${model}${modelMoved ? `, and the model has moved since (${modelMoveText(model)})` : ', which is the model now'}. Which statements it was built on was not recorded, so whether they have changed cannot be said.`
-        : 'Saved before version stamping. Neither the model nor the data version was recorded, so whether either has moved cannot be said.' };
+        ? `It was saved under ${model}${modelMoved ? `, and the model has moved since (${modelMoveText(model)})` : ', which is the model now'}. Which statements it was built on was not recorded, so whether they have changed cannot be said.`
+        : 'Neither the model nor the data version was recorded, so whether either has moved cannot be said.' };
   }
   const modelMoved = stamp.model !== MODEL_VERSION;
   const moved = Object.entries(stamp.data || {})
@@ -144,11 +144,11 @@ function stampDiff(stamp, legacy = null) {
   if (modelMoved) parts.push(`Model moved: ${modelMoveText(stamp.model)}.`);
   moved.forEach(m => parts.push(m.key === ILLUS_SET
     ? `Data moved: the illustrative set was dated ${m.then}; it is now dated ${m.now}.`
-    : `Data moved: saved against ${dataName(m.key)} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; this build carries ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`));
+    : `Data moved: saved against ${dataName(m.key)} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; now ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`));
   const status = modelMoved && dataMoved ? 'both' : modelMoved ? 'model' : dataMoved ? 'data' : 'current';
   return { status, stamped: true, modelMoved, dataMoved, moved,
     label: { both: 'Model and data moved', model: 'Model moved', data: 'Data moved', current: 'Current' }[status],
-    text: parts.length ? parts.join(' ') : 'Saved under the model and data versions this build carries — neither has moved since.' };
+    text: parts.length ? parts.join(' ') : 'Saved under the current model and data versions — neither has moved since.' };
 }
 /* The data line of a stamp, for a table cell or a printed footer. */
 function stampDataText(stamp) {
@@ -1077,9 +1077,9 @@ const COMPOSITE_PILLARS = [
     from: 'the financial strength pillar',
     absent: 'None of the financial strength inputs could be computed.' },
   { id:'catalysts', label:'Catalysts and Change', w:10, get: () => null,
-    absent:'No catalyst registry exists in this build, so no catalyst has been counted, dated or expired for any company.' },
+    absent:'No catalyst data is held for any company, so no catalyst has been counted, dated or expired.' },
   { id:'macro',  label:'Macro and Sector Context', w:10, get: () => null,
-    absent:'No macro engine exists in this build — no cycle state, rate context, currency exposure or policy evidence is carried.' },
+    absent:'No macro data is held: no cycle, rate, currency or policy evidence.' },
 ];
 
 /* Section 14.2, in the section 2 language: a state, never an instruction. */
@@ -1113,7 +1113,7 @@ function researchComposite(r) {
      as a property of the composite rather than raised as a per-company alarm
      that carries no per-company information. */
   const gates = [{ id:'governance', state:'manual_review',
-    why:'No governance event register exists, so the governance hard gate is untested for every company. An untested hard gate is manual review, never a pass.' }];
+    why:'No governance data is held, so the governance hard gate is untested for every company. An untested hard gate is manual review, never a pass.' }];
   if (!classified && isNum(score))
     gates.push({ id:'coverage', state:'not_classified',
       why:`Data completeness is ${dataCoverage}%, below the 70% the framework requires before an aggregate classification may be shown.` });
@@ -1158,11 +1158,11 @@ const SCORECARD_COVERAGE = [
   { pillar: 'Competitive Moat', weight: 20, state: 'not scored',
     tested: [],
     untested: ['Moat type', 'Durability', 'Supporting and counter-evidence', 'Analyst confidence'],
-    why: 'Moat evidence is analyst work. It is recorded and shown on the Moat tab where it exists, and marked "Not assessed" on every company loaded from filings alone. It is never scored, and it is never inferred from returns — section 7.5 forbids generating a moat from sector identity or financial outcome.' },
+    why: 'Moat evidence is analyst work. It is recorded and shown on the Moat tab where it exists, and marked "Not assessed" on every company loaded from filings alone. It is never scored, and it is never inferred from returns, sector identity or financial outcome.' },
   { pillar: 'Management', weight: 20, state: 'partial',
     tested: ['Net buyback yield', 'Payout ratio', 'Dividend cover by free cash flow', 'Return on reinvestment', 'Share count growth'],
     untested: ['Insider ownership and changes', 'Board independence', 'Audit opinion and auditor changes', 'Related-party transactions', 'Guidance accuracy'],
-    why: 'Capital allocation is visible in the statements and is scored. Governance and ownership are not in this dataset, and the governance event register of section 8 does not exist yet. Share counts are filed unadjusted for splits and no corporate-action source is licensed here, so on any company whose series contains a split the two share-based inputs are withheld rather than measured — the pillar re-bases over what remains and its coverage falls to match.' },
+    why: 'Capital allocation is visible in the statements and is scored. Governance and ownership are not in this dataset, and no governance data is held yet. Share counts are filed unadjusted for splits and no corporate-action source is licensed here, so on any company whose series contains a split the two share-based inputs are withheld rather than measured — the pillar re-bases over what remains and its coverage falls to match.' },
   { pillar: 'Growth Visibility', weight: 20, state: 'partial',
     tested: ['Revenue CAGR', 'Earnings CAGR', 'Free cash flow CAGR', 'Earnings consistency'],
     untested: ['Order book and contracted revenue', 'Capacity additions', 'Catalyst pipeline', 'Forward earnings visibility'],

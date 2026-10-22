@@ -846,15 +846,15 @@ function openRestoreDrawer() {
         el('li', {}, `${(PORTABLE_KEYS.find(x => x.k === k) || {}).label || k} — not restored: it ${why}`))));
     }
     if (r.ignored.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-ignored': '' },
-      `Ignored, because this build does not recognise them: ${r.ignored.join(', ')}.`));
+      `Ignored, because this version does not recognise them: ${r.ignored.join(', ')}.`));
     /* A file from another build (the 10 Oct 2026 audit, #8): one from a
        later format is said to be, and what a file does not carry is named
        where this browser holds something for it — kept as it is. */
     if (r.newer) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-newer': '' },
-      `This file was written by a later build (format ${r.version}; this build writes ${EXPORT_VERSION}). Only what this build recognises is restored.`));
+      `This file is from a newer version; only what this version knows is restored.`));
     const keptHere = heldKinds(r.missing || []);
     if (keptHere.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-missing': '' },
-      `Not in this file, so kept as this browser holds them: ${keptHere.map(k => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k).join(', ')}.${r.model && r.model !== MODEL_VERSION ? ` The file was exported under model ${r.model}; this build is ${MODEL_VERSION}.` : ''}`));
+      `Not in this file, so kept as this browser holds them: ${keptHere.map(k => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k).join(', ')}.${r.model && r.model !== MODEL_VERSION ? ` The file was exported under model ${r.model}; this version is ${MODEL_VERSION}.` : ''}`));
 
     /* Replacing is clearing what is here now: the export of it is offered
        first, as before every clear (confirmClear, 55-views-public.js). */

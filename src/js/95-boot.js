@@ -306,7 +306,7 @@ function searchPageRow(r, { when = null } = {}) {
    noted in Recent as itself. */
 function searchSavedRow(item, { when = null } = {}) {
   const chips = [
-    item.sample ? el('span', { class: 'chip chip-bronze', title: 'Seeded on a first visit to show what one looks like. Not your work.' }, 'sample') : null,
+    item.sample ? el('span', { class: 'chip chip-bronze', title: 'Added on a first visit as an example. Not your work.' }, 'sample') : null,
     item.illus === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
       : item.illus === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,
   ];
