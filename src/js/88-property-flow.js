@@ -93,8 +93,12 @@ const PF_STEPS = [
 ];
 const PF_STEP_OF = { areas: 'explore', areaMap: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'evidence', propertyModels: 'save' };
 const PF_EXPLORE_PATH = { areas: '/property/areas', areaMap: '/property/areas/map', comparables: '/property/comparables', opportunities: '/property/opportunities' };
-/* The explore page last visited, this tab: where Explore goes back to. */
-let pfExplore = '/property/opportunities';
+/* The explore page last visited, this tab: where Explore goes back to.
+   Before one is visited, the Area screen: the one explore page with
+   something to look at on a first visit — Kuching's localities and the
+   scheme map — where the register opened empty (the Day-10 pre-audit,
+   NAV-06). */
+let pfExplore = '/property/areas';
 
 /* WHAT THE LAB HOLDS NOT SAVED, in moves: every column's (an answer is a
    move of each column it moves) and the figures a lab copy was copied with. */

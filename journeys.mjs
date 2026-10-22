@@ -2419,9 +2419,13 @@ const JOURNEYS = [
         await tab.expect(`pmAll().length === 1 && /^m:/.test(labSubject || '')`, async () => `Save kept ${await tab.eval('pmAll().length')} properties, the Lab on ${await tab.eval('labSubject')}`);
         savedId = await tab.eval(`pmAll()[0].id`);
       });
-      await step(j, tab, 'Record an opportunity with its source and date', BUDGET.load + BUDGET.action * 4, async () => {
+      await step(j, tab, 'Record an opportunity with its source and date', BUDGET.load * 2 + BUDGET.action * 4, async () => {
+        /* Explore opens the Area screen before an explore page is visited
+           (the Day-10 pre-audit, NAV-06); the register is its tab. */
         await tab.click(`document.getElementById('pf-explore')`, 'Explore — the property flow');
-        await tab.expect(`State.view === 'opportunities' && !!document.getElementById('opp-add')`, async () => `Explore opened ${await tab.eval('State.view')}, not the opportunity register`);
+        await tab.expect(`State.view === 'areas'`, async () => `Explore opened ${await tab.eval('State.view')}, not the Area screen`);
+        await tab.click(`document.querySelector('.ptabs-list a[href$="/property/opportunities"]')`, 'Opportunities — the property tabs');
+        await tab.expect(`State.view === 'opportunities' && !!document.getElementById('opp-add')`, async () => `Opportunities opened ${await tab.eval('State.view')}, not the opportunity register`);
         const before = await snap();
         await tab.fill(`document.getElementById('opp-new-name')`, NAME, 'Project or address');
         await tab.choose(`document.getElementById('opp-new-city')`, 'kuching', 'City');
