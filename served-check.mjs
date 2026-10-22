@@ -4191,7 +4191,7 @@ const HOME_PAGE = read(HOME);
   if (!/Version \d+\.\d+\.\d+, checked \d{1,2} [A-Z][a-z]{2} \d{4}/.test(mainOf('/data-sources'))) p.push('/data-sources does not carry the fee rulebook\'s "Version N, checked <day>"');
   const cmp = mainOf('/compare');
   if (/feature-flagged|not counted as operational|\bP1\b/.test(cmp)) p.push('/compare still serves the register\'s words (feature-flagged, not counted as operational or a priority code)');
-  if (!/Partial\s+Company comparison[\s\S]{0,400}Usable as it stands\. Build status/.test(cmp)) p.push('/compare\'s partial-feature notice does not read "Partial", the feature, what is missing, "Usable as it stands." and the Build status link');
+  if (!/Partial\s+Company comparison[\s\S]{0,400}Usable as it stands\. Checks and status/.test(cmp)) p.push('/compare\'s partial-feature notice does not read "Partial", the feature, what is missing, "Usable as it stands." and the Build status link');
   if (!/Flagged: /.test(mainOf('/status'))) p.push('/status no longer lists the flagged rows');
   for (const path of ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists']) {
     const t = mainOf(path);

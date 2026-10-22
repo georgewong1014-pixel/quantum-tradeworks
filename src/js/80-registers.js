@@ -23,7 +23,7 @@
    because "coming soon" is what a roadmap says when nobody has decided.
    ========================================================================== */
 const FEATURE_STATUS = [
-  { id:'active-core', label:'Active Core Build', note:'Receiving current build capacity.' },
+  { id:'active-core', label:'Active Core Build', note:'Available; work continues.' },
   { id:'maintenance', label:'Active Maintenance', note:'Available and supported; reliability work continues.' },
   { id:'beta',        label:'Beta', note:'Available with a stated limitation.' },
   /* THE PHASE 2 BRIEF'S RELEASE RULE: a P1 surface that is not finished is
@@ -86,7 +86,7 @@ const BURSA_COVERAGE_WAIT = `${COVERAGE_PENDING} — how many companies carry il
 const CAPABILITY_REGISTER = [
   { name:'Sarawak property underwriting', status:'active-core', path:'/property/calculator',
     now:'Capital ledger, valuation gap, grade, downside and plain-language result.' },
-  { name:'True capital ledger', status:'active-core', path:'/property/calculator',
+  { name:'Capital ledger', status:'active-core', path:'/property/calculator',
     now:'Every completion, rent-ready and reserve line, reconciled.',
     /* Counted from the fee rulebook, not typed: "Seven fee lines carry
        placeholder values" stood here from rulebook 0.1.0 to 1.2.0, while
@@ -151,7 +151,7 @@ const CAPABILITY_REGISTER = [
             { file:'equity-test.mjs', name:'ratios match figures recomputed by hand from the filings' }] },
   /* The statements explorer and per-figure lineage. Active, with the parts
      the shipped data cannot fill stated as the gate rather than hidden. */
-  { name:'Statements and figure lineage', status:'active-core', path:'/company/msft-microsoft-corp?tab=financials',
+  { name:'Statements and figure lineage', status:'maintenance', path:'/company/msft-microsoft-corp?tab=financials',
     brief:['EQ-206', 'EQ-209'], priority:'P0',
     checks:[{ file:'equity-test.mjs', name:'the statements table is three statements whose every cell opens its source' },
             { file:'equity-test.mjs', name:'the statements CSV round-trips the table' },
@@ -162,7 +162,7 @@ const CAPABILITY_REGISTER = [
      page for weeks. One row was describing two things — the classifier that
      ships and the saved strategy plan that does not — so shipping half of it
      left the row wrong about both. Split. */
-  { name:'Equity Strategy Lens', status:'active-core', path:'/research',
+  { name:'Equity Strategy Lens', status:'maintenance', path:'/research',
     now:'On every company page: instrument type, business archetype, return role, and eight evidence bands that separate banded from unassessed, not applicable, not built and illustrative.',
     gate:'Evidence bands describe how far the evidence meets a strategy’s requirements. They are not an entry plan and imply no allocation.' },
   { name:'Saved strategy plans and leverage stress', status:'queued', path:null,
@@ -187,7 +187,7 @@ const CAPABILITY_REGISTER = [
     split:{ tool:'wheel', data:'no authorised option-chain data — each contract is entered by hand, and live chains, a recommended contract and execution are not built' },
     now:'Cash-secured put and covered-call arithmetic, collateral gates, downside scenarios and the full risk card, from figures you enter.',
     gate:'No authorised option-chain data, so contracts are entered by hand. Live chains, any recommended contract, broker routing and execution stay Compliance Gated and are not built.' },
-  { name:'QT Trading Index', status:'active-core', path:'/research/trading-index',
+  { name:'QT Trading Index', status:'maintenance', path:'/research/trading-index',
     now:'Multi-timeframe trend regime, first-tranche readiness against your own rules, screenshot confidence, template and derivative hard gates, from chart evidence you record.',
     gate:'Phase 1 only. It does not read your screenshot — OCR and vision extraction are phase 2. No indicator here has been backtested on point-in-time data, so no rule is claimed to be effective.' },
   { name:'Trade-setup scanner', status:'data-gated', path:'/app/scanner',
@@ -218,7 +218,7 @@ const CAPABILITY_REGISTER = [
     now:'Holdings, weights, currency attribution and thesis links.' },
   { name:'Thesis, catalysts and invalidation', status:'maintenance', path:'/my/theses',
     now:'User-authored conditions evaluated against current data, with the proximity rule published.' },
-  { name:'Watchlists', status:'active-core', path:'/my/watchlists',
+  { name:'Watchlists', status:'maintenance', path:'/my/watchlists',
     brief:['EQ-208', 'EQ-214'], priority:'P0',
     checks:[{ file:'equity-test.mjs', name:'watchlists are one service' },
             { file:'equity-test.mjs', name:'a watchlist survives a reload' },
@@ -463,7 +463,7 @@ function flagNoticeFor(row) {
       el('strong', {}, row.name)]),
     el('p', {}, row.flag),
     el('p', { class: 'metaline' }, [`Usable as it stands. `,
-      el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Build status')]),
+      el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Checks and status')]),
   ]);
 }
 /* Where the notice goes: under the page heading when the view has one, and on
