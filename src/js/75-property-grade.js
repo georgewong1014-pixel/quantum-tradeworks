@@ -3443,7 +3443,7 @@ VIEWS.property = () => {
     /* No comparison with other tools (none was surveyed) and no "true"
        cost, while some fee lines are estimates (the claims audit of 11
        Oct 2026, rank 6; F-16, R-13). */
-    el('p', { class: 'pc-more-body' }, 'This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with the equity return you enter.')]));
+    el('p', { class: 'pc-more-body' }, 'This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with an assumed equity return.')]));
 
   /* The regulated claim leads and is never hidden at any width: in Malaysia an
      official valuation requires a registered valuer, and this is not one. The
@@ -5344,8 +5344,12 @@ VIEWS.property = () => {
       ['Property less equities', q => isNum(q.vsProperty) ? `${q.vsProperty > 0 ? '+' : ''}${fmtAmount(q.vsProperty, 'MYR')}` : '—'],
     ].map(([label, get]) => el('tr', {}, [el('td', {}, label), ...m.equity.map(q => el('td', { class: 'num' }, get(q)))]))));
     etw.append(et); eq2.append(etw);
-    eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-      `At the ${fmtPct(num0(d.equityReturnPct), 1)} a year you entered under “Assumed equity return” — your figure, not a forecast, and no security is named or preferred.`));
+    /* The reader's figure only once they have set it (the Day-10 pre-audit,
+       OP-07): 7.0% is the calculator's starting figure, and the line called
+       it "you entered … your figure" to a reader who never touched it. */
+    eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, isTouched(d, 'equityReturnPct')
+      ? `At the ${fmtPct(num0(d.equityReturnPct), 1)} a year you entered under “Assumed equity return” — your figure, not a forecast, and no security is named or preferred.`
+      : `At the default ${fmtPct(num0(d.equityReturnPct), 1)} a year under “Assumed equity return” — not a forecast; change it to yours. No security is named or preferred.`));
     eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
       `The property scenario shows a net yield of ${fmtPct(m.netYield, 2)} before leverage and ${isNum(need) ? fmtPct(need, 2) : '—'} annualised on cash after it. Equities are liquid, divisible and carry no maintenance; property is leveraged, lumpy and illiquid. The comparison is of returns, not of risk.`));
     reportCards.push(eq2);

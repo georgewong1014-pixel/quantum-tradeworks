@@ -271,7 +271,10 @@ function returnsAndTaxPanel(d, m) {
   g.append(el('div', { class: 'panel ls-fig' }, statTile(`Value against ${fmtPct(m.hurdlePct, 1)} elsewhere`,
     isNum(m.npvAtHurdle) ? fmtMoney(m.npvAtHurdle, 'MYR', 0) : '—',
     { sub: isNum(m.npvAtHurdle)
-        ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named') + holdingShortWords(m)
+        /* "You named" only once the reader has set the return (the Day-10
+           pre-audit, CL-19): 7.0% is the calculator's starting figure. */
+        ? (isTouched(d, 'equityReturnPct') ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named')
+          : (m.npvAtHurdle >= 0 ? 'Beats the return assumed' : 'Falls short of the return assumed')) + holdingShortWords(m)
         /* A return entered and a value still missing means the flows are
            unknown; asking for the return again would send the reader to a
            box that is already filled. */
