@@ -1211,7 +1211,6 @@ VIEWS.opportunities = () => {
     wrap.append(empty);
   }
 
-
   /* Run every candidate once; the cards and the comparison both read it. */
   const modelled = list.map(o => ({ o, ...candidateModel(o) }));
 

@@ -707,9 +707,12 @@ function labArrive() {
      saved comparison named: those open what they name. */
   {
     const q0 = new URLSearchParams(location.search);
-    if (q0.get('d') && !q0.get('model') && !q0.get('compare') && arrivePropertyUrl().changed) {
+    const arrival = q0.get('d') && !q0.get('model') && !q0.get('compare') ? arrivePropertyUrl() : null;
+    if (arrival?.changed) {
       delete LAB.deal;
       if (labSubject === 'deal') labSubject = null;
+      /* Said as the calculator says it (VIEWS.property). */
+      if (arrival.replaced) { const note = propertyArrivalNote(arrival); setTimeout(() => toast(note), 0); }
     }
   }
   const key = location.pathname + location.search;
