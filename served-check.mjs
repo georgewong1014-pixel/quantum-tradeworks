@@ -4102,8 +4102,10 @@ const HOME_PAGE = read(HOME);
      with the product's Live badge in the tab row; the Property product never
      wears Beta;
    - on /app, the property step is "Start a property model in the Scenario
-     Lab" and its Beta badge follows those words; no Beta badge on /property
-     or /app stands beside Property Intelligence's name. */
+     Lab" with the product's Live badge, and its note says "The Scenario Lab
+     is beta." (the Day-10 report, QT-D10-01: the step had worn the Lab's
+     Beta badge, which read as Property being Beta); no Beta badge on
+     /property or /app stands beside Property Intelligence's name. */
 {
   const p = [], said = [];
   const got = await getAll(['/contact', '/about', '/privacy', '/terms', '/property', '/property/lab', '/app']);
@@ -4149,7 +4151,8 @@ const HOME_PAGE = read(HOME);
     if (/Property Intelligence\s*<\/span>\s*<span class="status-badge status-beta"|Property Intelligence\s*<span class="status-badge status-beta"/.test(h)) p.push(`${path}: Property Intelligence wears Beta`);
   }
   const app = html('/app');
-  if (!/Start a property model in the Scenario Lab<\/h3>\s*<span class="status-badge status-beta"/.test(app)) p.push('/app: the property step is not "Start a property model in the Scenario Lab" followed by the Lab\'s Beta badge');
+  if (!/Start a property model in the Scenario Lab<\/h3>\s*(?:<span class="pbadge"[^>]*>)?<span class="status-badge status-live"/.test(app)) p.push('/app: the property step is not "Start a property model in the Scenario Lab" followed by the product\'s Live badge');
+  if (!/The Scenario Lab is beta\./.test(app)) p.push('/app: the property step does not say "The Scenario Lab is beta."');
   judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied", no mailto: and no telephone-like digits, /contact the interim support copy and /about the not-published line; /property serves "${LINE}" once as the Lab's lede, under its Beta badge, the Live badge in the tab row; /app's step is "Start a property model in the Scenario Lab"; ${said.join('; ')} left`,
     'a customer page serves a placeholder marker, or the Live/Beta labels are not said once');
 }

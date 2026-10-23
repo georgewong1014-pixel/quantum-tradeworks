@@ -566,11 +566,15 @@ function myDashSteps(o) {
       action: sc?.action || 'Create a setup', path: sc?.actionPath || '/app/scanner/setups/new' },
     /* The property step opens Property's landing, the Scenario Lab (D12; N3
        made /property the Lab): the price, the rent and the loan moved and
-       the figures following, before anything is typed into the calculator. */
-    { k: 'property', product: 'property', tool: 'lab', title: 'Start a property model in the Scenario Lab', done: o.dealStarted || o.propertySnaps > 0,
-      note: o.dealStarted || o.propertySnaps
+       the figures following, before anything is typed into the calculator.
+       The step wears the product's Live badge, as the homepage and /status
+       do; the Lab's Beta is said in words, as the Lab's own lede says it
+       (the Day-10 report, QT-D10-01: Live there and Beta here read as two
+       answers about one product). */
+    { k: 'property', product: 'property', title: 'Start a property model in the Scenario Lab', done: o.dealStarted || o.propertySnaps > 0,
+      note: (o.dealStarted || o.propertySnaps
         ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '.'
-        : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.',
+        : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.') + ' The Scenario Lab is beta.',
       action: pr?.action || 'Analyse a property', path: '/property' },
   ];
 }

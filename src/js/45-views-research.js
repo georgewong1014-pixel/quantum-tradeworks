@@ -803,7 +803,8 @@ function companyActions(r) {
   const sampleCase = !!thesis && SEEDED_THESIS_IDS.includes(thesis.id);
   acts.append(el('button', { class: `btn ${watching ? 'btn-primary' : 'btn-ghost'} btn-sm`,
     title: sampleCase ? 'A sample investment case, written into this browser on a first visit to show what one looks like. Not your work.'
-      : 'Your investment case for this company: one line, quality, valuation, catalysts, risks and the conditions that would change your mind',
+      : thesis ? 'Your investment case for this company: one line, quality, valuation, catalysts, risks and the conditions that would change your mind'
+      : 'Creates a draft in this browser: your investment case for this company — one line, quality, valuation, catalysts, risks and the conditions that would change your mind. Its suggested fields stay suggested until you confirm them.',
     onclick: () => addToThesis(c.id) }, sampleCase ? 'Open the sample investment case' : thesis ? 'Open your investment case' : 'Start an investment case'));
   const sym = c.tk || c.code || c.id;
   const on = scannerLaneOn();
