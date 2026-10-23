@@ -874,13 +874,15 @@ const AUCTION_COMP_KEYS = ['auctionComp1', 'auctionComp2', 'auctionComp3'];
 /* THE BID CEILING (the validation pass, audit #4, 10 Oct 2026): the
    highest winning bid at which the effective acquisition cost stays at or
    under a ceiling the reader sets — a cost of their own, all in, or the
-   market value their comparables imply less a margin they choose. Neither
-   is assumed: with no ceiling entered there is no solve, and a margin
-   without a market value is Unavailable (auctionBidCeiling,
-   75-property-grade.js). */
+   median of their comparables less a margin they choose. Neither is
+   assumed: with no ceiling entered there is no solve, and a margin without
+   that median is Unavailable (auctionBidCeiling, 75-property-grade.js).
+   The median was called "the market value" until 23 Oct 2026, when the
+   owner renamed it "your comparables’ median" wherever the auction route
+   said it: the reader's own records are not a valuation (Day-10 OP-01). */
 const AUCTION_CAP_KINDS = {
   cost:   { id:'cost',   label:'A cost, all in', unit:'RM', words:'an effective acquisition cost of at most' },
-  margin: { id:'margin', label:'Under the market value by', unit:'%', words:'the market value your comparables imply less' },
+  margin: { id:'margin', label:'Under your comparables’ median by', unit:'%', words:'your comparables’ median less' },
 };
 
 /* WHICH ROUTE × ASSET COMBINATIONS A MODEL IS WRITTEN FOR (the validation
@@ -1396,7 +1398,11 @@ let propertyUrlSeen = null;
 /* The address and the property its entry shows: two properties with the
    same figures — a duplicate, before it is edited — have one address, and
    Back from one to the other is still an arrival. */
-const propertyUrlKey = () => `${location.search}|${(isRecord(history.state?.pm) && history.state.pm.modelId) || ""}`;
+/* With its path: the Scenario Lab reads a linked deal too (labArrive,
+   82-property-lab.js), and the same ?d= on the calculator after it is the
+   calculator's own arrival, not one already seen (the Day-10 pre-audit,
+   NAV-07). */
+const propertyUrlKey = () => `${location.pathname}${location.search}|${(isRecord(history.state?.pm) && history.state.pm.modelId) || ""}`;
 function arrivePropertyUrl() {
   if (propertyUrlKey() === propertyUrlSeen) return { changed: false };
   propertyUrlSeen = propertyUrlKey();
@@ -1581,7 +1587,7 @@ function workspaceLinkBanner(kind, plan, save) {
 
   const card = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
   if (!link.row) {
-    card.append(cardHead('That link names a company this build does not hold',
+    card.append(cardHead('That link names a company not held here',
       `The link asked for “${link.asked}”, which is not in the universe. Nothing has been filled in — a plan that cannot name its company is not one worth saving.`));
     return card;
   }
@@ -2401,7 +2407,17 @@ function ledgerSplitWords(m, money = (v) => fmtAmount(v, 'MYR')) {
   const out = (s.optionalOut || []).map(x => `${x.label.replace(/^Optional: /, '')} is not included`);
   return `By kind: ${parts.join('; ')}.${out.length ? ` Optional, left out: ${out.join('; ')}.` : ''}`;
 }
-const feeUncertainHeadline = (m) => `${fmtAmount(m.unconfirmedCost, 'MYR')} of this rests on unverified or unknown lines`;
+/* WHAT THE UNCERTAIN LINES ARE, IN ONE WORD (the Day-10 pre-audit, CL-10):
+   "estimated" where every one of them is an estimate — the sample's four
+   are — and "unverified or unknown" only where a line really rests on a
+   rule not known. The Lab's card said "unverified", the calculator
+   "unverified or unknown" and /property-investing "estimated", of one set.
+   `short`: the Lab card's one word. */
+const feeUncertainKind = (m, short = false) => {
+  const xs = m?.unconfirmedLines || [];
+  return xs.length && xs.every(x => x.provenance === 'estimated') ? 'estimated' : short ? 'unverified' : 'unverified or unknown';
+};
+const feeUncertainHeadline = (m) => `${fmtAmount(m.unconfirmedCost, 'MYR')} of this rests on ${feeUncertainKind(m)} lines`;
 
 /* A rule's jurisdiction, dates and source, as list entries. */
 const feeBookFacts = (x) => {

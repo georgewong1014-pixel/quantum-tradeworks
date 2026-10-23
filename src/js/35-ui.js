@@ -589,7 +589,7 @@ const TOOLS = [
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
     status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
     proof: { journey: 'registers', step: 'Record a property: it is listed with what is known and what is not' },
-    action: { label: 'Record a property', path: '/property/opportunities' } },
+    action: { label: 'Record a candidate', path: '/property/opportunities' } },
   /* Quantum Scanner — its sections, each a tab of the Scanner's row as the
      other two products' tools are (Release B, B5): its own strip, drawn
      inside every scanner page from a table of its own, is gone. In the order
@@ -1352,7 +1352,7 @@ const META = {
   tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
   userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
-  propertyLab: 'Move five inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
+  propertyLab: 'Move nine inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
   comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
   areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
   areaMap:     'Kuching on a map made of this site’s own files, with the NAPIC housing schemes OpenStreetMap names placed on it — positions only, each with its evidence; NAPIC’s ranges stay in the list.',

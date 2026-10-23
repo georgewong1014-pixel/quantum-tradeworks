@@ -3524,7 +3524,9 @@ const HOME_PAGE = read(HOME);
   gone(/true acquisition cost/, '"true acquisition cost"');
   gone(/worth paying for/, 'the sensitivity\'s "worth paying for"');
   gone(/a buyer will pay for at exit/, '"a buyer will pay for at exit"');
-  here('/property/calculator', /This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with the equity return you enter\./, 'what the calculator models, without a comparison or "true"');
+  /* "With an assumed equity return": 7.0% is the calculator's starting
+     figure, not one the reader entered (the Day-10 pre-audit, OP-07). */
+  here('/property/calculator', /This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with an assumed equity return\./, 'what the calculator models, without a comparison or "true"');
   /* The sensitivity and the renovation recovery are the full model's,
      which is not the page served since QT-003: held where it is drawn
      (model-test, qt-quick-full). */
@@ -3533,7 +3535,7 @@ const HOME_PAGE = read(HOME);
     if (!/en:'Share of the renovation you assume a buyer pays for at exit \(%\)'/.test(row) || !/andaikan/.test(row) || !/假设/.test(row) || /akan dibayar|愿为/.test(row))
       p.push(`the calculator's Malay and Chinese labels for the renovation recovery do not say it is an assumption: {${row.slice(0, 200)}}`);
   }
-  said.push('/property/calculator "compares the result with the equity return you enter" (the full model\'s "move the result most" and "you assume a buyer pays", en, ms, zh: model-test qt-quick-full and the labels\' source)');
+  said.push('/property/calculator "compares the result with an assumed equity return" (the full model\'s "move the result most" and "you assume a buyer pays", en, ms, zh: model-test qt-quick-full and the labels\' source)');
   /* 6f — the Learn lede (F-15, R-10): "Every formula, weight, anchor range
      and limitation used anywhere in this prototype is published here" on
      the five Learn pages — a completeness guarantee no check holds (the

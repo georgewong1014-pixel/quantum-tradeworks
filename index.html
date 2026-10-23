@@ -20342,7 +20342,7 @@ const TOOLS = [
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
     status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
     proof: { journey: 'registers', step: 'Record a property: it is listed with what is known and what is not' },
-    action: { label: 'Record a property', path: '/property/opportunities' } },
+    action: { label: 'Record a candidate', path: '/property/opportunities' } },
   /* Quantum Scanner — its sections, each a tab of the Scanner's row as the
      other two products' tools are (Release B, B5): its own strip, drawn
      inside every scanner page from a table of its own, is gone. In the order
@@ -21105,7 +21105,7 @@ const META = {
   tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
   userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
-  propertyLab: 'Move five inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
+  propertyLab: 'Move nine inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
   comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
   areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
   areaMap:     'Kuching on a map made of this site’s own files, with the NAPIC housing schemes OpenStreetMap names placed on it — positions only, each with its evidence; NAPIC’s ranges stay in the list.',
@@ -23858,7 +23858,7 @@ const START_HERE = {
   },
   property: {
     does: 'Models what buying and letting a property does to your cash.',
-    gets: 'You get the monthly cash flow, rental yield, break-even rent and cash needed up front, from the figures you enter — saved to My properties with its scenarios.',
+    gets: 'You get the monthly position, rental yield, break-even rent and cash needed up front, from the figures you enter — saved to My properties with its scenarios.',
   },
 };
 /* Apple Inc., by the registry's id for the filed company. */
@@ -37605,7 +37605,7 @@ function piCashStack() {
    title, one line, one call to action), in the product's tab order. */
 const PI_TOOLS = [
   { title: 'Scenario Lab', line: 'Move price, deposit, rate, rent and renovation; up to three scenarios side by side, nothing ranked.', cta: 'Open the Lab', path: '/property' },
-  { title: 'Calculator', line: 'Cash required, monthly cash flow, yield and break-even rent, each fee line marked Verified or Estimated with its source.', cta: 'Open the calculator', path: '/property/calculator' },
+  { title: 'Calculator', line: 'Cash required, monthly position, yield and break-even rent, each fee line marked Verified or Estimated with its source.', cta: 'Open the calculator', path: '/property/calculator' },
   { title: 'Comparables register', line: 'Record a transacted price or an achieved rent with what it rests on, then use it in a scenario.', cta: 'Record a comparable', path: '/property/comparables' },
   { title: 'Area screen', line: 'The localities of a town, shaded by what you have recorded; an area with no record stays hollow.', cta: 'Screen a town', path: '/property/areas' },
 ];
@@ -37699,9 +37699,14 @@ const WORKSPACE_KINDS = [
   { id: 'comparison', label: 'Comparisons' },
   { id: 'screen',     label: 'Screens' },
   { id: 'thesis',     label: 'Investment cases' },
+  /* A saved property is a kind of its own (the Day-10 pre-audit, NAV-16):
+     filed under "Tool snapshots", the property a reader had just saved
+     was under a name that did not say property. The Cash Wheel's and the
+     Trading Index's snapshots stay tool snapshots. */
+  { id: 'property',   label: 'Properties' },
   { id: 'work',       label: 'Tool snapshots' },
 ];
-const WORKSPACE_KIND_ONE = { run: 'Valuation run', comparison: 'Comparison', screen: 'Saved screen', thesis: 'Investment case', work: 'Tool snapshot' };
+const WORKSPACE_KIND_ONE = { run: 'Valuation run', comparison: 'Comparison', screen: 'Saved screen', thesis: 'Investment case', property: 'Property', work: 'Tool snapshot' };
 const WORK_PATHS = { property: '/property/calculator', wheel: '/us-options/wheel', trading: '/research/trading-index' };
 State.workspace = { kind: 'all', q: '' };
 
@@ -37803,7 +37808,7 @@ function workspaceItems() {
     const prop = w.kind === 'property' && typeof pmIsProperty === 'function' && pmIsProperty(w);
     const nSc = prop ? (w.scenarios || []).length : 0;
     items.push({
-      kind: 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
+      kind: prop ? 'property' : 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
       created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
       sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
       detail: (sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
@@ -37840,7 +37845,7 @@ VIEWS.workspace = () => {
   /* The one head (pageHead, 36-layouts.js): under My workspace's header,
      which is drawn by the shell. */
   wrap.append(pageHead({ title: 'Everything you have saved', lede: 'Everything saved in this browser, each with the version it was saved against.',
-    note: 'Valuation runs, comparisons, screens, investment cases and tool snapshots — and whether the model or the data under each has moved since.' }));
+    note: 'Valuation runs, comparisons, screens, investment cases, properties and tool snapshots — and whether the model or the data under each has moved since.' }));
   /* The seeded investment cases are listed here, each with its "sample"
      chip, and the page said nothing more: under "Everything you have saved"
      a first visit read "2 saved items" as its own. The banner every other
@@ -39861,9 +39866,9 @@ const PROPERTY_CONTRACTS = [
     fees: 'commercial' },
   { id: 'auction', route: 'Auction', asset: 'Residential or commercial', note: 'The same model for both.',
     enter: 'The winning bid you expect. For the true discount, a comparable — typed with its source and date, or named from your register. For the deposit at risk, the deposit’s per cent, what it is a share of (the reserve or the bid) and the days to pay the balance: never assumed.',
-    optional: 'The reserve price; arrears passed to you — maintenance and sinking fund, quit rent, assessment, utilities, each only if entered; repairs; the cost and months of getting possession; your lawyer’s quote; a financing buffer; holding months; the six checks; and a bid ceiling, as an all-in cost of your own or a margin under the market value.',
-    returns: 'The steps from the market value to the bid and on to the effective acquisition cost; the true discount — the market value less the effective cost, as a share of the market value; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.',
-    missing: 'Every auction figure reads Not final while any of the six checks is open. A cost not entered is “not entered, not counted”, and named beside the effective cost and the ceiling. A margin ceiling with no market value is Unavailable.',
+    optional: 'The reserve price; arrears passed to you — maintenance and sinking fund, quit rent, assessment, utilities, each only if entered; repairs; the cost and months of getting possession; your lawyer’s quote; a financing buffer; holding months; the six checks; and a bid ceiling, as an all-in cost of your own or a margin under your comparables’ median.',
+    returns: 'The steps from your comparables’ median to the bid and on to the effective acquisition cost; the true discount — that median less the effective cost, as a share of it; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.',
+    missing: 'Every auction figure reads Not final while any of the six checks is open. A cost not entered is “not entered, not counted”, and named beside the effective cost and the ceiling. A margin ceiling with no comparables’ median is Unavailable.',
     fees: 'commercial', legal: 'auction' },
   { id: 'newdev-residential', route: 'New development', asset: 'Residential',
     enter: 'The SPA price. For the premium, a completed comparable. For the interest during construction: your schedule of progressive drawdown — stages adding to 100%, each with its month after signing — the SPA month, the month of vacant possession and a loan.',
@@ -41900,13 +41905,15 @@ const AUCTION_COMP_KEYS = ['auctionComp1', 'auctionComp2', 'auctionComp3'];
 /* THE BID CEILING (the validation pass, audit #4, 10 Oct 2026): the
    highest winning bid at which the effective acquisition cost stays at or
    under a ceiling the reader sets — a cost of their own, all in, or the
-   market value their comparables imply less a margin they choose. Neither
-   is assumed: with no ceiling entered there is no solve, and a margin
-   without a market value is Unavailable (auctionBidCeiling,
-   75-property-grade.js). */
+   median of their comparables less a margin they choose. Neither is
+   assumed: with no ceiling entered there is no solve, and a margin without
+   that median is Unavailable (auctionBidCeiling, 75-property-grade.js).
+   The median was called "the market value" until 23 Oct 2026, when the
+   owner renamed it "your comparables’ median" wherever the auction route
+   said it: the reader's own records are not a valuation (Day-10 OP-01). */
 const AUCTION_CAP_KINDS = {
   cost:   { id:'cost',   label:'A cost, all in', unit:'RM', words:'an effective acquisition cost of at most' },
-  margin: { id:'margin', label:'Under the market value by', unit:'%', words:'the market value your comparables imply less' },
+  margin: { id:'margin', label:'Under your comparables’ median by', unit:'%', words:'your comparables’ median less' },
 };
 
 /* WHICH ROUTE × ASSET COMBINATIONS A MODEL IS WRITTEN FOR (the validation
@@ -42422,7 +42429,11 @@ let propertyUrlSeen = null;
 /* The address and the property its entry shows: two properties with the
    same figures — a duplicate, before it is edited — have one address, and
    Back from one to the other is still an arrival. */
-const propertyUrlKey = () => `${location.search}|${(isRecord(history.state?.pm) && history.state.pm.modelId) || ""}`;
+/* With its path: the Scenario Lab reads a linked deal too (labArrive,
+   82-property-lab.js), and the same ?d= on the calculator after it is the
+   calculator's own arrival, not one already seen (the Day-10 pre-audit,
+   NAV-07). */
+const propertyUrlKey = () => `${location.pathname}${location.search}|${(isRecord(history.state?.pm) && history.state.pm.modelId) || ""}`;
 function arrivePropertyUrl() {
   if (propertyUrlKey() === propertyUrlSeen) return { changed: false };
   propertyUrlSeen = propertyUrlKey();
@@ -42607,7 +42618,7 @@ function workspaceLinkBanner(kind, plan, save) {
 
   const card = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
   if (!link.row) {
-    card.append(cardHead('That link names a company this build does not hold',
+    card.append(cardHead('That link names a company not held here',
       `The link asked for “${link.asked}”, which is not in the universe. Nothing has been filled in — a plan that cannot name its company is not one worth saving.`));
     return card;
   }
@@ -43427,7 +43438,17 @@ function ledgerSplitWords(m, money = (v) => fmtAmount(v, 'MYR')) {
   const out = (s.optionalOut || []).map(x => `${x.label.replace(/^Optional: /, '')} is not included`);
   return `By kind: ${parts.join('; ')}.${out.length ? ` Optional, left out: ${out.join('; ')}.` : ''}`;
 }
-const feeUncertainHeadline = (m) => `${fmtAmount(m.unconfirmedCost, 'MYR')} of this rests on unverified or unknown lines`;
+/* WHAT THE UNCERTAIN LINES ARE, IN ONE WORD (the Day-10 pre-audit, CL-10):
+   "estimated" where every one of them is an estimate — the sample's four
+   are — and "unverified or unknown" only where a line really rests on a
+   rule not known. The Lab's card said "unverified", the calculator
+   "unverified or unknown" and /property-investing "estimated", of one set.
+   `short`: the Lab card's one word. */
+const feeUncertainKind = (m, short = false) => {
+  const xs = m?.unconfirmedLines || [];
+  return xs.length && xs.every(x => x.provenance === 'estimated') ? 'estimated' : short ? 'unverified' : 'unverified or unknown';
+};
+const feeUncertainHeadline = (m) => `${fmtAmount(m.unconfirmedCost, 'MYR')} of this rests on ${feeUncertainKind(m)} lines`;
 
 /* A rule's jurisdiction, dates and source, as list entries. */
 const feeBookFacts = (x) => {
@@ -45872,10 +45893,11 @@ function propertyModelBar(d = State.deal) {
   acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-reset', onclick: () => { newPropertyDeal({ show: false }); renderKeepFocus(); } }, 'New property'));
   const link = (path, label, id) => el('a', { class: 'btn btn-quiet btn-sm', id, href: href(path),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label);
-  /* The Scenario Lab opens on the property here, as saved and with its
-     scenarios (82-property-lab.js); the calculator's deal is not changed
-     by opening it. */
-  acts.append(el('span', { class: 'pm-links' }, [link('/property/lab', 'Scenario Lab', 'wb-property-lab'), link('/property/models', 'My properties', 'wb-property-list'), link('/my/data', 'Back up everything', 'wb-property-backup')]));
+  /* No "Scenario Lab" or "My properties" here: the tab row directly above
+     holds both (the Day-10 pre-audit, CL-22, NAV-05) — seven controls
+     stood before the first figure. The backup once there is something
+     saved to back up. */
+  if (pmAll().length) acts.append(el('span', { class: 'pm-links' }, [link('/my/data', 'Back up everything', 'wb-property-backup')]));
   bar.append(acts);
   return bar;
 }
@@ -46117,7 +46139,7 @@ function propertyShareRow(d = State.deal, paid = false) {
     propertyProposalNext(d),
     el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-share-report',
       title: paid ? 'The full investor report, in this section, previewed in this browser.' : 'The full investor report, in this section: the offer to preview it in this browser.',
-      onclick: jump }, 'Investor report'),
+      onclick: jump }, 'Full investor report'),
     el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
       title: `Prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open.`,
       onclick: e => { State.decisionSubject = 'property'; if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/decision-record'); } },
@@ -46325,7 +46347,7 @@ function propertyScenariosPanel(d = State.deal) {
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } },
     'Open these in the Scenario Lab')));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Each column is the calculator’s own model run on that column’s inputs: monthly position after vacancy, costs and the loan; cash required including the reserve; net yield on the price; the rent at which the monthly position is nil; and the underwriting grade. Scenarios, not forecasts — and nothing here is ranked.'));
+    'Each column is the calculator’s own model run on that column’s inputs: monthly position after vacancy, costs and the loan; cash required including the reserve; net yield on the price; the rent at which the monthly position is nil; and the research grade. Scenarios, not forecasts — and nothing here is ranked.'));
   return card;
 }
 
@@ -47447,14 +47469,17 @@ function cpDisclosures(rec, d, m) {
   const ul = el('ul', { class: 'cp-points' });
   [
     'Research and illustration, not financial advice and not a recommendation to buy, sell, let or finance this property. It does not take account of anyone’s objectives, financial situation or needs; before acting, take advice from someone licensed to give it.',
-    /* The duties and fees come from the registry's amounts and scales as
+    /* The duties and fees come from the rulebook's amounts and scales as
        well as from the inputs: a fixed RM1,200 of registration and searches
-       is computed from no input listed. */
-    'Every figure is computed by the model the Quantum Tradeworks property calculator runs: from the inputs listed under “The property and what it assumes”, and — for the duties and fees — from the amounts and scales of the fee registry this build carries, each fee line marked as it stands. None is a forecast, a quotation or an offer.',
+       is computed from no input listed. Named as every other page names it,
+       by its version and the day it was checked (the Day-10 pre-audit,
+       IW-13): "the fee registry this build carries" was a developer's words
+       in a document handed to a client. */
+    `Every figure is computed by the model the Quantum Tradeworks property calculator runs: from the inputs listed under “The property and what it assumes”, and — for the duties and fees — from fee rulebook ${FEE_TABLE.version} (checked ${feeDay(FEE_TABLE.checkedOn)}), each fee line marked as it stands. None is a forecast, a quotation or an offer.`,
     'Not a valuation. In Malaysia an official valuation must be carried out by a registered valuer, and nothing here is a price opinion.',
     placeholders || unverified
       ? `Fee lines are marked as they stand, by the fee rulebook ${FEE_TABLE.version} (checked ${feeDay(FEE_TABLE.checkedOn)}): ${placeholders ? `${placeholders} ${placeholders === 1 ? 'is an estimate' : 'are estimates'} — a commonly quoted approximation, not a quotation` : ''}${placeholders && unverified ? ', and ' : ''}${unverified ? `${unverified} ${unverified === 1 ? 'rests' : 'rest'} on a rule that could not be verified for this jurisdiction from an official source` : ''}. Duties and fees change without notice; confirm every one with the lender, the solicitor and the local authority.`
-      : 'Duties and fees follow the fee registry this build carries, which changes without notice; confirm every one with the lender, the solicitor and the local authority.',
+      : `Duties and fees follow fee rulebook ${FEE_TABLE.version}, which changes without notice; confirm every one with the lender, the solicitor and the local authority.`,
     samples
       ? `Sample marks ${samples === 1 ? 'an input' : `${samples} inputs`} still at the calculator’s illustrative starting value, chosen for no property and taken from no market.`
       : 'Every input here was entered or changed by the preparer; none is the calculator’s illustrative starting value.',
@@ -47463,7 +47488,7 @@ function cpDisclosures(rec, d, m) {
       : 'Title, tenure and eligibility are recorded from the preparer’s input and have not been verified. Confirm them with a property lawyer and the land office before relying on them.',
   ].forEach(x => ul.append(el('li', {}, x)));
   s.append(ul);
-  s.append(el('p', { class: 'cp-stamp' }, `Prepared ${caseRaisedAt(new Date())} with Quantum Tradeworks (${MODEL_VERSION}), from the saved property “${rec.name}”, as saved ${cpWhen(pmUpdated(rec))}.`));
+  s.append(el('p', { class: 'cp-stamp' }, `Prepared ${caseRaisedAt(new Date())} with Quantum Tradeworks (fee rulebook ${FEE_TABLE.version}), from the saved property “${rec.name}”, as saved ${cpWhen(pmUpdated(rec))}.`));
   return s;
 }
 
@@ -48299,7 +48324,10 @@ function returnsAndTaxPanel(d, m) {
   g.append(el('div', { class: 'panel ls-fig' }, statTile(`Value against ${fmtPct(m.hurdlePct, 1)} elsewhere`,
     isNum(m.npvAtHurdle) ? fmtMoney(m.npvAtHurdle, 'MYR', 0) : '—',
     { sub: isNum(m.npvAtHurdle)
-        ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named') + holdingShortWords(m)
+        /* "You named" only once the reader has set the return (the Day-10
+           pre-audit, CL-19): 7.0% is the calculator's starting figure. */
+        ? (isTouched(d, 'equityReturnPct') ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named')
+          : (m.npvAtHurdle >= 0 ? 'Beats the return assumed' : 'Falls short of the return assumed')) + holdingShortWords(m)
         /* A return entered and a value still missing means the flows are
            unknown; asking for the return again would send the reader to a
            box that is already filled. */
@@ -48690,7 +48718,7 @@ function loanReadiness(b, m) {
      answer they could give would settle it, so it is not listed with the
      ones a total waits for. */
   scores.structure = null;
-  notes.structure = 'Not tested: this build has no input for the number of applicants or for how the loan tenure fits their ages, and joint-applicant evidence and declared source of funds are not modelled.';
+  notes.structure = 'Not tested: there is no input for the number of applicants or for how the loan tenure fits their ages, and joint-applicant evidence and declared source of funds are not modelled.';
 
   const tested = READINESS_COMPONENTS.filter(c => isNum(scores[c.k]));
   const testedWeight = tested.reduce((s, c) => s + c.weight, 0);
@@ -48792,9 +48820,9 @@ function propertyFinanceability(d, m) {
   if (d.titleType === 'strata') {
     scores.status = 70;
     notes.status = 'Strata parcel. Whether the strata title has actually issued, or the property is still on a master title, changes what a lender will accept.';
-  } else { scores.status = 80; notes.status = 'Completion and occupancy documentation is not modelled in this build.'; }
+  } else { scores.status = 80; notes.status = 'Completion and occupancy documentation is not modelled here.'; }
 
-  if (d.titleType === 'strata') { scores.tenure = 90; notes.tenure = 'Not applicable to a strata parcel in this build.'; }
+  if (d.titleType === 'strata') { scores.tenure = 90; notes.tenure = 'Not applicable to a strata parcel.'; }
   else {
     const yrs = num0(d.remainingLease);
     scores.tenure = yrs === 0 ? 100 : Math.round(clamp((yrs - 30) / 60 * 100, 0, 100));
@@ -49018,7 +49046,7 @@ function propertyGrade(d, m) {
   const adverseN = SARAWAK_CHECKS.filter(c => c.adverse && d.checks?.[c.id] === c.adverse).length;
   const openN = SARAWAK_CHECKS.length - settled - adverseN;
   scores.demand = Math.round(settled / SARAWAK_CHECKS.length * 100);
-  notes.demand = `${settled} of ${SARAWAK_CHECKS.length} checklist questions settled without an adverse finding; ${adverseN} adverse, ${openN} open or not sure. Management readiness is not yet modelled in this build and contributes nothing to this pillar either way.`;
+  notes.demand = `${settled} of ${SARAWAK_CHECKS.length} checklist questions settled without an adverse finding; ${adverseN} adverse, ${openN} open or not sure. Management readiness is not modelled here and contributes nothing to this pillar either way.`;
 
 
   /* ---- weighted score over what was actually tested -------------------- */
@@ -49048,10 +49076,10 @@ function propertyGrade(d, m) {
     else if (score >= 50) grade = 'C';
     else grade = 'D';
     if (capB && grade === 'A') grade = 'B';
-    verdict = { A:'Meets the selected underwriting criteria',
+    verdict = { A:'Meets the selected criteria',
                 B:'Conditional — verify the named items',
                 C:'Does not yet meet several criteria',
-                D:'Does not meet the selected underwriting criteria' }[grade];
+                D:'Does not meet the selected criteria' }[grade];
   }
 
   return { grade, verdict, score, coverage, scores, notes, gates,
@@ -50299,18 +50327,19 @@ function solveDealPrice(d, target = dealTarget(d)) {
 
 /* THE AUCTION RISK MODE (the property decision layer, P3).
    ---------------------------------------------------------------------------
-   From the market value the reader's comparables imply, down to the reserve
-   price and the winning bid they expect, then up again by what an auction
+   From the median of the reader's comparables (called "the market value"
+   until the owner's rename of 23 Oct 2026: their own records are not a
+   valuation), down to the reserve price and the winning bid they expect, then up again by what an auction
    adds — repairs, the arrears the Proclamation passes to the buyer,
    possession, the transaction costs and the months of holding — to the
-   EFFECTIVE ACQUISITION COST; the TRUE DISCOUNT is the market value less
-   that, against the market value. And the FORFEITURE EXPOSURE: the deposit
+   EFFECTIVE ACQUISITION COST; the TRUE DISCOUNT is that median less
+   that, against the median. And the FORFEITURE EXPOSURE: the deposit
    at risk if the balance is not paid within the days the Proclamation
    gives.
 
    NOTHING ASSUMED. Every figure is the reader's: the winning bid is the
    purchase price the model runs on (every figure of dealModel is worked
-   from it); the market value is the median of the comparables they named
+   from it); the median is the median of the comparables they named
    from their register (priceGap) and the comparable prices they typed;
    the costs are what they entered. A cost not entered is not counted and
    is named as not entered — the effective cost says so, never "nought".
@@ -50340,7 +50369,7 @@ const AUCTION_FEE_ESTIMATES = ['disbursements'];
 function auctionModel(d, m = dealModel(d)) {
   const has = (k) => isNum(d?.[k]);
   const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
-  /* The market value, from comparables only. */
+  /* The comparables' median, from comparables only. */
   const g = priceGap(d);
   const typed = AUCTION_COMP_KEYS.filter(k => has(k) && d[k] > 0).map(k => ({ key: k, price: d[k], kind: kindOf(k) }));
   const values = [...g.comps.map(c => c.implied), ...typed.map(c => c.price)];
@@ -50409,7 +50438,7 @@ function auctionModel(d, m = dealModel(d)) {
   return {
     market, marketKind, marketFrom: { named: g.comps, typed, notUsed: g.notUsed }, reserve, bid, bidKind,
     steps: [
-      step('market', 'Market value', market, marketKind, { total: true }),
+      step('market', 'Your comparables’ median', market, marketKind, { total: true }),
       step('reserve', 'Reserve price', reserve, kindOf('reservePrice'), { total: true, key: 'reservePrice' }),
       step('bid', 'Winning bid', bid, bidKind, { total: true }),
       ...adds,
@@ -50428,8 +50457,8 @@ function auctionModel(d, m = dealModel(d)) {
    acquisition cost — auctionModel's own, run at that bid with every other
    input held — stays at or under the ceiling the reader sets:
    - a cost of their own, all in (auctionCapKind 'cost', RM); or
-   - the market value their comparables imply less a margin they choose
-     (auctionCapKind 'margin', %) — Unavailable without a market value,
+   - the median of their comparables less a margin they choose
+     (auctionCapKind 'margin', %) — Unavailable without that median,
      never a market figure standing in for one.
    WHY BISECTION IS ENOUGH. Every step of the effective cost rises or stays
    as the bid rises: the bid itself; the transfer duty and the scale fees,
@@ -50448,7 +50477,7 @@ function auctionBidCeiling(d, a = auctionModel(d)) {
   const valueKind = value == null ? 'unavailable' : KIND_OF_EVIDENCE[d?.evidence?.auctionCapValue || 'user'] || 'yours';
   if (missing.length) return { status: 'no-target', missing, kind, value };
   if (kind === 'margin' && !(value < 100)) return { status: 'invalid', kind, value, why: 'A margin of 100% or more leaves no price to bid.' };
-  if (kind === 'margin' && !isNum(a.market)) return { status: 'unavailable', kind, value, why: 'needs the market value — enter comparable prices or name comparables from your register' };
+  if (kind === 'margin' && !isNum(a.market)) return { status: 'unavailable', kind, value, why: 'needs your comparables’ median — enter comparable prices or name comparables from your register' };
   const cap = kind === 'margin' ? a.market * (1 - value / 100) : value;
   let runs = 0;
   const at = (bid) => { runs++; return auctionModel({ ...d, price: bid }); };
@@ -50923,22 +50952,28 @@ function propertyRiskFlags(d, m) {
      the vacancy allowance, with the repair reserve among the costs. It said
      "before any repairs or void periods", which made the figure sound as if
      it would grow once those were counted. */
-  if (m.cashflowMonthly < 0) out.push({ sev:'warning', t:'Negative monthly cash flow',
+  if (m.cashflowMonthly < 0) out.push({ sev:'warning', t:'Negative monthly position',
     n: m.letsToTenant === false
       ? `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, with no rent to set against it.`
       : `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, after the ${fmtPct(num0(d.vacancyPct), 0)} vacancy allowance and the ${fmtPct(num0(d.repairReservePct), 0)} repair reserve modelled here.` });
-  /* Every comparison below needs a comparable to compare against. On a custom
+  /* THE SAMPLE'S FIGURES ARE SAID AS THE SAMPLE'S (the Day-10 pre-audit,
+     OP-03). A sample project's prices, rents and vacancy are synthetic,
+     and the reader's deal stays tied to one after they type their own
+     price and rent: "recently transacted here", "the observed rental
+     range" and "roughly 9% observed in Kuching" stated invented figures as
+     market fact. Each flag now names the synthetic sample.
+     Every comparison below needs a comparable to compare against. On a custom
      entry there is none, so the flag is absent rather than evaluated against a
      missing bound — `price > undefined` is false, and a silent false here would
      read as "within the transacted range" when nothing was checked. */
-  if (isNum(m.proj.psfHi) && m.psf && m.psf > m.proj.psfHi) out.push({ sev:'serious', t:'Above the transacted range',
-    n:`At RM${m.psf.toFixed(0)} psf you would be paying above the highest recent transaction in ${m.proj.name} (RM${m.proj.psfHi} psf).` });
-  else if (isNum(m.proj.psfMid) && m.psf && m.psf > m.proj.psfMid) out.push({ sev:'warning', t:'Above the median transaction',
-    n:`RM${m.psf.toFixed(0)} psf sits above the median of RM${m.proj.psfMid} psf recently transacted here.` });
-  if (isNum(m.proj.rentHi) && d.rent > m.proj.rentHi) out.push({ sev:'serious', t:'Rent assumption above the observed range',
-    n:`RM${d.rent} exceeds the top of the observed rental range (RM${m.proj.rentHi}). The whole model rests on this figure.` });
-  if (isNum(m.proj.vacancyPct) && !m.proj.custom && d.vacancyPct < m.proj.vacancyPct) out.push({ sev:'warning', t:'Vacancy assumed below the area norm',
-    n:`You have assumed ${fmtPct(d.vacancyPct, 0)} vacancy against roughly ${fmtPct(m.proj.vacancyPct, 0)} observed in ${m.proj.area}.` });
+  if (isNum(m.proj.psfHi) && m.psf && m.psf > m.proj.psfHi) out.push({ sev:'serious', t:'Above the sample’s range',
+    n:`At RM${m.psf.toFixed(0)} psf you would pay above the synthetic sample’s top, RM${m.proj.psfHi} psf.` });
+  else if (isNum(m.proj.psfMid) && m.psf && m.psf > m.proj.psfMid) out.push({ sev:'warning', t:'Above the sample’s median',
+    n:`RM${m.psf.toFixed(0)} psf is above the synthetic sample’s RM${m.proj.psfMid} psf median.` });
+  if (isNum(m.proj.rentHi) && d.rent > m.proj.rentHi) out.push({ sev:'serious', t:'Rent above the sample’s range',
+    n:`${fmtMoney(num0(d.rent), 'MYR', 0)} is above the synthetic sample’s rent range (top ${fmtMoney(m.proj.rentHi, 'MYR', 0)}). The whole model rests on this figure.` });
+  if (isNum(m.proj.vacancyPct) && !m.proj.custom && d.vacancyPct < m.proj.vacancyPct) out.push({ sev:'warning', t:'Vacancy below the sample’s',
+    n:`You have assumed ${fmtPct(d.vacancyPct, 0)} vacancy, below the synthetic sample’s ${fmtPct(m.proj.vacancyPct, 0)}.` });
   if (m.proj.custom) out.push({ sev:'warning', t:'No comparable attached',
     n:`This tool holds no transacted price, rental band or vacancy observation for ${m.proj.area}. The price, rent and vacancy below are entirely yours, and none of them has been checked against a market.` });
   /* By the gains tax's own holding period: on a timed new development it
@@ -50947,7 +50982,10 @@ function propertyRiskFlags(d, m) {
     /* The category as a sentence names it. Lower-casing the short label
        printed "charged at 30% for citizen or pr" — `who` exists for this. */
     n:`${m.ndTiming ? `Selling ${d.holdYears} years after vacant possession, ${ndYears(m.ndTiming.saleYears)} years after the SPA,` : `Selling in year ${d.holdYears}`} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.who}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
-  if (m.proj.tenure === 'Leasehold') out.push({ sev:'warning', t:'Leasehold tenure',
+  /* From the reader's own answer — years remaining on the lease, 0 if
+     freehold, asked where the title is not strata — never from the sample
+     project's tenure (OP-03): it fired on a freehold the reader entered. */
+  if (d.titleType !== 'strata' && num0(d.remainingLease) > 0) out.push({ sev:'warning', t:'Leasehold tenure',
     n:'Financing and resale liquidity both tighten as the remaining lease shortens. Check the balance term before committing.' });
   /* Title class outranks everything financial. A restricted class is not a
      risk to be priced — it is a question about whether the purchase is open to
@@ -51623,7 +51661,9 @@ function pcAnswerFigs(d, m) {
       (m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve')
         + pcShortWords(m, ['acquisition', 'financing'])],
     breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-      m.letsToTenant === false ? 'Not a quantity this asset has' : isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
+      /* Before tax, said here (the 20 Oct 2026 sweep, taxed-4): the full
+         model's tile that said it went (the Day-10 pre-audit, CL-20). */
+      m.letsToTenant === false ? 'Not a quantity this asset has' : isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent${pcBeforeTax(m)}` : 'not computable'],
   };
 }
 const PC_GRADE_TONE = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' };
@@ -51855,7 +51895,10 @@ function pcQuickView(d, m, g, DK) {
     !lets ? 'Not a quantity this asset has — it earns no rent' : isNum(m.grossYield) ? `Rent less running costs, before the loan; gross ${fmtPct(m.grossYield, 2)}` : 'Not computable',
     labTag(lets && isNum(m.netYield) ? labTileKind(d, LAB_TILE_RESTS.netYield) : { kind: 'unavailable', words: 'No figure — the line says why' })));
   const gradeKind = kindFirst([DK.kind, 'modelled']);
-  cards.append(pcQuickCard('grade', 2, 'Underwriting grade', g.grade, g.verdict,
+  /* "Research grade", as the sentence beside it calls it: underwriting is a
+     lender's credit decision, which it says it is not (the Day-10
+     pre-audit, CL-07). */
+  cards.append(pcQuickCard('grade', 2, 'Research grade', g.grade, g.verdict,
     kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
     PC_GRADE_TONE[g.grade]));
   ans.append(cards);
@@ -51931,7 +51974,7 @@ VIEWS.property = () => {
     /* No comparison with other tools (none was surveyed) and no "true"
        cost, while some fee lines are estimates (the claims audit of 11
        Oct 2026, rank 6; F-16, R-13). */
-    el('p', { class: 'pc-more-body' }, 'This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with the equity return you enter.')]));
+    el('p', { class: 'pc-more-body' }, 'This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with an assumed equity return.')]));
 
   /* The regulated claim leads and is never hidden at any width: in Malaysia an
      official valuation requires a registered valuer, and this is not one. The
@@ -52039,7 +52082,7 @@ VIEWS.property = () => {
       /* The card's heading. It was a paragraph, so the page went from its h1
          straight to the h4 below ("Why this cannot be graded") — the first
          heading a screen reader met after the title skipped two levels. */
-      el('h3', { class: 'eyebrow', id: 'pc-answer-h', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
+      el('h3', { class: 'eyebrow', id: 'pc-answer-h', style: 'margin-bottom:2px' }, 'QT Property Research Grade'),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
         el('span', { class: 'num', style: `font-size:var(--ls-metric);font-weight:700;color:var(${gradeTone})` }, g.grade),
         el('span', { style: 'font-size:var(--ls-body);font-weight:600' }, g.verdict),
@@ -52230,7 +52273,7 @@ VIEWS.property = () => {
   bd.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
     b.assessed ? 'Your financing position — entered' : 'Assess your loan readiness'));
   bd.append(el('p', { class: 'metaline', style: 'margin:8px 0' },
-    'Held in this browser under its own key, never written into the page address, never included in the property export, and never used for anything but this calculation. It does not reach the equity research anywhere in this product — the same analysis is shown to everyone regardless of their circumstances, and that is deliberate.'));
+    'Kept separately in this browser, never written into the page address, never included in the property export, and never used for anything but this calculation. It does not reach the equity research anywhere in this product — the same analysis is shown to everyone regardless of their circumstances, and that is deliberate.'));
 
   const bnum = (k, label, step) => {
     const f = el('div', { class: 'assumption' });
@@ -52655,7 +52698,7 @@ VIEWS.property = () => {
     const aff = affordabilityPanel(cityDef.name);
     if (aff) mapWrap.append(el('div', { style: 'margin-top:12px' }, aff));
     else mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
-      'District household income is not loaded. It is cached locally by ingest/sarawak-geo.mjs and is not published with the site while its licence is unconfirmed.'));
+      'District household income is not shown: its licence is not yet confirmed.'));
     explore.push(mapWrap);
     loc.append(pcL3('district', `${d.district}: what moves demand, the map and your records`, explore));
   }
@@ -52882,15 +52925,17 @@ VIEWS.property = () => {
   if (queue.length) free.append(pcReviewCard(d, queue, { sub: null }));
   const summaryCard = free;
 
-  /* The four headline numbers, in the section whose inputs make them. */
+  /* The yield and the instalment, in the section whose inputs make them.
+     It was "Free calculator", a card inside the calculator, with four
+     tiles — two of them the monthly position and the break-even rent the
+     headline row already shows, the one under another name (the Day-10
+     pre-audit, CL-06, CL-20). The break-even rent stays drawn against the
+     rent below. */
   const headline = el('div', { class: 'card ls-section' });
-  headline.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.', null, DK));
-  const fg = el('div', { class: 'grid g-4' });
+  headline.append(cardHead('Yield and instalment', null, null, DK));
+  const fg = el('div', { class: 'grid g-2' });
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
-  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly cash flow', fmtAmount(m.cashflowMonthly, 'MYR'),
-    { sub: `After costs, vacancy and the loan${pcBeforeTax(m)}`, tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
-  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: `Rent needed to cover everything${pcBeforeTax(m)}` })));
   headline.append(fg);
 
   /* THE SAME PRICE, IN THE UNITS IT WILL BE ARGUED IN.
@@ -52947,8 +52992,8 @@ VIEWS.property = () => {
   /* Per unit of area: on a phone a drawer (L3, #6). */
   buyCard.append(pcL3('unit', 'Per unit: floor area, land and maintenance', unitCard));
 
-  /* The two rent tiles above, drawn against each other. One series, so no
-     legend — the title names it and both marks are directly labelled. */
+  /* The rent and the break-even rent, drawn against each other. One series,
+     so no legend — the title names it and both marks are directly labelled. */
   if (isNum(m.breakEvenRent) && m.breakEvenRent > 0 && isNum(d.rent)) {
     const rb = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
     rb.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
@@ -53100,7 +53145,7 @@ VIEWS.property = () => {
   if (isNum(m.unconfirmedCost) && m.unconfirmedCost > 0 && isNum(m.totalInitialCash) && m.totalInitialCash > 0)
     cashB.append(el('tr', {}, [
       el('td', { colspan: 2, class: 'metaline pc-fee-uncertain', style: 'color:var(--bronze);white-space:normal' },
-        `${fmtAmount(m.unconfirmedCost, 'MYR')} of this — ${fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)} — rests on unverified or unknown lines: ${feeUncertainWords(m)}. `
+        `${fmtAmount(m.unconfirmedCost, 'MYR')} of this — ${fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)} — rests on ${feeUncertainKind(m)} lines: ${feeUncertainWords(m)}. `
         + 'They compute so the total runs; they are not quotations and not checked against an official source. Replace them with real quotes before this figure means anything.')]));
   /* The same total by kind (the rulebook 1.1.0), so a reader sees how much
      is statute, how much a published scale, a quotation, an optional
@@ -53332,52 +53377,11 @@ VIEWS.property = () => {
     ? 'This class earns no rent, so no interest rate makes it pay for itself: whatever it costs to hold — the outgoings, and the instalment where there is a loan — comes from you until it is sold.'
     : 'This deal is cash-flow negative even at a 0% interest rate with the unit never empty. No interest rate or occupancy level makes it pay for itself — the shortfall is structural, in the price against the rent.'));
 
-  const stressGrid = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
-  /* The three cases are displayed as three different things, because they are:
-     it crosses somewhere, it is never positive, or it is always positive. */
-  const beTile = (label, value, why, entered, fmt, copy) => {
-    const never = why === 'never-positive', always = why === 'always-positive';
-    /* A fourth case: no monthly position to cross zero, because the loan's
-       instalment could not be computed. It used to fall through to "any
-       rate", in green. */
-    if (why === 'unknown') return el('div', { class: 'panel ls-fig' }, statTile(label, '—',
-      { sub: 'Not computable — the loan’s instalment could not be worked out from the entered tenure.' }));
-    return el('div', { class: 'panel ls-fig' }, statTile(label,
-      isNum(value) ? fmt(value) : never ? copy.neverValue : copy.alwaysValue,
-      { sub: isNum(value) ? copy.crosses(entered) : never ? copy.never : copy.always,
-        tone: isNum(value) ? (copy.good(value, entered) ? '--ok-text' : '--dn-text')
-            : never ? '--dn-text' : '--ok-text' }));
-  };
-  stressGrid.append(beTile('Breaks even at', m.breakEvenRate, m.breakEvenRateWhy, d.ratePct,
-    v => fmtPct(v, 2), {
-      neverValue: 'no rate', alwaysValue: 'any rate',
-      crosses: e => `Interest rate at which monthly cash flow reaches zero. You entered ${fmtPct(e, 2)}.`,
-      /* What was computed: no rate down to 0% makes the month positive (the
-         20 Oct 2026 sweep, stress-7) — and why, not that the rate is not the
-         cause: on the sample the interest is most of the shortfall. */
-      never: !m.letsToTenant ? 'Negative even at 0%: with no rent coming in, no rate cut makes it positive.'
-        : isNum(m.noi) && m.noi <= 0 ? 'Negative even at 0%: the rent does not cover the running costs, so no rate cut fixes it.'
-        : 'Negative even at 0%: the loan’s repayment is more than the rent leaves, so no rate cut alone fixes it.',
-      always: 'Stays positive at every rate tested, up to 25%.',
-      good: (v, e) => v > e + 1,
-    }));
-  /* Vacancy and a break-even rent are tenancy quantities. The rail says they
-     are withheld for a class with no tenant, and this card went on printing
-     them — "You expect RM1.9k" of a bare parcel. */
-  if (m.letsToTenant) {
-    stressGrid.append(beTile('Survives vacancy to', m.breakEvenVacancy, m.breakEvenVacancyWhy, d.vacancyPct,
-      v => fmtPct(v, 0), {
-        neverValue: 'none', alwaysValue: 'fully vacant',
-        crosses: e => `Vacancy at which it reaches zero. You assumed ${fmtPct(e, 0)}.`,
-        never: 'Negative even with the unit never empty. Vacancy is not what makes this negative.',
-        always: 'Covers its costs even with no tenant at all.',
-        good: (v, e) => v > e + 10,
-      }));
-    stressGrid.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
-      { sub: `Rent needed to cover everything${pcBeforeTax(m)}. You expect ${fmtAmount(d.rent, 'MYR')}.`,
-        tone: !isNum(m.breakEvenRent) ? null : d.rent > m.breakEvenRent ? '--ok-text' : '--dn-text' })));
-  }
-  stressCard.append(stressGrid);
+  /* No break-even tiles here (the Day-10 pre-audit, CL-20): "Where it stops
+     covering itself", the card before this one, gives the same rate,
+     vacancy and rent break-points — with the reason a 0% rate does not
+     fix it (the 20 Oct 2026 sweep, stress-7) — and the break-even rent
+     stands in the headline row. This card is the stress tables. */
   if (!m.letsToTenant) stressCard.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
     'No vacancy or break-even rent is tested: this class has no tenancy. The rate stress below is the carrying cost of the loan and the outgoings.'));
 
@@ -53396,14 +53400,14 @@ VIEWS.property = () => {
 
   stressCard.append(stressTable('If the interest rate rises', m.stress.rate, [
     { label: 'Rate', get: r2 => `${r2.label} · ${fmtPct(r2.ratePct, 2)}` },
-    { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
+    { label: 'Monthly position', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
   ]));
   /* Fixed levels, not moves from the entered vacancy (the 20 Oct 2026
      sweep, stress-6): above 15% entered, a row reads better than the base. */
   if (m.letsToTenant) stressCard.append(stressTable('At fixed vacancy levels', m.stress.vacancy, [
     { label: 'Vacancy', get: r2 => r2.label },
-    { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
+    { label: 'Monthly position', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
   ]));
   stressCard.append(stressTable('If the renovation overruns', m.stress.renovation, [
@@ -53557,8 +53561,12 @@ VIEWS.property = () => {
         /* Proposed per report. The line also offered it "included twice
            monthly on All-Access", a tier that is not launched and must not
            appear purchasable; it returns when the tier does. */
-        : `Adds comparable transactions and the price and rental range for this project, net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`);
-    /* The Share / Export row's "Investor report" goes here (propertyShareRow). */
+        /* No "comparable transactions … for this project" (the Day-10
+           pre-audit, OP-04): the only transactions it holds are the sample
+           project's synthetic quarters, said as what they are. Pricing's
+           "What it adds" drops them with it (OP-05; model-test PP9). */
+        : `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags, beside the sample project’s synthetic transactions. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`);
+    /* The Share / Export row's "Full investor report" goes here (propertyShareRow). */
     offer.id = 'property-report-offer';
     reportCards.push(offer);
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
@@ -53701,7 +53709,7 @@ VIEWS.property = () => {
       comps.append(cardHead(`Comparable transactions — ${m.proj.area}`,
         'None held for this location.', null, { kind: 'unavailable', fine: 'None held for this location' }));
       comps.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' },
-        `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
+        `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them is licensed to this product.`));
       comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
         /* This said "Every figure above came from you" while the provenance table
            three cards up correctly reported all four critical figures as
@@ -53828,8 +53836,12 @@ VIEWS.property = () => {
       ['Property less equities', q => isNum(q.vsProperty) ? `${q.vsProperty > 0 ? '+' : ''}${fmtAmount(q.vsProperty, 'MYR')}` : '—'],
     ].map(([label, get]) => el('tr', {}, [el('td', {}, label), ...m.equity.map(q => el('td', { class: 'num' }, get(q)))]))));
     etw.append(et); eq2.append(etw);
-    eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-      `At the ${fmtPct(num0(d.equityReturnPct), 1)} a year you entered under “Assumed equity return” — your figure, not a forecast, and no security is named or preferred.`));
+    /* The reader's figure only once they have set it (the Day-10 pre-audit,
+       OP-07): 7.0% is the calculator's starting figure, and the line called
+       it "you entered … your figure" to a reader who never touched it. */
+    eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, isTouched(d, 'equityReturnPct')
+      ? `At the ${fmtPct(num0(d.equityReturnPct), 1)} a year you entered under “Assumed equity return” — your figure, not a forecast, and no security is named or preferred.`
+      : `At the default ${fmtPct(num0(d.equityReturnPct), 1)} a year under “Assumed equity return” — not a forecast; change it to yours. No security is named or preferred.`));
     eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
       `The property scenario shows a net yield of ${fmtPct(m.netYield, 2)} before leverage and ${isNum(need) ? fmtPct(need, 2) : '—'} annualised on cash after it. Equities are liquid, divisible and carry no maintenance; property is leveraged, lumpy and illiquid. The comparison is of returns, not of risk.`));
     reportCards.push(eq2);
@@ -54947,7 +54959,13 @@ function propertySensitivityPanel(d, m) {
     { key: 'ratePct', label: 'Interest rate', lo: 0, hi: 25,
       fmt: v => fmtPct(v, 2), room: v => `${fmtPct(Math.abs(v - num0(d.ratePct)), 2)} of rate rises`,
       now: fmtPct(num0(d.ratePct), 2),
-      none: 'Does not cover itself even at a 0% rate, so no rate cut fixes this one.' },
+      /* What was computed and why (the 20 Oct 2026 sweep, stress-7): it was
+         the stress card's "Breaks even at" tile, which this row replaces
+         (the Day-10 pre-audit, CL-20) — on the sample the interest is most
+         of the shortfall, so not "the rate is not the cause". */
+      none: !m?.letsToTenant ? 'Negative even at 0%: with no rent coming in, no rate cut makes it positive.'
+        : isNum(m.noi) && m.noi <= 0 ? 'Negative even at 0%: the rent does not cover the running costs, so no rate cut fixes it.'
+        : 'Negative even at 0%: the loan’s repayment is more than the rent leaves, so no rate cut alone fixes it.' },
     { key: 'vacancyPct', label: 'Vacancy', lo: 0, hi: 100,
       fmt: v => fmtPct(v, 1), room: v => `${fmtPct(Math.abs(v - num0(d.vacancyPct)), 1)} more vacancy`,
       now: fmtPct(num0(d.vacancyPct), 1),
@@ -56866,7 +56884,7 @@ function officialBenchmarkPanel(city, area) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
       !division ? 'No NAPIC division is recorded for this town, so no NAPIC figures are shown.'
       : napicDivisions.get(division)?.state === 'failed'
-        ? `The NAPIC figures for the ${division} Division are not loaded in this build.`
+        ? `The NAPIC figures for the ${division} Division could not be loaded.`
         : `Loading NAPIC’s figures for the ${division} Division…`));
     return card;
   }
@@ -57175,12 +57193,12 @@ const LAB_FIGURES = [
        An unknown rule is unverified too; the row's calculation, the
        calculator and its ledger say which of the two each line is. */
     note: (m) => (cashPartial(m) ? cashPartial(m).short : [(m.missingCostLines || []).length ? 'so far' : null,
-      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ')),
+      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on ${feeUncertainKind(m, true)} lines` : null].filter(Boolean).join(' · ')),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
       + ` = ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}${pcShortWords(m, ['acquisition', 'financing'])}. `
       + (m.unconfirmedCost > 0
-        ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
+        ? `${labMoney(m.unconfirmedCost)} of it rests on ${feeUncertainKind(m)} lines: ${feeUncertainWords(m, labMoney)}`
         : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
       + ` (fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}).` },
   { key: 'cashflowMonthly', label: () => 'Monthly position', fmt: 'money0', help: 'propCashflow', neg: true,
@@ -57672,6 +57690,24 @@ function labArrive() {
       labWriteAddress(LAB[resume]);
       labUrlSeen = location.pathname + location.search;
       return;
+    }
+  }
+  /* A DEAL LINKED HERE, ?d=…, read as the calculator reads it (the Day-10
+     pre-audit, NAV-07): the homepage card's slider carries the price the
+     reader moved it to, and the Lab opened at the sample's RM572,000. The
+     linked deal becomes the calculator's deal — the one there kept aside to
+     restore, as for any link (arrivePropertyUrl, 70-property.js) — and the
+     Lab opens on it, its columns drawn afresh: a what-if moved on the deal
+     it replaced is not carried onto this one. Not with a property or a
+     saved comparison named: those open what they name. */
+  {
+    const q0 = new URLSearchParams(location.search);
+    const arrival = q0.get('d') && !q0.get('model') && !q0.get('compare') ? arrivePropertyUrl() : null;
+    if (arrival?.changed) {
+      delete LAB.deal;
+      if (labSubject === 'deal') labSubject = null;
+      /* Said as the calculator says it (VIEWS.property). */
+      if (arrival.replaced) { const note = propertyArrivalNote(arrival); setTimeout(() => toast(note), 0); }
     }
   }
   const key = location.pathname + location.search;
@@ -58244,7 +58280,7 @@ function labNextTile(P, lab, d) {
       r.closest('.lab-cmp-card')?.scrollIntoView({ block: 'start' });
       r.focus({ preventScroll: true });
     } }, 'Compare scenarios');
-    sub = 'A, B and C side by side, below';
+    sub = 'Scenarios side by side, below';
   }
   /* THE SYSTEM'S ACTION CARD: a title, one line, one call to action. */
   /* "Not saved" and "Saved" are the property's state, not a figure's kind:
@@ -58379,7 +58415,7 @@ function labPriceSection(P, lab) {
       value: isNum(d.askingPrice) ? String(d.askingPrice) : '', placeholder: 'not entered',
       onchange: (e) => { const raw = String(e.target.value).trim(); labAnswer(P, lab, 'askingPrice', raw === '' ? null : raw); } }),
   ]) : null;
-  const pick = d ? comparablesPick({ d, prefix: P.idPrefix, legend: 'Comparables this price is set against — from your register', toggle: (ids) => labAnswer(P, lab, 'comparableIds', ids) }) : null;
+  const pick = d ? comparablesPick({ d, prefix: P.idPrefix, legend: 'Your register’s comparables for this price', toggle: (ids) => labAnswer(P, lab, 'comparableIds', ids) }) : null;
   card.append(route, cards, target, tryBox, ask, pick);
   P.els.pe = { card, route, cards, tryBox, sig: null };
   return card;
@@ -58753,9 +58789,13 @@ function labSpan(col, inp) {
   if (!(hi > lo)) hi = lo + inp.step;
   return [+lo.toFixed(2), +hi.toFixed(2)];
 }
+/* A figure still the calculator's starting one says so whichever input it
+   is — inputIsSeeded, the calculator's own test (the Day-10 pre-audit,
+   CL-02): the deposit, rate, tenure, vacancy, growth and hold read
+   "Evidence: Assumed" here and "Illustrative default" on the calculator. */
 function labEvidenceWords(d, k) {
-  const ev = shownEvidence(d, k);
-  return ev === 'illustrative_default' ? 'Illustrative default — not yours, and not from any market' : `Evidence: ${evidenceOf(ev).label}`;
+  if (inputIsSeeded(d, k)) return 'Illustrative default — not yours, and not from any market';
+  return `Evidence: ${evidenceOf(shownEvidence(d, k)).label}`;
 }
 function labKnob(P, lab, col, inp) {
   const k = inp.k;
@@ -59067,7 +59107,7 @@ function labChain(P, lab, col) {
   const verdict = el('p', { class: 'ls-card-title lab-grade-verdict' }, '');
   const gate = el('p', { class: 'ls-card-sub lab-grade-gate' }, '');
   const seeWhy = lsCta('See why', { id: labId(P, 'see-why'), sr: ' — every gate behind the grade', onclick: () => lsOpenEvidence(P.els.grade?.why) });
-  const grade = lsInsightCard({ label: 'Underwriting grade', figure: letter, finding: verdict, sub: gate, cta: seeWhy, cls: 'lab-grade', attrs: { id: labId(P, 'grade') } });
+  const grade = lsInsightCard({ label: 'Research grade', figure: letter, finding: verdict, sub: gate, cta: seeWhy, cls: 'lab-grade', attrs: { id: labId(P, 'grade') } });
   seeWhy.setAttribute('aria-controls', labId(P, 'grade-why'));
   card.append(grade);
   P.els.grade = { letter, verdict, gate, seeWhy };
@@ -59180,8 +59220,12 @@ function labAlert(P, lab) {
   const d = labSubjectInputs(lab);
   const q = d && onCalc ? propertyReviewQueue(d) : [];
   if (!q.length) return null;
-  return lsAlertCard({ text: `${q.length} assumption${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
-    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''}.`,
+  /* Named as the calculator names them (CL-02): "sample inputs". Without
+     the list of three it carried: the grade beside it names the four the
+     answer rests on, and the review it opens lists all of them — the
+     words the evidence tags took (the Day-10 pre-audit, CL-02: the
+     lab-words count stays where it was). */
+  return lsAlertCard({ text: `${q.length} sample input${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
     cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
 }
 /* Where a figure is entered, only while the column IS the calculator's
@@ -59202,7 +59246,9 @@ function labWhereEntered(lab, col, key) {
    compared; the switch changes the form and the scale. */
 function labCompare(P, lab) {
   const card = el('section', { class: 'card ls-section lab-cmp-card', 'aria-labelledby': labId(P, 'cmp-h') });
-  card.append(el('h2', { class: 'h-card', id: labId(P, 'cmp-h') }, 'A, B and C side by side'));
+  /* "Scenarios", not "A, B and C": a column C is there only once added
+     (the Day-10 pre-audit, CL-23). */
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'cmp-h') }, 'Scenarios side by side'));
   const fs = el('fieldset', { class: 'lab-pick lab-pick-by' });
   fs.append(el('legend', { class: 'lab-legend' }, 'Compare by'));
   const seg = el('div', { class: 'lab-seg lab-seg-by ls-chips', role: 'presentation' });
@@ -59986,7 +60032,7 @@ const labXrUnavailable = (why) => ({ value: null, text: 'Unavailable', kind: 'un
 const LAB_XR_ROWS = [
   { id: 'cash', label: 'Cash required', cell: (f) => ({ value: f.m.safeCashRequired, text: labMoney(f.m.safeCashRequired),
       kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.safeCashRequired, fees: true }).kind,
-      sub: [cashPartial(f.m) ? cashPartial(f.m).short : (f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ') }) },
+      sub: [cashPartial(f.m) ? cashPartial(f.m).short : (f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on ${feeUncertainKind(f.m, true)} lines` : null].filter(Boolean).join(' · ') }) },
   { id: 'monthly', label: 'Monthly position', neg: true, cell: (f) => (isNum(f.m.cashflowMonthly)
       ? { value: f.m.cashflowMonthly, text: labMoney(f.m.cashflowMonthly), kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.cashflowMonthly }).kind,
           sub: f.m.taxComputed && isNum(f.m.path?.[0]?.cf) ? `after tax on the rent: ${labMoney(f.m.path[0].cf / 12)}` : 'before tax on the rent' }
@@ -60014,7 +60060,7 @@ const LAB_XR_ROWS = [
       const a = f.au, td = a.trueDiscount;
       if (!td) return { ...labXrUnavailable('needs comparable prices'), notFinal: !a.final };
       return { value: labR4(td.pct), text: `${td.amount < 0 ? '−' : ''}${auPct(td.pct)}`, kind: kindFirst([a.marketKind, a.effectiveKind]) || 'derived', notFinal: !a.final,
-        sub: `${auMoney(Math.abs(td.amount))} ${td.amount >= 0 ? 'under' : 'over'} the market value your comparables imply` };
+        sub: `${auMoney(Math.abs(td.amount))} ${td.amount >= 0 ? 'under' : 'over'} your comparables’ median` };
     } },
   { id: 'auForfeit', label: 'Forfeiture exposure', only: 'auction', cell: (f) => {
       const a = f.au, x = a.forfeiture;
@@ -60621,7 +60667,7 @@ function labPaintPanel(P, { initial = false } = {}) {
       labAttr(kn.range, 'aria-describedby', desc);
       labAttr(kn.num, 'aria-describedby', desc);
     }
-    if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', shownEvidence(d, inp.k) === 'illustrative_default'); }
+    if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', inputIsSeeded(d, inp.k)); }
     if (kn.zero) kn.zero.hidden = !(m && m.zeroRateModelled);
     if (kn.recover) labText(kn.recover, num0(d.renoValueRecoveryPct) > 0
       ? `Moves the cash required and, through the ${labPctIn(num0(d.renoValueRecoveryPct))} of it recovered at the sale, the sale value — not the rent you entered.`
@@ -60695,7 +60741,7 @@ function labPaintPanel(P, { initial = false } = {}) {
       const rank = { critical: 0, serious: 1, warning: 2 };
       const gates = g ? [...g.gates].sort((a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3)) : [];
       const score = !g ? 'No grade: the column needs a purchase price.'
-        : `${!isNum(g.score) ? 'Not scored' : g.grade === 'U' ? `Model score ${g.score}/100 — not carried into a grade` : `Score ${g.score}/100`}, on ${fmtPct(g.coverage * 100, 0)} of the framework’s weight. `
+        : `${!isNum(g.score) ? 'Not scored' : g.grade === 'U' ? `Model score ${g.score}/100 — not graded` : `Score ${g.score}/100`}; ${fmtPct(g.coverage * 100, 0)} of the score’s weighting could be assessed. `
           + 'A research grade on the evidence entered: not a bank decision, not a valuation and not legal clearance. How it is reached, pillar by pillar, is in the calculator.';
       const sig = JSON.stringify([score, gates.map(x => [x.severity, x.text, x.who || ''])]);
       if (P.els.grade.whyAt !== sig) {
@@ -60749,7 +60795,7 @@ function labPaintPanel(P, { initial = false } = {}) {
   /* The cash required by kind, written while open (and served whole). */
   if (P.els.fees && (initial || P.els.fees.node.open)) {
     labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
-      + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
+      + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on ${feeUncertainKind(m)} lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
       + ` Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}; every line’s source is on the data sources page.`);
   }
   /* ALWAYS SAID, so nothing moves under the thumb. The line appeared at the
@@ -61378,7 +61424,7 @@ function pcSubsaleInputs(d) {
   return box;
 }
 /* The comparables, from the reader's register, named one by one — for the
-   subsale's price gap and the auction's market value alike. */
+   subsale's price gap and the auction's comparables' median alike. */
 function pcComparablesFieldset(d, legend) {
   return comparablesPick({ d, prefix: 'pc', legend, cls: 'pc-sub-comps',
     toggle: (ids) => { if (setDealAnswer(d, 'comparableIds', ids)) { saveDeal(); renderKeepFocus(); } } });
@@ -61458,7 +61504,7 @@ function pcPriceEvidence(d) {
    Inputs, each with where it came from and its kind badge (D6): the
    Proclamation's terms — the reserve price, the deposit and what it is a
    share of, the days to pay the balance, the arrears it passes to the
-   buyer; the market value's comparables; and the reader's estimates —
+   buyer; the comparables behind the auction's median; and the reader's estimates —
    repairs, possession, the lawyer's legal fees, a financing buffer and
    the holding period. The winning bid is the purchase price the model runs
    on (on the Lab, the Price slider).
@@ -61506,7 +61552,7 @@ const AU_GROUPS = (d = null) => [
       ...(propertyClassOf(d) === 'land' ? [] : [['arrearsMaintenance', 'Arrears passed to you: maintenance and sinking fund (RM)', 100]]), ['arrearsQuitRent', 'Arrears passed to you: quit rent (RM)', 10],
       ['arrearsAssessment', 'Arrears passed to you: assessment (RM)', 10], ['arrearsUtilities', 'Arrears passed to you: utilities (RM)', 10]],
     after: `Arrears: only what the Proclamation passes to you — 0 where it pays them out of the purchase money.${propertyClassOf(d) === 'land' ? ` ${ROUTE_ASSET_GATES['auction|land'].why}` : ''}` },
-  { id: 'market', legend: 'The market value, from comparables',
+  { id: 'market', legend: 'Your comparables’ median',
     note: 'The median of the comparable prices you enter here and the comparables you name from your register — your own records, never a market figure. Not a valuation.',
     fields: [['auctionComp1', 'Comparable price 1 (RM)', 1000], ['auctionComp2', 'Comparable price 2 (RM)', 1000], ['auctionComp3', 'Comparable price 3 (RM)', 1000]] },
   { id: 'costs', legend: 'Your estimates',
@@ -61516,7 +61562,7 @@ const AU_GROUPS = (d = null) => [
   /* The bid ceiling (the validation pass, audit #4): the reader's, never a
      default. */
   { id: 'ceiling', legend: 'Your bid ceiling',
-    note: 'The highest winning bid at which the effective acquisition cost — the bid and everything the auction adds, as above — stays at or under the ceiling you set: a cost of your own, all in, or the market value your comparables imply less a margin you choose. Worked out by running this model at trial bids, every other figure held. A margin needs a market value: without comparables it is Unavailable. A cost not entered, or a fee line not priced, is not counted in the effective cost, so not in the ceiling either.',
+    note: 'The highest winning bid at which the effective acquisition cost — the bid and everything the auction adds, as above — stays at or under the ceiling you set: a cost of your own, all in, or your comparables’ median less a margin you choose. Worked out by running this model at trial bids, every other figure held. A margin needs that median: without comparables it is Unavailable. A cost not entered, or a fee line not priced, is not counted in the effective cost, so not in the ceiling either.',
     fields: [['auctionCapKind', 'The ceiling is', null, AUCTION_CAP_KINDS], ['auctionCapValue', 'Its figure — RM for a cost, % for a margin', 1]] },
 ];
 const AU_HOW_OPEN = new Set();
@@ -61559,7 +61605,7 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
       /* Kept open for the tab across the drawings an answer makes. */
       const hid = `${prefix}-au-${g.id}-how`;
       const det = el('details', { class: 'pc-more ls-l3 au-more', id: hid, open: AU_HOW_OPEN.has(hid) ? '' : null }, [
-        el('summary', { class: 'pc-more-sum' }, g.id === 'costs' ? 'What these estimates are' : g.id === 'market' ? 'How the market value is found' : g.id === 'ceiling' ? 'How the ceiling is found' : 'How these terms are used'),
+        el('summary', { class: 'pc-more-sum' }, g.id === 'costs' ? 'What these estimates are' : g.id === 'market' ? 'How the median is found' : g.id === 'ceiling' ? 'How the ceiling is found' : 'How these terms are used'),
         ...how.map(t => el('p', { class: 'pc-more-body au-note' }, t))]);
       det.addEventListener('toggle', () => { if (det.open) AU_HOW_OPEN.add(hid); else AU_HOW_OPEN.delete(hid); });
       fs.append(det);
@@ -61594,17 +61640,17 @@ function auctionChecklist({ d, prefix, answer }) {
   return fs;
 }
 
-/* THE WATERFALL (L2): from the market value down to the reserve and the
-   bid, then up by what the auction adds, to the effective cost. A row a
-   step: its name, its kind, its amount, and a bar on one scale — totals
-   from nought, additions floating from the running total — with the market
-   value marked on every bar, so how far each stands from it is a length.
+/* THE WATERFALL (L2): from the comparables' median down to the reserve
+   and the bid, then up by what the auction adds, to the effective cost. A
+   row a step: its name, its kind, its amount, and a bar on one scale —
+   totals from nought, additions floating from the running total — with the
+   median marked on every bar, so how far each stands from it is a length.
    Positions are percentages of the widest figure, rounded to 1/10000 of a
    per cent so every browser draws them alike (0c4ba54b). Each row's words
    are its figures, so no value waits behind a pointer. */
 function auctionWaterfall(a, prefix) {
   const fig = el('figure', { class: 'au-wf', id: `${prefix}-au-wf`, 'aria-labelledby': `${prefix}-au-wf-h` });
-  fig.append(el('figcaption', { class: 'au-wf-h', id: `${prefix}-au-wf-h` }, 'From the market value to the effective acquisition cost'));
+  fig.append(el('figcaption', { class: 'au-wf-h', id: `${prefix}-au-wf-h` }, 'From your comparables’ median to the effective acquisition cost'));
   const top = Math.max(...a.steps.map(s => s.amount).filter(isNum), 1);
   const X = (v) => auR4(Math.max(0, Math.min(100, v / top * 100)));
   const list = el('ol', { class: 'au-wf-rows' });
@@ -61628,7 +61674,7 @@ function auctionWaterfall(a, prefix) {
     }
     if (isNum(a.market) && s.id !== 'market') svg.append(sv('line', { class: 'au-wf-mv', x1: `${X(a.market)}%`, x2: `${X(a.market)}%`, y1: '0', y2: '14' }));
     const label = add ? `+ ${s.label}` : s.label;
-    const sub = s.id === 'market' && has ? `the median of ${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
+    const sub = s.id === 'market' && has ? `${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
       : s.id === 'holding' && has ? `${auHoldWorking(s)}${s.partial ? '; the instalment not priced' : ''}`
       : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced${s.gated ? ` — ${s.gated === s.unpriced ? '' : `${s.gated} of them `}not yet checked for ${FEE_CLASS_WORD[s.gatedCls]}` : ''}`
       : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of ${s.parts.length} not entered`
@@ -61640,7 +61686,7 @@ function auctionWaterfall(a, prefix) {
     ]));
   }
   fig.append(list);
-  if (isNum(a.market)) fig.append(el('p', { class: 'au-wf-key' }, [el('span', { class: 'au-wf-key-mv', 'aria-hidden': 'true' }), `The upright line on each bar is the market value your comparables imply, ${auMoney(a.market)}.`]));
+  if (isNum(a.market)) fig.append(el('p', { class: 'au-wf-key' }, [el('span', { class: 'au-wf-key-mv', 'aria-hidden': 'true' }), `The upright line on each bar is your comparables’ median, ${auMoney(a.market)}.`]));
   return fig;
 }
 
@@ -61662,9 +61708,9 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
     value: td ? `${td.amount < 0 ? '−' : ''}${auPct(td.pct)}` : 'Unavailable',
     attrs: { 'data-au-fig': 'discount', 'data-final': a.final ? 'true' : 'false' }, valueAttrs: { 'data-value': td ? String(td.pct) : '' },
     sub: td ? `${td.amount >= 0
-        ? `The figures you entered imply an effective cost ${auMoney(td.amount)} under the ${auMoney(a.market)} market value your comparables imply`
-        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over the ${auMoney(a.market)} market value your comparables imply — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${a.marketFrom.named.length ? ` Named from your register: ${a.marketFrom.named.map(pqCompWords).join('; ')}.` : ''}${auNotFinal(a)}`
-      : 'Enter comparable prices, or name comparables from your register: the market value is theirs, never a market figure.' }));
+        ? `The figures you entered imply an effective cost ${auMoney(td.amount)} under your comparables’ median of ${auMoney(a.market)}`
+        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over your comparables’ median of ${auMoney(a.market)} — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${a.marketFrom.named.length ? ` Named from your register: ${a.marketFrom.named.map(pqCompWords).join('; ')}.` : ''}${auNotFinal(a)}`
+      : 'Enter comparable prices, or name comparables from your register: the median is theirs, never a market figure.' }));
   const f = a.forfeiture;
   cards.append(lsMetricCard({ label: 'Forfeiture exposure', badge: auBadge(f.status === 'ok' ? 'yours' : 'unavailable', f.status === 'ok' ? 'the Proclamation’s terms you entered' : 'terms not entered'), level: 2, cls: 'au-card au-forfeit',
     value: f.status === 'ok' ? auMoney(f.atRisk) : 'Unavailable',
@@ -61689,7 +61735,7 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
    sen, and a margin to the places it was entered, up to four. */
 const auCap = (v) => (Math.abs(v - Math.round(v)) < 0.005 ? auMoney(v) : fmtMoney(v, 'MYR', 2));
 const auMargin = (v) => fmtNum(v, Math.min(4, (String(+(+v).toFixed(4)).split('.')[1] || '').length));
-const auCeilingTarget = (c) => (c.kind === 'margin' ? `${auMargin(c.value)}% under the market value your comparables imply` : `an effective cost of ${auCap(c.value)}, all in`);
+const auCeilingTarget = (c) => (c.kind === 'margin' ? `${auMargin(c.value)}% under your comparables’ median` : `an effective cost of ${auCap(c.value)}, all in`);
 function auctionCeilingCard(c, a) {
   const ok = c.status === 'solved';
   const left = [c.notEntered?.length ? `Not entered, not counted: ${auList(c.notEntered.map(x => x.toLowerCase()))}` : null,
@@ -61701,14 +61747,14 @@ function auctionCeilingCard(c, a) {
     : c.status === 'unavailable' ? `Unavailable: ${c.why}.`
       : c.status === 'infeasible' ? `Even a bid of ${auMoney(c.floor)} gives an effective cost of ${auMoney(c.atFloor)}, over the ${auCap(c.cap)} ceiling: the costs you entered, not the bid, stand in the way.`
         : c.why || 'Not computable for these inputs.';
-  return lsMetricCard({ label: 'Bid ceiling', level: 2, cls: 'au-card au-ceiling', badge: auBadge(ok || c.status === 'below-reserve' ? c.resultKind : 'unavailable', ok || c.status === 'below-reserve' ? 'your ceiling, and the effective cost this model works out at each bid' : c.status === 'unavailable' ? 'no market value' : 'not computable'),
+  return lsMetricCard({ label: 'Bid ceiling', level: 2, cls: 'au-card au-ceiling', badge: auBadge(ok || c.status === 'below-reserve' ? c.resultKind : 'unavailable', ok || c.status === 'below-reserve' ? 'your ceiling, and the effective cost this model works out at each bid' : c.status === 'unavailable' ? 'no comparable entered' : 'not computable'),
     value: ok ? auMoney(c.bid) : c.status === 'below-reserve' ? 'No winning bid' : 'Unavailable', attrs: { 'data-au-fig': 'ceiling', 'data-status': c.status, 'data-final': a.final ? 'true' : 'false' },
     valueAttrs: { 'data-value': ok ? String(c.bid) : '' }, sub });
 }
 function auctionCeilingFormula(c, a) {
-  if (!c || c.status === 'no-target') return 'No ceiling entered: choose what it is — a cost of your own, all in, or a margin under the market value — and its figure. Nothing is assumed.';
-  if (c.status === 'unavailable' || c.status === 'invalid') return `Unavailable: ${c.why}. A margin is taken off the market value your comparables imply, never off a market figure.`;
-  const cap = c.kind === 'margin' ? `the market value ${auMoney(a.market)} × (1 − ${auMargin(c.value)}%) = ${auCap(c.cap)}` : `your cost, ${auCap(c.cap)}`;
+  if (!c || c.status === 'no-target') return 'No ceiling entered: choose what it is — a cost of your own, all in, or a margin under your comparables’ median — and its figure. Nothing is assumed.';
+  if (c.status === 'unavailable' || c.status === 'invalid') return `Unavailable: ${c.why}. A margin is taken off your comparables’ median, never off a market figure.`;
+  const cap = c.kind === 'margin' ? `your comparables’ median ${auMoney(a.market)} × (1 − ${auMargin(c.value)}%) = ${auCap(c.cap)}` : `your cost, ${auCap(c.cap)}`;
   if (c.status === 'below-reserve') return `Ceiling: ${cap}. The model is run at trial bids, to the ringgit, every other figure held: the cost stays at or under it up to ${auMoney(c.bid)} — below the ${auMoney(a.reserve)} reserve, where no bid can win. At the reserve the effective cost is ${fmtMoney(c.atReserve, 'MYR', 2)}, over it, so no winning bid fits these costs.`;
   if (c.status !== 'solved') return `Ceiling: ${cap}. ${c.status === 'infeasible' ? `At a bid of ${auMoney(c.floor)} the effective cost is already ${auMoney(c.atFloor)}.` : 'Not computable for these inputs.'}`;
   return `Ceiling: ${cap}. The model is run at trial bids, to the ringgit, every other figure held — the transfer duty, the scale fees and the loan follow the bid; the repairs, arrears and possession do not. At ${auMoney(c.bid)} the effective cost is ${fmtMoney(c.effective, 'MYR', 2)}, at or under the ceiling; at ${auMoney(c.bid + 1)} it is ${fmtMoney(c.above, 'MYR', 2)}, over it. What the figures you entered imply — not a recommendation to bid.`;
@@ -61718,7 +61764,7 @@ function auctionCeilingFormula(c, a) {
 function auctionWaterfallFormula(a) {
   const named = a.marketFrom.named.map(c => `${c.name} ${auMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''} (${pqWhen(c.date)}, source: ${c.source})`);
   const typed = a.marketFrom.typed.map((c, i) => `your comparable price ${i + 1}, ${auMoney(c.price)}`);
-  const mv = isNum(a.market) ? `Market value: the median of ${auList([...named, ...typed])} = ${auMoney(a.market)}.` : 'Market value: none — no comparable is entered or named, so the true discount is Unavailable.';
+  const mv = isNum(a.market) ? `Your comparables’ median: the median of ${auList([...named, ...typed])} = ${auMoney(a.market)}.` : 'Your comparables’ median: none — no comparable is entered or named, so the true discount is Unavailable.';
   const t = a.adds.find(x => x.id === 'transaction');
   const tl = t.lines.map(l => `${l.label.charAt(0).toLowerCase()}${l.label.slice(1)} ${isNum(l.amount) ? auMoney(l.amount) : 'not priced'}`);
   const hold = a.adds.find(x => x.id === 'holding');
@@ -61728,7 +61774,7 @@ function auctionWaterfallFormula(a) {
     + `Holding: ${hold.months == null ? 'no holding period entered' : !isNum(hold.amount) ? `${auMonths(hold.months)} entered, not priced — ${(hold.why || 'The monthly cost is not computable.').charAt(0).toLowerCase()}${(hold.why || 'The monthly cost is not computable.').slice(1, -1)}`
       : `${auMonths(hold.months)} from the sale with no rent, ${auHoldWorking(hold)} = ${fmtMoney(hold.amount, 'MYR', 2)}: the running costs owed with no tenancy from the sale — maintenance, sinking fund, assessment, quit rent and insurance, no agent’s fee before a tenancy; ${auHoldInstalmentWords(hold)}. In the cash required too, and the rate of return counts the hold’s years from the end of these months`}. `
     + `Effective acquisition cost = the bid${sum.length ? ` + ${sum.join(' + ')}` : ''} = ${auMoney(a.effective)}${a.notEntered.length ? `; not entered and not counted: ${auList(a.notEntered.map(x => x.toLowerCase()))}` : ''}. `
-    + (a.trueDiscount ? `True discount = (market value − effective cost) ÷ market value = (${auMoney(a.market)} − ${auMoney(a.effective)}) ÷ ${auMoney(a.market)} = ${a.trueDiscount.amount < 0 ? '−' : ''}${auPct(a.trueDiscount.pct)}. ` : '')
+    + (a.trueDiscount ? `True discount = (your comparables’ median − effective cost) ÷ that median = (${auMoney(a.market)} − ${auMoney(a.effective)}) ÷ ${auMoney(a.market)} = ${a.trueDiscount.amount < 0 ? '−' : ''}${auPct(a.trueDiscount.pct)}. ` : '')
     + `${auctionFeeNote()} Every figure is yours or the fee rulebook’s, as each badge says. Not a valuation.`;
 }
 function auctionForfeitureFormula(a) {
@@ -62754,7 +62800,7 @@ function parseCostSchedule(text, name = '') {
     let doc;
     try { doc = JSON.parse(body); } catch (e) { return { ok: false, err: `“${file}” is not JSON: ${String(e.message).split('\n')[0].slice(0, 80)}` }; }
     if (!isRecord(doc) || doc.format !== COST_SCHEDULE.format) return { ok: false, err: `“${file}” is not a cost schedule: it does not say "format": "${COST_SCHEDULE.format}"` };
-    if (doc.version !== COST_SCHEDULE.version) return { ok: false, err: `“${file}” is version ${JSON.stringify(doc.version ?? null)} of the format; this build reads version ${COST_SCHEDULE.version}` };
+    if (doc.version !== COST_SCHEDULE.version) return { ok: false, err: `“${file}” is version ${JSON.stringify(doc.version ?? null)} of the format; this tool reads version ${COST_SCHEDULE.version}` };
     const extra = Object.keys(doc).filter(k => !['format', 'version', 'currency', 'title', 'lines'].includes(k));
     if (extra.length) return { ok: false, err: `“${file}” carries “${extra[0].slice(0, 30)}”, which the format does not have` };
     if (doc.currency != null && doc.currency !== COST_SCHEDULE.currency) return { ok: false, err: `“${file}” is in ${String(doc.currency).slice(0, 12)}: the format takes RM only` };
@@ -62768,7 +62814,7 @@ function parseCostSchedule(text, name = '') {
     const head = lines[0]?.cells.map(c => c.trim()) || [];
     while (head.length && head.at(-1) === '') head.pop();
     if (head[0] !== COST_SCHEDULE.format || head.length !== 2) return { ok: false, err: `“${file}” does not begin with the line “${COST_SCHEDULE.format},${COST_SCHEDULE.version}”, which names the format and its version` };
-    if (head[1] !== String(COST_SCHEDULE.version)) return { ok: false, err: `“${file}” is version ${head[1]} of the format; this build reads version ${COST_SCHEDULE.version}` };
+    if (head[1] !== String(COST_SCHEDULE.version)) return { ok: false, err: `“${file}” is version ${head[1]} of the format; this tool reads version ${COST_SCHEDULE.version}` };
     const cols = (lines[1]?.cells || []).map(c => c.trim().toLowerCase());
     while (cols.length && cols.at(-1) === '') cols.pop();
     const missing = COST_SCHEDULE.fields.filter(f => !cols.includes(f));
@@ -64151,36 +64197,19 @@ function oppKind(x) {
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
-  wrap.append(pageHead({ title: 'Opportunity register', lede: 'Real properties, each with what is known about it and what is not.',
+  /* "Candidates", the register's own word in its rules ("A candidate with
+     no verified rent …"), so its list is not a second "properties" beside
+     My properties (the Day-10 pre-audit, CL-13). */
+  wrap.append(pageHead({ title: 'Opportunity register', lede: 'Real candidates, each with what is known about it and what is not.',
     note: 'Ordered by when it was recorded, never by how good it looks.' }));
 
   const list = State.opportunities || [];
-
-  const rules = el('div', { class: 'card' });
-  rules.append(cardHead('How this register behaves', 'The constraints matter more than the fields.'));
-  rules.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'Nothing is ordered by merit. A hidden merit rank is a recommendation wearing a sort order, and this product does not make recommendations.'),
-    el('li', {}, '“Available” appears only where availability was checked, with the date beside it. A stale flag sends someone to a property that sold weeks ago.'),
-    el('li', {}, 'Asking price, your negotiated price, the bank valuation and a registered valuer’s figure are four different numbers and are kept apart.'),
-    el('li', {}, 'A candidate with no verified rent, title or condition evidence stays U however good its yield looks — yield on an unverified rent is arithmetic on a guess.'),
-    el('li', {}, 'Nothing is scraped or republished. Each record holds a reference you entered, not content taken from a listing site.'),
-    el('li', {}, 'Records stay in this browser. There is no server holding them and no one else can see them.'),
-  ]));
-  wrap.append(rules);
-
-  if (!list.length) {
-    const empty = el('div', { class: 'card', id: 'opp-empty' });
-    empty.append(cardHead('No properties recorded yet', 'This is a register, not a feed — it holds what you put in it.'));
-    empty.append(el('p', { class: 'body', style: 'font-size:13px' },
-      'Quantum Tradeworks holds no property listings and does not source them. There is no permitted feed of Sarawak listings this product can republish, and inventing candidates would be worse than an empty page. Add a property you are actually looking at, and the underwriting engine will model it and grade it on whatever evidence you have.'));
-    wrap.append(empty);
-  }
 
   /* Add a candidate. Deliberately few fields — the point is to get a property
      into the register and let evidence accumulate against it, not to demand a
      complete file before anything can be recorded. */
   const add = el('div', { class: 'card' });
-  add.append(cardHead('Record a property', 'Enough to identify it. Evidence is added afterwards.'));
+  add.append(cardHead('Record a candidate', 'Enough to identify it. Evidence is added afterwards.'));
   /* WHAT IS ENTERED HERE BEFORE ADD IS KEPT THROUGH A REDRAW. The draft was
      drawn with the page, and the page is drawn again when the filings land a
      moment after it opens: a city, a price and an area given by then came
@@ -64277,6 +64306,17 @@ VIEWS.opportunities = () => {
     saveOpportunities(); toast(`${draft.name} recorded`); render(); focusAfterRedraw('#opp-add');
   } }, 'Add to register'));
   wrap.append(add);
+
+  /* THE FORM FIRST (the Day-10 pre-audit, CL-24): the page's one action
+     stood under 259 words of rules and an empty state. Then what is
+     recorded — or that nothing is — and the rules, whole, last. */
+  if (!list.length) {
+    const empty = el('div', { class: 'card', id: 'opp-empty' });
+    empty.append(cardHead('No candidates recorded yet', 'This is a register, not a feed — it holds what you put in it.'));
+    empty.append(el('p', { class: 'body', style: 'font-size:13px' },
+      'Quantum Tradeworks holds no property listings and does not source them. Record one you are actually looking at, and the calculator will model it and grade it on whatever evidence you have.'));
+    wrap.append(empty);
+  }
 
   /* Run every candidate once; the cards and the comparison both read it. */
   const modelled = list.map(o => ({ o, ...candidateModel(o) }));
@@ -64532,7 +64572,19 @@ VIEWS.opportunities = () => {
   });
 
   if (list.length) wrap.append(el('p', { class: 'metaline' },
-    `${list.length} propert${list.length === 1 ? 'y' : 'ies'}, newest first. This order is recency, not merit — nothing on this page is ranked by how attractive it looks.`));
+    `${list.length} candidate${list.length === 1 ? '' : 's'}, newest first. This order is recency, not merit — nothing on this page is ranked by how attractive it looks.`));
+
+  const rules = el('div', { class: 'card' });
+  rules.append(cardHead('How this register behaves', 'The constraints matter more than the fields.'));
+  rules.append(el('ul', { class: 'ticklist' }, [
+    el('li', {}, 'Nothing is ordered by merit. A hidden merit rank is a recommendation wearing a sort order, and this product does not make recommendations.'),
+    el('li', {}, '“Available” appears only where availability was checked, with the date beside it. A stale flag sends someone to a property that sold weeks ago.'),
+    el('li', {}, 'Asking price, your negotiated price, the bank valuation and a registered valuer’s figure are four different numbers and are kept apart.'),
+    el('li', {}, 'A candidate with no verified rent, title or condition evidence stays U however good its yield looks — yield on an unverified rent is arithmetic on a guess.'),
+    el('li', {}, 'Nothing is scraped or republished. Each record holds a reference you entered, not content taken from a listing site.'),
+    el('li', {}, 'Records stay in this browser. There is no server holding them and no one else can see them.'),
+  ]));
+  wrap.append(rules);
   return wrap;
 };
 
@@ -69765,8 +69817,12 @@ const PF_STEPS = [
 ];
 const PF_STEP_OF = { areas: 'explore', areaMap: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'evidence', propertyModels: 'save' };
 const PF_EXPLORE_PATH = { areas: '/property/areas', areaMap: '/property/areas/map', comparables: '/property/comparables', opportunities: '/property/opportunities' };
-/* The explore page last visited, this tab: where Explore goes back to. */
-let pfExplore = '/property/opportunities';
+/* The explore page last visited, this tab: where Explore goes back to.
+   Before one is visited, the Area screen: the one explore page with
+   something to look at on a first visit — Kuching's localities and the
+   scheme map — where the register opened empty (the Day-10 pre-audit,
+   NAV-06). */
+let pfExplore = '/property/areas';
 
 /* WHAT THE LAB HOLDS NOT SAVED, in moves: every column's (an answer is a
    move of each column it moves) and the figures a lab copy was copied with. */
@@ -70068,6 +70124,13 @@ VIEWS.areas = () => {
   const names = [...new Set([...mapped, ...(city.districts || []), ...recorded])];
   const canMap = mapped.length > 0;
 
+  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
+     said first (the daily audit's item #6; the Day-10 pre-audit, CL-14) —
+     it stood under the filters, the map and the table, 326 words down. */
+  if (!(State.observations || []).some(o => o.city === S.city)) wrap.append(el('div', { class: 'card' }, el('p', { class: 'body ef-empty', style: 'margin:0;font-size:var(--ls-support)' }, [
+    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
+    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')])));
+
   /* ---- filters, one row above everything they scope ---- */
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center' });
@@ -70171,7 +70234,7 @@ VIEWS.areas = () => {
       ? 'Loading locality positions…'
       : geoLoadState === 'failed'
         ? `The locality positions could not be loaded, and nothing is recorded for ${city.name} yet. Reload the page to try again.`
-        : `No mapped localities are held for ${city.name}. The map draws only places this build has a recorded position for; none has been invented.`));
+        : `No mapped localities are held for ${city.name}. The map draws only places this product has a recorded position for; none has been invented.`));
     return wrap;
   }
 
@@ -70254,10 +70317,10 @@ VIEWS.areas = () => {
   legend.append(swatch(null, 'Not recorded', true));
   mapCard.append(legend);
   if (layer.caveat) mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm);color:var(--bronze)' }, layer.caveat));
-  mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    layer.kind === 'quantity'
-      ? 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'
-      : 'Positions are geocoded approximations of the locality, not parcel boundaries. Confirm any address against the title and the Land and Survey Department.'));
+  /* The positions' note is said once, in "What this screen cannot tell
+     you" (the Day-10 pre-audit, CL-14); here, a quantity layer's banding. */
+  if (layer.kind === 'quantity') mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'));
   if (hasWorkedExample()) {
     const n = sampleObservations().length;
     const warn = el('div', { class: 'card', style: 'border-color:var(--bronze)' });
@@ -70395,13 +70458,8 @@ VIEWS.areas = () => {
   const tCard = el('div', { class: 'card' });
   tCard.append(cardHead(`${shown.length} of ${names.length} localit${names.length === 1 ? 'y' : 'ies'}`,
     shown.length === names.length
-      ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
+      ? 'Every mapped locality in this town.'
       : 'Filtered. The map shades the same set.', null, AK));
-  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
-     said where its absence is seen (the daily audit's item #6). */
-  if (!(State.observations || []).some(o => o.city === S.city)) tCard.append(el('p', { class: 'body ef-empty', style: 'margin-top:var(--sm);font-size:var(--ls-support)' }, [
-    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
-    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')]));
   gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
   /* A size container, so the recorder in its row can be as wide as what shows
      of the table rather than the table itself — see areaRecorder. */
@@ -70428,9 +70486,9 @@ VIEWS.areas = () => {
     wrap.append(localityTransactionPanel(S.city, S.editing));
     wrap.append(landRiskPanel(S.city, S.editing));
   }
-  tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Rent, vacancy and price columns are medians over the comparables register and move as you add to it. '
-    + 'A dash is an absence of evidence, never a zero.'));
+  /* The medians' note is said once, in "What this screen cannot tell you"
+     (CL-14). */
+  tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, 'A dash is an absence of evidence, never a zero.'));
   wrap.append(tCard);
 
   wrap.append(el('div', { class: 'card' }, [
@@ -70572,7 +70630,7 @@ function areaRecorder(city, area) {
      4 whether you checked it against the source yourself;
      5 record it, and use it: a price is named in the Scenario Lab's
        comparables (a what-if until saved), where the price gap and the
-       auction's market value take it with its source and date.
+       auction's median of comparables take it with its source and date.
    WHAT IT IS AND IS NOT. The reader's own record, in this browser (Yours).
    Locality-level: it names no building, and whatever its source it is never
    a verified building transaction (observationStanding: scope 'area') — it
@@ -70706,7 +70764,7 @@ function evidenceFlowDone(o) {
   box.append(el('p', { class: 'metaline' }, [`Source: ${o.sourceRef}. `, el('span', { class: st.tone, title: st.why }, st.label)]));
   if (EF_PRICE.has(o.kind)) {
     box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
-      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
+      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s median take it — with its source and date — as a what-if until you save.'
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
     box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
       onclick: () => { State.labUseComparable = o.id; pfResumeLab(); } }, 'Use it in the Scenario Lab'),
@@ -70805,7 +70863,7 @@ VIEWS.comparables = () => {
   const head = el('div', { class: 'card' });
   head.append(cardHead(`${rows.length} record${rows.length === 1 ? '' : 's'}`,
     rows.length ? 'Standing is decided by the source, not by the number.'
-                : 'The register is empty, which is the true state of the evidence rather than a gap in the software.'));
+                : 'The register is empty: no evidence has been recorded yet.'));
   if (rows.length) {
     /* Every standing has a tile, so the tiles add up to the count above them.
        A worked-example row has its own standing and had no tile: with the
@@ -70826,13 +70884,13 @@ VIEWS.comparables = () => {
        copy-property-8). */
     const nSources = SARAWAK_TRANSACTION_SOURCES.length;
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
-      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.`));
+      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above.`));
     head.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, WORKED_EXAMPLE_NOTE));
     head.append(workedExampleControls({ primary: false }));
+    /* One place to record one: the five steps above. A second, on the
+       calculator, sent the reader away from the form on this page (the
+       Day-10 pre-audit, NAV-19). */
     head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
-      el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/calculator'),
-        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
-        'Open the calculator to record one'),
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/data-sources'),
         onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/data-sources'); } },
         'Why no market data can be loaded'),
@@ -71531,15 +71589,17 @@ VIEWS.plans = () => {
   body.append(el('p', { class: 'metaline' }, 'Price data is not available on any plan — no market-data licence is in place. The last row says what each plan would carry once one is.'));
   body.append(el('p', { class: 'metaline' }, `All-Access has not launched and cannot be bought: ${PLANS.all.blurb}`));
 
-  /* The per-report prices, the RM89 line as it reads today (D11(d)). */
-  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property Deal Check — proposed prices per report'));
+  /* The per-report prices, the RM89 line as it reads today (D11(d)). Headed
+     by what the cards above call them, "Property reports" — "Property Deal
+     Check" named a product nowhere else sold (the Day-10 pre-audit, CL-09). */
+  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property reports — proposed prices per report'));
   body.append(el('p', { class: 'caption' }, 'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
   const pt = el('table', { class: 'dt dt-stack' });
   pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds', 'Today'].map((h, i) => el('th', { style: i >= 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
     ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.', 'Available now, free: save a property in the Scenario Lab or the calculator.'],
-    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'The comparable transactions you record, NAPIC’s published price and rental ranges, net operating income, ten-year scenarios, exit costs and the equity comparison.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
+    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'Net operating income, ten-year scenarios, exit costs and the equity comparison, on your figures.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
     ['Verified project report', `RM${PROPERTY_REPORT_PRICE.verified}`, 'The full report against a verified project dataset rather than user-entered figures.', 'Not available: it needs a verified project dataset, and none is held.'],
   ].map(r2 => el('tr', {}, r2.map((cell, i) =>
     el('td', { class: i === 0 ? 'ident' : '', style: i >= 2 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));
@@ -72765,10 +72825,10 @@ const KM_CONF = {
     said: 'OpenStreetMap lanes carry the scheme’s name; it is drawn round the middle of those lanes.' },
 };
 const KM_NOT = {
-  weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap: held for review, not guessed.' },
+  weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap, so not placed.' },
   street: { label: 'Not placed — named after a street', said: 'A street is a line, often kilometres long; a neighbourhood’s mark on it would claim more than the name says.' },
   none: { label: 'Not placed — no OpenStreetMap match', said: 'No OpenStreetMap name matches it, and no other source this map may use places it.' },
-  'not-a-place': { label: 'Not a place', said: 'An extraction label from NAPIC’s rental table — a floor of a building — not a scheme’s name.' },
+  'not-a-place': { label: 'Not a place', said: 'A label from NAPIC’s rental table — a floor of a building — not a scheme’s name.' },
 };
 const kmReason = (s) => (s.status === 'not-a-place' ? 'not-a-place' : s.reason);
 
@@ -72833,7 +72893,7 @@ function kmFigures(scheme, { change = false } = {}) {
 /* --------------------------------------------------------------- the page */
 VIEWS.areaMap = () => {
   const wrap = el('div', { class: 'km-page' });
-  if (!KM_DATA) { wrap.append(emptyState('The Kuching map is not in this build.')); return wrap; }
+  if (!KM_DATA) { wrap.append(emptyState('The Kuching map is not available here.')); return wrap; }
   /* NAPIC's Kuching file, asked for as the page is first drawn: the figures
      under each scheme come with it (loadNapic redraws the page). */
   if (!napicDivisions.has('Kuching')) loadNapic('Kuching');
@@ -73687,7 +73747,7 @@ function searchSavedIndex() {
     kind: 'Scanner setup', icon: 'target', detail: `Version ${s.version} · ${s.enabled === false ? 'disabled' : 'enabled'}`, subject: s.id,
     sample: false, illus: null, path: scanSetupPath(s.id), open: () => navigate(scanSetupPath(s.id)) }));
   if (typeof workspaceItems === 'function') workspaceItems().forEach(i => {
-    const prop = i.kind === 'work' && typeof pmFind === 'function' && !!pmFind(i.key);
+    const prop = (i.kind === 'property' || i.kind === 'work') && typeof pmFind === 'function' && !!pmFind(i.key);
     const type = prop ? 'property' : i.kind;
     out.push({ type, id: i.key, name: i.name, kind: prop ? 'Saved property' : WORKSPACE_KIND_ONE[i.kind] || 'Saved item', icon: SEARCH_SAVED_ICON[type] || 'folder',
       detail: i.detail, subject: i.subject, sample: !!i.sample, illus: i.illustrative === 'all' || i.illustrative === 'some' ? i.illustrative : null,
@@ -74426,11 +74486,16 @@ const DECISION_SUBJECTS = [
 ];
 
 /* The provenance word for one property input, in the reader's terms rather than
-   the storage layer's. "Missing" is a real answer and gets said. */
+   the storage layer's. "Missing" is a real answer and gets said. A figure
+   still the calculator's starting one is "Sample" whichever input it is —
+   inputIsSeeded, the calculator's own test (the Day-10 pre-audit, CL-02):
+   the deposit, the rate, the tenure, the vacancy, the growth and the hold
+   read "Assumed" here while the sentence under the table called the same
+   figure "Illustrative default". */
 function inputProvenance(d, k) {
   const ev = shownEvidence(d, k);
   if (!isNum(d[k]) && !d[k]) return { word: 'Missing', why: 'Nothing has been entered.', tone: '--dn-text' };
-  if (ev === 'illustrative_default')
+  if (inputIsSeeded(d, k))
     return { word: 'Sample', tone: '--bronze',
              why: 'Carried by this tool as a starting number. Nobody chose it for this property.' };
   if (isTouched(d, k))
@@ -74469,7 +74534,9 @@ function decisionRecordProperty() {
     /* The record's own line, "Prepared …", stays the head's metaline: it is
        the one the date check and a reader look for under the heading. */
     el('p', { class: 'metaline' },
-      [preparedNow(), `${MODEL_VERSION} · research only, not advice`]),
+      /* The fee rulebook the costs follow, not the equity models' versions,
+         which say nothing about a property (the Day-10 pre-audit, IW-12). */
+      [preparedNow(), `fee rulebook ${FEE_TABLE.version} · research only, not advice`]),
     el('p', { class: 'caption dr-which' }, `Of ${which}.`),
   ]));
 
@@ -74564,7 +74631,7 @@ function decisionRecordProperty() {
 
   const unreviewed = propertyReviewQueue(d);
   if (unreviewed.length) out.append(el('p', { class: 'dr-warn' },
-    `${unreviewed.length} of these ${unreviewed.length === 1 ? 'is' : 'are'} still the figure this tool seeded: `
+    `${unreviewed.length} of these ${unreviewed.length === 1 ? 'is still the calculator’s starting figure' : 'are still the calculator’s starting figures'}: `
     + `${unreviewed.map(f => f.label.toLowerCase()).join(', ')}. `
     + 'Nobody has replaced them with anything observed, so every output above inherits that.'));
 
@@ -74578,12 +74645,17 @@ function decisionRecordProperty() {
     const sens = propertySensitivity(d);
     if (sens.ok && sens.drivers.length) {
       const t0 = sens.drivers[0];
-      const weak = t0.ev && t0.ev.rank <= 1;
+      /* Still the calculator's starting figure: said as the table says it
+         (CL-02), whatever kind of input it is. */
+      const seeded = inputIsSeeded(d, t0.k);
+      const weak = seeded || (t0.ev && t0.ev.rank <= 1);
       out.append(el('p', { class: weak ? 'dr-warn' : 'metaline', style: 'margin-top:var(--sm)' },
         `This answer rests on ${t0.label.toLowerCase()} more than on anything else: one step moves the rate of `
         + `return ${t0.span.toFixed(2)} percentage points, against ${sens.drivers[sens.drivers.length - 1].span.toFixed(2)} `
         + `for ${sens.drivers[sens.drivers.length - 1].label.toLowerCase()}. `
-        + (weak
+        + (seeded
+          ? 'It is still a sample figure, so the figure this record depends on most is the one with the least behind it.'
+          : weak
           ? `It is graded "${t0.ev.label}", so the figure this record depends on most is the one with the least behind it.`
           : t0.ev
             ? `It is graded "${t0.ev.label}".`
@@ -74637,7 +74709,7 @@ function decisionRecordProperty() {
     })(),
     'Title, tenure and eligibility are recorded from user input and have not been verified. Confirm with a '
       + 'Sarawak property lawyer and the Land and Survey Department.',
-    'Costs, duties and fees follow the registry in this build and change without notice. Confirm every figure '
+    `Costs, duties and fees follow fee rulebook ${FEE_TABLE.version} (checked ${feeDay(FEE_TABLE.checkedOn)}) and change without notice. Confirm every figure `
       + 'with the lender, the solicitor and the local authority before committing.',
   ].forEach(x => lim.append(el('li', {}, x)));
   out.append(lim);

@@ -4289,7 +4289,7 @@ for (const w of [360, 390]) {
       /* The disclosures in sight, nothing opened. */
       const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.beta, 'Beta', 'the Beta badge beside the title'], [r.page, 'Not a valuation', 'the chip'],
         [r.page, 'Not an official property valuation', 'the regulated claim'],
-        [r.page, 'on unverified lines', 'the cash required\'s unverified lines'], [r.firstKnob, 'Illustrative default', 'the first knob\'s evidence tag']];
+        [r.page, 'on estimated lines', 'the cash required\'s estimated lines'], [r.firstKnob, 'Illustrative default', 'the first knob\'s evidence tag']];
       for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
       if (r.assume !== LAB_SAMPLE_ASSUME) fails.push(`${at}: the sample's line under its name reads ${r.assume === null ? 'nothing in sight' : `"${r.assume}"`}, not "${LAB_SAMPLE_ASSUME}" word for word`);
       const tileDefaults = t.filter(x => x.badge === 'Illustrative default').length;
@@ -5229,7 +5229,7 @@ for (const w of [360, 390]) {
       }
       /* The disclosures in sight, nothing opened. */
       const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.page, 'Not a valuation', 'the chip'], [r.page, 'Not an official property valuation', 'the regulated claim'],
-        [r.page, 'not a real listing', 'the sample\'s status'], [r.cards.find(c => /^Cash required/.test(c.label))?.text || '', 'unverified', 'the cash required\'s unverified lines'],
+        [r.page, 'not a real listing', 'the sample\'s status'], [r.cards.find(c => /^Cash required/.test(c.label))?.text || '', 'estimated lines', 'the cash required\'s estimated lines'],
         [r.page, 'Placeholder', 'the Placeholder kind of the lines resting on estimates']];
       for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
       if (r.cards.length !== 4) fails.push(`${at}: ${r.cards.length} metric cards in sight, not the one-page answer's four`);
@@ -5401,7 +5401,7 @@ for (const w of [360, 390]) {
       r.cards.forEach(c => { if (!c.badge || !/^Illustrative/.test(c.badge)) fails.push(`${at}: the "${c.label}" result shows ${c.badge ? `"${c.badge}"` : 'no kind badge'}, not Illustrative`); });
       if (!/^10 sample inputs need your evidence$/.test(r.review)) fails.push(`${at}: the review alert reads "${r.review}"`);
       const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.page, 'Not a valuation', 'the chip'], [r.page, 'Not an official property valuation', 'the regulated claim'],
-        [r.page, 'Illustrative defaults', 'the sample label'], [r.page, 'not advice', 'the limitations line'], [r.cards.find(c => c.key === 'safe')?.text || '', 'unverified', 'the cash required\'s unverified lines']];
+        [r.page, 'Illustrative defaults', 'the sample label'], [r.page, 'not advice', 'the limitations line'], [r.cards.find(c => c.key === 'safe')?.text || '', 'estimated lines', 'the cash required\'s estimated lines']];
       for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
       if (!r.other || r.other.open) fails.push(`${at}: the other running costs ${r.other ? 'stand open' : 'are not drawn'}`);
       if (w >= 640) continue;
@@ -5790,7 +5790,7 @@ for (const w of [360, 390]) {
         if (!r.shown) { fails.push(`${at}: no Share / Export row is in sight`); continue; }
         if (r.rowBox.l < -0.5 || r.rowBox.r > r.vw + 0.5) fails.push(`${at}: the row runs ${r.rowBox.l}–${r.rowBox.r}px in a ${r.vw}px screen`);
         const names = r.acts.map(a => a.t);
-        if (r.acts.length !== 3 || !(names[0] === (saved ? 'Client proposal' : 'Save this property first')) || names[1] !== 'Investor report' || names[2] !== 'Decision record') fails.push(`${at}: the row's controls read ${JSON.stringify(names)}`);
+        if (r.acts.length !== 3 || !(names[0] === (saved ? 'Client proposal' : 'Save this property first')) || names[1] !== 'Full investor report' || names[2] !== 'Decision record') fails.push(`${at}: the row's controls read ${JSON.stringify(names)}`);
         r.acts.forEach(a => {
           if (a.primary) fails.push(`${at}: "${a.t}" is btn-primary in a quiet row`);
           if (a.l < -0.5 || a.r > r.vw + 0.5) fails.push(`${at}: "${a.t}" runs ${a.l}–${a.r}px in a ${r.vw}px screen`);

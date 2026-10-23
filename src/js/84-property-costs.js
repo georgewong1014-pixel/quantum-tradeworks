@@ -223,7 +223,7 @@ function parseCostSchedule(text, name = '') {
     let doc;
     try { doc = JSON.parse(body); } catch (e) { return { ok: false, err: `“${file}” is not JSON: ${String(e.message).split('\n')[0].slice(0, 80)}` }; }
     if (!isRecord(doc) || doc.format !== COST_SCHEDULE.format) return { ok: false, err: `“${file}” is not a cost schedule: it does not say "format": "${COST_SCHEDULE.format}"` };
-    if (doc.version !== COST_SCHEDULE.version) return { ok: false, err: `“${file}” is version ${JSON.stringify(doc.version ?? null)} of the format; this build reads version ${COST_SCHEDULE.version}` };
+    if (doc.version !== COST_SCHEDULE.version) return { ok: false, err: `“${file}” is version ${JSON.stringify(doc.version ?? null)} of the format; this tool reads version ${COST_SCHEDULE.version}` };
     const extra = Object.keys(doc).filter(k => !['format', 'version', 'currency', 'title', 'lines'].includes(k));
     if (extra.length) return { ok: false, err: `“${file}” carries “${extra[0].slice(0, 30)}”, which the format does not have` };
     if (doc.currency != null && doc.currency !== COST_SCHEDULE.currency) return { ok: false, err: `“${file}” is in ${String(doc.currency).slice(0, 12)}: the format takes RM only` };
@@ -237,7 +237,7 @@ function parseCostSchedule(text, name = '') {
     const head = lines[0]?.cells.map(c => c.trim()) || [];
     while (head.length && head.at(-1) === '') head.pop();
     if (head[0] !== COST_SCHEDULE.format || head.length !== 2) return { ok: false, err: `“${file}” does not begin with the line “${COST_SCHEDULE.format},${COST_SCHEDULE.version}”, which names the format and its version` };
-    if (head[1] !== String(COST_SCHEDULE.version)) return { ok: false, err: `“${file}” is version ${head[1]} of the format; this build reads version ${COST_SCHEDULE.version}` };
+    if (head[1] !== String(COST_SCHEDULE.version)) return { ok: false, err: `“${file}” is version ${head[1]} of the format; this tool reads version ${COST_SCHEDULE.version}` };
     const cols = (lines[1]?.cells || []).map(c => c.trim().toLowerCase());
     while (cols.length && cols.at(-1) === '') cols.pop();
     const missing = COST_SCHEDULE.fields.filter(f => !cols.includes(f));

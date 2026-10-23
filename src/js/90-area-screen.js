@@ -53,6 +53,13 @@ VIEWS.areas = () => {
   const names = [...new Set([...mapped, ...(city.districts || []), ...recorded])];
   const canMap = mapped.length > 0;
 
+  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
+     said first (the daily audit's item #6; the Day-10 pre-audit, CL-14) —
+     it stood under the filters, the map and the table, 326 words down. */
+  if (!(State.observations || []).some(o => o.city === S.city)) wrap.append(el('div', { class: 'card' }, el('p', { class: 'body ef-empty', style: 'margin:0;font-size:var(--ls-support)' }, [
+    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
+    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')])));
+
   /* ---- filters, one row above everything they scope ---- */
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center' });
@@ -156,7 +163,7 @@ VIEWS.areas = () => {
       ? 'Loading locality positions…'
       : geoLoadState === 'failed'
         ? `The locality positions could not be loaded, and nothing is recorded for ${city.name} yet. Reload the page to try again.`
-        : `No mapped localities are held for ${city.name}. The map draws only places this build has a recorded position for; none has been invented.`));
+        : `No mapped localities are held for ${city.name}. The map draws only places this product has a recorded position for; none has been invented.`));
     return wrap;
   }
 
@@ -239,10 +246,10 @@ VIEWS.areas = () => {
   legend.append(swatch(null, 'Not recorded', true));
   mapCard.append(legend);
   if (layer.caveat) mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm);color:var(--bronze)' }, layer.caveat));
-  mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    layer.kind === 'quantity'
-      ? 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'
-      : 'Positions are geocoded approximations of the locality, not parcel boundaries. Confirm any address against the title and the Land and Survey Department.'));
+  /* The positions' note is said once, in "What this screen cannot tell
+     you" (the Day-10 pre-audit, CL-14); here, a quantity layer's banding. */
+  if (layer.kind === 'quantity') mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'));
   if (hasWorkedExample()) {
     const n = sampleObservations().length;
     const warn = el('div', { class: 'card', style: 'border-color:var(--bronze)' });
@@ -380,13 +387,8 @@ VIEWS.areas = () => {
   const tCard = el('div', { class: 'card' });
   tCard.append(cardHead(`${shown.length} of ${names.length} localit${names.length === 1 ? 'y' : 'ies'}`,
     shown.length === names.length
-      ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
+      ? 'Every mapped locality in this town.'
       : 'Filtered. The map shades the same set.', null, AK));
-  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
-     said where its absence is seen (the daily audit's item #6). */
-  if (!(State.observations || []).some(o => o.city === S.city)) tCard.append(el('p', { class: 'body ef-empty', style: 'margin-top:var(--sm);font-size:var(--ls-support)' }, [
-    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
-    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')]));
   gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
   /* A size container, so the recorder in its row can be as wide as what shows
      of the table rather than the table itself — see areaRecorder. */
@@ -413,9 +415,9 @@ VIEWS.areas = () => {
     wrap.append(localityTransactionPanel(S.city, S.editing));
     wrap.append(landRiskPanel(S.city, S.editing));
   }
-  tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Rent, vacancy and price columns are medians over the comparables register and move as you add to it. '
-    + 'A dash is an absence of evidence, never a zero.'));
+  /* The medians' note is said once, in "What this screen cannot tell you"
+     (CL-14). */
+  tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, 'A dash is an absence of evidence, never a zero.'));
   wrap.append(tCard);
 
   wrap.append(el('div', { class: 'card' }, [
@@ -557,7 +559,7 @@ function areaRecorder(city, area) {
      4 whether you checked it against the source yourself;
      5 record it, and use it: a price is named in the Scenario Lab's
        comparables (a what-if until saved), where the price gap and the
-       auction's market value take it with its source and date.
+       auction's median of comparables take it with its source and date.
    WHAT IT IS AND IS NOT. The reader's own record, in this browser (Yours).
    Locality-level: it names no building, and whatever its source it is never
    a verified building transaction (observationStanding: scope 'area') — it
@@ -691,7 +693,7 @@ function evidenceFlowDone(o) {
   box.append(el('p', { class: 'metaline' }, [`Source: ${o.sourceRef}. `, el('span', { class: st.tone, title: st.why }, st.label)]));
   if (EF_PRICE.has(o.kind)) {
     box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
-      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
+      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s median take it — with its source and date — as a what-if until you save.'
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
     box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
       onclick: () => { State.labUseComparable = o.id; pfResumeLab(); } }, 'Use it in the Scenario Lab'),
@@ -790,7 +792,7 @@ VIEWS.comparables = () => {
   const head = el('div', { class: 'card' });
   head.append(cardHead(`${rows.length} record${rows.length === 1 ? '' : 's'}`,
     rows.length ? 'Standing is decided by the source, not by the number.'
-                : 'The register is empty, which is the true state of the evidence rather than a gap in the software.'));
+                : 'The register is empty: no evidence has been recorded yet.'));
   if (rows.length) {
     /* Every standing has a tile, so the tiles add up to the count above them.
        A worked-example row has its own standing and had no tile: with the
@@ -811,13 +813,13 @@ VIEWS.comparables = () => {
        copy-property-8). */
     const nSources = SARAWAK_TRANSACTION_SOURCES.length;
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
-      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.`));
+      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above.`));
     head.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, WORKED_EXAMPLE_NOTE));
     head.append(workedExampleControls({ primary: false }));
+    /* One place to record one: the five steps above. A second, on the
+       calculator, sent the reader away from the form on this page (the
+       Day-10 pre-audit, NAV-19). */
     head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
-      el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/calculator'),
-        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
-        'Open the calculator to record one'),
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/data-sources'),
         onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/data-sources'); } },
         'Why no market data can be loaded'),
@@ -1516,15 +1518,17 @@ VIEWS.plans = () => {
   body.append(el('p', { class: 'metaline' }, 'Price data is not available on any plan — no market-data licence is in place. The last row says what each plan would carry once one is.'));
   body.append(el('p', { class: 'metaline' }, `All-Access has not launched and cannot be bought: ${PLANS.all.blurb}`));
 
-  /* The per-report prices, the RM89 line as it reads today (D11(d)). */
-  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property Deal Check — proposed prices per report'));
+  /* The per-report prices, the RM89 line as it reads today (D11(d)). Headed
+     by what the cards above call them, "Property reports" — "Property Deal
+     Check" named a product nowhere else sold (the Day-10 pre-audit, CL-09). */
+  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property reports — proposed prices per report'));
   body.append(el('p', { class: 'caption' }, 'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
   const pt = el('table', { class: 'dt dt-stack' });
   pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds', 'Today'].map((h, i) => el('th', { style: i >= 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
     ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.', 'Available now, free: save a property in the Scenario Lab or the calculator.'],
-    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'The comparable transactions you record, NAPIC’s published price and rental ranges, net operating income, ten-year scenarios, exit costs and the equity comparison.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
+    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'Net operating income, ten-year scenarios, exit costs and the equity comparison, on your figures.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
     ['Verified project report', `RM${PROPERTY_REPORT_PRICE.verified}`, 'The full report against a verified project dataset rather than user-entered figures.', 'Not available: it needs a verified project dataset, and none is held.'],
   ].map(r2 => el('tr', {}, r2.map((cell, i) =>
     el('td', { class: i === 0 ? 'ident' : '', style: i >= 2 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));

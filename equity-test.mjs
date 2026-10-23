@@ -6773,7 +6773,7 @@ try {
     const p = [];
     if (!/^BUTTON#opp-add/.test(r.add)) p.push(`Add to register: ${r.add}`);
     if (!/^H3#opp-0-name bf3 first/.test(r.removeOne)) p.push(`Remove, one left: ${r.removeOne}`);
-    if (!/^H3 No properties recorded yet/.test(r.removeLast)) p.push(`Remove, none left: ${r.removeLast}`);
+    if (!/^H3 No candidates recorded yet/.test(r.removeLast)) p.push(`Remove, none left: ${r.removeLast}`);
     if (!/checkbox$/.test(r.alertKind)) p.push(`an alert-type switch: ${r.alertKind}`);
     if (p.length) fail('sweep: the opportunity register and the alert-type switches keep focus when they redraw', p);
     else ok('sweep: the opportunity register (add, remove) and the alert-type switches keep focus when they redraw');
@@ -9206,7 +9206,7 @@ try {
         const r = await evaluate(`(async () => { ${W}
           const before = myDashOwn().propertySnaps, own0 = myDashOwn().hasOwn;
           const rec = saveWork('property', 'WS17 untouched');
-          const it = workspaceItems().find(i => i.kind === 'work' && i.key === rec.id);
+          const it = workspaceItems().find(i => (i.kind === 'work' || i.kind === 'property') && i.key === rec.id);
           const o = myDashOwn();
           navigate('/app'); await w(150);
           const out = { sample: !!it?.sample, detail: it?.detail || '', snaps: o.propertySnaps - before, own0, hasOwn: o.hasOwn, start: !!document.querySelector('.dash-start') };
@@ -9216,7 +9216,7 @@ try {
           const keepDeal = JSON.stringify(State.deal);
           State.deal = { ...State.deal, price: 610000, touched: { ...(State.deal.touched || {}), price: true } };
           const mine = saveWork('property', 'WS17 edited');
-          const it2 = workspaceItems().find(i => i.kind === 'work' && i.key === mine.id);
+          const it2 = workspaceItems().find(i => (i.kind === 'work' || i.kind === 'property') && i.key === mine.id);
           out.mine = { sample: !!it2?.sample, snaps: myDashOwn().propertySnaps - before };
           deleteWork(rec.id); deleteWork(mine.id); State.deal = JSON.parse(keepDeal);
           return out;
