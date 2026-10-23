@@ -2672,7 +2672,7 @@ VIEWS.sarawak = () => {
   if (recs.length) {
     const list = el('div', { class: 'card' });
     list.append(cardHead(`Recorded — ${recs.length}`,
-      'Completeness counts the eleven fields section 19.2 asks for. A thin record cannot pass for a researched one.'));
+      'Completeness counts eleven fields. A thin record cannot pass for a researched one.'));
     recs.forEach((rec, i) => {
       const theme = SARAWAK_THEMES.find(t => t.id === rec.theme);
       /* OPEN STAYS OPEN. Add and Remove redraw the page, and every record

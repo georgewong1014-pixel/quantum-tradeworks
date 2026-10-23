@@ -245,7 +245,7 @@ const CAPABILITY_REGISTER = [
             { file:'equity-test.mjs', name:'net debt and the adjustment are the reader' },
             { file:'equity-test.mjs', name:'the sensitivity grid takes the reader' },
             { file:'equity-test.mjs', name:'the Valuation Studio states what it computed' }] },
-  { name:'Research workspace', status:'flagged', path:'/my/workspace',
+  { name:'Saved work', status:'flagged', path:'/my/workspace',
     brief:['EQ-212'], priority:'P1',
     now:'Every saved valuation run, comparison, screen, investment case and tool snapshot in one list, each with the model and data version it was saved against and whether either has moved since. One export on Your data carries every kind.',
     flag:'This browser only. There are no accounts, so nothing follows you to another device, nothing can be shared, and a cleared browser loses it all unless it was exported.',
@@ -284,7 +284,7 @@ const CAPABILITY_REGISTER = [
   { name:'Market-data ingestion (scanner)', status:'data-gated', path:null,
     brief:['SC-301'], priority:'P0',
     gate:'An authorised end-of-day feed with redistribution rights does not exist for this product. The scanner reads only the reader’s own history — their screen capture, export or live reader, under their own subscription — through one store that validates and dates every bar by its market’s session. ingest/history-check.mjs reports series dated a day early and re-fetches them; the daily run’s ready gate holds back a market whose last session is not yet final by the clock, because no provider confirms it.' },
-  { name:'OHLCV storage and validation', status:'beta', path:'/admin/scanner/data',
+  { name:'OHLCV storage and validation', status:'beta', path:'/app/scanner/market',
     brief:['SC-302'], priority:'P0',
     now:'Every bar validated (bad date, future, negative price or volume, high below or low above, non-session day) and listed with its code rather than dropped; a bar captured before its session closed and settled is provisional and never confirms; sessions inferred from the reader’s own series and labelled inferred; weekly bars derived with a completeness flag. Splits and consolidations the reader records in data/price-adjustments.json are applied on read, the history as held untouched. The data-health page shows all of it per market and per series, with series dated a day early and one session held under two dates.',
     gate:'The history holds closes and volumes; open, high and low only where a source of the reader’s supplies them. Nothing is adjusted but the splits and consolidations the reader records — never dividends — and a break nobody recorded is tagged, not corrected. No exchange calendar is held.',
@@ -327,7 +327,7 @@ const CAPABILITY_REGISTER = [
             { file:'equity-test.mjs', name:'the scanner setups page renders and evaluates on engine 0.3.0' },
             { file:'scanner-test.mjs', name:'SC-306 an unversioned setup gets v1 in the ledger' },
             { file:'scanner-test.mjs', name:'SC-306 a version number reused for different content is refused' }] },
-  { name:'Daily scanner worker', status:'beta', path:'/admin/scanner/jobs',
+  { name:'Daily scanner worker', status:'beta', path:'/app/scanner',
     brief:['SC-307'], priority:'P0',
     now:'node scanner/scan.mjs runs after the daily capture, self-tests its engine first, evaluates each setup on each instrument’s final bars and exits 0, 1, 2 or 3 by outcome. A missed day is caught up on the next run, up to ten bars, each on the history as it stood; --as-of replays a date, narrowed by setup or market; the daily run holds back a market whose session is not yet final. The runs page lists every attempt it recorded, with duration, counts and errors, and the control log.',
     gate:'There is no scheduler service or job queue: your task scheduler starts it, a run in progress is only a lock file, and nothing is ever queued. Final data is judged by the clock, because no provider confirms it.',
@@ -375,7 +375,7 @@ const CAPABILITY_REGISTER = [
             { file:'scanner-test.mjs', name:'scanStatus: no runs and no last run is' },
             { file:'scanner-test.mjs', name:'behind after a setups edit; failed (not current) when a failure follows a success' },
             { file:'scanner-test.mjs', name:'latest matches come in setup order, not file or close order' }] },
-  { name:'Scanner operations (local, read-only)', status:'beta', path:'/admin/scanner',
+  { name:'Scanner operations (local, read-only)', status:'beta', path:'/app/scanner',
     brief:['SC-313'], priority:'P0',
     now:'Four read-only pages over the worker’s own files, read in the shape the worker writes them: data sources and the last ingestion, sessions per market, runs by status, the alert engine’s counts, markets held back, catch-up and the version ledger, delivery, usage and errors with their run ids; data health per market and series; every run with its error; the channels. Each control is shown as the command that performs it.',
     gate:'No administrator role, access control or operator identity: there are no accounts, so the pages are read-only and say so, and the control log is a local append-only file, not an audit trail. No provider to disable and no job queue.',
@@ -722,7 +722,7 @@ VIEWS.wheel = () => {
     ]),
     el('div', { style: 'margin-left:auto;text-align:right' }, [
       el('div', { class: 'metaline' }, `Phase: ${p.phase === 'call' ? 'covered call' : 'cash-secured put'}`),
-      el('div', { class: 'metaline' }, `Thesis: ${p.underlyingThesisStatus}`),
+      el('div', { class: 'metaline' }, `Case: ${p.underlyingThesisStatus}`),
     ]),
   ]));
 
@@ -747,7 +747,7 @@ VIEWS.wheel = () => {
     rail.append(el('span', {
       class: here ? 'chip chip-ok' : 'chip',
       style: `${done ? 'opacity:.55' : ''}${here ? ';font-weight:700' : ''}`,
-      title: here ? `The cycle is here. Internal state: ${p.state}.` : (done ? 'Passed.' : 'Not reached.'),
+      title: here ? 'The cycle is at this step.' : (done ? 'Passed.' : 'Not reached.'),
     }, `${done ? '✓ ' : ''}${s.label}`));
     if (i < STAGE.length - 1) rail.append(el('span', { class: 'metaline', style: 'opacity:.4' }, '→'));
   });
@@ -1285,7 +1285,7 @@ VIEWS.wheel = () => {
   boundary.append(el('ul', { class: 'ticklist' }, [
     el('li', {}, 'No option-chain data. Every contract figure here is one you entered, and there is no licensed chain this product may redistribute.'),
     el('li', {}, 'No recommended contract. Filters and arithmetic only — “best strike” is not an output this product will produce.'),
-    el('li', {}, 'No broker connection, order routing, automatic rolling or execution. Those are Compliance Gated and not built.'),
+    el('li', {}, 'No broker connection, order routing, automatic rolling or execution. Those need regulatory approval and are not built.'),
     el('li', {}, 'A roll would be recorded as a close plus a separate new opening, so a net credit could never conceal the realised result of the leg being closed.'),
   ]));
   wrap.append(boundary);

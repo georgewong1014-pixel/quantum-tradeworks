@@ -9745,7 +9745,7 @@ try {
      twice. Each time every field, the review, the run and the assumption the
      reader edited are what they were, the case is in storage once, and its
      card shows each of them. A sample case saved before stamping (the seeded
-     case, which carries no stamp) still reads "Saved before stamping" in the
+     case, which carries no stamp) still reads "Saved before versions were recorded" in the
      workspace's list and on its page. The browser's own work is put back. */
   {
     const r = JSON.parse(await evaluate(`(async () => {
@@ -9833,7 +9833,7 @@ try {
         const item = workspaceItems().find(i => i.kind === 'thesis' && i.key === sample.id);
         out.sample = item ? { label: item.diff.label, status: item.diff.status, sample: item.sample } : null;
         navigate('/my/workspace'); await w(500);
-        out.sampleOnPage = /Saved before stamping/.test((document.getElementById('views') || document.body).textContent);
+        out.sampleOnPage = /Saved before versions were recorded/.test((document.getElementById('views') || document.body).textContent);
         out.stampedLabel = stampDiff(out.saved.rec.stamp).label;
       } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
       /* the browser's own work, put back (after leaving the pages that record a visit) */
@@ -9888,12 +9888,12 @@ try {
     if (!r.inFile || !r.inFile.theses || !r.inFile.reviews || !r.inFile.runs) p.push(`the backup file does not hold the case, its review and its run: ${JSON.stringify(r.inFile)}`);
     if (!r.gone || r.gone.n !== 0 || r.gone.reviews.length || r.gone.nRuns) p.push(`the records were not cleared before the restore: ${JSON.stringify(r.gone && { n: r.gone.n, reviews: r.gone.reviews.length, runs: r.gone.nRuns })}`);
     if (!r.restored1 || !r.restored1.ok || !r.restored2 || !r.restored2.ok) p.push(`restoreBackup: ${JSON.stringify([r.restored1, r.restored2])}`);
-    if (!r.sample || r.sample.label !== 'Saved before stamping' || r.sample.status !== 'unstamped' || !r.sample.sample) p.push(`the unstamped sample case reads ${JSON.stringify(r.sample)} in the workspace list`);
-    if (!r.sampleOnPage) p.push('the Saved work page does not say "Saved before stamping" for the unstamped sample case');
-    if (r.stampedLabel === 'Saved before stamping') p.push('a case saved now reads "Saved before stamping"');
+    if (!r.sample || r.sample.label !== 'Saved before versions were recorded' || r.sample.status !== 'unstamped' || !r.sample.sample) p.push(`the unstamped sample case reads ${JSON.stringify(r.sample)} in the workspace list`);
+    if (!r.sampleOnPage) p.push('the Saved work page does not say "Saved before versions were recorded" for the unstamped sample case');
+    if (r.stampedLabel === 'Saved before versions were recorded') p.push('a case saved now reads "Saved before versions were recorded"');
     if (!r.cleaned || !r.restoredKeys) p.push(`the browser's own work was not put back: theses ${r.cleaned}, every key ${r.restoredKeys}${r.differ.length ? `; changed: ${r.differ.join(", ")}` : ""}`);
-    if (p.length) fail('qt-day7: a saved investment case, reopened and restored from its backup file, keeps every field, its review and its run; an unstamped sample still reads "Saved before stamping"', p);
-    else ok(`qt-day7: a test case on ${r.id} — ${FIELDS.length} fields, two conditions, a linked valuation run with the edited assumption "${r.editKey}", and one decision review — reads the same saved, reopened, and restored twice from its backup file after its three records were cleared (in storage once; its card shows each); the seeded sample without a stamp reads "Saved before stamping" in the list and on the page`);
+    if (p.length) fail('qt-day7: a saved investment case, reopened and restored from its backup file, keeps every field, its review and its run; an unstamped sample still reads "Saved before versions were recorded"', p);
+    else ok(`qt-day7: a test case on ${r.id} — ${FIELDS.length} fields, two conditions, a linked valuation run with the edited assumption "${r.editKey}", and one decision review — reads the same saved, reopened, and restored twice from its backup file after its three records were cleared (in storage once; its card shows each); the seeded sample without a stamp reads "Saved before versions were recorded" in the list and on the page`);
   }
   /* A MALFORMED BACKUP FILE CHANGES NOTHING (the Day-7 report: "Test …
      malformed backup"). Text that is not JSON, JSON of another format, a
@@ -11218,7 +11218,7 @@ try {
       if (!o || !o.row || !/Saved before snapshots/.test(o.row) || /Suggested defaults/.test(o.row) || !o.untouched || !o.noFields) p.push(`an old case in Saved work reads "${o && o.row}", untouched ${o && o.untouched}, with no field invented ${o && o.noFields}`);
       if (!o || o.steps[1][1] !== 'Next review 2027-01-19, horizon 3–5 years.' || o.steps[0][1] !== '1 invalidation condition(s), but no investment case written yet.') p.push(`an old case's steps 6 and 7 read ${canon(o && o.steps)}`);
       if (B.sample?.record?.head !== 'Saved before snapshots' || B.sample.button) p.push(`the seeded sample reads ${canon(B.sample)}`);
-      if (!/Saved before snapshots/.test(B.sampleRow || '') || !/Saved before stamping/.test(B.sampleRow || '')) p.push(`the seeded sample's Saved work row reads "${B.sampleRow}"`);
+      if (!/Saved before snapshots/.test(B.sampleRow || '') || !/Saved before versions were recorded/.test(B.sampleRow || '')) p.push(`the seeded sample's Saved work row reads "${B.sampleRow}"`);
       if (!B.missing || !B.missing.length) p.push('no company with little data was found for the missing-data case');
       for (const m of B.missing || []) {
         if (m.threw || !m.noNaN || !m.rendered || m.zeroPillars || (m.errorModel && (m.base !== null || m.conf !== null || m.confBand !== null))) p.push(`a case on ${m.id} (coverage ${m.coverage}%, model unavailable ${m.errorModel}): ${canon(m)}`);

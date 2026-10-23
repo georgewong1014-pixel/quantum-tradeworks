@@ -4171,7 +4171,7 @@ const HOME_PAGE = read(HOME);
      sentence (an Unavailable reason keeps its sentence); the commands and
      files stay in /app/scanner's closed "Run the worker on your own
      computer" (scanner-first-view, above);
-   - the Trading Index's off-page extraction script, said once, with no file
+   - the Trading Index says it does not read the screenshot and names no off-page script (IW-05), with no file
      name; the Learn dictionary's wait on a contact address;
    - the assumption an answer depends on most (the 17 Oct "customer outcome"
      note): "Return driver: <assumption>" (the assumption that moves the rate of return most) under the Lab's four tiles, and
@@ -4205,7 +4205,7 @@ const HOME_PAGE = read(HOME);
     ['/app/scanner/alerts', /Alerts[\s\S]{0,300}No record of matches is loaded here\. The worker keeps it on the computer it runs on; open yours on the Scanner’s dashboard/]])
     if (!want.test(text(path))) p.push(`${path}: the Unavailable tab does not keep its one-sentence reason`);
   const ti = mainOf('/trading-index');
-  if ((ti.match(/extraction script/g) || []).length !== 1 || /extract\.mjs|qtti\//.test(ti)) p.push('/trading-index: the off-page extraction script is not said once, without a file name');
+  if (!/does not read your screenshot/.test(ti) || /extraction script|extract\.mjs|qtti\//.test(ti)) p.push('/trading-index: it does not say it never reads the screenshot, or it still names an off-page extraction script');
   if (/contact address/.test(mainOf('/learn/glossary'))) p.push('/learn/glossary still says the SEC dataset waits on a contact address');
   const lab = text('/property'), quick = text('/property/calculator');
   if (!/<p class="metaline pc-driver lab-driver"[^>]*>Return driver: [a-z ]+<\/p>/.test(lab)) p.push('/property serves no "Return driver: <assumption>" line under the four tiles');

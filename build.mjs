@@ -2150,7 +2150,7 @@ export function researchFront(html, { usFile = null, companies = [] } = {}) {
     ['the search', search ? order.get(search) : -1],
     ['the examples', exs.length ? order.get(exs[0]) : -1],
     ['Recently viewed', at(n => /^h[1-6]$/.test(n.tag) && sightText(n) === 'Recently viewed')],
-    ['Saved cases', at(n => /^h[1-6]$/.test(n.tag) && sightText(n) === 'Saved cases')],
+    ['Investment cases', at(n => /^h[1-6]$/.test(n.tag) && sightText(n) === 'Investment cases')],
     ['More ways in', moreHd ? order.get(moreHd) : -1],
     ['the coverage line', at(n => n.tag === 'p' && sightText(n).includes(COVERAGE_TAIL))],
   ];

@@ -995,9 +995,9 @@ try {
 
       const tpl = SCREEN_TEMPLATES.find(t => t.untestable?.length);
       applyTemplate(tpl);
-      out.tplOn = /not evaluated/.test(document.querySelector('main').innerText);
+      out.tplOn = /not tested/.test(document.querySelector('main').innerText);
       State.screen.crit.qscore = { min: 10, max: null }; render();
-      out.tplAfterEdit = { flag: State.appliedTemplate, banner: /rule not evaluated/.test(document.querySelector('main').innerText) };
+      out.tplAfterEdit = { flag: State.appliedTemplate, banner: /rule not tested/.test(document.querySelector('main').innerText) };
 
       State.screen = blankScreen(); State.screen.mode = 'pct'; State.screen.crit = { roic: { min: 50, max: null } }; render();
       out.pctChip = [...document.querySelectorAll('main .chip.chip-brand')].map(x => x.textContent).find(t => /Return on invested capital/.test(t)) || null;
@@ -1032,7 +1032,7 @@ try {
     const p = [];
     if (r.mcapUsd.length) p.push(`a market-cap floor of $100B in USD passes ${r.mcapUsd.join(', ')}, below it once converted`);
     if (r.mos && (!/÷ price$/.test(r.mos.formula) || Math.abs(r.mos.v - r.mos.byPrice) > 0.01)) p.push(`difference to base case: formula "${r.mos.formula}", value ${r.mos.v}, (estimate − price) ÷ price = ${r.mos.byPrice}`);
-    if (!r.tplOn) p.push('the section 18.1 template shows no "not evaluated" banner');
+    if (!r.tplOn) p.push('the section 18.1 template shows no "not tested" banner');
     if (r.tplAfterEdit.flag || r.tplAfterEdit.banner) p.push(`an edited template keeps its flag or banner: ${JSON.stringify(r.tplAfterEdit)}`);
     if (!/50th pct/.test(r.pctChip || '')) p.push(`a percentile chip reads "${r.pctChip}"`);
     if (r.afterSwitch !== '{}') p.push(`thresholds survive a switch from percentile to absolute: ${r.afterSwitch}`);
@@ -1515,7 +1515,7 @@ try {
     if (!r.negRefused) p.push('a negative quantity was saved');
     if (/−100/.test(r.unpricedTile) || r.unpricedTile.trim() !== '—') p.push(`a portfolio with no priced holding shows an unrealised change of ${r.unpricedTile}`);
     if (/Crossed/.test(r.unpricedChip) || !/No price/.test(r.unpricedChip)) p.push(`an alert on an unpriced company reads: ${r.unpricedChip}`);
-    if (!(r.kinds.after < r.kinds.before) || !r.kinds.stored || r.kinds.disabled !== 3) p.push(`alert-type switches: feed ${r.kinds.before} → ${r.kinds.after}, stored ${r.kinds.stored}, ${r.kinds.disabled} disabled`);
+    if (!(r.kinds.after < r.kinds.before) || !r.kinds.stored || r.kinds.disabled !== 0) p.push(`alert-type switches: feed ${r.kinds.before} → ${r.kinds.after}, stored ${r.kinds.stored}, ${r.kinds.disabled} disabled`);
     if (!r.exportsAlerts) p.push('Export everything leaves out the price alerts');
     if (r.hollow.length) p.push(`on 66 closes these read computed with no value: ${r.hollow.join(', ')}`);
     if (r.seedLeft) p.push(`${r.seedLeft} seeded watchlists or alerts survive "Clear and start my own"`);
@@ -1725,17 +1725,17 @@ try {
     await evaluate(`openResearch('AAPL-SEC', 'snapshot'); true`); await sleep(500);
     const strip = await evaluate(`(() => {
       const chips = () => [...document.querySelectorAll('main .chip')].map(c => c.textContent);
-      const before = chips().filter(t => /^import /.test(t));
+      const before = chips().filter(t => /^data version /.test(t));
       const row = BY_ID.get('AAPL-SEC'); row.c.ingestVersion = 'sec 1.2.0';
       row.c.provenance = { ...row.c.provenance, rev: { ...row.c.provenance.rev, restated: { 2023: { from: 1, to: 2 } } } };
       render();
-      const after = chips().filter(t => /^import /.test(t));
+      const after = chips().filter(t => /^data version /.test(t));
       const restated = [...document.querySelectorAll('main .metaline')].some(p => /Restated in a later filing/.test(p.textContent) && /revenue FY2023/.test(p.textContent));
       row.c.ingestVersion = null; delete row.c.provenance.rev.restated; render();
       return { before, after, restated };
     })()`);
-    if (strip.before.join() !== 'import version not recorded') p.push(`strip without a version: ${JSON.stringify(strip.before)}`);
-    if (strip.after.join() !== 'import 1.2.0' || !strip.restated) p.push(`strip with a version and a restatement: ${JSON.stringify(strip)}`);
+    if (strip.before.join() !== 'data version not recorded') p.push(`strip without a version: ${JSON.stringify(strip.before)}`);
+    if (strip.after.join() !== 'data version 1.2.0' || !strip.restated) p.push(`strip with a version and a restatement: ${JSON.stringify(strip)}`);
     if (p.length) fail('Learn publishes the registry with blocked measures named; the provenance strip carries the ingest version', p);
     else ok(`Learn lists all ${r.n} measures in ${r.cats.length} categories with definition, inputs, unit and period, and ${r.blockedRows.length} blocked rows (${r.blockedRows.join(', ')}); the provenance strip says the shipped file has no ingest version, and names one and a restated year when the record carries them`);
   }
@@ -5468,7 +5468,7 @@ try {
           const row = scanDriftRows().find(x => x.id === 'qa-above');
           navigate('/app/scanner/setups'); await new Promise(r => setTimeout(r, 60));
           const adopt = !!document.querySelector('main button[aria-label="Adopt qa-above from the file"]');
-          const primary = !!document.querySelector('main button.btn-primary') && [...document.querySelectorAll('main button.btn-primary')].some(b => b.textContent === 'Export scan-setups.json');
+          const primary = !!document.querySelector('main button.btn-primary') && [...document.querySelectorAll('main button.btn-primary')].some(b => b.textContent === 'Export setups');
           scanSetMeta('qa-above', { deleted: null });
           scanMarkExported(scanExportDoc());
           scanSetMeta('qa-above', { deleted: '2026-09-02T00:00:00Z' });
@@ -5873,11 +5873,11 @@ try {
         const M = new Date().toISOString().slice(0, 7);
         const [y, m] = M.split('-').map(Number);
         const firstLocal = new Date(Date.UTC(y, m, 1, 0, 30) - 8 * 3600e3);
-        State.plan = 'free';
+        State.plan = 'free'; REPORT_CAP_ENFORCED = true;
         State.reportLog = { month: M, ids: ['A', 'B', 'C', 'D', 'E'] };
         const res = reportAllowed('F', firstLocal);
         const out = { ok: res.ok, month: State.reportLog.month, utc: firstLocal.toISOString() };
-        State.plan = keep.plan; State.reportLog = JSON.parse(keep.log);
+        REPORT_CAP_ENFORCED = false; State.plan = keep.plan; State.reportLog = JSON.parse(keep.log);
         return out;
       })()`);
     } finally { await send('Emulation.setTimezoneOverride', { timezoneId: '' }, sessionId); }
@@ -7632,7 +7632,7 @@ try {
         /* 3 — the bot's signals on the setups page. */
         navigate('/app/scanner/setups'); await w(200);
         const card = () => main().querySelector('details.scan-bot');
-        out.cardClosed = !!card() && !card().open && /^Add your TradingView bot’s signals/.test(card().querySelector('summary').textContent);
+        out.cardClosed = !!card() && !card().open && /^Add a TradingView bot’s signals/.test(card().querySelector('summary').textContent);
         card().querySelector('summary').click(); await w(150);
         const boxes = (sels) => [...card().querySelectorAll(sels)];
         out.syms = boxes('.scan-bot-syms input').map(i => i.getAttribute('aria-label').replace('Instrument ', '') + (i.checked ? '*' : ''));
@@ -7713,7 +7713,7 @@ try {
     else ok(`bot pages: a yes-or-no left side becomes equals 1 with a true-or-false choice for its right side, no number box, and reads "${r.flag.prose}" / "… is false …"`);
 
     const p3 = [];
-    if (!r.cardClosed) p3.push('the setups page has no closed "Add your TradingView bot’s signals" card');
+    if (!r.cardClosed) p3.push('the setups page has no closed "Add a TradingView bot’s signals" card');
     if (JSON.stringify(r.syms) !== JSON.stringify(['XAUUSD*', 'BTCUSD', 'EURUSD'])) p3.push(`instruments ${JSON.stringify(r.syms)} — XAUUSD first and ticked, the rest unticked`);
     if (JSON.stringify(r.tfs) !== JSON.stringify(['Weekly*', 'Monthly*'])) p3.push(`trade timeframes ${JSON.stringify(r.tfs)}`);
     ['Trade timeframe', 'Entry (daily)', 'Combined'].forEach(g => { if (!r.legends.includes(g)) p3.push(`no "${g}" group`); });
@@ -7730,9 +7730,9 @@ try {
     if (r.button !== `Save ${r.expected.length} setups` || !r.expected.length) p3.push(`the button reads "${r.button}" for ${r.expected.length}`);
     if (JSON.stringify(r.saved) !== JSON.stringify([...r.expected].sort()) || !r.saved.every(x => /^mtfbot-[wmd]-/.test(x))) p3.push(`saved ${JSON.stringify(r.saved)} for ${JSON.stringify(r.expected)}`);
     if (JSON.stringify(r.sources) !== '["bot"]') p3.push(`saved from ${JSON.stringify(r.sources)}`);
-    if (!new RegExp(`^Saved ${r.expected.length} setups in this browser`).test(r.status) || !r.status.includes('until you export scan-setups.json above') || !r.stillOpen || r.focus !== 'bot-create') p3.push(`after saving: "${r.status}", open ${r.stillOpen}, focus ${r.focus}`);
-    if (p3.length) fail(`bot pages: "Add your TradingView bot’s signals" offers the script's alerts as its own and saves what the engine's scanBotPack makes`, p3);
-    else ok(`bot pages: "Add your TradingView bot’s signals" offers XAUUSD first and ticked, weekly and monthly, all ${r.signals.length} of the script's alerts labelled "your script’s …" in three groups with ANY STRONG, ANY WEAK and Entry TF Trade unticked, new matches and the EMA 200 by default; it names what weekly and monthly need against 300 daily bars (about 1,000 daily bars, 4 and 17 years), saves the ${r.expected.length} setups the engine's scanBotPack makes, and says they must be exported`);
+    if (!new RegExp(`^Saved ${r.expected.length} setups in this browser`).test(r.status) || !r.status.includes('until you export your setups above') || !r.stillOpen || r.focus !== 'bot-create') p3.push(`after saving: "${r.status}", open ${r.stillOpen}, focus ${r.focus}`);
+    if (p3.length) fail(`bot pages: "Add a TradingView bot’s signals" offers the script's alerts as its own and saves what the engine's scanBotPack makes`, p3);
+    else ok(`bot pages: "Add a TradingView bot’s signals" offers XAUUSD first and ticked, weekly and monthly, all ${r.signals.length} of the script's alerts labelled "your script’s …" in three groups with ANY STRONG, ANY WEAK and Entry TF Trade unticked, new matches and the EMA 200 by default; it names what weekly and monthly need against 300 daily bars (about 1,000 daily bars, 4 and 17 years), saves the ${r.expected.length} setups the engine's scanBotPack makes, and says they must be exported`);
 
     const p4 = [];
     const weeklyLines = r.setupLines.filter(l => / on the last closed weekly bar$/.test(l)).length;
@@ -8370,7 +8370,7 @@ try {
     else ok('scanner pages: the bot\'s signals saved over a setup the worker\'s file holds at v1 adopt that v1 first and save as v2 — the export no longer carries a second v1 the worker refuses — and say so; one the file does not hold is v1');
 
     const p3 = [];
-    if (!/^Saved 2 setups in this browser at /.test(r.save1.status) || !r.save1.status.includes('until you export scan-setups.json above') || !/^Saved 2 setups in this browser — export/.test(r.save1.toast)) p3.push(`a save that changed them: "${r.save1.status}" / "${r.save1.toast}"`);
+    if (!/^Saved 2 setups in this browser at /.test(r.save1.status) || !r.save1.status.includes('until you export your setups above') || !/^Saved 2 setups in this browser — export/.test(r.save1.toast)) p3.push(`a save that changed them: "${r.save1.status}" / "${r.save1.toast}"`);
     if (!/^No change at /.test(r.save2.status) || /^Saved/.test(r.save2.toast) || !/^No change/.test(r.save2.toast)) p3.push(`a save that changed nothing: "${r.save2.status}" / "${r.save2.toast}"`);
     if (!/data\/scan-setups\.json already carries each of them as saved here/.test(r.save3.status) || /none of them records a match/.test(r.save3.status)) p3.push(`saved as the file carries them: "${r.save3.status}"`);
     if (p3.length) fail('scanner pages: the bot card says what its save did', p3);
@@ -9145,7 +9145,7 @@ try {
       await key('Enter'); await sleep(400);
       const archived = await active();
       await evaluate(`(() => { scanSetupsFile = window.__fwScan.f; scanAlertsFile = window.__fwScan.a; delete window.__fwScan; return true; })()`);
-      say(adoptOne.row && adoptAll === 'BUTTON:Export scan-setups.json' && /^BUTTON:(Disable|Enable)$/.test(adoptPage) && archived === 'BUTTON:Show every match',
+      say(adoptOne.row && adoptAll === 'BUTTON:Export setups' && /^BUTTON:(Disable|Enable)$/.test(adoptPage) && archived === 'BUTTON:Show every match',
         `SCN-07 Adopt ${adoptId} → ${adoptOne.at}${adoptOne.row ? ' (its row)' : ''}; Adopt all → ${adoptAll}; Adopt on the setup page → ${adoptPage}; Archive of every alert shown → ${archived}`);
 
       /* SHELL-12 — /index.html is the front door. */
@@ -9822,7 +9822,7 @@ try {
           if (!older.ignored.includes('watchlist')) p2.push(`the retired key "watchlist" is not named as ignored (${older.ignored.join(', ') || 'none'})`);
           if (older.refused.join() !== 'portfolios,priceAlerts') p2.push(`refused: ${older.refused.join(', ') || 'nothing'}, not the portfolio record and the empty alerts`);
           if (!Array.isArray(older.missing) || !older.missing.includes('labComparisons') || !older.missing.includes('scanSetups')) p2.push(`what the file does not carry is not named (${JSON.stringify(older.missing)?.slice(0, 120)})`);
-          if (!/Ignored, because this build does not recognise them: watchlist\./.test(older.drawer)) p2.push('the drawer does not say the retired key was ignored');
+          if (!/Ignored, because this version does not recognise them: watchlist\./.test(older.drawer)) p2.push('the drawer does not say the retired key was ignored');
           if (!/Portfolios and holdings — not restored/.test(older.drawer)) p2.push('the drawer does not say the portfolios were not restored');
           if (!/Not in this file, so kept as this browser holds them: [^.]*Scenario Lab comparisons/.test(older.drawer)) p2.push(`the drawer does not say what the file lacks is kept: "${older.drawer.slice(0, 400)}"`);
           if (!/exported under model qt-0\.9-older/.test(older.drawer)) p2.push('the drawer does not name the older model the file was exported under');
@@ -10211,7 +10211,7 @@ try {
         if (/Free float/.test(own) || !/Not held by insiders or institutions/.test(own)) out.bad.push('PGR ownership still names 100 − insiders − institutions a free float');
         const keep = { plan: State.plan, log: JSON.stringify(State.reportLog), recent: [...(State.recentCompanies || [])] };
         try {
-          State.plan = 'free';
+          State.plan = 'free'; REPORT_CAP_ENFORCED = true;
           State.reportLog = { month: meterMonth(), ids: ['KO-SEC', 'AAPL-SEC', 'MSFT-SEC', 'NVDA-SEC', 'PGR'] };
           State.recentCompanies = ['PGR', 'NVDA-SEC'];
           const g = BY_ID.get('GOOGL-SEC');
@@ -10223,6 +10223,7 @@ try {
           }
           if (State.recentCompanies[0] === 'GOOGL-SEC' || State.recentCompanies.includes('GOOGL-SEC')) out.bad.push('the refused GOOGL is listed as recently viewed: ' + State.recentCompanies.join(','));
         } finally {
+          REPORT_CAP_ENFORCED = false;
           State.plan = keep.plan; State.reportLog = JSON.parse(keep.log); store.write('reportLog', State.reportLog);
           State.recentCompanies = keep.recent; store.write('recentCompanies', keep.recent);
         }
@@ -11231,7 +11232,7 @@ try {
         /* The reader's own work: two companies opened, one on a list of their
            own, a saved property, a contract and chart evidence. */
         const opened = pick('MSFT-SEC', 'AAPL-SEC'), illus = pick('MAYBANK', 'PBBANK'), listed = pick('KO-SEC', 'NVDA-SEC');
-        State.plan = 'free'; store.write('plan', 'free');
+        State.plan = 'free'; store.write('plan', 'free'); REPORT_CAP_ENFORCED = true;
         State.recentCompanies = [opened, illus]; store.write('recentCompanies', State.recentCompanies);
         State.reportLog = { month: meterMonth(), ids: [opened] }; store.write('reportLog', State.reportLog);
         const now = new Date().toISOString();
@@ -11249,6 +11250,7 @@ try {
           return n ? { t: txt(n), report: [...n.querySelectorAll('a')].map(a => new URL(a.href).pathname).find(p => p.endsWith('/report')) || null, want: c ? companyPath(c) + '/report' : null } : null; };
         out.cos = { opened: co(opened), illus: co(illus), listed: co(listed) };
         out.meter = txt(document.getElementById('rp-meter'));
+        REPORT_CAP_ENFORCED = false;
         const pr = row('rp-properties', 'w-property-rb-1');
         out.prop = pr ? { t: txt(pr), btns: [...pr.querySelectorAll('button, a')].map(b => txt(b)) } : null;
         out.tools = ['wheel', 'tradingIndex'].map(id => { const n = row('rp-records', id); return n ? { id, t: txt(n), btns: [...n.querySelectorAll('button, a')].map(b => txt(b)) } : { id, missing: true }; });

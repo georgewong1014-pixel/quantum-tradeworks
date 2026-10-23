@@ -575,7 +575,7 @@ function qttiClearedPlan(prev, { keepRules, as = null }) {
 function qttiKind(p) {
   const ex = qttiWorkedExample();
   const same = JSON.stringify(p?.timeframes) === JSON.stringify(ex.timeframes) && JSON.stringify(p?.confidence) === JSON.stringify(ex.confidence);
-  return same ? { kind: 'illustrative', fine: 'The specification’s worked example (§14)' } : { kind: 'yours', fine: 'Computed by the model from readings you recorded' };
+  return same ? { kind: 'illustrative', fine: 'The worked example' } : { kind: 'yours', fine: 'Computed by the model from readings you recorded' };
 }
 VIEWS.tradingIndex = () => {
   const p = State.qtti;
@@ -651,7 +651,7 @@ VIEWS.tradingIndex = () => {
   /* ---------- the three numbers, §4 hierarchy ---------- */
   const card = el('div', { class: 'card' });
   card.append(cardHead('Three outputs, kept apart',
-    `Model ${QTTI_VERSION}. A single blended number would let a legible screenshot of a poor setup outscore a blurry screenshot of a good one.`, null, QKO));
+    `A single blended number would let a legible screenshot of a poor setup outscore a blurry screenshot of a good one.`, null, QKO));
 
   /* A null reads in the neutral ink whatever the measure. Colouring an absent
      value by the tone its band would have had implies a reading that was never
@@ -731,7 +731,7 @@ VIEWS.tradingIndex = () => {
     const g = el('div', { class: 'card', style: `border-left:3px solid var(${untouched ? '--bronze' : '--dn-text'})` });
     g.append(untouched
       ? cardHead('Start here', 'Nothing is recorded yet. Read your own daily, weekly and monthly charts and record what you see below — this list is what a run needs before it will produce a number.')
-      : cardHead('Not assessable', 'The screenshot evidence does not support a run. §5.4 — an unreadable chart is not bearish evidence, so nothing is scored from it.'));
+      : cardHead('Not assessable', 'The screenshot evidence does not support a run. An unreadable chart is not bearish evidence, so nothing is scored from it.'));
     const ul = el('ul', { class: 'ticklist blocklist' });
     r.reject.forEach(x => ul.append(el('li', {}, x)));
     g.append(ul);
@@ -1058,7 +1058,7 @@ VIEWS.tradingIndex = () => {
   const bd = el('div', { class: 'card' });
   bd.append(cardHead('What this will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page; it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
+    el('li', {}, 'It does not read your screenshot: every state above is one you recorded.'),
     el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs point-in-time backtesting on licensed price history, which is not available here.'),
     el('li', {}, 'It carries 0% weight in the research composite. A trend reading never moves business quality or valuation.'),
     el('li', {}, 'It does not say buy, sell or hold, and it does not size a position from your income, wealth or risk tolerance. It reports whether the rules you declared are met.'),

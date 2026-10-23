@@ -660,7 +660,7 @@ VIEWS.scannerDashboard = () => {
                                     : 'From the alerts file’s last run: no run log is on this machine, so failures are not recorded anywhere.') : null,
           la && la !== ls ? `Latest attempt ${scanOpsDay(la.startedAt)}: ${(SCAN_RUN_STATUS[la.status] || [null, la.status])[1]}.` : null]
        : [la ? `The latest attempt, ${scanOpsDay(la.startedAt)}, ${(SCAN_RUN_STATUS[la.status] || [null, 'did not complete'])[1]}.` : 'Nothing has run here.'],
-    scanOpsLink('/admin/scanner/jobs', 'Every run')));
+    null));
   const current = st.state === 'current';
   const lm = st.latestMatches;
   /* With no successful scan there is no date to be "as of", and a run the
@@ -676,7 +676,7 @@ VIEWS.scannerDashboard = () => {
   tiles.append(tile('Are notifications working?', 'In-app only',
     [st.notifications.text,
      unread == null ? (typeof scanUnreadCount === 'function' ? 'Unread in this browser: not counted — no alerts file is visible here.' : 'Unread in this browser: not counted — the alerts pages are not in this build.') : `${scanOpsPlural(unread, 'alert')} unread in this browser.`],
-    el('span', {}, [scanOpsLink('/app/scanner/settings', 'Settings'), ' · ', scanOpsLink('/admin/scanner/delivery', 'Delivery')])));
+    el('span', {}, [scanOpsLink('/app/scanner/settings', 'Settings')])));
   if (!first) wrap.append(tiles);
   else {
     /* A link built for a tile is moved here: one each, the same node. */
@@ -742,8 +742,6 @@ VIEWS.scannerDashboard = () => {
   run.append(scanOpsCmd('node scanner/scan.mjs', 'Evaluates data/scan-setups.json on data/price-history.json and appends new matches to data/scan-alerts.json. A bar already recorded is never recorded again, so running it twice is safe.'));
   run.append(scanOpsCmd('node ingest/daily.mjs', 'The daily task: your capture, then the history, then the scan — the scan only if the history step succeeded.'));
   run.append(scanOpsCmd('node scanner/scan.mjs --status', 'Prints the four answers above, from the same files, in a terminal.'));
-  run.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, [
-    'The worker’s runs, data health, errors and controls: ', scanOpsLink('/admin/scanner', 'Operations'), '.']));
   if (st.state !== 'never') run.append(el('div', { style: 'margin-top:var(--sm)' }, scanOpsOpenFiles()));
   if (!first) { wrap.append(run); return wrap; }
   /* The first view's L3: closed, its summary in sight, everything the
@@ -753,7 +751,7 @@ VIEWS.scannerDashboard = () => {
   wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
     el('summary', { class: 'scan-run-sum' }, 'Run the worker on your own computer'),
     el('div', { class: 'scan-run-body' }, [
-      el('p', { class: 'body' }, 'The worker writes its run log (data/scan-runs.json) and its record of matches (data/scan-alerts.json) on the machine that runs it. Run it once and reload; or open your own files.'),
+      el('p', { class: 'body' }, 'The worker is not distributed yet; setups can be tested here on prices you supply. If you hold its files, open them below.'),
       run, files, mon,
     ]),
   ]));
