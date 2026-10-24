@@ -392,9 +392,9 @@ const HIW_FLOW = {
   ],
   scanner: [
     ['Input', 'Your own rules — conditions on the price history you supply — and what to check: a watchlist, a market or named instruments.'],
-    ['Analysis', 'Each rule is checked on every completed daily bar, by one engine shared by this page and the worker on your computer.'],
+    ['Analysis', 'Each rule is checked on every completed daily bar, by one engine, here on the price history you supply.'],
     ['Result', 'A record of which conditions held on which bar, with their values. A record, not a signal: nothing is ranked and nothing is sent.'],
-    ['Save', 'Setups are kept in this browser with every version of each; the worker writes its matches to a file on your computer.'],
+    ['Save', 'Setups are kept in this browser with every version of each. The worker that would record matches is not distributed yet.'],
     ['Next', 'Open a match, read the values behind it, and go on to the company page where the instrument is a company, or to Tracked where it is followed by price only.'],
   ],
   property: [
@@ -751,8 +751,8 @@ const HIW_STATUS = [
   ['beta', 'Works, with data or delivery still limited as its note says.'],
   ['demo', 'Illustrative data only.'],
   ['soon', 'Not built, nothing to open.'],
-  ['delayed', 'Works, on a file older than its own date allows; its note says which file, and how old.'],
-  ['unavailable', 'Cannot work here: a file it needs did not load, or is never on this site. Shown as text, never as a link.'],
+  ['delayed', 'Works on data older than it should be; its note says which and how old.'],
+  ['unavailable', 'Cannot work here: data it needs did not load or is not on this site. Shown as text, never as a link.'],
 ];
 function hiwStatus(P) {
   const s = el('section', { class: 'hiw-status', id: 'hiw-status', 'aria-labelledby': 'hiw-status-h' });
@@ -984,7 +984,7 @@ VIEWS.launcher = () => {
   }
 
   if (L.goal === 'wheel') {
-    q('Start from what?', 'This build carries no option-chain data, so a contract is entered by hand either way.');
+    q('Start from what?', 'No option-chain data is held, so a contract is entered by hand either way.');
     const mode = seg('mode', [['own', 'My own contract'], ['example', 'A worked contract']], 'example');
     open = () => {
       /* A contract the reader entered is theirs, as the worked-example
@@ -1003,8 +1003,8 @@ VIEWS.launcher = () => {
   }
 
   if (L.goal === 'trading') {
-    q('Start from what?', 'Phase 1 reads nothing from your screenshot — every panel is transcribed by you.');
-    const mode = seg('mode', [['own', 'My own chart evidence'], ['example', 'The §14 worked example']], 'example');
+    q('Start from what?', 'Nothing is read from your screenshot; you record each panel.');
+    const mode = seg('mode', [['own', 'My own chart evidence'], ['example', 'The worked example']], 'example');
     open = () => {
       /* Chart evidence the reader transcribed — a symbol, or a panel marked
          present — is kept the same way as a contract. */
@@ -1012,7 +1012,7 @@ VIEWS.launcher = () => {
       const own = !!q && JSON.stringify(q) !== JSON.stringify(qttiWorkedExample())
         && (String(q.symbol || '').trim() !== '' || ['daily', 'weekly', 'monthly'].some(t => q.timeframes?.[t]?.present));
       if (own && mode === 'own') { navigate('/trading-index'); toast('Your chart evidence is open as you left it'); return; }
-      if (own && !confirm('Replace the chart evidence you entered with the §14 worked example? Yours is not kept.')) return;
+      if (own && !confirm('Replace the chart evidence you entered with the worked example? Yours is not kept.')) return;
       if (mode === 'example') State.qtti = qttiWorkedExample();
       else State.qtti = { ...State.qtti, symbol:'',
         timeframes:{ daily:qttiBlankPanel(), weekly:qttiBlankPanel(), monthly:qttiBlankPanel() },
@@ -1159,7 +1159,7 @@ function backupLine({ compact = false } = {}) {
     : h.since ? `${h.since} change${h.since === 1 ? '' : 's'} since` : 'no changes since';
   const p = el('p', { class: compact ? 'caption dash-backup' : 'metaline backup-line', 'data-backup-line': '', 'data-backup-state': state }, [
     compact ? 'Backup: ' : null, el('strong', {}, head), tail ? ` — ${tail}` : null, compact ? '. ' : null]);
-  if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Export from Your data & settings'));
+  if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Back up everything'));
   return p;
 }
 /* Export everything, handed over as a file, and recorded. False, said,
@@ -1232,21 +1232,25 @@ const fileHolds = (kind, body) => el('details', { class: 'explain', 'data-file-h
 
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(pageHead({ title: 'Bring your own prices', lede: 'Your prices, your backups and your settings, kept in this browser.',
+  wrap.append(pageHead({ title: 'Your data & settings', lede: 'Your prices, your backups and your settings, kept in this browser.',
     note: 'This site ships no market prices, because none of the prices it could ship are licensed for it to redistribute. Yours are a different question.' }));
   appendSampleBanner(wrap);
+  /* The cards about prices are drawn last, under their own heading, "Bring your
+     own prices" (CL-12: the page's task was the title, and sat 866 words down
+     under a heading about something else). */
+  const priceCards = [];
 
   /* Why this exists, said once and without hedging. */
   const why = el('div', { class: 'card' });
   why.append(cardHead('What happens to what you paste',
     'It stays in this browser.'));
   why.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'Held in this browser’s local storage, on this device. It is not uploaded, not sent to a server, and not visible to anyone else — this build has no accounts and no backend to send it to.'),
+    el('li', {}, 'Held in this browser’s local storage, on this device. It is not uploaded, not sent to a server, and not visible to anyone else — there are no accounts and no server to send it to.'),
     el('li', {}, 'Every figure derived from it is labelled as yours rather than treated as a source of record. A price you supplied and a licensed close are not the same evidence.'),
     el('li', {}, 'Clearing your browser data removes it. There is no copy anywhere else, so export it if it took work to assemble.'),
     el('li', {}, 'Whatever you paste remains under whatever terms you obtained it. This tool does not acquire it, republish it, or give you a right to share it — a broker export is still your broker’s data.'),
   ]));
-  wrap.append(why);
+  priceCards.push(why);
 
   /* ---------- backup, restore and saved work ----------
      This page already explained that everything lives in this browser and dies
@@ -1317,7 +1321,7 @@ VIEWS.userdata = () => {
     ]),
     el('p', { class: 'body', style: FILE_HOLDS_P }, 'Left out, because they belong to this browser:'),
     el('ul', { class: 'explain-list' }, [
-      el('li', {}, 'a fingerprint of what this browser keeps, which the pages make again from the rest;'),
+      el('li', {}, 'a check value the pages rebuild from the rest;'),
       el('li', {}, 'when this browser last exported — a file restored elsewhere was not exported from there.'),
     ]),
   ]));
@@ -1424,7 +1428,7 @@ VIEWS.userdata = () => {
     status.append(el('p', { class: 'body', style: 'font-size:13px' },
       'Without prices, anything price-derived is shown as unavailable rather than estimated: market capitalisation, multiples, dividend yield, the difference to a model estimate, and every trend indicator. The statements, scorecards and risk flags all work without them.'));
   }
-  wrap.append(status);
+  priceCards.push(status);
 
   /* ---------- everything, not only the prices ----------
      The export above covers pasted price series. Everything else a reader makes
@@ -1433,7 +1437,7 @@ VIEWS.userdata = () => {
      the longest was the work most easily lost. */
   const all = el('div', { class: 'card' });
   all.append(cardHead('Everything you have made',
-    'All of it is held in this browser and nowhere else, so this file is the only copy that survives a cleared browser, a second machine or private mode closing.'));
+    'All of it is held in this browser and nowhere else. The backup above carries it too, and your settings besides; this file holds what you made.'));
 
   const held = PORTABLE_KEYS.map(({ k, label }) => {
     const v = store.read(k, null);
@@ -1542,7 +1546,7 @@ VIEWS.userdata = () => {
 
   add.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
     'Dates must be YYYY-MM-DD, or day-first where the day is unambiguous. 03/04/2026 is refused rather than guessed — reading it the wrong way round would move the whole series by months.'));
-  wrap.append(add);
+  priceCards.push(add);
 
   /* Restore exported prices. Named for the one file it takes: as "Restore an
      export — a file previously exported from this page" it refused both the
@@ -1550,7 +1554,7 @@ VIEWS.userdata = () => {
      prices have been pasted. The other two files are pointed to the control
      that takes them. */
   const restore = el('div', { class: 'card' });
-  restore.append(cardHead('Restore exported prices', 'A file from “Export these prices” above — the price series you pasted. A backup and the Export everything file each have their own restore, further up this page.'));
+  restore.append(cardHead('Restore exported prices', 'A file saved earlier with “Export these prices” — the price series you pasted. A backup and an Export everything file each have their own restore, in the cards above.'));
   const file = el('input', { class: 'input', type: 'file', accept: '.json', 'aria-label': 'Restore exported prices' });
   file.addEventListener('change', async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -1573,7 +1577,12 @@ VIEWS.userdata = () => {
     } catch { toast('That file could not be read as JSON'); }
   });
   restore.append(file);
-  wrap.append(restore);
+  priceCards.push(restore);
+
+  const prices = el('section', { class: 'stack', id: 'user-prices', 'aria-labelledby': 'user-prices-h' });
+  prices.append(el('h2', { class: 'h-section', id: 'user-prices-h' }, 'Bring your own prices'));
+  priceCards.forEach(c => prices.append(c));
+  wrap.append(prices);
 
   return wrap;
 };
@@ -1586,7 +1595,7 @@ VIEWS.watchlists = () => {
      above it, the one page of the four that looked like a different
      product. */
   wrap.append(pageHead({ title: 'Watchlists', lede: 'Companies you follow, in lists of your own.',
-    note: 'Adding one here does not imply a view on it — it decides which companies the What changed list shows first, and a list can be handed to the scanner as its universe.' }));
+    note: 'Adding one here does not imply a view on it — it decides which companies the Current conditions list shows first, and a list can be handed to the scanner as its universe.' }));
   appendSampleBanner(wrap);
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
   /* A control of the page drawn again, by its label — where focus goes when
@@ -1651,10 +1660,10 @@ VIEWS.watchlists = () => {
        it was made, so its pages can say when a list has moved on since. */
     typeof scanExportWatchlists === 'function' ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => {
       scanExportWatchlists();
-      toast('Exported watchlists.json — save it as data/watchlists.json on the machine the scanner’s worker runs on');
+      toast('Exported watchlists.json');
     } }, 'Export for the scanner') : null]));
   ctl.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'The export carries each member’s canonical instrument id and market — the shape a scanner takes as its universe — and says it belongs to this browser. “Export for the scanner” writes the same file as watchlists.json: the scanner’s worker cannot read this browser, so a setup resolved from your latest export sees the lists as they were when you last exported them.'));
+    'The export lists each company and its market, for use as a scanner list, and says it belongs to this browser. “Export for the scanner” writes the same file as watchlists.json: the scanner’s worker cannot read this browser, so a setup resolved from your latest export sees the lists as they were when you last exported them.'));
   wrap.append(ctl);
 
   /* What to do next, with the one action the page has for it: Create, above.
@@ -1672,7 +1681,7 @@ VIEWS.watchlists = () => {
     head.append(el('input', { class: 'input input-inline', value: w.name, 'aria-label': `Name of watchlist ${w.name}`, style: 'flex:1 1 180px;font-weight:600',
       onchange: e => { const r = wlRename(w.id, e.target.value); toast(r.ok ? 'Renamed' : r.why); render(); } }));
     head.append(el('span', { class: 'chip' }, `${items.length}/${LIMITS.watchlistStocks}`));
-    head.append(el('span', { class: 'chip', title: w.createdAt ? null : (w.createdAtSource || null) }, w.createdAt ? `created ${localDayOf(w.createdAt)}` : 'created: date unknown'));
+    head.append(el('span', { class: 'chip' }, w.createdAt ? `created ${localDayOf(w.createdAt)}` : 'created: date not recorded'));
     if (w.updatedAt) head.append(el('span', { class: 'chip' }, `updated ${localDayOf(w.updatedAt)}`));
     head.append(el('span', { class: 'spacer' }));
     head.append(el('button', { class: 'btn btn-ghost btn-sm', title: 'Open the scanner builder with this list as the universe', onclick: () => {
@@ -1856,7 +1865,6 @@ function openTrendDrawer(row, t) {
   const vCard = el('div', { class: 'panel' });
   vCard.append(el('div', { class: 'row', style: 'gap:8px' }, [
     el('span', { style: 'font-weight:600;font-size:13px' }, 'Volume context'),
-    el('span', { class: 'metaline', style: 'margin-left:auto' }, 'section 13.3'),
   ]));
   if (vol.pending || !vol.points) {
     vCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
@@ -1977,7 +1985,7 @@ function supplied(k) {
    does on every other page. Privacy and Terms are drafts for counsel and
    keep their markers. */
 const supportUnavailable = () => [el('strong', {}, 'Customer support is not available yet.'),
-  ' The correction tool saves a case in this browser and prepares text for you to copy. It does not send the case or notify Quantum Tradeworks. Do not include confidential or sensitive information.'];
+  ' ', el('strong', {}, 'Report a data error'), ' records a case in this browser and gives you its text to copy; it sends nothing. Every case is listed under ', tlink('Corrections', '/corrections'), '. Do not include confidential or sensitive information.'];
 /* The supplied details of the operator, as the words that give them: the
    entity and the address when either is supplied, else null. */
 function operatorLine() {
@@ -2086,32 +2094,33 @@ VIEWS.about = () => trustPage('About',
    address — the page did not read it at all, although LAUNCH's own note
    says /contact does. */
 VIEWS.contact = () => trustPage('Contact',
-  'What works today to reach whoever is responsible for a page, a figure or a correction — and what does not exist yet.',
+  'What exists today to reach whoever is responsible for a page, a figure or a correction — and what does not exist yet.',
   [
-    ['What works today',
-      [(() => {
-        const v = OPERATOR.email.value();
+    ['What exists today',
+      [...(() => {
+        const v = supportEmail();
         return v
-          ? tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.')
-          : tp(...supportUnavailable());
+          ? [tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.'),
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step gives you the report to copy and send to that address from your own email program; the case stays recorded here, not confirmed received, and is listed under ', tlink('Corrections', '/corrections'), '.')]
+          : [tp(...supportUnavailable())];
       })(),
-       tp('One route does work. ', el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. It does not send the case: the last step hands it to you as text to copy, and every case you record is listed under ', tlink('Corrections', '/corrections'), ', ready to send once there is somewhere to send it.'),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
        ])]],
     /* Nothing supplied, nothing to list: the card appears with the first
-       detail the owner supplies, and lists only the details there are. */
-    ...(operatorValue('email') || operatorValue('address') || operatorValue('entity') ? [['Contact address',
-      [tp(operatorValue('email') ? 'Email: ' : null, operatorValue('email') ? supplied('email') : null,
-          operatorValue('email') && (operatorValue('address') || operatorValue('entity')) ? ' · ' : null,
-          operatorValue('address') ? 'Post: ' : null, operatorValue('address') ? supplied('address') : null,
+       postal detail the owner supplies, and lists only the details there
+       are. The email address is the first card's, so it is not said twice. */
+    ...(operatorValue('address') || operatorValue('entity') ? [['Contact address',
+      [tp(operatorValue('address') ? 'Post: ' : null, operatorValue('address') ? supplied('address') : null,
           operatorValue('address') && operatorValue('entity') ? ', for ' : null,
           !operatorValue('address') && operatorValue('entity') ? 'Operated by ' : null,
           operatorValue('entity') ? supplied('entity') : null, '.')]]] : []),
     ['What to include',
-      'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'],
+      'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'
+        + (supportEmail() ? ' Do not include confidential or sensitive information.' : '')],
     ['The corrections log',
-      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this build — what was wrong and what changed, dated by the change. A case you record is not added to it, because nobody has received it.')]],
+      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this product — what was wrong and what changed, dated by the change. ',
+        supportEmail() ? 'A case you record or send is not added to it; a correction it leads to is.' : 'A case you record is not added to it, because nobody has received it.')]],
   ]);
 
 VIEWS.privacy = () => {
@@ -2163,7 +2172,9 @@ VIEWS.privacy = () => {
         waitlistReady()
           ? tp('If you enter an email address in the waitlist, that address is sent to the form service configured for this deployment and used for one message about launch. Nothing else on this page is sent with it.')
           : tp('There is no form on this site that sends anything anywhere. No email address is requested and none can be submitted.'),
-        tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing — there is no contact address yet. Its last step hands you the case as text to copy; copying uses your clipboard only when you press the button.'),
+        supportEmail()
+          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing itself. Its last step hands you the case as text to copy and send to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
+          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing — there is no contact address yet. Its last step hands you the case as text to copy; copying uses your clipboard only when you press the button.'),
         tp('Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.'),
         tp('Links to outside sources — SEC EDGAR, NAPIC, Bursa Malaysia and others — take you to those sites only when you follow one. That visit is between you and that site; the policy this site is served with lets your browser tell it at most this site’s name, never the page you were on.'),
       ]],
@@ -2179,23 +2190,29 @@ VIEWS.privacy = () => {
       [tp(supplied('entity'), ', ', supplied('address'), ', operating this site at ', supplied('domain'), '.'),
        'No operating entity has been registered yet. The data user named here will be responsible for any personal data a launch collects; this build collects none on a server.']],
     ['What personal data is processed, and where it comes from',
-      ['Today this build collects none. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. The only personal data that reaches anyone is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
-       'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address and message if you write to the contact address; your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']],
+      supportEmail()
+        ? ['This build collects none on a server. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. What every web request carries reaches the host — your IP address and your browser’s name and version — as set out above.',
+           tp('If you write to ', supplied('email'), ', your email address, your message and anything you attach reach that mailbox, from you directly; it is hosted by Google, which runs the email service. Nothing else is collected.'),
+           'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']
+        : ['Today this build collects none. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. The only personal data that reaches anyone is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
+           'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address and message if you write to the contact address; your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']],
     ['Purposes',
-      'Today there are none, because nothing is collected. At launch, personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
+      (supportEmail() ? 'Today, a message you send to the contact address is used only to answer it and to check and correct the figure it is about. At launch, ' : 'Today there are none, because nothing is collected. At launch, ') + 'personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
     ['Who it is disclosed to',
-      'Today, no one: this build holds nothing to disclose. At launch, only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
+      (supportEmail() ? 'Today, no one: a message you send is held in the contact mailbox, which Google hosts, and is not passed on. At launch,' : 'Today, no one: this build holds nothing to disclose. At launch,') + ' only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
     ['Whether you must provide it',
       'Nothing is obligatory. Every page works without you giving any personal data. At launch, if you choose not to give an email address, the only consequence is that no reply or message can reach you.'],
     ['Access and correction',
       ['The Act gives you the right to ask a data user for a copy of the personal data it holds about you, to ask for it to be corrected, to withdraw your consent to its processing, and to require that it is not used for direct marketing.',
-       tp('Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. At launch, send requests to ', supplied('email'), '.')]],
+       tp('Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. ', supportEmail() ? 'Send requests to ' : 'At launch, send requests to ', supplied('email'), '.')]],
     ['Your choices',
       'You can use everything here without giving anything, and export or clear what this browser stores at any time. At launch you would be able to decline any message you did not ask for, and withdraw from one you did.'],
     ['Security and retention',
       'On your device, anyone who can use this browser profile can read what it stores — clear it on a shared computer. The site’s security policy stops the page itself connecting to any other address. At launch, personal data would be kept only as long as its purpose needs, and the period would be stated here.'],
     ['Requests and complaints',
-      [tp('Write to ', supplied('email'), ' or to ', supplied('address'), '. Until these are supplied there is no one to send a request to — and nothing held to request.'),
+      [supportEmail()
+         ? tp('Write to ', supplied('email'), '. A postal address, ', supplied('address'), ', is not published yet.')
+         : tp('Write to ', supplied('email'), ' or to ', supplied('address'), '. Until these are supplied there is no one to send a request to — and nothing held to request.'),
        'If a request is not resolved, you may complain to the Personal Data Protection Commissioner.']],
     ['Bahasa Malaysia',
       [tp('The Act requires this notice in the national language as well as in English. The Bahasa Malaysia version is ', supplied('bm'), ': it will be translated for legal use, not by machine, and until it is, this English draft is the only version.')]],

@@ -867,7 +867,7 @@ function scanExportControls({ primary = false } = {}) {
     scanMarkExported(doc);
     toast(`Exported ${scanPlural(doc.setups.length, 'setup')} — save it over data/scan-setups.json`);
     scanRender();
-  } }, 'Export scan-setups.json');
+  } }, 'Export setups');
   const cp = el('button', { class: 'btn btn-ghost btn-sm', disabled: n ? null : '', onclick: async () => {
     const doc = scanExportDoc();
     const text = JSON.stringify(doc, null, 2);
@@ -1216,15 +1216,15 @@ function scanBotResultText(r) {
     r.refused.length ? `${r.refused.length} refused` : null].filter(Boolean);
   const k = r.toExport ?? n;
   const tail = !n ? '' : k
-    ? ` ${k === n ? (n === 1 ? 'It is' : 'They are') : `${k} of them are`} not in data/scan-setups.json as saved here: the worker runs that file, so none of ${k === n ? (n === 1 ? 'it' : 'them') : 'those'} records a match until you export scan-setups.json above and save it over that file.`
+    ? ` ${k === n ? (n === 1 ? 'It is' : 'They are') : `${k} of them are`} not in data/scan-setups.json as saved here: the worker runs that file, so none of ${k === n ? (n === 1 ? 'it' : 'them') : 'those'} records a match until you export your setups above and save the file over it.`
     : r.unconfirmed ? ` ${n === 1 ? 'It is' : 'Each is'} as you last exported ${n === 1 ? 'it' : 'them'}; the worker’s file cannot be seen from here to confirm it still holds ${n === 1 ? 'it' : 'them'}.`
     : ` data/scan-setups.json already carries ${n === 1 ? 'it' : 'each of them'} as saved here, so the worker runs ${n === 1 ? 'it' : 'them'} as ${n === 1 ? 'it is' : 'they are'}.`;
   return `${head}${extra.length ? `; ${extra.join('; ')}` : ''}.${tail}`;
 }
 function scanBotCard() {
   const det = el('details', { class: 'card scan-bot', open: scanBotState.open ? '' : null });
-  det.append(el('summary', {}, [el('span', { class: 'h-card' }, 'Add your TradingView bot’s signals'),
-    el('span', { class: 'caption scan-bot-sub' }, 'Your “Multi-Timeframe Trading Bot” script’s alerts, as setups of your own: entries on the daily bar, the trade timeframe on the last closed weekly and monthly bar.')]));
+  det.append(el('summary', {}, [el('span', { class: 'h-card' }, 'Add a TradingView bot’s signals'),
+    el('span', { class: 'caption scan-bot-sub' }, 'The “Multi-Timeframe Trading Bot” script’s alerts, as setups: entries on the daily bar, the trade timeframe on the last closed weekly and monthly bar.')]));
   const body = el('div', { class: 'scan-bot-body' });
   det.append(body);
   let built = false;
@@ -1321,7 +1321,7 @@ function scanBotForm() {
     const n = res.ids.length, changed = scanBotChanged(res);
     toast(!n ? `Not saved — ${res.refused[0]}`
       : !changed ? `No change — ${n === 1 ? 'the setup is' : `the ${n} setups are`} saved here as chosen already`
-      : `Saved ${scanPlural(n, 'setup')} in this browser${res.toExport ? ' — export scan-setups.json for the worker to run them' : ''}`);
+      : `Saved ${scanPlural(n, 'setup')} in this browser${res.toExport ? ' — export your setups for the worker to run them' : ''}`);
     scanRender();
   } }, 'Save these setups');
   const status = el('div', { class: 'scan-bot-status', role: 'status' });
@@ -1383,7 +1383,7 @@ VIEWS.scannerSetups = () => {
   const fileCheck = scanSetupsFile ? scanValidate(scanSetupsFile) : null;
   const head = scanPageHead('Your setups', 'Conditions you wrote, saved in this browser with every version.',
     'Exported to the file the worker reads. Nothing here proposes a setup or ranks one against another.');
-  head.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [scanLink('/app/scanner/setups/new', 'New setup', { class: 'btn btn-primary' })]));
+  head.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [scanLink('/app/scanner/setups/new', 'Create a setup', { class: 'btn btn-primary' })]));
   wrap.append(head);
 
   /* ---- the two copies ---- */
@@ -1428,7 +1428,7 @@ VIEWS.scannerSetups = () => {
     const res = fileOnly.map(r => scanAdoptFromFile(r.id));
     toast(`Adopted ${res.filter(x => x.ok).length} of ${fileOnly.length} from the file`);
     /* On to the export beneath, the next thing the adopted setups want. */
-    scanRender({ fallback: 'BUTTON:Export scan-setups.json' });
+    scanRender({ fallback: 'BUTTON:Export setups' });
   } }, `Adopt all ${fileOnly.length} from the file`));
   const exp = scanExportControls({ primary: off.some(r => r.state === 'NOT_EXPORTED' || r.state === 'BROWSER_ONLY') });
   exp.style.marginTop = 'var(--md)';
@@ -1447,7 +1447,7 @@ VIEWS.scannerSetups = () => {
       : 'Write a setup from conditions you choose — the builder offers every indicator and operator the engine evaluates, and refuses a comparison of two unrelated scales.'));
     /* One primary action on the page (Release B, B5): the head's "New setup"
        is it, and this, the same address, stays quiet beside the words. */
-    e.append(el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--md)' }, scanLink('/app/scanner/setups/new', 'Write a setup', { class: 'btn btn-ghost btn-sm' })));
+    e.append(el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--md)' }, scanLink('/app/scanner/setups/new', 'Create a setup', { class: 'btn btn-ghost btn-sm' })));
     wrap.append(e);
   } else {
     const list = el('div', { class: 'card' });
@@ -1715,7 +1715,7 @@ function scanDraftCheck(d, { mode = 'new', st = scanStoreRead() } = {}) {
   const setup = scanDraftSetup(d);
   const idProblems = [];
   let idOk = false;
-  if (!d.id) idProblems.push({ path: 'id', code: 'NO_ID', text: 'needs an id — ids are part of every alert key and of the setup’s address' });
+  if (!d.id) idProblems.push({ path: 'id', code: 'NO_ID', text: 'give the setup a name' });
   else {
     const v = scanValidate({ setups: [setup] });
     const ip = (v.problemsBySetup[d.id] || []).filter(p => p.path === 'id');
@@ -1726,7 +1726,7 @@ function scanDraftCheck(d, { mode = 'new', st = scanStoreRead() } = {}) {
     idOk = false;
     idProblems.push({ path: 'id', code: 'DUPLICATE_ID', text: st.setups[d.id].deleted
       ? 'is the id of a deleted setup — restore that one from the setups page, or choose another id'
-      : 'is already the id of a setup saved here — ids are part of every alert key, so each is used once' });
+      : 'is already the id of a setup saved here — each id is used once' });
   } else if (mode === 'new' && d.id && scanFileSetupIds().has(d.id)) {
     /* Only the browser's setups were asked, so an id the worker's file
        held and this browser had not adopted saved as a new setup's v1 —
@@ -1741,7 +1741,8 @@ function scanDraftCheck(d, { mode = 'new', st = scanStoreRead() } = {}) {
      of the file; here the snapshot is taken on save, so the reason is the
      list's. */
   const body = (probe.problemsBySetup[probeId] || []).filter(p => p.path !== 'id').map(p => (p.code === 'BAD_UNIVERSE' && d.universe?.kind === 'watchlist' && !(setup.universe?.symbols || []).length
-    ? { ...p, text: d.universe.watchlistId ? 'the watchlist holds no member with a symbol yet, so there is nothing to scan' : 'choose a watchlist' } : p));
+    ? { ...p, text: d.universe.watchlistId ? 'the watchlist holds no member with a symbol yet, so there is nothing to scan' : 'choose a watchlist' }
+    : p.code === 'BAD_UNIVERSE' && d.universe?.kind === 'symbols' && !(setup.universe?.symbols || []).length ? { ...p, text: 'name at least one symbol' } : p));
   const problems = [...idProblems, ...body];
   return { setup, problems, ready: !problems.length, normalised: probe.setups[0] || null };
 }
@@ -1977,7 +1978,7 @@ function scanBuilderView(mode) {
   }
   wrap.append(mode === 'edit'
     ? scanPageHead(`Edit ${rec.name || rec.id}`, `Currently v${rec.current}.`, `A change to what it evaluates saves as v${Math.max(...rec.versions.map(v => v.version)) + 1} and keeps every earlier version; a change to the name, description or enabled flag does not.`)
-    : scanPageHead('New setup', 'Conditions you choose, evaluated on your own history.', 'Test it here, then save it as version 1; the setups page exports it to the file the worker reads.'));
+    : scanPageHead('New setup', 'Conditions you choose, evaluated on your own history.', 'Test it here, then save it as version 1; it is kept in this browser.'));
   if (ask) {
     const p = el('div', { class: 'card scan-seed-ask', role: 'region', 'aria-label': 'A draft is already open' });
     p.append(cardHead('A draft is already open', 'This address starts a new draft, and the one open here has changes. Nothing is replaced until you choose.'));
@@ -2025,7 +2026,7 @@ function scanExamplePicker() {
   s.value = scanShownExample();
   card.append(el('div', { class: 'row row-wrap', style: 'gap:var(--sm) var(--md);align-items:flex-end' }, [
     el('div', { class: 'field', style: 'flex:1 1 260px;min-width:0;margin:0' }, [el('label', { for: id }, 'Start from an example'), s]),
-    el('p', { class: 'caption', style: 'flex:2 1 320px;margin:0;max-width:62ch' }, `The ${SCAN_EXAMPLES.setups.length} examples in scanner/setups.example.json, loaded into the draft as written. An illustration of the syntax, not a suggestion: the product proposes no setup, and no condition in them is claimed to mean anything.`),
+    el('p', { class: 'caption', style: 'flex:2 1 320px;margin:0;max-width:62ch' }, `${SCAN_EXAMPLES.setups.length} example setups, loaded into the draft as written. An illustration of the syntax, not a suggestion: the product proposes no setup, and no condition in them is claimed to mean anything.`),
   ]));
   return card;
 }
@@ -2090,7 +2091,7 @@ function scanBuilder(d, ctx) {
 
   /* ---- the setup ---- */
   const c1 = el('div', { class: 'card' });
-  c1.append(cardHead('The setup', mode === 'edit' ? 'The id is locked: it is part of every alert key and of this setup’s address.' : 'The id is part of every alert key and of the setup’s address, so it is fixed once saved.'));
+  c1.append(cardHead('The setup', mode === 'edit' ? 'The id is locked once saved.' : 'The id is filled from the name and is fixed once saved.'));
   const g1 = el('div', { class: 'grid g-2 scan-grid' });
   const slug = (v) => v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
   /* What is typed is made an id as it is typed, and the field is set to
@@ -2144,7 +2145,7 @@ function scanBuilder(d, ctx) {
       const ex = scanWatchlistExportState(u.watchlistId);
       rs.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-top:6px' }, [
         el('p', { class: 'caption scan-export-state', style: 'margin:0;flex:1 1 280px;max-width:72ch' }, ex.text),
-        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => { scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); rebuild('Export for the scanner (watchlists.json)'); } }, 'Export for the scanner'),
+        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => { scanExportWatchlists(); toast('Exported watchlists.json'); rebuild('Export for the scanner (watchlists.json)'); } }, 'Export for the scanner'),
       ]));
     }
     g2.append(rs);
@@ -2411,8 +2412,14 @@ function scanBuilder(d, ctx) {
       const grp = h.closest('.scan-cond, .field');
       if (grp) grp.classList.toggle('scan-invalid', !!ps.length);
     });
-    summary.replaceChildren(...chk.problems.map(p => el('li', {}, `${p.path ? `${p.path}: ` : ''}${p.text}`)));
-    summary.hidden = !chk.problems.length;
+    /* A blank new draft is not yet a mistake: its two missing things are said once, in the status line, and shown where they are only after the first edit. */
+    const blank = mode === 'new' && JSON.stringify(d) === JSON.stringify(scanBlankDraft());
+    if (blank) {
+      hosts.forEach((h) => { h.replaceChildren(); h.hidden = true; const grp = h.closest('.scan-cond, .field'); if (grp) grp.classList.remove('scan-invalid'); });
+    }
+    const PATH_LABEL = { id: 'Name', universe: 'Instruments' };
+    summary.replaceChildren(...(blank ? [] : chk.problems).map(p => el('li', {}, `${p.path ? `${PATH_LABEL[p.path] || p.path}: ` : ''}${p.text}`)));
+    summary.hidden = blank || !chk.problems.length;
     saveBtn.disabled = !chk.ready;
     copyBtn.disabled = !chk.ready;
     testBtn.disabled = !chk.ready || !haveHistory;
@@ -2423,8 +2430,8 @@ function scanBuilder(d, ctx) {
       const cur = scanVersionOf(rec);
       what = scanSameVersion(cur, chk.normalised) ? ` No change to what it evaluates — saving keeps v${rec.current}.` : ` What it evaluates differs from v${rec.current} — saving creates v${Math.max(...rec.versions.map(v => v.version)) + 1}.`;
     }
-    status.textContent = chk.ready ? `Ready to save.${what}` : `Not ready — ${scanPlural(chk.problems.length, 'problem')}, each shown where it is.`;
-    status.classList.toggle('scan-status-bad', !chk.ready);
+    status.textContent = chk.ready ? `Ready to save.${what}` : blank ? 'Give the setup a name and name at least one symbol to save it.' : `Not ready — ${scanPlural(chk.problems.length, 'problem')}, each shown where it is.`;
+    status.classList.toggle('scan-status-bad', !chk.ready && !blank);
     proseSpans.forEach(([span, c]) => { span.textContent = scanCondSentence(c, d.timeframe); });
     const setup = chk.setup;
     const inUni = haveHistory ? scanUniverse(setup, history, registry) : [];
@@ -2468,9 +2475,9 @@ VIEWS.scannerWatchlists = () => {
       ? `Last exported for the scanner from this browser ${scanStamp(ex.at)}, with ${scanPlural(Object.keys(ex.lists || {}).length, 'list')}.`
       : 'Not exported for the scanner from this browser yet.',
       el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => {
-        scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); scanRender();
+        scanExportWatchlists(); toast('Exported watchlists.json'); scanRender();
       } }, 'Export for the scanner')));
-    xc.append(el('p', { class: 'metaline', style: 'max-width:80ch' }, 'Save the download as data/watchlists.json where the worker runs. A setup set to resolve from your latest export reads its list from that file at every run; the worker cannot read this browser, so the list it sees is the one you last exported, and a setup whose list is not in the file is evaluated on its own snapshot and the run marked partial. Setups on a snapshot never read the file.'));
+    xc.append(el('p', { class: 'metaline', style: 'max-width:80ch' }, 'A setup set to resolve from your latest export reads its list from that file at every run; the worker cannot read this browser, so the list it sees is the one you last exported, and a setup whose list is not in the file is evaluated on its own snapshot and the run marked partial. Setups on a snapshot never read the file.'));
     wrap.append(xc);
   }
   const history = scanHistoryFile;
@@ -3196,7 +3203,7 @@ VIEWS.scannerAlert = () => {
 const SCAN_CHANNELS = [
   { id: 'EMAIL', label: 'Email', why: 'No server, and no contact address is held under a privacy notice. Email delivery is not available.' },
   { id: 'TELEGRAM', label: 'Telegram', why: 'A Telegram bot token has to live on a server, and there is none.' },
-  { id: 'PUSH', label: 'Push', why: 'Push needs a push service and a live scanner; neither exists in this build.' },
+  { id: 'PUSH', label: 'Push', why: 'Push needs a push service and a live scanner, and this site has neither.' },
 ];
 VIEWS.scannerSettings = () => {
   const wrap = scanPage();
@@ -3240,7 +3247,7 @@ VIEWS.scannerSettings = () => {
   });
   c1.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, deliveries
     ? `Channel states read from data/scan-deliveries.json${deliveries.generated ? `, written ${scanStamp(deliveries.generated)}` : ''}.`
-    : 'The worker’s delivery record (data/scan-deliveries.json) is not loaded here; the reasons above are this build’s.'));
+    : 'Delivery: in the app only.'));
   wrap.append(c1);
 
   /* ---- display ---- */

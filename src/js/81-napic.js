@@ -152,7 +152,7 @@ function officialBenchmarkPanel(city, area) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
       !division ? 'No NAPIC division is recorded for this town, so no NAPIC figures are shown.'
       : napicDivisions.get(division)?.state === 'failed'
-        ? `The NAPIC figures for the ${division} Division are not loaded in this build.`
+        ? `The NAPIC figures for the ${division} Division could not be loaded.`
         : `Loading NAPIC’s figures for the ${division} Division…`));
     return card;
   }

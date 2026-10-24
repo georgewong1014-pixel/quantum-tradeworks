@@ -631,10 +631,11 @@ function propertyModelBar(d = State.deal) {
   acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-reset', onclick: () => { newPropertyDeal({ show: false }); renderKeepFocus(); } }, 'New property'));
   const link = (path, label, id) => el('a', { class: 'btn btn-quiet btn-sm', id, href: href(path),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label);
-  /* The Scenario Lab opens on the property here, as saved and with its
-     scenarios (82-property-lab.js); the calculator's deal is not changed
-     by opening it. */
-  acts.append(el('span', { class: 'pm-links' }, [link('/property/lab', 'Scenario Lab', 'wb-property-lab'), link('/property/models', 'My properties', 'wb-property-list'), link('/my/data', 'Back up everything', 'wb-property-backup')]));
+  /* No "Scenario Lab" or "My properties" here: the tab row directly above
+     holds both (the Day-10 pre-audit, CL-22, NAV-05) — seven controls
+     stood before the first figure. The backup once there is something
+     saved to back up. */
+  if (pmAll().length) acts.append(el('span', { class: 'pm-links' }, [link('/my/data', 'Back up everything', 'wb-property-backup')]));
   bar.append(acts);
   return bar;
 }
@@ -876,7 +877,7 @@ function propertyShareRow(d = State.deal, paid = false) {
     propertyProposalNext(d),
     el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-share-report',
       title: paid ? 'The full investor report, in this section, previewed in this browser.' : 'The full investor report, in this section: the offer to preview it in this browser.',
-      onclick: jump }, 'Investor report'),
+      onclick: jump }, 'Full investor report'),
     el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
       title: `Prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open.`,
       onclick: e => { State.decisionSubject = 'property'; if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/decision-record'); } },
@@ -1084,7 +1085,7 @@ function propertyScenariosPanel(d = State.deal) {
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } },
     'Open these in the Scenario Lab')));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Each column is the calculator’s own model run on that column’s inputs: monthly position after vacancy, costs and the loan; cash required including the reserve; net yield on the price; the rent at which the monthly position is nil; and the underwriting grade. Scenarios, not forecasts — and nothing here is ranked.'));
+    'Each column is the calculator’s own model run on that column’s inputs: monthly position after vacancy, costs and the loan; cash required including the reserve; net yield on the price; the rent at which the monthly position is nil; and the research grade. Scenarios, not forecasts — and nothing here is ranked.'));
   return card;
 }
 

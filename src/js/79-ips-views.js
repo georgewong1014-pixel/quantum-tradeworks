@@ -252,7 +252,7 @@ VIEWS.ips = () => {
 
   /* §2 */
   const phil = el('div', { class: 'card' });
-  phil.append(cardHead('The ten principles', 'IPS §2. Malaysia-first, cross-asset, evidence-based.'));
+  phil.append(cardHead('The ten principles', 'Malaysia-first, cross-asset, evidence-based.'));
   const pl = el('ol', { style: 'margin:var(--md) 0 0;padding-left:1.3em;display:flex;flex-direction:column;gap:8px' });
   IPS_PRINCIPLES.forEach(p => pl.append(el('li', {}, [
     el('span', { style: 'font-weight:600' }, p.t),
@@ -313,7 +313,7 @@ VIEWS.ips = () => {
 
   /* §6.9 */
   const rej = el('div', { class: 'card' });
-  rej.append(cardHead('Auto-reject conditions', 'IPS §6.9. Under the IPS any one of these refuses regardless of every other figure. Beside each is what this engine actually does with it.'));
+  rej.append(cardHead('Auto-reject conditions', 'Any one of these refuses, whatever the other figures say. Beside each is what this product does with it.'));
   /* WHICH OF THESE THE ENGINE ACTUALLY TESTS. The card said "these are
      enforced, not listed", and three of the nine were tested nowhere — no
      gate reads oversupply, management or a promotional yield — while "no

@@ -142,7 +142,14 @@ State.reportLog = store.read('reportLog', { month: meterMonth(), ids: [] });
 State.propertyReportsBought = store.read('propertyReportsBought', []);
 
 const planOf = () => PLANS[State.plan] || PLANS.free;
-const lim = (k) => planOf().limits[k];
+/* THE MONTHLY REPORT CAP IS NOT ENFORCED WHILE NOTHING IS ON SALE (owner, 23 Oct 2026).
+   A cap with no purchase behind it refused a visitor a sixth company page with
+   a remedy the same box said could not be bought. No page refuses a visitor
+   now; the plans page still shows the cap each plan would carry, from
+   PLANS.*.limits. The check is kept whole: it comes back by setting this to
+   true when plans go on sale, and the tests set it to exercise it. */
+let REPORT_CAP_ENFORCED = false;
+const lim = (k) => (k === 'reportsPerMonth' && !REPORT_CAP_ENFORCED) ? Infinity : planOf().limits[k];
 /* Enforced once, at the point the value is used, so the stated cap and the
    contents can never disagree — including for a workspace saved under a
    higher plan and opened under a lower one. */

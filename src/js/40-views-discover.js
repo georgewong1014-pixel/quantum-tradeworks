@@ -54,7 +54,7 @@ VIEWS.researchQueue = () => {
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openDashboardCustomiser(), html: `${icon('grid')} Customise` }));
   hr.append(el('button', { class: 'btn btn-primary btn-sm', 'data-tool-path': '/discover/value-map', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
-  wrap.append(pageHead({ title: 'Research queue', lede: 'What changed in the reported figures, your watchlist first.',
+  wrap.append(pageHead({ title: 'Research queue', lede: 'What holds now in the reported figures, your watchlist first.',
     note: 'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.',
     action: hr }));
 
@@ -173,7 +173,7 @@ VIEWS.researchQueue = () => {
   const onList = FEED.filter(f => State.watchlist.includes(f.id));
   const offList = FEED.filter(f => !State.watchlist.includes(f.id));
   const ordered = [...onList, ...offList].slice(0, 9);
-  feedCard.append(cardHead('What changed', 'Fundamental, valuation and risk events computed from the reported data. Price-only moves are labelled as such.',
+  feedCard.append(cardHead('Current conditions', 'Fundamental, valuation and risk conditions computed from the reported data. Price-only moves are labelled as such.',
     el('span', { class: 'chip' }, `${ordered.length} of ${FEED.length}`)));
   const list = el('div', { class: 'notelist', style: 'display:flex;flex-direction:column;gap:8px' });
   ordered.forEach(f => {
@@ -338,7 +338,7 @@ VIEWS.researchQueue = () => {
    cards has always been kept under, and renaming it would reset every one. */
 const DASH_CARDS = [
   { k:'context',   label:'Market context strip', col:'top'  },
-  { k:'feed',      label:'What changed',         col:'main' },
+  { k:'feed',      label:'Current conditions',   col:'main' },
   { k:'watchlist', label:'Watchlist',            col:'rail' },
   { k:'discounts', label:'Largest differences between price and model estimate', col:'rail' },
   { k:'loop',      label:'The research loop',    col:'rail' },
@@ -566,11 +566,15 @@ function myDashSteps(o) {
       action: sc?.action || 'Create a setup', path: sc?.actionPath || '/app/scanner/setups/new' },
     /* The property step opens Property's landing, the Scenario Lab (D12; N3
        made /property the Lab): the price, the rent and the loan moved and
-       the figures following, before anything is typed into the calculator. */
-    { k: 'property', product: 'property', tool: 'lab', title: 'Start a property model in the Scenario Lab', done: o.dealStarted || o.propertySnaps > 0,
-      note: o.dealStarted || o.propertySnaps
+       the figures following, before anything is typed into the calculator.
+       The step wears the product's Live badge, as the homepage and /status
+       do; the Lab's Beta is said in words, as the Lab's own lede says it
+       (the Day-10 report, QT-D10-01: Live there and Beta here read as two
+       answers about one product). */
+    { k: 'property', product: 'property', title: 'Start a property model in the Scenario Lab', done: o.dealStarted || o.propertySnaps > 0,
+      note: (o.dealStarted || o.propertySnaps
         ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '.'
-        : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.',
+        : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.') + ' The Scenario Lab is beta.',
       action: pr?.action || 'Analyse a property', path: '/property' },
   ];
 }
@@ -660,7 +664,7 @@ function myDashSections(o) {
     row({ k: 'properties', ic: 'home', name: 'Saved properties', path: '/property/models', t: 'None yet',
       s: o.sampleProps ? 'Saved with only the sample inputs, a property is not counted as yours.' : 'A property you save in the Scenario Lab or the calculator.' }),
     row({ k: 'watchlists', ic: 'list', name: 'Watchlists', path: '/my/watchlists', t: 'None of your own yet',
-      s: o.sampleLists.length ? 'The sample lists are not yours, and are not counted.' : 'The companies you follow, in a list of your own.' }),
+      s: 'The companies you follow, in a list of your own.' }),
     row({ k: 'setups', ic: 'target', name: 'Scanner setups', path: '/app/scanner/setups', t: 'None yet',
       s: 'Conditions you write, checked on the price history you supply.' }),
     row({ k: 'alerts', ic: 'bell', name: 'Your alerts', path: '/my/alerts', t: 'None yet',
@@ -746,7 +750,7 @@ VIEWS.home = () => {
   /* The lede is one line — what changed — and what qualifies it is the
      head's note (pageHead, 36-layouts.js; Release B). */
   const [lede, ledeNote] = !o.hasOwn
-    ? ['Your first steps, each with its one action.', 'As you take them, this page fills with your own work — never with sample data or anyone else’s activity.']
+    ? ['Your first steps, each with its one action.', 'As you take them, this page fills with your own work.']
     : !visit.prev ? ['This is the first visit this browser has recorded.', 'From the next one, the line above says what changed in between.']
     : !o.alerts ? [`Welcome back — you were last here ${myDashWhen(visit.prev)}.`, o.setupsKnown ? 'The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : null]
     : since.length ? [`Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`, null]
@@ -788,7 +792,7 @@ VIEWS.home = () => {
     ways.append(el('h2', { id: 'dash-ways-hd', class: 'h-card' }, 'Other ways in'));
     ways.append(el('div', { class: 'dash-more' }, [
       myDashLink('/welcome', { class: 'dash-more-link' }, [el('strong', {}, 'Set your preferences'),
-        el('span', { class: 'caption' }, onboarded() && !State.onboarding?.skipped ? 'Answered — change your market, currency or level of detail.' : 'Four questions: your goal, your experience, your market and your currency.')]),
+        el('span', { class: 'caption' }, onboarded() && !State.onboarding?.skipped ? 'Answered — change your market, currency or level of detail.' : 'Three questions: how much is explained, your market and your currency.')]),
       myDashLink('/start', { class: 'dash-more-link' }, [el('strong', {}, 'Not sure where to start?'),
         el('span', { class: 'caption' }, 'Pick what you want to find out, and the right tool opens.')]),
     ]));
@@ -1008,7 +1012,7 @@ function myDashSampleNote() {
     /* What this browser was given is said by the page drawn in it (NOW,
        35-ui.js): served to a reader whose browser runs no script, it was
        given nothing. */
-    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are given to a browser running this page’s script, so other pages have something to show. This page counts none of them.' },
+    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are added to a browser on a first visit, so that the other pages have something to show. Nothing on this page counts any of the samples.' },
       'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear the sample data'),
   ]);
@@ -1235,8 +1239,8 @@ const SCREEN_TEMPLATES = [
        below the estimate, not 20% — a price-discount screen, said as the
        measure it tests (DECISIONS 3; the 20 Oct 2026 sweep, copy-equities-2). */
     why:'Business quality of 80 or better, valuation evidence of 60 or better, and a base-case model estimate at least 20% above the price — on companies with at least 80% data completeness.',
-    untestable:[{ rule:'governance_critical_flags == 0',
-      because:'No governance event register exists in this build, so the flag cannot be evaluated. Under section 4.1 an untested hard gate is manual review, not a pass — check governance yourself before treating a match as complete.' }],
+    untestable:[{ rule:'No governance red flags',
+      because:'no governance data is held, so this rule is manual review, not a pass: check governance yourself before treating a match as complete.' }],
     apply: (s) => { s.minCoverage = 80;
       s.crit = { qscore:{min:80}, vscore:{min:60}, mosBase:{min:20} };
       s.cols = ['qscore','vscore','mosBase','roic','ndEbit','dy']; } },
@@ -1745,9 +1749,9 @@ function renderScreener() {
   if (publishedScreen?.untestable?.length) {
     resCard.append(el('div', { class: 'note', style: 'margin:0;border-radius:0;border-left:3px solid var(--warn)' }, [
       el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
-        `${publishedScreen.name}${publishedScreen.spec ? ` (${publishedScreen.spec}, v${publishedScreen.version})` : ''} — ${publishedScreen.untestable.length} rule${publishedScreen.untestable.length > 1 ? 's' : ''} not evaluated`),
+        `${publishedScreen.name} — ${publishedScreen.untestable.length} rule${publishedScreen.untestable.length > 1 ? 's' : ''} not tested`),
       ...publishedScreen.untestable.map(u => el('p', { class: 'metaline', style: 'margin-top:4px' },
-        [el('code', {}, u.rule), ' — ', u.because].filter(Boolean))),
+        [u.rule, ' — ', u.because].filter(Boolean))),
       el('p', { class: 'metaline', style: 'margin-top:6px' },
         'Matches below satisfy the rules that could be tested. They are not a complete pass of this screen.'),
     ]));
@@ -2322,7 +2326,7 @@ const PROVENANCE = {
    particular cell gives is built by metricStatus from the company's own
    lines, so the legend describes the class and the cell names the instance. */
 const ABSENCE = {
-  'not reported':   { short: 'not reported', legend: 'A statement line the measure needs is not in the stored statements — for a filer, the XBRL tag did not resolve. The drawer names the line.' },
+  'not reported':   { short: 'not reported', legend: 'A statement line the measure needs is not in the stored statements — for a filer, it was not found in its SEC data. The drawer names the line.' },
   'not applicable': { short: 'n/a',          legend: 'The measure has no meaning for this business model — enterprise value on a deposit-taking balance sheet — and is excluded from the count of applicable measures rather than counted as missing.' },
   'withheld':       { short: 'withheld',     legend: 'The inputs exist and disagree with each other, a corporate action sits inside the window, or the shipped statements assembled the line by a rule since corrected. A number could be computed; it would be wrong, so it is not.' },
   /* Two routes, because a single entered price fills the ratio measures and
@@ -2454,7 +2458,7 @@ function metricStatus(r, k) {
   const lastRow = fin[fin.length - 1] || [];
   const missingLines = inputs.filter(l => LINE_COL[l] != null && !isNum(lastRow[LINE_COL[l]]));
   const noPrice = inputs.includes('price') && !isNum(c?.px?.p);
-  if (missingLines.length) return why('not reported', `${missingLines.map(l => LINE_LABEL[l]).join(', ')} ${missingLines.length === 1 ? 'is' : 'are'} not in ${c?.asAt ? `the FY${fyNow} statements stored` : 'the latest stored statements'}${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.${noPrice ? ' It also needs a price, which no licensed feed supplies — but a price alone would not fill it.' : ''}`);
+  if (missingLines.length) return why('not reported', `${missingLines.map(l => LINE_LABEL[l]).join(', ')} ${missingLines.length === 1 ? 'is' : 'are'} not in ${c?.asAt ? `the FY${fyNow} statements stored` : 'the latest stored statements'}${c?.real ? ' — it was not found in the filer’s SEC data' : ''}. Nothing is imputed.${noPrice ? ' It also needs a price, which no licensed feed supplies — but a price alone would not fill it.' : ''}`);
   /* The latest year is not the only year a growth, variability or share-count
      measure reads. META's dividend line is absent in its early stored years,
      so its dividend CAGR has no base — and the cell said "n/m" with "every
@@ -2466,7 +2470,7 @@ function metricStatus(r, k) {
     const rows = fin.slice(-span), ys = yearsOf(c).slice(-rows.length);
     return { l, years: rows.map((row, j) => (isNum(row[LINE_COL[l]]) ? null : ys[j])).filter(y => y != null) };
   }).filter(x => x.years.length);
-  if (earlier.length) return why('not reported', `${earlier.map(x => `${LINE_LABEL[x.l]} (FY${x.years.join(', FY')})`).join('; ')} ${earlier.length === 1 ? 'is' : 'are'} not in the stored statements for ${earlier.length === 1 && earlier[0].years.length === 1 ? 'a year' : 'years'} this measure reads${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
+  if (earlier.length) return why('not reported', `${earlier.map(x => `${LINE_LABEL[x.l]} (FY${x.years.join(', FY')})`).join('; ')} ${earlier.length === 1 ? 'is' : 'are'} not in the stored statements for ${earlier.length === 1 && earlier[0].years.length === 1 ? 'a year' : 'years'} this measure reads${c?.real ? ' — it was not found in the filer’s SEC data' : ''}. Nothing is imputed.`);
   /* A price is today's: as at an earlier year a measure on it would set
      today's price against that year's statements, which is no period. */
   if (c?.asAt && inputs.some(l => l === 'price' || l === 'history'))
@@ -2550,8 +2554,8 @@ function openSourceDrawer(r, f) {
   ];
   if (c.real && c.provenance) {
     const mixed = Object.entries(c.provenance).filter(([, pv]) => pv.mixedTags).map(([kk]) => kk);
-    if (mixed.length) rows.push(['Tag drift',
-      `${mixed.join(', ')} assembled from more than one XBRL tag across the window. Comparability across peers is weaker where this happens.`]);
+    if (mixed.length) rows.push(['Combined lines',
+      `${mixed.map(kk => LINE_LABEL[kk] || kk).join(', ').replace(/^./, ch => ch.toUpperCase())} ${mixed.length === 1 ? 'combines' : 'combine'} more than one reported line across the window, so ${mixed.length === 1 ? 'it compares' : 'they compare'} less well with peers.`]);
   }
   rows.forEach(([k2, v2]) => { kv.append(el('dt', {}, k2)); kv.append(el('dd', { style: 'text-align:left' }, v2)); });
   body.append(kv);
@@ -2749,7 +2753,7 @@ function edgarLinks(c, { fy = null, lines = [] } = {}) {
   out.push(
     { href: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&type=10-K&dateb=&owner=include&count=40`, label: 'Annual reports on EDGAR' },
     { href: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&owner=include&count=40`, label: 'Every filing on EDGAR' },
-    { href: `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, label: 'The companyfacts record this page was built from' },
+    { href: `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, label: 'The SEC data this page uses' },
   );
   return out;
 }
@@ -2767,7 +2771,7 @@ function edgarLinkRow(c, opts) {
 
 /* The source line of every drawer, in one sentence per kind of company. */
 const sourceSentence = (c) => c.real
-  ? (c.personal ? `Annual statements you supplied — personal research, not redistributable, retrieved ${c.retrieved}` : `SEC EDGAR companyfacts, CIK ${c.cik}, retrieved ${c.retrieved}`)
+  ? (c.personal ? `Annual statements you supplied — personal research, not redistributable, retrieved ${c.retrieved}` : `SEC EDGAR financial data, CIK ${c.cik}, retrieved ${c.retrieved}`)
   : 'Synthetic sample statement — not a filing';
 
 /* THE STATUS OF ONE STATEMENT CELL. Present: reported, calculated (a derived
@@ -2893,7 +2897,7 @@ function openMetricInfo(f) {
   const ins = FIELD_INPUTS[f.k] || [];
   const usesHistory = ins.includes('history'), usesPrice = ins.includes('price');
   const usesLines = ins.some(l => l !== 'history' && l !== 'price');
-  const LINES_SRC = 'reported statement lines — SEC EDGAR companyfacts for the filed companies, synthetic sample lines for the illustrative ones';
+  const LINES_SRC = 'reported statement lines — SEC EDGAR financial data for the filed companies, synthetic sample lines for the illustrative ones';
   const PRICE_SRC = 'the price each company holds — an end-of-day close from a price file, a price you entered, or an illustrative company’s sample price; a filed company with none has no figure';
   const source = usesHistory
     ? 'Observed daily closes you imported or captured — held in this browser or your own price file, never shipped with the site. The illustrative sample prices do not reach this measure; a company with no closes held has no figure.'
@@ -3178,7 +3182,7 @@ function exportScreen() {
   const lines = [cols.join(',')];
   rows.forEach(r => lines.push([
     r.c.tk, csv(r.c.name), r.c.mkt, r.c.ccy,
-    r.c.real ? (r.c.personal ? 'statements you supplied (personal research)' : 'SEC EDGAR companyfacts') : 'illustrative (synthetic)',
+    r.c.real ? (r.c.personal ? 'statements you supplied (personal research)' : 'SEC EDGAR financial data') : 'illustrative (synthetic)',
     isNum(r.c.px?.p) ? r.c.px.p : '',
     isNum(r.scores.quality.score) ? r.scores.quality.score : '', isNum(r.scores.value.score) ? r.scores.value.score : '',
     isNum(r.val.mos?.base) ? r.val.mos.base.toFixed(2) : '',
@@ -3478,7 +3482,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   body.append(cl);
 
   const acts = el('div', { class: 'row', style: 'gap:8px' });
-  acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => { closeDrawer(); openResearch(id, 'valuation'); } }, 'Open Valuation Studio'));
+  acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => { closeDrawer(); openResearch(id, 'valuation'); } }, 'Open Valuation tab'));
   /* A toggle that says where it stands, as the company header's does. The
      label was worked out once when the drawer opened, and toggleWatch
      redraws the page behind the drawer, not the drawer: after "Add to

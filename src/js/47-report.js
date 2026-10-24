@@ -163,7 +163,7 @@ VIEWS.researchReport = () => {
   out.append(el('h2', {}, 'Data status'));
   const ds = el('dl', { class: 'kv rr-kv' });
   const kvRow = (k, v) => { ds.append(el('dt', {}, k)); ds.append(el('dd', {}, v)); };
-  kvRow('Source', !c.real ? 'Illustrative set compiled into this build — no filing' : c.personal ? 'Annual statements from your personal-research file — not redistributable' : 'SEC EDGAR companyfacts (XBRL, us-gaap taxonomy)');
+  kvRow('Source', !c.real ? 'Illustrative set compiled into this build — no filing' : c.personal ? 'Annual statements from your personal-research file — not redistributable' : 'SEC EDGAR financial data (US GAAP)');
   if (c.real) kvRow('Retrieved', c.retrieved || 'not recorded');
   if (c.real && isNum(c.completeness)) kvRow('Statement lines present', `${Math.round(c.completeness * 100)}%`);
   const ys = yearsOf(c);

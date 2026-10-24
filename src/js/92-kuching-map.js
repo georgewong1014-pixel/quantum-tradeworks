@@ -62,7 +62,7 @@ const KM_CONF = {
     said: 'OpenStreetMap lanes carry the scheme’s name; it is drawn round the middle of those lanes.' },
 };
 const KM_NOT = {
-  weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap: held for review, not guessed.' },
+  weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap, so not placed.' },
   street: { label: 'Not placed — named after a street', said: 'A street is a line, often kilometres long; a neighbourhood’s mark on it would claim more than the name says.' },
   none: { label: 'Not placed — no OpenStreetMap match', said: 'No OpenStreetMap name matches it, and no other source this map may use places it.' },
   /* In a customer's words, and as left out of the count of schemes
@@ -145,7 +145,7 @@ function kmLicence() {
 /* --------------------------------------------------------------- the page */
 VIEWS.areaMap = () => {
   const wrap = el('div', { class: 'km-page' });
-  if (!KM_DATA) { wrap.append(emptyState('The Kuching map is not in this build.')); return wrap; }
+  if (!KM_DATA) { wrap.append(emptyState('The Kuching map is not available here.')); return wrap; }
   /* NAPIC's Kuching file, asked for as the page is first drawn: the figures
      under each scheme come with it (loadNapic redraws the page). */
   if (!napicDivisions.has('Kuching')) loadNapic('Kuching');
@@ -188,7 +188,7 @@ function areaViewsNav(here) {
 
 /* The box the map is drawn in, kept across redraws: a fresh box on a new
    visit, the same one (with its map) on a redraw of the page. */
-const KM_SERVED_SAY = 'The map is drawn here by the page’s script, from this site’s own map file. The list below has every scheme it places, with its evidence.';
+const KM_SERVED_SAY = 'The map needs JavaScript and uses this site’s own map file. The list below has every scheme it places, with its evidence.';
 function kmBox() {
   if (KM.box && KM.box.isConnected) return KM.box;
   if (KM.box && KM.map) return KM.box;
@@ -291,7 +291,7 @@ function kmList() {
     el('p', { class: 'metaline', id: 'km-find-said', 'aria-live': 'polite' }, ''),
   ]);
   card.append(find);
-  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once the page’s script has loaded NAPIC’s Kuching file; a row from one observation says so.`));
+  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once NAPIC’s Kuching figures have loaded; a row from one observation says so.`));
   const lic = kmLicence();
   if (lic) card.append(lic);
   const groups = [

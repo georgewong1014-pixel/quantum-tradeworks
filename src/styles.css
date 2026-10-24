@@ -2042,13 +2042,17 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 /* Compare details: a full-width row that says what it holds, its chevron
    turning as it opens; the comparison inside, a table on a desk and a card
    a row on a phone. */
-.plan-compare { border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--surface); box-shadow: var(--lift-1); }
+.plan-compare, .status-fold { border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--surface); box-shadow: var(--lift-1); }
 .plan-compare-sum { display: flex; align-items: center; justify-content: space-between; gap: var(--md); min-height: 52px; padding: 0 var(--lg);
   list-style: none; cursor: pointer; font-size: 15px; font-weight: var(--weight-semibold); color: var(--ink); border-radius: var(--r-lg); }
 .plan-compare-sum::-webkit-details-marker { display: none; }
 .plan-compare-chev { width: 9px; height: 9px; border-right: 2px solid var(--ink-2); border-bottom: 2px solid var(--ink-2); transform: rotate(45deg) translate(-2px, -2px); transition: transform 180ms ease; }
-.plan-compare[open] .plan-compare-chev { transform: rotate(225deg) translate(-2px, -2px); }
+.plan-compare[open] .plan-compare-chev, .status-fold[open] .plan-compare-chev { transform: rotate(225deg) translate(-2px, -2px); }
 .plan-compare-sum:hover { color: var(--brand); }
+.status-fold > .plan-compare-sum { min-height: 56px; padding: 8px var(--lg); }
+.status-fold-t { display: block; }
+.status-fold-s { display: block; font-size: 13px; font-weight: var(--weight-regular, 400); color: var(--ink-2); margin-top: 2px; }
+.status-fold-body { display: flex; flex-direction: column; gap: var(--md); padding: var(--md) var(--md) var(--md); border-top: 1px solid var(--line); }
 .plan-compare-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .plan-compare-body { display: flex; flex-direction: column; gap: var(--sm); padding: 0 var(--lg) var(--lg); border-top: 1px solid var(--line); }
 .plan-compare-body > :first-child { margin-top: var(--md); }
@@ -2064,6 +2068,8 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .plan-boundary-a { color: var(--brand); font-weight: var(--weight-semibold); text-underline-offset: 3px; display: inline-block; padding: 12px 0; }
 @media (max-width: 639.98px) {
   .plan-compare-sum { padding: 0 var(--md); }
+  .status-fold > .plan-compare-sum { padding: 8px var(--md); }
+  .status-fold-body { padding: var(--sm); }
   .plan-compare-body { padding: 0 var(--md) var(--md); }
   .plan-table, .plan-table tbody, .plan-table tr, .plan-table th, .plan-table td { display: block; width: auto; min-width: 0; }
   .plan-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

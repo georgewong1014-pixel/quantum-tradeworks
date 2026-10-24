@@ -26,9 +26,14 @@ const WORKSPACE_KINDS = [
   { id: 'comparison', label: 'Comparisons' },
   { id: 'screen',     label: 'Screens' },
   { id: 'thesis',     label: 'Investment cases' },
+  /* A saved property is a kind of its own (the Day-10 pre-audit, NAV-16):
+     filed under "Tool snapshots", the property a reader had just saved
+     was under a name that did not say property. The Cash Wheel's and the
+     Trading Index's snapshots stay tool snapshots. */
+  { id: 'property',   label: 'Properties' },
   { id: 'work',       label: 'Tool snapshots' },
 ];
-const WORKSPACE_KIND_ONE = { run: 'Valuation run', comparison: 'Comparison', screen: 'Saved screen', thesis: 'Investment case', work: 'Tool snapshot' };
+const WORKSPACE_KIND_ONE = { run: 'Valuation run', comparison: 'Comparison', screen: 'Saved screen', thesis: 'Investment case', property: 'Property', work: 'Tool snapshot' };
 const WORK_PATHS = { property: '/property/calculator', wheel: '/us-options/wheel', trading: '/research/trading-index' };
 State.workspace = { kind: 'all', q: '' };
 
@@ -130,7 +135,7 @@ function workspaceItems() {
     const prop = w.kind === 'property' && typeof pmIsProperty === 'function' && pmIsProperty(w);
     const nSc = prop ? (w.scenarios || []).length : 0;
     items.push({
-      kind: 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
+      kind: prop ? 'property' : 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
       created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
       sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
       detail: (sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
@@ -167,7 +172,7 @@ VIEWS.workspace = () => {
   /* The one head (pageHead, 36-layouts.js): under My workspace's header,
      which is drawn by the shell. */
   wrap.append(pageHead({ title: 'Everything you have saved', lede: 'Everything saved in this browser, each with the version it was saved against.',
-    note: 'Valuation runs, comparisons, screens, investment cases and tool snapshots — and whether the model or the data under each has moved since.' }));
+    note: 'Valuation runs, comparisons, screens, investment cases, properties and tool snapshots — and whether the model or the data under each has moved since.' }));
   /* The seeded investment cases are listed here, each with its "sample"
      chip, and the page said nothing more: under "Everything you have saved"
      a first visit read "2 saved items" as its own. The banner every other
@@ -187,15 +192,15 @@ VIEWS.workspace = () => {
     el('span', { class: 'chip' }, 'No account, no sync, no sharing'),
   ]));
   lim.append(el('p', { class: 'body', style: 'font-size:13px;max-width:72ch' },
-    `Nothing here leaves this device. A cleared browser, private mode or a second machine starts empty; the export on Your data & settings is the only copy that travels, and it carries every kind listed here. “Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (this build: ${currentDataText()}).`));
+    `Nothing here leaves this device. A cleared browser, private mode or a second machine starts empty; the export on Your data & settings is the only copy that travels, and it carries every kind listed here. “Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`));
   lim.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', href: href('/my/data'),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/data'); } },
-    'Export or restore everything'));
+    'Back up everything'));
   wrap.append(lim);
 
   if (!all.length) {
     wrap.append(emptyStateCta('Nothing saved yet',
-      'Save a valuation run in a company’s Valuation Studio, save a comparison, a screen or an investment case, or take a snapshot in the property, Cash Wheel or Trading Index tools — each appears here with its stamp.',
+      'Save a valuation run on a company’s Valuation tab, save a comparison, a screen or an investment case, or take a snapshot in the property, Cash Wheel or Trading Index tools — each appears here with its stamp.',
       'Open the company explorer', '/research'));
     return wrap;
   }
@@ -234,7 +239,7 @@ VIEWS.workspace = () => {
   const samplesN = all.filter(i => i.sample).length;
   const samplesSaid = !samplesN ? '' : samplesN === all.length ? (all.length === 1 ? ', a sample — not yours' : ', all samples — not yours') : `, ${samplesN} of them sample${samplesN === 1 ? '' : 's'} — not yours`;
   bar.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model or data version this build no longer carries` : ''}${unstamped ? `; ${unstamped} saved before version stamping, so whether the data under ${unstamped === 1 ? 'it' : 'them'} has moved cannot be said` : ''}${moved || unstamped ? '' : '; none saved under a model or data version this build has since replaced'}.`));
+    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model or data version that has since changed` : ''}${unstamped ? `; ${unstamped} saved before versions were recorded, so whether the data under ${unstamped === 1 ? 'it' : 'them'} has moved cannot be said` : ''}${moved || unstamped ? '' : '; none saved under a model or data version that has since changed'}.`));
   /* The summary counted only the stamped items, so one saved before stamping
      read as current while its row said it cannot be told (the 20 Oct 2026
      sweep, copy-equities-25). */
@@ -288,7 +293,7 @@ VIEWS.workspace = () => {
       el('div', { class: 'ws-name' }, [
         el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
           el('span', { class: 'chip' }, i.prop ? 'Saved property' : WORKSPACE_KIND_ONE[i.kind]),
-          i.sample ? el('span', { class: 'chip chip-bronze', title: i.sampleWhy || 'Seeded on a first visit to show what a case looks like. Not your work.' }, 'sample') : null,
+          i.sample ? el('span', { class: 'chip chip-bronze', title: i.sampleWhy || 'Added on a first visit as an example. Not your work.' }, 'sample') : null,
           i.illustrative === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
             : i.illustrative === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,
         ]),
@@ -297,8 +302,9 @@ VIEWS.workspace = () => {
       ]),
       el('div', { class: 'ws-cell' }, [el('span', { class: 'ws-label' }, 'Saved'), el('span', { class: 'num' }, fmtSaved(i.created))]),
       el('div', { class: 'ws-cell ws-ver' }, [el('span', { class: 'ws-label' }, 'Versions'),
-        el('span', {}, i.stamp?.model || i.legacy?.model || 'model not recorded'),
-        el('span', { class: 'caption' }, i.stamp ? stampDataText(i.stamp) : 'data version not recorded')]),
+        ...(i.stamp || i.legacy?.model
+          ? [el('span', {}, i.stamp?.model || i.legacy?.model), el('span', { class: 'caption' }, i.stamp ? stampDataText(i.stamp) : 'data version not recorded')]
+          : [el('span', { class: 'caption' }, 'not recorded')])]),
       el('div', { class: 'ws-cell' }, [el('span', { class: 'ws-label' }, 'Status'), status,
         i.diff.status !== 'current' ? el('span', { class: 'caption ws-why' }, i.diff.text) : null]),
       acts,

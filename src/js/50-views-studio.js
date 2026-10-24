@@ -676,7 +676,7 @@ function studioOutputs(r, inputs, redraw) {
     nineCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
       /* No price clause without a price: "against a market price of —" read
          as a sentence about a price that does not exist. */
-      `Applicable methods span ${fmtMoney(Math.min(...vals), c.ccy)} to ${fmtMoney(Math.max(...vals), c.ccy)}, with a median of ${fmtMoney(median(vals), c.ccy)}${isNum(c.px?.p) ? ` against a market price of ${fmtMoney(c.px.p, c.ccy)}` : ''}. A spread this wide is normal — the methods answer different questions.`));
+      `Applicable methods span ${fmtMoney(Math.min(...vals), c.ccy)} to ${fmtMoney(Math.max(...vals), c.ccy)}, with a median of ${fmtMoney(median(vals), c.ccy)}${isNum(c.px?.p) ? ` against ${c.real ? 'your price' : 'the sample price'} of ${fmtMoney(c.px.p, c.ccy)}` : ''}. A spread this wide is normal — the methods answer different questions.`));
   }
   nodes.push(nineCard);
 
@@ -943,7 +943,7 @@ function saveValuationRun(r, inputs) {
   if (t) {
     t.runRef = run.runId;
     saveTheses();
-    toast(`Saved and attached to your ${r.c.tk} thesis — reproducible from these inputs`);
+    toast(`Saved and attached to your ${r.c.tk} investment case — reproducible from these inputs`);
   } else {
     toast(`Saved — ${r.c.tk} valuation run, reproducible from these inputs`);
   }
@@ -962,7 +962,7 @@ function openRunDrawer(runId, ticker, from = 'workspace') {
   const r = BY_ID.get(run?.id || ticker);
   const body = el('div');
   if (!run || !r) {
-    body.append(el('p', { class: 'body' }, !run ? `The saved run this ${from === 'thesis' ? 'thesis referenced' : 'entry named'} is no longer in local storage.`
+    body.append(el('p', { class: 'body' }, !run ? `The saved run this ${from === 'thesis' ? 'investment case referenced' : 'entry named'} is no longer in local storage.`
       : `The saved run names ${run.id || ticker}, which is not in the universe loaded now, so it cannot be replayed.`));
     openDrawer('Saved valuation run', body); return;
   }
@@ -1131,15 +1131,15 @@ const APPROACH_MARGIN = 0.10;
    threshold — without that, the label is a judgement they cannot check. */
 const CONDITION_STATES = {
   breached:    { label:'Breached',              sev:'serious',
-                 rule:'The condition evaluates true on the current value.' },
+                 rule:'The condition is met on the current value.' },
   approaching: { label:'Approaching threshold', sev:'warning',
                  rule:`Not breached, but within ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value, measured as |actual − threshold| ÷ |threshold|.` },
   within:      { label:'Within threshold',      sev:'good',
                  rule:`Not breached, and further than ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value away from it.` },
   unavailable: { label:'Data unavailable',      sev:'muted',
-                 rule:'The condition is bound to no metric this build carries, so it has no source and is never treated as passing.' },
+                 rule:'No measure here can test this condition, so it has no source and is never treated as passing.' },
   awaiting:    { label:'Awaiting update',       sev:'muted',
-                 rule:'The metric exists in this build but has no current value. Not treated as passing.' },
+                 rule:'The measure has no current value yet. Not treated as passing.' },
   stale:       { label:'Data stale',            sev:'warning',
                  rule:'A value exists and was evaluated, but the statements behind it are old enough that a newer report should already have been published. Not treated as passing.' },
 };
@@ -1331,7 +1331,7 @@ function caseSnapshot(r, t = null) {
 
 function addToThesis(id) {
   const existing = State.theses.find(t => t.ticker === id);
-  if (existing) { go('thesis'); toast(`${id} already has a thesis — opened`); return; }
+  if (existing) { go('thesis'); toast(`${id} already has an investment case — opened`); return; }
   const r = BY_ID.get(id);
   const made = {
     id: 't' + Date.now(), ticker: id, oneLine: '', quality: '', valCase: '',
@@ -1570,7 +1570,7 @@ function sevenSteps(r, t) {
       ok: !sample && !!(t && t.conds?.length > suggestedConds(t).length && t.oneLine),
       note: sample ? 'The case here is a sample written into this browser, not yours — this step is open until you write your own.'
         : t ? `${t.conds.length} invalidation condition(s)${suggestedConds(t).length ? ` (${suggestedConds(t).length} suggested, not confirmed)` : ''}${t.oneLine ? '' : ', but no investment case written yet'}.`
-              : 'No thesis written for this company yet.',
+              : 'No investment case written for this company yet.',
       go: () => openResearch(c.id, 'thesis') },
     /* A review date that has passed is a check that was missed, not one that
        is scheduled — so it no longer satisfies the step. Today is the
@@ -1616,13 +1616,42 @@ function tabThesisFor(r) {
   wrap.append(sevenStepCard(r, t));
   if (!t) {
     const card = el('div', { class: 'card' });
-    card.append(cardHead('No thesis yet', 'A thesis turns a piece of research into something that can be monitored and, later, reviewed. It records what you believe, what would prove you wrong, and when you will check.'));
-    card.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => addToThesis(r.c.id) }, 'Start a thesis'));
+    card.append(cardHead('No investment case yet', 'An investment case turns a piece of research into something that can be monitored and, later, reviewed. It records what you believe, what would prove you wrong, and when you will check.'));
+    card.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => addToThesis(r.c.id) }, 'Start an investment case'));
     wrap.append(card);
     return wrap;
   }
   wrap.append(thesisCard(t, true));
   return wrap;
+}
+
+/* THE RULE FOR EACH STATE, drawn once: on a company's own investment case tab, and once at the foot of /my/theses, not under every case. */
+function caseRulesBox() {
+  /* Every state and its rule, in the place the labels are read. A reader who
+     can see "Approaching threshold" and its distance but not the rule that
+     connects them is being asked to trust an arithmetic they could check. */
+  const ruleBox = el('details', { style: 'margin-top:10px' });
+  ruleBox.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+    'How each state is decided'));
+  const ruleTable = el('table', { class: 'dt', style: 'margin-top:8px' });
+  ruleTable.append(el('thead', {}, el('tr', {}, ['State', 'Rule'].map(h =>
+    el('th', { style: 'text-align:left' }, h)))));
+  const ruleBody = el('tbody');
+  ['breached', 'approaching', 'within', 'stale', 'awaiting', 'unavailable'].forEach(k => {
+    const st = CONDITION_STATES[k];
+    ruleBody.append(el('tr', {}, [
+      el('td', { style: 'text-align:left' },
+        st.sev === 'muted' ? el('span', { class: 'caption' }, st.label) : sevChip(st.sev, st.label)),
+      el('td', { style: 'text-align:left;white-space:normal' }, st.rule),
+    ]));
+  });
+  ruleTable.append(ruleBody);
+  ruleBox.append(el('div', { class: 'tablewrap' }, ruleTable));
+  const age = dataAgeMonths();
+  ruleBox.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `Distance is shown two ways: the absolute gap in the metric's own unit — percentage points where the metric is a percentage — and that gap as a proportion of the threshold, which is the figure the ${Math.round(APPROACH_MARGIN * 100)}% margin is measured against.`
+    + (isNum(age) ? ` The oldest statements behind any condition are ${age} months old; a company's are treated as stale beyond ${STALE_AFTER_MONTHS}.` : '')));
+  return ruleBox;
 }
 
 function thesisCard(t, expanded) {
@@ -1688,7 +1717,7 @@ function thesisCard(t, expanded) {
     ? el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openSavedRun(t) },
         `Linked run ${linkedRun.runId} · ${linkedRun.saved}`)
     : el('p', { class: 'metaline' },
-        'No valuation run linked. A run saved in the Valuation Studio attaches here.')));
+        'No valuation run linked. A run saved on its Valuation tab attaches here.')));
   right.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Key risks'));
   const rl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   (t.risks.length ? t.risks : ['—']).forEach(x => rl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
@@ -1729,31 +1758,7 @@ function thesisCard(t, expanded) {
     ]));
   });
   tab.append(tb); tw.append(tab); card.append(tw);
-  /* Every state and its rule, in the place the labels are read. A reader who
-     can see "Approaching threshold" and its distance but not the rule that
-     connects them is being asked to trust an arithmetic they could check. */
-  const ruleBox = el('details', { style: 'margin-top:10px' });
-  ruleBox.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
-    'How each state is decided'));
-  const ruleTable = el('table', { class: 'dt', style: 'margin-top:8px' });
-  ruleTable.append(el('thead', {}, el('tr', {}, ['State', 'Rule'].map(h =>
-    el('th', { style: 'text-align:left' }, h)))));
-  const ruleBody = el('tbody');
-  ['breached', 'approaching', 'within', 'stale', 'awaiting', 'unavailable'].forEach(k => {
-    const st = CONDITION_STATES[k];
-    ruleBody.append(el('tr', {}, [
-      el('td', { style: 'text-align:left' },
-        st.sev === 'muted' ? el('span', { class: 'caption' }, st.label) : sevChip(st.sev, st.label)),
-      el('td', { style: 'text-align:left;white-space:normal' }, st.rule),
-    ]));
-  });
-  ruleTable.append(ruleBody);
-  ruleBox.append(el('div', { class: 'tablewrap' }, ruleTable));
-  const age = dataAgeMonths();
-  ruleBox.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    `Distance is shown two ways: the absolute gap in the metric's own unit — percentage points where the metric is a percentage — and that gap as a proportion of the threshold, which is the figure the ${Math.round(APPROACH_MARGIN * 100)}% margin is measured against.`
-    + (isNum(age) ? ` The oldest statements behind any condition are ${age} months old; a company's are treated as stale beyond ${STALE_AFTER_MONTHS}.` : '')));
-  card.append(ruleBox);
+  if (expanded) card.append(caseRulesBox());
   /* The rule for each state is in the table above, so this says only what the
      table does not lead with. (It restated Breached, Approaching and Within in
      forty words, to make room for the research record below.) */
@@ -1774,7 +1779,7 @@ function thesisCard(t, expanded) {
     reviewCount ? `Decision reviews (${reviewCount})` : 'Run a decision review'));
   foot.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(t.ticker, 'valuation') }, 'Re-run valuation'));
   foot.append(el('span', { class: 'spacer' }));
-  foot.append(el('span', { class: 'metaline' }, 'Alerts describe a change in a condition, never an action.'));
+  if (expanded) foot.append(el('span', { class: 'metaline' }, 'Alerts describe a change in a condition, never an action.'));
   card.append(foot);
   return card;
 }
@@ -1848,18 +1853,18 @@ function openThesisEditor(t) {
        today's figures, so that is what it now stands on. */
     /* A case whose company is not loaded keeps the stamp it has: there are no
        figures of today's to re-stamp it against. */
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => { clearTimeout(redrawTimer); const co = BY_ID.get(t.ticker)?.c; if (co) t.stamp = buildStamp(co); saveTheses(); closeDrawer(); render(); toast('Thesis saved'); } }, 'Save'),
+    el('button', { class: 'btn btn-primary btn-sm', onclick: () => { clearTimeout(redrawTimer); const co = BY_ID.get(t.ticker)?.c; if (co) t.stamp = buildStamp(co); saveTheses(); closeDrawer(); render(); toast('Investment case saved'); } }, 'Save'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-      if (!confirm('Delete this thesis? Its review history will be removed too.')) return;
+      if (!confirm('Delete this investment case? Its review history will be removed too.')) return;
       clearTimeout(redrawTimer);
       /* The dialog promises the review history goes with it; only the thesis
          was removed, and its reviews stayed in storage and in backups. */
       const reviews = store.read('reviews', {});
       if (reviews && t.id in reviews) { delete reviews[t.id]; store.write('reviews', reviews); }
-      State.theses = State.theses.filter(x => x.id !== t.id); saveTheses(); closeDrawer(); render(); toast('Thesis deleted');
+      State.theses = State.theses.filter(x => x.id !== t.id); saveTheses(); closeDrawer(); render(); toast('Investment case deleted');
     } }, 'Delete'),
   ]));
-  openDrawer('Edit thesis', body);
+  openDrawer('Edit investment case', body);
 }
 
 function openReview(t) {
@@ -1869,7 +1874,7 @@ function openReview(t) {
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
     'A review scores the process, not the outcome. A good decision can still lose money, and a bad one can still make it.'));
   const qs = [
-    ['Was the original thesis supported by what actually happened?', evalr.breaches.length ? `${evalr.breaches.length} invalidation condition is currently breached.` : 'No invalidation condition is currently breached.'],
+    ['Was the original investment case supported by what actually happened?', evalr.breaches.length ? `${evalr.breaches.length} invalidation condition is currently breached.` : 'No invalidation condition is currently breached.'],
     /* driverImpact returns nothing for a company no model could be built for,
        and indexing [0].label threw — the review never opened for any thesis
        on such a company. */
@@ -1933,7 +1938,7 @@ function openReview(t) {
     }];
     store.write('reviews', all);
     closeDrawer(); render();
-    toast('Review recorded against this thesis');
+    toast('Review recorded against this investment case');
   } }, 'Record review'));
   openDrawer('Decision review', body);
 }
@@ -1970,7 +1975,7 @@ VIEWS.thesis = () => {
   [['Open cases', String(State.theses.length), `${linked} linked to a saved valuation run`],
    ['Conditions breached', String(breached), breached ? 'Read the evidence before acting' : 'Nothing has changed state'],
    ['Reviews due within 30 days', String(dueSoon), 'Overdue included. Review discipline is scored, not returns'],
-   ['Watchlist coverage', `${covered}/${State.watchlist.length}`, 'Watchlist entries with a written thesis']]
+   ['Watchlist coverage', `${covered}/${State.watchlist.length}`, 'Watchlist entries with an investment case']]
    .forEach(([l, v, s]) => stats.append(el('div', { class: 'card' }, statTile(l, v, { sub: s }))));
   wrap.append(stats);
 
@@ -1978,12 +1983,15 @@ VIEWS.thesis = () => {
      case is written on a company's own Thesis tab, so the action opens the
      way to a company. It said where to go and offered no way there. */
   if (!State.theses.length) {
-    wrap.append(emptyStateCta('No investment cases yet', 'A case records what you believe about a company and what would prove you wrong. Open a company and write one from its Thesis tab.', 'Find a company', '/research'));
+    wrap.append(emptyStateCta('No investment cases yet', 'A case records what you believe about a company and what would prove you wrong. Open a company and write one from its Investment case tab.', 'Find a company', '/research'));
     return wrap;
   }
   const list = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   State.theses.forEach(t => list.append(thesisCard(t)));
   wrap.append(list);
+  /* The rule for each state and the alerts line are the same for every case: said once, here. */
+  wrap.append(el('div', { class: 'card', style: 'margin-top:var(--md)' }, [caseRulesBox(),
+    el('p', { class: 'metaline', style: 'margin-top:8px' }, 'Alerts describe a change in a condition, never an action.')]));
   return wrap;
 };
 
@@ -2009,7 +2017,7 @@ function accountingBasis(c) {
   if (c.real && c.personal) return { id: 'personal', label: 'Not stated',
     detail: 'Annual statements from your personal-research file. The file records no accounting standard, and none is inferred.' };
   if (c.real && c.mkt === 'US') return { id: 'usgaap', label: 'US GAAP',
-    detail: 'As tagged in XBRL under the us-gaap taxonomy, read from SEC companyfacts.' };
+    detail: 'As reported to the SEC (US GAAP).' };
   if (!c.real) return { id: 'illustrative', label: 'None — illustrative',
     detail: 'Synthetic figures made for demonstration. No accounting standard applies to them.' };
   return { id: 'unknown', label: 'Not stated', detail: 'The source of these statements does not record an accounting standard.' };
@@ -2034,7 +2042,7 @@ function metricCell(r, k, fmt) {
 /* A disclosure outside the statement tuple (a bank's NIM, a REIT's WALE). */
 function disclosureCell(r, v, fmt, what) {
   if (isNum(v)) return fmt(v);
-  return absentCell('not reported', `${what} is not in the figures held for ${r.c.tk}.${r.c.real ? ' SEC companyfacts, as this build reads it, carries no such disclosure.' : ''} Nothing is imputed.`);
+  return absentCell('not reported', `${what} is not in the figures held for ${r.c.tk}.${r.c.real ? ' The SEC data holds no such disclosure.' : ''} Nothing is imputed.`);
 }
 /* WHICH TWELVE MONTHS EACH COLUMN IS (the 10 Oct 2026 audit, #6). Apple's
    fiscal year ends in September and Microsoft's in June, so their latest
@@ -2498,7 +2506,7 @@ VIEWS.compare = () => {
      the statements of the year the column reads. */
   const stmtsOf = (r) => (r.c.asAt ? `the FY${r.c.asAt.fy} statements stored` : 'the latest stored statements');
   const lineCell = (r, v, lines) => isNum(v) ? money(r, v) : absentCell('not reported',
-    `${lines.map(l => LINE_LABEL[l]).join(' or ')} is not in ${stmtsOf(r)} for ${r.c.tk}${r.c.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
+    `${lines.map(l => LINE_LABEL[l]).join(' or ')} is not in ${stmtsOf(r)} for ${r.c.tk}${r.c.real ? ' — it was not found in the filer’s SEC data' : ''}. Nothing is imputed.`);
   /* The year in the scale rows' names: the one year every column reads,
      or each column's own, named beside each figure. */
   const yearWord = yrs.mode === 'common' ? (yrs.tagged ? 'each column’s year' : `FY${yrs.common}`) : 'latest year';
@@ -2846,7 +2854,7 @@ function sampleBanner() {
     /* The banner goes with what it describes, and the button with it: focus
        fell to the top of the page. It goes to the page's heading, as the
        dashboard's "Clear the sample data" sends it (40-views-discover.js). */
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear and start my own'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear the sample data'),
   ]));
   return b;
 }
@@ -2922,7 +2930,7 @@ VIEWS.portfolio = () => {
   hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openAddHolding(), html: `${icon('plus', 13)} Add holding` }));
   wrap.append(pageHead({ title: 'Understand your exposures — not a trading screen',
     lede: 'Your holdings, with business performance kept apart from currency and costs.',
-    note: 'It shows how much of the portfolio is backed by a written thesis, and it does not optimise, rebalance, or recommend an allocation.',
+    note: 'It shows how much of the portfolio is covered by an investment case, and it does not optimise, rebalance, or recommend an allocation.',
     action: hr }));
   appendSampleBanner(wrap);
 
@@ -2976,7 +2984,7 @@ VIEWS.portfolio = () => {
   hc.append(hh);
   const tw = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0' });
   const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, ['Company', 'Quantity', 'Weight', `Value (${State.baseCcy})`, 'Price return', 'Currency effect', 'Cost drag', 'Yield (gross)', 'Yield (net, illustrative)', 'Risk', 'Thesis', ''].map((h, i) =>
+  t.append(el('thead', {}, el('tr', {}, ['Company', 'Quantity', 'Weight', `Value (${State.baseCcy})`, 'Price return', 'Currency effect', 'Cost drag', 'Yield (gross)', 'Yield (net, illustrative)', 'Risk', 'Case', ''].map((h, i) =>
     el('th', { class: i === 0 ? 'pin' : '' }, h)))));
   const tb = el('tbody');
   [...pos].sort((a, b) => b.valBase - a.valBase).forEach(p => {
@@ -3026,16 +3034,15 @@ VIEWS.portfolio = () => {
     byType[p.r.c.type] = (byType[p.r.c.type] || 0) + p.valBase;
   });
   const unpricedTks = pos.filter(p => p.unpriced).map(p => p.r.c.tk);
-  const oneLeft = unpricedTks.length === 1;
   const leftOut = !unpricedTks.length ? ''
     : unpricedTks.length === pos.length ? `No price is carried for any holding here (${unpricedTks.join(', ')}), so there is no value to share out — not a share of nought.`
-    : `Left out: ${unpricedTks.join(', ')}. No price is carried for ${oneLeft ? 'it' : 'them'} here, so ${oneLeft ? 'it has' : 'they have'} no value to share — not a share of nought.`;
+    : `Left out, no price carried: ${unpricedTks.join(', ')}.`;
   [['Sector exposure', bySector], ['Business-model exposure', byType]].forEach(([label, obj]) => {
     const card = el('div', { class: 'card' });
-    card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.', null, PK));
+    card.append(cardHead(label, label === 'Sector exposure' ? 'Share of portfolio value. Concentration is a fact to notice, not a score.' : 'Share of portfolio value.', null, PK));
     /* Kept in each card: a holding left out is named beside the shares it is
        missing from (WS-06, equity-test) — not said once for both. */
-    if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
+    if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)', 'data-no-figure': '' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     /* A business model by its name, not its key (copy-equities-20). */
     const nameOf = label === 'Business-model exposure' ? archetypeName : (x => x);
@@ -3287,7 +3294,7 @@ function openPriceAlertEditor(existing) {
     : { id: `pa-${Date.now()}`, ticker: defaultId, op: '<', price: 0, note: '' };
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
-    'A price alert tells you the price moved. It does not tell you anything changed about the business — pair it with a thesis condition if you want that.'));
+    'A price alert tells you the price moved. It does not tell you anything changed about the business — pair it with a case condition if you want that.'));
 
   const f1 = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   f1.append(el('label', { for: 'pa-co' }, 'Company'));
@@ -3518,13 +3525,13 @@ function openAddHolding(existing) {
    ========================================================================== */
 
 const ALERT_KINDS = [
-  { id:'thesis',    label:'Thesis condition',      note:'Fires when a written invalidation condition changes state.' },
-  { id:'fundamental',label:'Fundamental change',   note:'A reported metric crosses a threshold you set.' },
+  { id:'thesis',    label:'Case condition',        note:'Fires when a written invalidation condition changes state.' },
+  { id:'fundamental',label:'Fundamental condition',note:'A reported metric past this tool’s fixed threshold.' },
   { id:'filing',    label:'Filing or announcement',note:'A new document is published for a company you follow.', built:false },
   { id:'dividend',  label:'Dividend and coverage', note:'A change in the distribution, or in how well cash flow covers it.' },
-  { id:'valuation', label:'Valuation band',        note:'Price enters or leaves a range you defined against your own valuation.' },
+  { id:'valuation', label:'Valuation gap',         note:'A model estimate more than 18% above the sample price.' },
   { id:'corporate', label:'Corporate action',      note:'Placement, buyback, split, or an entitlement date.', built:false },
-  { id:'risk',      label:'Risk flag',             note:'A computed risk flag changes state — leverage, dilution, cash cover, earnings variability.' },
+  { id:'risk',      label:'Risk flag',             note:'A computed risk flag is open — leverage, dilution, cash cover, earnings variability.' },
   { id:'screen',    label:'New screen match',      note:'A company enters or leaves one of your saved screens, measured against the snapshot taken when it was saved.' },
   { id:'status',    label:'Local status change',   note:'Shariah status, PN17 or GN3 classification changes.', built:false },
   { id:'price',     label:'Price move',            note:'A price threshold you set, or a large three-month move. Off by default — price alone is not new information.' },
@@ -3546,20 +3553,13 @@ const saveAlertKinds = () => store.write('alertKinds', State.alertKinds);
    which is why there is no question about goals or risk tolerance here — those
    would shape a recommendation, and this product does not make one.
    ========================================================================== */
+/* THREE QUESTIONS, NOT FOUR (Day-10 pre-audit CL-15, NAV-18). The first question was a
+   second goal picker beside /start, with a different set of five and the word
+   "goal" the corrections page says the product never asks. The one goal picker is
+   /start ("Start with a task"), the homepage's own choice of tool; a first
+   visit to /welcome ends there. The goal answer is still honoured where an
+   older record or caller carries one (FIRST, below). */
 const OB_STEPS = [
-  { key:'goal', q:'What would you like Quantum Tradeworks to help you with?',
-    note:'This decides where you land at the end, and nothing else.',
-    options:[
-      /* Qualified as each set is (the claims audit of 11 Oct 2026, rank 6;
-         F-18, R-28): the Bursa figures are an illustrative set, and nothing
-         here monitors a holding — it records it, valued where a price is
-         held or you supply one. */
-      { v:'bursa',    t:'Research Bursa companies',      n:'An illustrative set — synthetic figures, not filed statements' },
-      { v:'us',       t:'Research US companies',         n:'Filed with the SEC, audited annual statements' },
-      { v:'monitor',  t:'Record my portfolio',           n:'What you hold, valued where a price is held or you supply one' },
-      { v:'property', t:'Analyse a property',            n:'Model a purchase to its monthly cash flow' },
-      { v:'learn',    t:'Learn investment fundamentals', n:'Start with how the measures work' },
-    ] },
   { key:'level', q:'How much of this is familiar already?',
     note:'This sets how much explanation appears by default. It never changes a number, and it never changes what you are shown — only how much is said about it.',
     options:[
@@ -3590,6 +3590,7 @@ function completeOnboarding(answers) {
      visit replaced the stored record with {skipped:true}, so the level, the
      market and the currency answered last time were gone. */
   const { done: _d, at: _a, skipped: _s, ...before } = isRecord(State.onboarding) ? State.onboarding : {};
+  const firstTime = !_d;
   const done = { ...before, ...answers, done: true, at: new Date().toISOString() };
   State.onboarding = done;
   store.write('onboarding', done);
@@ -3626,7 +3627,7 @@ function completeOnboarding(answers) {
     property: () => navigate('/property/calculator'),
     learn:    () => navigate('/learn'),
   };
-  (FIRST[done.goal] || (() => navigate('/app')))();
+  (FIRST[done.goal] || (() => navigate(firstTime ? '/start' : '/app')))();
 }
 
 /* render() replaces the pressed button, so focus fell to <body> on every step

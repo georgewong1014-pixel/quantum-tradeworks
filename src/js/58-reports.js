@@ -79,7 +79,7 @@ const reportNextMonth = () => { const d = new Date(); return new Date(d.getFullY
    covers, and what this month has used. */
 function reportAllowanceLine() {
   const p = planOf(), limit = lim('reportsPerMonth');
-  if (!Number.isFinite(limit)) return `The ${p.name} plan, previewed in this browser, sets no monthly limit on company reports.`;
+  if (!Number.isFinite(limit)) return REPORT_CAP_ENFORCED ? `The ${p.name} plan, previewed in this browser, sets no monthly limit on company reports.` : 'Company reports have no monthly limit while the beta is free.';
   const used = State.reportLog.ids.length;
   const tks = State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean);
   return `The ${p.name} plan covers ${limit} distinct company reports a calendar month, and revisiting one you have already opened never costs another. `
@@ -168,7 +168,7 @@ VIEWS.reports = () => {
       'A report is one page made from your own work, laid out to print or save as PDF: a company’s research report — its statements, its measures and your valuation assumptions, with where every figure came from — a saved property’s investor report, decision record and client proposal, or the decision record of a Cash Wheel contract or of Trading Index chart evidence.'));
     empty.append(el('p', { class: 'caption' },
       'Open a company’s page, save a property, enter a contract or record chart evidence, and its report is listed here.'));
-    empty.append(reportLink(productById('equities')?.actionPath || '/research', { class: 'btn btn-primary' }, productById('equities')?.action || 'Start research'));
+    empty.append(reportLink(productById('property')?.actionPath || '/property/calculator', { class: 'btn btn-primary' }, productById('property')?.action || 'Analyse a property'));
     wrap.append(empty);
     return wrap;
   }

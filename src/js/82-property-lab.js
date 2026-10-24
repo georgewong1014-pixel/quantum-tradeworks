@@ -198,12 +198,12 @@ const LAB_FIGURES = [
        An unknown rule is unverified too; the row's calculation, the
        calculator and its ledger say which of the two each line is. */
     note: (m) => (cashPartial(m) ? cashPartial(m).short : [(m.missingCostLines || []).length ? 'so far' : null,
-      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ')),
+      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on ${feeUncertainKind(m, true)} lines` : null].filter(Boolean).join(' · ')),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
       + ` = ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}${pcShortWords(m, ['acquisition', 'financing'])}. `
       + (m.unconfirmedCost > 0
-        ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
+        ? `${labMoney(m.unconfirmedCost)} of it rests on ${feeUncertainKind(m)} lines: ${feeUncertainWords(m, labMoney)}`
         : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
       + ` (fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}).` },
   { key: 'cashflowMonthly', label: () => 'Monthly position', fmt: 'money0', help: 'propCashflow', neg: true,
@@ -695,6 +695,24 @@ function labArrive() {
       labWriteAddress(LAB[resume]);
       labUrlSeen = location.pathname + location.search;
       return;
+    }
+  }
+  /* A DEAL LINKED HERE, ?d=…, read as the calculator reads it (the Day-10
+     pre-audit, NAV-07): the homepage card's slider carries the price the
+     reader moved it to, and the Lab opened at the sample's RM572,000. The
+     linked deal becomes the calculator's deal — the one there kept aside to
+     restore, as for any link (arrivePropertyUrl, 70-property.js) — and the
+     Lab opens on it, its columns drawn afresh: a what-if moved on the deal
+     it replaced is not carried onto this one. Not with a property or a
+     saved comparison named: those open what they name. */
+  {
+    const q0 = new URLSearchParams(location.search);
+    const arrival = q0.get('d') && !q0.get('model') && !q0.get('compare') ? arrivePropertyUrl() : null;
+    if (arrival?.changed) {
+      delete LAB.deal;
+      if (labSubject === 'deal') labSubject = null;
+      /* Said as the calculator says it (VIEWS.property). */
+      if (arrival.replaced) { const note = propertyArrivalNote(arrival); setTimeout(() => toast(note), 0); }
     }
   }
   const key = location.pathname + location.search;
@@ -1267,7 +1285,7 @@ function labNextTile(P, lab, d) {
       r.closest('.lab-cmp-card')?.scrollIntoView({ block: 'start' });
       r.focus({ preventScroll: true });
     } }, 'Compare scenarios');
-    sub = 'A, B and C side by side, below';
+    sub = 'Scenarios side by side, below';
   }
   /* THE SYSTEM'S ACTION CARD: a title, one line, one call to action. */
   /* "Not saved" and "Saved" are the property's state, not a figure's kind:
@@ -1402,7 +1420,7 @@ function labPriceSection(P, lab) {
       value: isNum(d.askingPrice) ? String(d.askingPrice) : '', placeholder: 'not entered',
       onchange: (e) => { const raw = String(e.target.value).trim(); labAnswer(P, lab, 'askingPrice', raw === '' ? null : raw); } }),
   ]) : null;
-  const pick = d ? comparablesPick({ d, prefix: P.idPrefix, legend: 'Comparables this price is set against — from your register', toggle: (ids) => labAnswer(P, lab, 'comparableIds', ids) }) : null;
+  const pick = d ? comparablesPick({ d, prefix: P.idPrefix, legend: 'Your register’s comparables for this price', toggle: (ids) => labAnswer(P, lab, 'comparableIds', ids) }) : null;
   card.append(route, cards, target, tryBox, ask, pick);
   P.els.pe = { card, route, cards, tryBox, sig: null };
   return card;
@@ -1776,9 +1794,13 @@ function labSpan(col, inp) {
   if (!(hi > lo)) hi = lo + inp.step;
   return [+lo.toFixed(2), +hi.toFixed(2)];
 }
+/* A figure still the calculator's starting one says so whichever input it
+   is — inputIsSeeded, the calculator's own test (the Day-10 pre-audit,
+   CL-02): the deposit, rate, tenure, vacancy, growth and hold read
+   "Evidence: Assumed" here and "Illustrative default" on the calculator. */
 function labEvidenceWords(d, k) {
-  const ev = shownEvidence(d, k);
-  return ev === 'illustrative_default' ? 'Illustrative default — not yours, and not from any market' : `Evidence: ${evidenceOf(ev).label}`;
+  if (inputIsSeeded(d, k)) return 'Illustrative default — not yours, and not from any market';
+  return `Evidence: ${evidenceOf(shownEvidence(d, k)).label}`;
 }
 function labKnob(P, lab, col, inp) {
   const k = inp.k;
@@ -2090,7 +2112,7 @@ function labChain(P, lab, col) {
   const verdict = el('p', { class: 'ls-card-title lab-grade-verdict' }, '');
   const gate = el('p', { class: 'ls-card-sub lab-grade-gate' }, '');
   const seeWhy = lsCta('See why', { id: labId(P, 'see-why'), sr: ' — every gate behind the grade', onclick: () => lsOpenEvidence(P.els.grade?.why) });
-  const grade = lsInsightCard({ label: 'Underwriting grade', figure: letter, finding: verdict, sub: gate, cta: seeWhy, cls: 'lab-grade', attrs: { id: labId(P, 'grade') } });
+  const grade = lsInsightCard({ label: 'Research grade', figure: letter, finding: verdict, sub: gate, cta: seeWhy, cls: 'lab-grade', attrs: { id: labId(P, 'grade') } });
   seeWhy.setAttribute('aria-controls', labId(P, 'grade-why'));
   card.append(grade);
   P.els.grade = { letter, verdict, gate, seeWhy };
@@ -2203,8 +2225,12 @@ function labAlert(P, lab) {
   const d = labSubjectInputs(lab);
   const q = d && onCalc ? propertyReviewQueue(d) : [];
   if (!q.length) return null;
-  return lsAlertCard({ text: `${q.length} assumption${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
-    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''}.`,
+  /* Named as the calculator names them (CL-02): "sample inputs". Without
+     the list of three it carried: the grade beside it names the four the
+     answer rests on, and the review it opens lists all of them — the
+     words the evidence tags took (the Day-10 pre-audit, CL-02: the
+     lab-words count stays where it was). */
+  return lsAlertCard({ text: `${q.length} sample input${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
     cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
 }
 /* Where a figure is entered, only while the column IS the calculator's
@@ -2225,7 +2251,9 @@ function labWhereEntered(lab, col, key) {
    compared; the switch changes the form and the scale. */
 function labCompare(P, lab) {
   const card = el('section', { class: 'card ls-section lab-cmp-card', 'aria-labelledby': labId(P, 'cmp-h') });
-  card.append(el('h2', { class: 'h-card', id: labId(P, 'cmp-h') }, 'A, B and C side by side'));
+  /* "Scenarios", not "A, B and C": a column C is there only once added
+     (the Day-10 pre-audit, CL-23). */
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'cmp-h') }, 'Scenarios side by side'));
   const fs = el('fieldset', { class: 'lab-pick lab-pick-by' });
   fs.append(el('legend', { class: 'lab-legend' }, 'Compare by'));
   const seg = el('div', { class: 'lab-seg lab-seg-by ls-chips', role: 'presentation' });
@@ -3009,7 +3037,7 @@ const labXrUnavailable = (why) => ({ value: null, text: 'Unavailable', kind: 'un
 const LAB_XR_ROWS = [
   { id: 'cash', label: 'Cash required', cell: (f) => ({ value: f.m.safeCashRequired, text: labMoney(f.m.safeCashRequired),
       kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.safeCashRequired, fees: true }).kind,
-      sub: [cashPartial(f.m) ? cashPartial(f.m).short : (f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ') }) },
+      sub: [cashPartial(f.m) ? cashPartial(f.m).short : (f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on ${feeUncertainKind(f.m, true)} lines` : null].filter(Boolean).join(' · ') }) },
   { id: 'monthly', label: 'Monthly position', neg: true, cell: (f) => (isNum(f.m.cashflowMonthly)
       ? { value: f.m.cashflowMonthly, text: labMoney(f.m.cashflowMonthly), kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.cashflowMonthly }).kind,
           sub: f.m.taxComputed && isNum(f.m.path?.[0]?.cf) ? `after tax on the rent: ${labMoney(f.m.path[0].cf / 12)}` : 'before tax on the rent' }
@@ -3037,7 +3065,7 @@ const LAB_XR_ROWS = [
       const a = f.au, td = a.trueDiscount;
       if (!td) return { ...labXrUnavailable('needs comparable prices'), notFinal: !a.final };
       return { value: labR4(td.pct), text: `${td.amount < 0 ? '−' : ''}${auPct(td.pct)}`, kind: kindFirst([a.marketKind, a.effectiveKind]) || 'derived', notFinal: !a.final,
-        sub: `${auMoney(Math.abs(td.amount))} ${td.amount >= 0 ? 'under' : 'over'} the market value your comparables imply` };
+        sub: `${auMoney(Math.abs(td.amount))} ${td.amount >= 0 ? 'under' : 'over'} your comparables’ median` };
     } },
   { id: 'auForfeit', label: 'Forfeiture exposure', only: 'auction', cell: (f) => {
       const a = f.au, x = a.forfeiture;
@@ -3644,7 +3672,7 @@ function labPaintPanel(P, { initial = false } = {}) {
       labAttr(kn.range, 'aria-describedby', desc);
       labAttr(kn.num, 'aria-describedby', desc);
     }
-    if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', shownEvidence(d, inp.k) === 'illustrative_default'); }
+    if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', inputIsSeeded(d, inp.k)); }
     if (kn.zero) kn.zero.hidden = !(m && m.zeroRateModelled);
     if (kn.recover) labText(kn.recover, num0(d.renoValueRecoveryPct) > 0
       ? `Moves the cash required and, through the ${labPctIn(num0(d.renoValueRecoveryPct))} of it recovered at the sale, the sale value — not the rent you entered.`
@@ -3718,7 +3746,7 @@ function labPaintPanel(P, { initial = false } = {}) {
       const rank = { critical: 0, serious: 1, warning: 2 };
       const gates = g ? [...g.gates].sort((a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3)) : [];
       const score = !g ? 'No grade: the column needs a purchase price.'
-        : `${!isNum(g.score) ? 'Not scored' : g.grade === 'U' ? `Model score ${g.score}/100 — not carried into a grade` : `Score ${g.score}/100`}, on ${fmtPct(g.coverage * 100, 0)} of the framework’s weight. `
+        : `${!isNum(g.score) ? 'Not scored' : g.grade === 'U' ? `Model score ${g.score}/100 — not graded` : `Score ${g.score}/100`}; ${fmtPct(g.coverage * 100, 0)} of the score’s weighting could be assessed. `
           + 'A research grade on the evidence entered: not a bank decision, not a valuation and not legal clearance. How it is reached, pillar by pillar, is in the calculator.';
       const sig = JSON.stringify([score, gates.map(x => [x.severity, x.text, x.who || ''])]);
       if (P.els.grade.whyAt !== sig) {
@@ -3772,7 +3800,7 @@ function labPaintPanel(P, { initial = false } = {}) {
   /* The cash required by kind, written while open (and served whole). */
   if (P.els.fees && (initial || P.els.fees.node.open)) {
     labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
-      + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
+      + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on ${feeUncertainKind(m)} lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
       + ` Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}; every line’s source is on the data sources page.`);
   }
   /* ALWAYS SAID, so nothing moves under the thumb. The line appeared at the

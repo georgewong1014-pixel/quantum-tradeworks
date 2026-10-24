@@ -585,7 +585,7 @@ function importEverything(doc) {
   const known = PORTABLE_KEYS.map(x => x.k);
   const recognised = Object.keys(doc.data).filter(k => known.includes(k));
   const ignored = Object.keys(doc.data).filter(k => !known.includes(k));
-  if (!recognised.length) return { ok:false, err:'That export holds nothing this build recognises.' };
+  if (!recognised.length) return { ok:false, err:'That file holds nothing this site can restore.' };
   /* Refused key by key (see STORE_SHAPES): the rest of the file is still
      offered, and what is here now under a refused key is kept. An export
      never carries null, so a null is nothing to restore. */

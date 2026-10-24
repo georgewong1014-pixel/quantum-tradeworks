@@ -85,11 +85,11 @@ const START_HERE = {
   },
   scanner: {
     does: 'Checks rules you write against each daily close of the price history you supply.',
-    gets: 'You get a record of every bar on which a setup held, kept on your own computer and never sent. This site ships no prices: setups are written here and run where your price history is.',
+    gets: 'You see each bar on which a setup held, on price history you supply; nothing is sent. This site ships no prices, and the worker is not distributed yet.',
   },
   property: {
     does: 'Models what buying and letting a property does to your cash.',
-    gets: 'You get the monthly cash flow, rental yield, break-even rent and cash needed up front, from the figures you enter — saved to My properties with its scenarios.',
+    gets: 'You get the monthly position, rental yield, break-even rent and cash needed up front, from the figures you enter — saved to My properties with its scenarios.',
   },
 };
 /* Apple Inc., by the registry's id for the filed company. */
