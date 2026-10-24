@@ -391,8 +391,9 @@ VIEWS.areas = () => {
       : 'Filtered. The map shades the same set.', null, AK));
   gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
   /* A size container, so the recorder in its row can be as wide as what shows
-     of the table rather than the table itself — see areaRecorder. */
-  tCard.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md);container-type:inline-size' }, t));
+     of the table rather than the table itself — see areaRecorder. Not while
+     the page is the served one (.area-tablewrap, styles.css). */
+  tCard.append(el('div', { class: 'tablewrap area-tablewrap', style: 'margin-top:var(--md)' }, t));
   /* Sixteen columns can say what a locality is classified as. They cannot say
      what the classification MEANS, and the consequence is the half a buyer
      needs — "peat, 3 m or deeper" is a fact, "deep piling dominates build cost"

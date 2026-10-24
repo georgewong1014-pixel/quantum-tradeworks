@@ -135,6 +135,7 @@ try {
   console.log(`target  ${BASE}`);
   console.log(`method  sample every ${SAMPLE_MS}ms for ${WINDOW_MS / 1000}s from navigation`);
   console.log(`rule    one route, one answer per question — "${'Checking coverage'}" is not an answer\n`);
+  if (ONLY) console.log(`only    ${ONLY.join(', ')}\n`);
 
   /* Sampling runs INSIDE the page. Driving it from Node would put a round trip
      between frames and miss short-lived states — the very thing being hunted. */
@@ -313,6 +314,10 @@ try {
       return z && (Math.abs(z[0] - x) > 2 || Math.abs(z[1] - y) > 2) ? [{ k, dx: z[0] - x, dy: z[1] - y }] : [];
     });
     const pages = prerenderScope(plan).filter(s => only(s.path));
+    /* A path --only names that is neither a route above nor a served page
+       ran nothing, and must not read as a pass. */
+    const unknown = (ONLY || []).filter(p => !ROUTES.includes(p) && !pages.some(s => s.path === p) && p !== '/property/lab');
+    if (unknown.length) { failures++; console.log(`FAIL --only names ${unknown.join(', ')}, which this suite does not check`); }
     const bad = [];
     let held = [], holding = true, sid = null, holdScript = false, scriptHeld = [];
     const APP_SCRIPT = /\/assets\/app\.[0-9a-f]+\.js$/;
