@@ -3740,7 +3740,7 @@ const JOURNEYS = [
           if (oldInFile.length !== 1 || JSON.stringify(oldInFile[0]) !== OLD_KEPT)
             throw new StepError(`the file holds the older case ${oldInFile.length} time(s)${oldInFile[0] ? ', changed: ' + Object.keys(oldInFile[0]).filter(k => !(k in OLD_CASE)).join(', ') : ''}`);
         });
-        await step(j, tab, 'Clear this browser, restore the file twice: the case back once, as saved', BUDGET.load * 3 + BUDGET.action * 6, async () => {
+        await step(j, tab, 'Clear this browser, restore the file twice: the case back once, as saved, and an older case with no version added', BUDGET.load * 3 + BUDGET.action * 6, async () => {
           await tab.S('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'local_storage' });
           await tab.goto('/my/data');
           if ((await tab.eval(CASE)).n !== 0) throw new StepError('after clearing, the case is still in this browser');
