@@ -2513,6 +2513,9 @@ const HOME_PAGE = read(HOME);
     const m = mainOf(got.get(path)?.body || '');
     if (!m) continue;
     for (const a of all(m).filter(n => n.tag === 'a' && attr(n, 'href') === '/pricing')) {
+      /* A link inside a closed <details> is not in sight (the status page's register, Day-10 IW-21). */
+      let cl = a.parent; while (cl && !(cl.tag === 'details' && attr(cl, 'open') === null)) cl = cl.parent;
+      if (cl) continue;
       let blk = a.parent; while (blk && !/^(p|li|section|article|div)$/.test(blk.tag)) blk = blk.parent;
       while (blk && blk.parent && blk.tag !== '#root' && wordsIn(sight(blk)).length < 6) blk = blk.parent;
       if (!/not on sale/i.test(blk ? sight(blk) : '')) noSale.push(`${path}: "${sight(a)}"`);
@@ -3507,8 +3510,8 @@ const HOME_PAGE = read(HOME);
      nothing on this site monitors anything without prices. */
   gone(/Monitor my existing portfolio|Track what you already hold/, '"Monitor my existing portfolio — Track what you already hold"');
   /* Day-10 CL-15: /welcome no longer asks for a goal (one picker, /start), so the
-     Bursa and portfolio options it qualified are gone, not reworded. */
-  gone(/Research Bursa companies|What would you like Quantum Tradeworks to help you with/, 'a goal question on /welcome');
+     Bursa and portfolio options it qualified are no longer asked there (the
+     /welcome check below), not reworded. */
   here('/welcome', /Step 1 of 3/, '/welcome\'s three preference questions');
   said.push('/welcome asks three preference questions and no goal');
   /* 6d — the Value Map's "As of" (F-19, R-29): "Latest reported period,
@@ -3580,7 +3583,8 @@ const HOME_PAGE = read(HOME);
   const said = [];
   if (!status || status.status !== 200) p.push(`/status: ${status?.status || 'no answer'}, not 200`);
   else {
-    const tree = B.htmlTree(status.body);
+    /* The register is in a closed <details> since Day-10 IW-21; read it open here. */
+    const tree = B.htmlTree(status.body.replace(/<details class="status-fold"/g, '<details class="status-fold" open'));
     const rows = all(tree).filter(n => n.tag === 'tr');
     for (const [name, w] of Object.entries(WANT)) {
       const tr = rows.find(r => all(r).some(n => n.tag === 'div' && sight(n) === name));
@@ -4118,7 +4122,7 @@ const HOME_PAGE = read(HOME);
     if (/(\+?\d[\d\s().-]{7,}\d)/.test(body.replace(/\b(19|20)\d{2}\b/g, ''))) p.push(`${path} carries a run of digits that reads as a telephone number: "${/(\+?\d[\d\s().-]{7,}\d)/.exec(body)[0]}"`);
   }
   const contact = pageText(html('/contact'));
-  if (!/Customer support is not available yet\. Report a data error records a case in this browser and gives you its text to copy; it sends nothing\. Every case is listed under Corrections\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');
+  if (!/Customer support is not available yet\. Report a data error records a case in this browser and gives you its text to copy; it sends nothing\. Every case is listed under Corrections ?\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');
   if (/What works today|One route does work/.test(contact)) p.push('/contact still calls the report form a route that works');
   if (/<strong>Customer support is not available yet\.<\/strong>/.test(html('/contact')) === false) p.push('/contact does not bold "Customer support is not available yet."');
   if (!/The operating entity and its registered address are not published yet\./.test(pageText(html('/about')))) p.push('/about does not say the operating entity and its registered address are not published yet');
@@ -4186,7 +4190,7 @@ const HOME_PAGE = read(HOME);
     '/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists'];
   const got = await getAll(paths);
   const text = (path) => got.get(path)?.body || '';
-  const mainOf = (path) => { const m = B.allOf(B.htmlTree(text(path))).find(n => n.tag === 'main'); return m ? B.sightText(m) : ''; };
+  const mainOf = (path) => { const m = B.allOf(B.htmlTree(text(path).replace(/<details class="status-fold"/g, '<details class="status-fold" open'))).find(n => n.tag === 'main'); return m ? B.sightText(m) : ''; };
   for (const path of paths) if (got.get(path)?.status !== 200) p.push(`${path} is served ${got.get(path)?.status}`);
   const pi = mainOf('/property-investing');
   if (/fee rulebook \d|checked \d{1,2} [A-Z][a-z]{2} \d{4}/.test(pi)) p.push(`/property-investing still serves the rulebook's version or checked day: "${(/fee rulebook \d[^.]*|checked \d{1,2} [A-Z][a-z]{2} \d{4}/.exec(pi) || [''])[0]}"`);
@@ -4234,7 +4238,7 @@ const HOME_PAGE = read(HOME);
      internal vocabulary the findings named. */
 {
   const p = [];
-  const got = await getAll(['/status', '/learn/glossary', '/corrections', '/pricing', '/my/data', '/my/reports', '/contact', '/data-sources']);
+  const got = await getAll(['/welcome', '/status', '/learn/glossary', '/corrections', '/pricing', '/my/data', '/my/reports', '/contact', '/data-sources']);
   const body = (path) => got.get(path)?.body || '';
   const main = (path) => (/<main\b[\s\S]*?<\/main>/.exec(body(path)) || [''])[0];
   const text = (path) => pageText(main(path));
@@ -4255,6 +4259,7 @@ const HOME_PAGE = read(HOME);
     if (want === 'inside' && !(i > f1)) p.push(`/status: #${id} is not inside a closed section`);
   }
   const open = st.slice(0, f1);
+  if (/help you with|What would you like Quantum Tradeworks/.test(pageText(main('/welcome')))) p.push('/welcome still asks a goal question');
   for (const re of [/\bEQ-\d{3}\b/, /\bSC-\d{3}\b/, /\bP[01] ?·/, /Checked by:/, /\.mjs\b/, /docs\/phase/, /register-check/, /Receiving current build capacity/, /\bBook [12]\b/])
     if (re.test(open)) p.push(`/status: the open part of the page carries engineering detail (${re})`);
   if (/Receiving current build capacity/.test(st)) p.push('/status still defines a status as "Receiving current build capacity"');

@@ -1594,7 +1594,7 @@ try {
     if (r.rows.length !== 9 || !types.includes('Insurer') || !types.some(t => /Early-stage/.test(t)) || r.rows.some(x => x[1] === '—')) p.push(`router rows: ${JSON.stringify(r.rows)}`);
     if (!r.valueRows || r.valueRows.map(x => x[1]).join() !== r.valueWeights.join()) p.push(`valuation pillar card: ${JSON.stringify(r.valueRows)}`);
     if (JSON.stringify(r.parts) !== JSON.stringify([['mosBase', .6, -35, 45], ['fcfy', .2, 0, 9], ['dy', .2, 0, 6]])) p.push(`value score inputs: ${JSON.stringify(r.parts)}`);
-    if (!new RegExp('^All ' + r.nFields + '\\b').test(r.metrics || '') || !/not applied/.test(r.metrics) || !/not applied/.test(r.alerts || '')) p.push(`free plan card: metrics "${r.metrics}", alerts "${r.alerts}"`);
+    if (!new RegExp('^All ' + r.nFields + '\\b').test(r.metrics || '') || !/for now/.test(r.metrics) || !/for now/.test(r.alerts || '')) p.push(`free plan card: metrics "${r.metrics}", alerts "${r.alerts}"`);
     if (r.dotted.path.includes('.') || r.dotted.ticker !== 'MAYBANK' || r.dotted.tab !== 'financials') p.push(`dotted alias: ${JSON.stringify(r.dotted)}`);
     if (p.length) fail('Learn and pricing publish what the product does, and every accepted address survives a reload', p);
     else ok(`Learn routes all ${r.rows.length} company types and publishes the valuation pillar, the router tab stays on /methodology, pricing names its unapplied limits, and 1155.KL becomes ${r.dotted.path}`);
@@ -1701,7 +1701,8 @@ try {
   {
     await evaluate(`navigate('/learn/glossary')`); await sleep(500);
     const r = await evaluate(`(() => {
-      const cards = [...document.querySelectorAll('main .card')];
+      /* The property terms (Day-10 OP-19) stand before the measures; the dictionary's own cards are the rest. */
+      const cards = [...document.querySelectorAll('main .card')].filter(c => c.id !== 'property-terms');
       const heads = cards.map(c => c.querySelector('.h-card')?.textContent || '');
       const tables = [...document.querySelectorAll('main table.dict')];
       const rows = tables.flatMap(t => [...t.querySelectorAll('tbody tr')]);
@@ -7383,7 +7384,8 @@ try {
       navigate('/pricing'); await w(150);
       const c = card(), b = allBtn();
       const col = [...(c?.querySelectorAll('thead th') || [])].find(th => th.textContent.includes(PLANS.all.name));
-      const out = { launched: PLANS.all.launched, chips: col && /not launched/.test(col.textContent) ? ['Not on sale'] : [],
+      /* All-Access is no column of the comparison (Day-10 CL-32); the line below the table says it has not launched. */
+      const out = { launched: PLANS.all.launched, chips: (col && /not launched/.test(col.textContent)) || /All-Access has not launched and cannot be bought/.test(c?.innerText || '') ? ['Not on sale'] : [],
         text: c?.innerText.replace(/\\n+/g, ' / ') || '', btn: b?.textContent.trim(), primary: !!b?.classList.contains('btn-primary') };
       b.focus(); b.click(); await w(150);
       out.plan = State.plan; out.toast = document.getElementById('toast')?.textContent || '';
@@ -7825,7 +7827,7 @@ try {
     if (home.h1 !== 'Make financial decisions with greater clarity.') p.push(`homepage h1: "${home.h1}"`);
     /* D5: the kicker is the footer's tagline only; the hero is the h1, the
        lede and one action, with no "Explore products". */
-    if (home.kicker != null || home.tagline !== 'Research · Follow · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
+    if (home.kicker != null || home.tagline !== 'Research · Monitor · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
     if (home.primary.length !== 1 || home.primary[0][0] !== 'Choose a tool' || home.primary[0][1] !== '#products')
       p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
     if (home.explore !== null) p.push(`"Explore products" is back on the homepage (${home.explore})`);
