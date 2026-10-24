@@ -1184,6 +1184,11 @@ export function replaySeriesA(bar) {
   return { state: states.includes('NOT_MET') ? 'NOT_MET' : states.every(s => s === 'MET') ? 'MET' : 'UNAVAILABLE', conds };
 }
 
+/* An investment case as the site saved one before versions were recorded:
+   no stamp, no snapshot, no suggested marks (the research-case journey). */
+const OLD_CASE = { id: 'th-journey-older', ticker: 'MSFT-SEC', oneLine: 'An older case, saved before versions were recorded.', quality: '', valCase: '',
+  catalysts: [], risks: [], conds: [], horizon: '3–5 years', review: '2027-01-19', conf: 'Low', questions: [], created: '2026-09-01' };
+
 const JOURNEYS = [
   {
     id: 'equities', name: 'Equities: search, filed statements, watchlist',
@@ -3613,15 +3618,19 @@ const JOURNEYS = [
        QT-D08-01): from a filed company, a draft whose review date, horizon,
        confidence and condition are the tool's suggestions and are marked so,
        until the reader confirms or changes each; and the research as it stood
-       when the case was started, reopened from Saved work. From an empty
-       workspace of the reader's own: a fresh browser is given sample cases. */
-    id: 'research-case', name: 'Investment case: started from a company, a default confirmed, reopened from Saved work, restored from a backup',
-    storage: () => ({ theses: [] }),
+       when the case was started, reopened from Saved work. The reader's own
+       words go into it, and an older case beside it — one saved before
+       versions were recorded — must come back from the backup without a
+       version it never had (the Day-11 report, QT-D09-01, steps 4 and 11).
+       Not from a fresh browser, which is given sample cases. */
+    id: 'research-case', name: 'Investment case: started from a company, a default confirmed, written in your words, reopened from Saved work, restored from a backup',
+    storage: () => ({ theses: [OLD_CASE] }),
     outcomes: ['Start an investment case: a draft, its defaults marked suggested', 'Confirm the review date: its mark goes and the others stay',
-      'Reopen from Saved work: the research when saved, with its versions', 'Export everything: the file holds the case as saved',
-      'Clear this browser, restore the file twice: the case back once, as saved'],
+      'Reopen from Saved work and write the case in your words: the research when saved, with its versions', 'Export everything: the file holds the case as saved',
+      'Clear this browser, restore the file twice: the case back once, as saved, and an older case with no version added'],
     async run(j, tab) {
       const CO = 'AAPL-SEC', MARK = 'Suggested default — not yet confirmed by you.';
+      const WORDS = 'Journey check: a case written in the reader’s own words, kept as typed.';
       const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your investment case.';
       let id = null;
       await step(j, tab, 'Open a filed company', BUDGET.load, async () => {
@@ -3666,7 +3675,7 @@ const JOURNEYS = [
         if (!r.line || r.rows.some(s => /Next review/.test(s)) || r.rows.length !== 2) throw new StepError(`the draft block lists ${JSON.stringify(r.rows)} with its line ${r.line ? 'kept' : 'gone'} — want the horizon and the confidence, and the line, until every default is settled`);
         if (!r.focus) throw new StepError('after Confirm, keyboard focus is on nothing in the page');
       });
-      await step(j, tab, 'Reopen from Saved work: the research when saved, with its versions', BUDGET.load + BUDGET.action * 3, async () => {
+      await step(j, tab, 'Reopen from Saved work and write the case in your words: the research when saved, with its versions', BUDGET.load + BUDGET.action * 4, async () => {
         await tab.goto('/my/workspace');
         const row = `(() => { const li = [...document.querySelectorAll('.ws-list .ws-row')].find(x => /AAPL/.test(x.textContent) && /Investment case/.test(x.textContent)); return li || null; })()`;
         await tab.expect(`!!(${row})`, 'Saved work lists no investment case on AAPL');
@@ -3675,16 +3684,22 @@ const JOURNEYS = [
         if (!/Research when saved, \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC/.test(said)) throw new StepError(`the row says “${said}”, with no research when saved`);
         await tab.click(`(${row}).querySelector('.ws-open')`, 'Open on the case’s row');
         await tab.expect(`location.pathname === '/my/theses' && document.querySelector('#drawer')?.dataset.open === '1'`, 'Open did not bring up the case');
+        await tab.expect(`!!document.getElementById('th-oneLine')`, 'the case opened with no box for its one-sentence case');
+        await tab.fill(`document.getElementById('th-oneLine')`, WORDS, 'The one-sentence investment case');
+        await sleep(400);
         await tab.key('Escape');
         await tab.expect(`document.querySelector('#drawer')?.dataset.open !== '1'`, 'the case editor did not close');
         const r = await tab.eval(`(() => { const t = State.theses.find(x => x.id === ${JSON.stringify(id)}); const rec = document.getElementById('thesis-record-' + t.id);
           return { head: rec?.querySelector('h4')?.textContent.trim() || null, meta: rec?.querySelector('.metaline')?.textContent.replace(/\\s+/g, ' ').trim() || '',
             want: fmtSaved(t.snapshot.at), model: MODEL_VERSION, data: stampDataText(t.snapshot.stamp), summary: rec?.querySelector('summary')?.textContent.trim() || '',
-            review: t.suggested?.review, line: !!document.querySelector('#thesis-draft-' + t.id + ' .case-draft-line') }; })()`);
+            review: t.suggested?.review, line: !!document.querySelector('#thesis-draft-' + t.id + ' .case-draft-line'),
+            words: t.oneLine, keptWords: JSON.parse(localStorage.getItem('vl.theses')).find(x => x.id === t.id)?.oneLine ?? null,
+            shown: (document.getElementById('thesis-card-' + t.id)?.textContent || '').includes(${JSON.stringify(WORDS)}) }; })()`);
         if (r.head?.toLowerCase() !== `research when saved, ${r.want}`.toLowerCase()) throw new StepError(`the case reads “${r.head}” for its date, not “Research when saved, ${r.want}”`);
         if (!r.meta.includes(`Model version ${r.model}`) || !r.meta.includes(`Data version ${r.data}`)) throw new StepError(`its version labels read “${r.meta}”, not “Model version ${r.model} · Data version ${r.data}”`);
         if (!/^Beside today’s: none of \d+ moved$/.test(r.summary)) throw new StepError(`beside today's research the case says “${r.summary}” — nothing has moved in this run`);
         if (r.review !== false || !r.line) throw new StepError(`after reopening, the review date is ${r.review === false ? 'confirmed' : 'not confirmed'} and the draft line is ${r.line ? 'kept' : 'gone'}`);
+        if (r.words !== WORDS || r.keptWords !== WORDS || !r.shown) throw new StepError(`the words typed read “${r.words}” on the case and “${r.keptWords}” in this browser${r.shown ? '' : ', and the case does not show them'}`);
       });
       /* THE SAME CASE THROUGH A BACKUP (the Day-10 report, QT-D09-01: the
          backup journey restores a representative case, and the auditor asked
@@ -3695,6 +3710,10 @@ const JOURNEYS = [
       mkdirSync(dir, { recursive: true });
       const CASE = `(() => { const ts = (State.theses || []).filter(x => x.id === ${JSON.stringify(id)}); const t = ts[0];
         return { n: ts.length, t: t ? JSON.stringify({ ticker: t.ticker, suggested: t.suggested, snapshot: t.snapshot, stamp: t.stamp, conds: t.conds, review: t.review, horizon: t.horizon, conf: t.conf, oneLine: t.oneLine, risks: t.risks, catalysts: t.catalysts }) : null }; })()`;
+      /* The older case, as the storage holds it: no stamp, no snapshot, no
+         suggested marks — and none may be added on the way through. */
+      const OLD = `(() => { const ts = (State.theses || []).filter(x => x.id === ${JSON.stringify(OLD_CASE.id)}); return { n: ts.length, t: ts[0] ? JSON.stringify(ts[0]) : null }; })()`;
+      const OLD_KEPT = JSON.stringify(OLD_CASE);
       let file = null, kept = null;
       try {
         await step(j, tab, 'Export everything: the file holds the case as saved', BUDGET.load + BUDGET.action * 3, async () => {
@@ -3716,8 +3735,12 @@ const JOURNEYS = [
           const inFile = (doc.data?.theses || []).filter(x => x.id === id);
           if (inFile.length !== 1 || !inFile[0].snapshot || !inFile[0].suggested)
             throw new StepError(`the file holds the case ${inFile.length} time(s)${inFile[0] ? `, ${inFile[0].snapshot ? 'with' : 'without'} its snapshot and ${inFile[0].suggested ? 'with' : 'without'} its suggested marks` : ''}`);
+          if (inFile[0].oneLine !== WORDS) throw new StepError(`the file holds the case’s one line as “${inFile[0].oneLine}”, not the words typed`);
+          const oldInFile = (doc.data?.theses || []).filter(x => x.id === OLD_CASE.id);
+          if (oldInFile.length !== 1 || JSON.stringify(oldInFile[0]) !== OLD_KEPT)
+            throw new StepError(`the file holds the older case ${oldInFile.length} time(s)${oldInFile[0] ? ', changed: ' + Object.keys(oldInFile[0]).filter(k => !(k in OLD_CASE)).join(', ') : ''}`);
         });
-        await step(j, tab, 'Clear this browser, restore the file twice: the case back once, as saved', BUDGET.load * 3 + BUDGET.action * 6, async () => {
+        await step(j, tab, 'Clear this browser, restore the file twice: the case back once, as saved, and an older case with no version added', BUDGET.load * 3 + BUDGET.action * 6, async () => {
           await tab.S('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'local_storage' });
           await tab.goto('/my/data');
           if ((await tab.eval(CASE)).n !== 0) throw new StepError('after clearing, the case is still in this browser');
@@ -3733,11 +3756,16 @@ const JOURNEYS = [
             await sleep(300);
             const r = await tab.eval(CASE);
             if (r.n !== 1) throw new StepError(`after restore ${round} the case is held ${r.n} time(s), not once`);
-            if (r.t !== kept) throw new StepError(`after restore ${round} the case is not the one exported: its snapshot, versions, conditions or suggested marks changed`);
+            if (r.t !== kept) throw new StepError(`after restore ${round} the case is not the one exported: its snapshot, versions, conditions, words or suggested marks changed`);
+            const o = await tab.eval(OLD);
+            if (o.n !== 1 || o.t !== OLD_KEPT) throw new StepError(`after restore ${round} the older case is held ${o.n} time(s)${o.t && o.t !== OLD_KEPT ? `, with ${Object.keys(JSON.parse(o.t)).filter(k => !(k in OLD_CASE)).join(', ') || 'a field changed'} it never had` : ''}`);
           }
           await tab.goto('/my/theses');
           const s = await tab.eval(`(() => { const t = State.theses.find(x => x.id === ${JSON.stringify(id)}); const rec = t && document.getElementById('thesis-record-' + t.id);
-            return { head: rec?.querySelector('h4')?.textContent.trim() || '', want: t ? fmtSaved(t.snapshot.at) : '', review: t?.suggested?.review, horizon: t?.suggested?.horizon }; })()`);
+            const old = document.getElementById('thesis-record-' + ${JSON.stringify(OLD_CASE.id)});
+            return { head: rec?.querySelector('h4')?.textContent.trim() || '', want: t ? fmtSaved(t.snapshot.at) : '', review: t?.suggested?.review, horizon: t?.suggested?.horizon,
+              oldHead: old?.querySelector('h4')?.textContent.trim() || null }; })()`);
+          if (s.oldHead !== 'Saved before snapshots') throw new StepError(`restored, the older case reads “${s.oldHead}”, not “Saved before snapshots”`);
           if (s.head.toLowerCase() !== `research when saved, ${s.want}`.toLowerCase()) throw new StepError(`restored, the case reads “${s.head}”, not “Research when saved, ${s.want}”`);
           if (s.review !== false || s.horizon !== true) throw new StepError(`restored, the review date is ${s.review === false ? 'confirmed' : 'not confirmed'} and the horizon ${s.horizon === true ? 'still suggested' : 'no longer suggested'} — the confirmation was not kept as it was`);
         });

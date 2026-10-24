@@ -4630,6 +4630,14 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
    four widths, for overlay scrollbars only. No rule a stylesheet can write
    tells the two scrollbars apart. */
 :root[data-served] .ptabs-host, :root[data-served] .screener-layout { container-type: normal; }
+/* The area screen's locality table (the Day-11 report, QT-D11-01): served
+   inside a size container, a first visit's first frames drew it, in 4 of
+   25 loads here, with none of the table's own rules — 1px padding, 16px
+   text — and the script's draw then moved 152 runs of text by up to 108px.
+   The container is only for the recorder a reader opens in a row, which a
+   served page never holds, so the served table is not in one. */
+.area-tablewrap { container-type: inline-size; }
+:root[data-served] .area-tablewrap { container-type: normal; }
 /* The tab row: @container (max-width: 940px) — a window up to 955px, and
    beside the app's sidebar one up to 1219px. */
 @media (max-width: 955px) {
