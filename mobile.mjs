@@ -3153,8 +3153,15 @@ for (const w of [360, 390]) {
           out.slider = range && location.pathname === '/property' ? [Math.round(range.getBoundingClientRect().top), Math.round(range.getBoundingClientRect().bottom)] : null;
           const sumLine = document.querySelector('#views .lab-id-meta.has-sum');
           out.firstScreen = sumLine && shown(sumLine) && location.pathname === '/property' ? Math.round(sumLine.getBoundingClientRect().bottom) : null;
-          /* The footer's end, at the page's end. */
-          window.scrollTo(0, document.documentElement.scrollHeight); await frames(); await frames();
+          /* The footer's end, at the page's end — the end a reader reaches.
+             With every section shown, the scenarios' chart draws as it comes
+             into view and the page grows 388px at 430×932; scrolled to the
+             old end once, the footer read as under the bar. Scrolled again
+             until the end holds, as a reader keeps scrolling. */
+          for (let i = 0; i < 4; i++) {
+            window.scrollTo(0, document.documentElement.scrollHeight); await frames(); await frames();
+            if (scrollY + innerHeight >= document.documentElement.scrollHeight - 1) break;
+          }
           const legal = [...document.querySelectorAll('body > .footer *')].filter(n => shown(n) && n.childElementCount === 0 && n.textContent.trim()).pop();
           out.footEnd = legal ? Math.round(legal.getBoundingClientRect().bottom) : null;
           out.barTopAtEnd = dock ? Math.round(dock.getBoundingClientRect().top) : null;
