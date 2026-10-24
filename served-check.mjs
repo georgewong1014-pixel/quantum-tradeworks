@@ -4148,7 +4148,7 @@ const HOME_PAGE = read(HOME);
     if (contact.split(SUPPORT).length - 1 !== 1) p.push(`/contact says ${SUPPORT} ${contact.split(SUPPORT).length - 1} times, not once`);
     const priv = pageText(html('/privacy'));
     if (/there is no contact address yet|Until these are supplied there is no one to send a request to/.test(priv)) p.push('/privacy still says there is no contact address');
-    if (!priv.includes(`If you write to ${SUPPORT}, your email address, your message and anything you attach reach that mailbox`)) p.push('/privacy does not say what writing to the address hands over');
+    if (!new RegExp(`If you write to ${at} ?, your email address, your message and anything you attach reach that mailbox`).test(priv)) p.push('/privacy does not say what writing to the address hands over');
     said.push(`the support address ${SUPPORT} on /contact, once, its only mailto:`);
   } else {
     if (!/Customer support is not available yet\. Report a data error records a case in this browser and gives you its text to copy; it sends nothing\. Every case is listed under Corrections ?\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');

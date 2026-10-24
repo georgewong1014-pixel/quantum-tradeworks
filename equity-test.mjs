@@ -2271,7 +2271,8 @@ try {
     })()`);
     const p = [];
     if (r.n !== r.want) p.push(`workspace lists ${r.n} of ${r.want} saved items`);
-    if (r.kinds.join() !== 'comparison,run,screen,thesis,work') p.push(`kinds ${r.kinds}`);
+    /* A saved property is its own kind since NAV-16 (the Day-10 pre-audit). */
+    if (r.kinds.join() !== 'comparison,property,run,screen,thesis') p.push(`kinds ${r.kinds}`);
     if (!r.stamped) p.push('an item saved in this run carries no stamp');
     if (r.listed !== r.n) p.push(`the page shows ${r.listed} rows for ${r.n} items`);
     if (!r.inNav) p.push('Saved work is not the current tab in My workspace\'s header');
