@@ -42,6 +42,10 @@ import { join } from 'node:path';
 const args = process.argv.slice(2);
 const BASE = (args.find(a => a.startsWith('http')) || 'https://quantum-tradeworks.vercel.app').replace(/\/$/, '');
 const VERBOSE = args.includes('--verbose');
+/* --only /a,/b: those routes' questions and served pages, and nothing else —
+   to rerun one failed frame on its own (the Day-11 report, QT-D11-01). */
+const ONLY = (() => { const i = args.indexOf('--only'); return i > -1 && args[i + 1] ? args[i + 1].split(',').map(x => x.trim()).filter(Boolean) : null; })();
+const only = (path) => !ONLY || ONLY.includes(path);
 
 /* The routes that state coverage. Build Status and Data Sources are the point;
    the others are here because the beta banner rides on every page. */
@@ -155,7 +159,8 @@ try {
   })()`;
 
   let failures = 0;
-  for (const route of ROUTES) {
+  const routes = ROUTES.filter(only);
+  for (const route of routes) {
     await send('Page.navigate', { url: BASE + route }, sessionId);
     const r = await send('Runtime.evaluate',
       { expression: collector, returnByValue: true, awaitPromise: true }, sessionId);
@@ -189,7 +194,7 @@ try {
 
   console.log(failures
     ? `\n${failures} route(s) contradicted themselves.`
-    : `\n${ROUTES.length}/${ROUTES.length} routes state one answer per question, from the first frame.`);
+    : `\n${routes.length}/${routes.length} routes state one answer per question, from the first frame.`);
 
   /* ---- prerender ---- */
   /* THE SERVED PAGE IS THE PAGE, FROM THE FIRST FRAME (2026-10-03). Every
@@ -307,7 +312,7 @@ try {
       const z = b?.[k];
       return z && (Math.abs(z[0] - x) > 2 || Math.abs(z[1] - y) > 2) ? [{ k, dx: z[0] - x, dy: z[1] - y }] : [];
     });
-    const pages = prerenderScope(plan);
+    const pages = prerenderScope(plan).filter(s => only(s.path));
     const bad = [];
     let held = [], holding = true, sid = null, holdScript = false, scriptHeld = [];
     const APP_SCRIPT = /\/assets\/app\.[0-9a-f]+\.js$/;
@@ -490,6 +495,9 @@ try {
       }
     }
 
+    /* --only: the served pages named, and none of the checks below. (The
+       block is not re-indented, so its history reads as it was.) */
+    if (!ONLY) {
     /* THE SERVED PAGE STANDS ONLY AS THE READER'S PAGE (2026-10-04). After
        the script has run, a page that waits for the filings keeps the served
        page only where it is the page this reader asked for, says it is
@@ -1728,6 +1736,7 @@ try {
       else console.log(`ok   ${what}`);
     }
     /* ---- end deep-links ---- */
+    }
     } finally {
       await releaseAll();
       await send('Target.closeTarget', { targetId: tid });
@@ -1749,7 +1758,7 @@ try {
      have one answer: never a nought, a dash or another deal's figure for a
      frame before the page's own. Fails before the lab existed: the address
      drew the not-found card, and none of its questions was ever answered. */
-  {
+  if (only('/property/lab')) {
     const labCollector = `(async () => {
       const seen = {};
       const t0 = performance.now();
