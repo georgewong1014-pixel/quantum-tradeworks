@@ -3615,10 +3615,11 @@ const JOURNEYS = [
        until the reader confirms or changes each; and the research as it stood
        when the case was started, reopened from Saved work. From an empty
        workspace of the reader's own: a fresh browser is given sample cases. */
-    id: 'research-case', name: 'Investment case: started from a company, a default confirmed, reopened from Saved work',
+    id: 'research-case', name: 'Investment case: started from a company, a default confirmed, reopened from Saved work, restored from a backup',
     storage: () => ({ theses: [] }),
     outcomes: ['Start an investment case: a draft, its defaults marked suggested', 'Confirm the review date: its mark goes and the others stay',
-      'Reopen from Saved work: the research when saved, with its versions'],
+      'Reopen from Saved work: the research when saved, with its versions', 'Export everything: the file holds the case as saved',
+      'Clear this browser, restore the file twice: the case back once, as saved'],
     async run(j, tab) {
       const CO = 'AAPL-SEC', MARK = 'Suggested default — not yet confirmed by you.';
       const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your investment case.';
@@ -3685,6 +3686,64 @@ const JOURNEYS = [
         if (!/^Beside today’s: none of \d+ moved$/.test(r.summary)) throw new StepError(`beside today's research the case says “${r.summary}” — nothing has moved in this run`);
         if (r.review !== false || !r.line) throw new StepError(`after reopening, the review date is ${r.review === false ? 'confirmed' : 'not confirmed'} and the draft line is ${r.line ? 'kept' : 'gone'}`);
       });
+      /* THE SAME CASE THROUGH A BACKUP (the Day-10 report, QT-D09-01: the
+         backup journey restores a representative case, and the auditor asked
+         to see this one — its snapshot, versions and suggested marks — come
+         back). Export everything, a cleared browser, the file restored twice:
+         the case back once, byte for byte what was exported. */
+      const dir = join(tmpdir(), `qt-case-journey-${process.pid}-${Date.now()}`);
+      mkdirSync(dir, { recursive: true });
+      const CASE = `(() => { const ts = (State.theses || []).filter(x => x.id === ${JSON.stringify(id)}); const t = ts[0];
+        return { n: ts.length, t: t ? JSON.stringify({ ticker: t.ticker, suggested: t.suggested, snapshot: t.snapshot, stamp: t.stamp, conds: t.conds, review: t.review, horizon: t.horizon, conf: t.conf, oneLine: t.oneLine, risks: t.risks, catalysts: t.catalysts }) : null }; })()`;
+      let file = null, kept = null;
+      try {
+        await step(j, tab, 'Export everything: the file holds the case as saved', BUDGET.load + BUDGET.action * 3, async () => {
+          await tab.goto('/my/data');
+          kept = (await tab.eval(CASE)).t;
+          if (!kept) throw new StepError('the case is not in this browser before the export');
+          await tab.downloadInto(dir);
+          await tab.click(byText('main button', '/^Export everything$/'), 'Export everything');
+          const t0 = Date.now();
+          while (Date.now() - t0 < 10000) {
+            const got = readdirSync(dir).filter(f => /^quantum-tradeworks-\d{4}-\d\d-\d\d\.json$/.test(f));
+            if (got.length) { file = join(dir, got[0]); break; }
+            await sleep(150);
+          }
+          if (!file) throw new StepError(`“Export everything” saved no file (the folder holds ${readdirSync(dir).join(', ') || 'nothing'})`);
+          await sleep(300);
+          let doc;
+          try { doc = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { throw new StepError(`the file saved is not JSON: ${e.message}`); }
+          const inFile = (doc.data?.theses || []).filter(x => x.id === id);
+          if (inFile.length !== 1 || !inFile[0].snapshot || !inFile[0].suggested)
+            throw new StepError(`the file holds the case ${inFile.length} time(s)${inFile[0] ? `, ${inFile[0].snapshot ? 'with' : 'without'} its snapshot and ${inFile[0].suggested ? 'with' : 'without'} its suggested marks` : ''}`);
+        });
+        await step(j, tab, 'Clear this browser, restore the file twice: the case back once, as saved', BUDGET.load * 3 + BUDGET.action * 6, async () => {
+          await tab.S('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'local_storage' });
+          await tab.goto('/my/data');
+          if ((await tab.eval(CASE)).n !== 0) throw new StepError('after clearing, the case is still in this browser');
+          for (const round of [1, 2]) {
+            await tab.click(byText('main button', '/^Restore from a file$/'), 'Restore from a file');
+            await tab.expect(`!!document.querySelector('#drawerBody input[type=file]')`, '“Restore from a file” opened no file chooser', 4000);
+            await tab.chooseFile(`document.querySelector('#drawerBody input[type=file]')`, file, 'The file chooser');
+            await tab.expect(byText('#drawerBody button', '/^Restore \\d+ items?$/'), async () => `the file chosen was not read: “${(await tab.text('#drawerBody')).slice(0, 200)}”`, 6000);
+            await tab.eval('window.__journeyMark = 1');
+            await tab.click(byText('#drawerBody button', '/^Restore \\d+ items?$/'), 'Restore');
+            await tab.expect(`!window.__journeyMark && document.readyState === 'complete' && typeof State !== 'undefined' && State.view === 'userdata' && typeof realPending !== 'undefined' && !realPending`,
+              `restore ${round}: the page did not reload into Your data and settings`, 15000);
+            await sleep(300);
+            const r = await tab.eval(CASE);
+            if (r.n !== 1) throw new StepError(`after restore ${round} the case is held ${r.n} time(s), not once`);
+            if (r.t !== kept) throw new StepError(`after restore ${round} the case is not the one exported: its snapshot, versions, conditions or suggested marks changed`);
+          }
+          await tab.goto('/my/theses');
+          const s = await tab.eval(`(() => { const t = State.theses.find(x => x.id === ${JSON.stringify(id)}); const rec = t && document.getElementById('thesis-record-' + t.id);
+            return { head: rec?.querySelector('h4')?.textContent.trim() || '', want: t ? fmtSaved(t.snapshot.at) : '', review: t?.suggested?.review, horizon: t?.suggested?.horizon }; })()`);
+          if (s.head.toLowerCase() !== `research when saved, ${s.want}`.toLowerCase()) throw new StepError(`restored, the case reads “${s.head}”, not “Research when saved, ${s.want}”`);
+          if (s.review !== false || s.horizon !== true) throw new StepError(`restored, the review date is ${s.review === false ? 'confirmed' : 'not confirmed'} and the horizon ${s.horizon === true ? 'still suggested' : 'no longer suggested'} — the confirmation was not kept as it was`);
+        });
+      } finally {
+        await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
+      }
     },
   },
   {
