@@ -2594,7 +2594,8 @@ try {
         const c = [...document.querySelectorAll('#views .proof-card')].find(x => /^Sarawak property/.test(x.querySelector('.proof-hd')?.textContent || ''));
         const m = dealModel(d);
         const pk = c ? [...c.querySelectorAll('.pk')].map(x => x.textContent) : [];
-        const pv = c ? [...c.querySelectorAll('.pv')].map(x => x.textContent) : [];
+        /* The figure, without the note beside it (.pv-note: what rests on unverified lines). */
+        const pv = c ? [...c.querySelectorAll('.pv')].map(x => [...x.childNodes].filter(n => !n.classList?.contains('pv-note')).map(n => n.textContent).join('')) : [];
         return { pk, pv, still: fmtAmount(m.cashStillRequiredToComplete, 'MYR'), whole: fmtAmount(m.transactionCash, 'MYR'),
           safe: fmtAmount(m.safeCashRequired, 'MYR'), missing: (m.missingCostLines || []).map(x => x.groupId) };
       };
