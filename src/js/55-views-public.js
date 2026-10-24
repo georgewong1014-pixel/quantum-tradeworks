@@ -348,7 +348,7 @@ VIEWS.marketing = () => {
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['Where it held', '/app/scanner/backtest', 'chart'], ['Back to research', '/research', 'loop']]),
+      ['Tested on your prices', '/app/scanner', 'chart'], ['Back to research', '/research', 'loop']]),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
