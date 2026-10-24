@@ -7504,7 +7504,7 @@ input.au-in[type="text"] { text-align: left; }
       </div>
       <div>
         <h2>Resources</h2>
-        <ul id="footResources"><li><a href="/methodology" data-path="/methodology">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary">Metric dictionary</a></li><li><a href="/corrections" data-path="/corrections">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries">What this product will not do</a></li><li><a href="/status" data-path="/status">Checks and status</a></li><li><a href="/property-investing" data-path="/property-investing">Property investing in Sarawak</a></li><li><button type="button" class="linklike" data-action="report-error">Record a data error here</button></li></ul>
+        <ul id="footResources"><li><a href="/methodology" data-path="/methodology">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary">Metric dictionary</a></li><li><a href="/corrections" data-path="/corrections">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries">What this product will not do</a></li><li><a href="/status" data-path="/status">Checks and status</a></li><li><a href="/property-investing" data-path="/property-investing">Property investing in Sarawak</a></li><li><button type="button" class="linklike" data-action="report-error">Report a data error</button></li></ul>
       </div>
       <div>
         <h2>Company</h2>
@@ -21928,7 +21928,7 @@ const NAV_MARKUP = {
     /* The property landing (/property-investing): one link, the footer's
        only — not in the header's Resources menu, which it would crowd. */
     el('li', {}, shellLink('/property-investing', {}, 'Property investing in Sarawak')),
-    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Record a data error here')),
+    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')),
   ],
 };
 
@@ -35491,7 +35491,7 @@ function pubVisScanner() {
     el('div', { class: 'pub-record', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('div', { class: 'pub-record-row' }, [el('i'), el('i'), el('i')]))),
     el('figcaption', { class: 'pub-vis-cap pub-vis-empty' }, [
       el('span', { class: 'pub-vis-empty-mark', 'aria-hidden': 'true' }),
-      el('span', {}, 'Matches are recorded by the worker, not by this site'),
+      el('span', {}, 'Empty until tested on prices you supply'),
     ]),
   ]);
 }
@@ -35678,7 +35678,7 @@ VIEWS.marketing = () => {
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A recorded match', '/app/scanner', 'bell'], ['Back to research', '/research', 'loop']]),
+      ['Where it held', '/app/scanner/backtest', 'chart'], ['Back to research', '/research', 'loop']]),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
