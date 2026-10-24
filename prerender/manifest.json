@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7c37704afcd04cb6",
-      "changed": "2026-10-22"
+      "digest": "808b8791954d5b60",
+      "changed": "2026-10-24"
     },
     "pages/about.html": {
       "path": "/about",
@@ -209,8 +209,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6689530eb7cd7a10",
-      "changed": "2026-10-22"
+      "digest": "2feeb59345e568ee",
+      "changed": "2026-10-24"
     },
     "pages/app/equities.html": {
       "path": "/app/equities",
@@ -4155,8 +4155,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "75fda177b1f00ced",
-      "changed": "2026-10-22"
+      "digest": "f9820f4ad1fc40a4",
+      "changed": "2026-10-24"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -4358,8 +4358,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7bf5083fcc89ad86",
-      "changed": "2026-10-22"
+      "digest": "86849618d786a727",
+      "changed": "2026-10-24"
     },
     "pages/learn/glossary.html": {
       "path": "/learn/glossary",
@@ -4387,8 +4387,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7bf5083fcc89ad86",
-      "changed": "2026-10-22"
+      "digest": "86849618d786a727",
+      "changed": "2026-10-24"
     },
     "pages/learn/product-boundaries.html": {
       "path": "/learn/product-boundaries",
@@ -5282,8 +5282,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ca090700b10f6acf",
-      "changed": "2026-10-22"
+      "digest": "e312387065499bb7",
+      "changed": "2026-10-24"
     },
     "pages/terms.html": {
       "path": "/terms",

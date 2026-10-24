@@ -13372,7 +13372,7 @@ const POSITIONING = {
   title: 'Quantum Tradeworks — your financial decision workspace',
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
-  kicker: 'Research · Follow · Model · Plan',
+  kicker: 'Research · Monitor · Model · Plan',
   /* The hero's lede under the held h1 (D5): with it, 14 words. */
   lede: 'Companies, market setups and property, in one workspace.',
   /* The footer's line on every page. Business planning is "planned, not
@@ -17819,7 +17819,7 @@ function myDashSampleNote() {
     /* What this browser was given is said by the page drawn in it (NOW,
        35-ui.js): served to a reader whose browser runs no script, it was
        given nothing. */
-    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, cases and price alerts are added on a first visit so other pages have something to show. This page counts none of them.' },
+    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are added to a browser on a first visit, so that the other pages have something to show. Nothing on this page counts any of the samples.' },
       'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear the sample data'),
   ]);
@@ -28061,7 +28061,7 @@ VIEWS.marketing = () => {
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A match, if you run the worker', '/app/scanner', 'bell'], ['Back to research', '/research', 'loop']]),
+      ['A match, if you run the worker', '/app/scanner', 'bell'], ['Back to the company', '/research', 'loop']]),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
@@ -32140,11 +32140,8 @@ function learnDictionary() {
   const wrap = el('div');
   const blocked = METRICS.filter(x => x.blocked);
   const published = METRICS.filter(x => !x.blocked);
-  const terms = el('section', { class: 'card', id: 'property-terms', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'property-terms-h' });
-  terms.append(el('div', { class: 'card-hd' }, el('div', {}, [
-    el('h2', { class: 'h-card', id: 'property-terms-h' }, 'Property terms'),
-    el('p', { class: 'caption', style: 'margin-top:2px' }, 'The words the property calculator uses, in the sense it uses them. Company measures follow.'),
-  ])));
+  const terms = el('div', { class: 'card', id: 'property-terms', style: 'margin-bottom:var(--md)' });
+  terms.append(cardHead('Property terms', 'The words the property calculator uses, in the sense it uses them. Company measures follow.'));
   terms.append(el('dl', { class: 'fee-book-dl fee-book-key', 'data-property-terms': '' }, PROPERTY_TERMS.flatMap(([k, f]) => [el('dt', {}, k), el('dd', {}, f())])));
   wrap.append(terms);
   const intro = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
@@ -43691,7 +43688,7 @@ VIEWS.sarawak = () => {
   add.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     swkCands.length
       ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from our company list, which holds their name and listing code — not a price, not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
-      : 'No company has been flagged as having Sarawak operations in the instrument registry.'));
+      : 'No company has been flagged as having Sarawak operations in our company list.'));
   wrap.append(add);
 
   /* The collection itself. */

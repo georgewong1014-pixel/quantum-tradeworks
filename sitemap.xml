@@ -16,7 +16,7 @@
   are what their canonical links name.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://quantum-tradeworks.vercel.app/</loc><lastmod>2026-10-22</lastmod><priority>1.0</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/</loc><lastmod>2026-10-24</lastmod><priority>1.0</priority></url>
   <!-- Release A: how each product works (with the examples that left the
        homepage), and the Equities research queue. docs/route-map.md lists
        every route and which of them are canonical. -->
@@ -43,11 +43,11 @@
   <url><loc>https://quantum-tradeworks.vercel.app/compare</loc><lastmod>2026-10-22</lastmod><priority>0.6</priority></url>
 
   <url><loc>https://quantum-tradeworks.vercel.app/methodology</loc><lastmod>2026-10-22</lastmod><priority>0.7</priority></url>
-  <url><loc>https://quantum-tradeworks.vercel.app/learn/glossary</loc><lastmod>2026-10-22</lastmod><priority>0.7</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/learn/glossary</loc><lastmod>2026-10-24</lastmod><priority>0.7</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/learn/product-boundaries</loc><lastmod>2026-10-11</lastmod><priority>0.6</priority></url>
-  <url><loc>https://quantum-tradeworks.vercel.app/data-sources</loc><lastmod>2026-10-22</lastmod><priority>0.7</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/data-sources</loc><lastmod>2026-10-24</lastmod><priority>0.7</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/corrections</loc><lastmod>2026-10-22</lastmod><priority>0.5</priority></url>
-  <url><loc>https://quantum-tradeworks.vercel.app/status</loc><lastmod>2026-10-22</lastmod><priority>0.5</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/status</loc><lastmod>2026-10-24</lastmod><priority>0.5</priority></url>
 
   <url><loc>https://quantum-tradeworks.vercel.app/pricing</loc><lastmod>2026-10-22</lastmod><priority>0.6</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/about</loc><lastmod>2026-10-17</lastmod><priority>0.6</priority></url>
