@@ -4155,7 +4155,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "829cb108acafcd4d",
+      "digest": "e1d2f9eb8cfe1b67",
       "changed": "2026-10-24"
     },
     "pages/decision-record.html": {
@@ -4184,8 +4184,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "d5ecc7e60211002b",
-      "changed": "2026-10-22"
+      "digest": "7a002fd6621df796",
+      "changed": "2026-10-24"
     },
     "pages/discover.html": {
       "path": "/discover",
@@ -4528,7 +4528,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f38c9d6e7247303a",
+      "digest": "99e2fa4962737f4f",
       "changed": "2026-10-24"
     },
     "pages/my/alerts.html": {
@@ -4934,8 +4934,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "abb4e6a459ab08dc",
-      "changed": "2026-10-22"
+      "digest": "405208a2cb3c99a7",
+      "changed": "2026-10-24"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -5079,8 +5079,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "abb4e6a459ab08dc",
-      "changed": "2026-10-22"
+      "digest": "405208a2cb3c99a7",
+      "changed": "2026-10-24"
     },
     "pages/property/models.html": {
       "path": "/property/models",
@@ -5282,7 +5282,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "83bef7471827a7dd",
+      "digest": "aeddeb71291fe317",
       "changed": "2026-10-24"
     },
     "pages/terms.html": {

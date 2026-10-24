@@ -35371,7 +35371,7 @@ const FEE_TABLE = {
   id: 'my-property-fees',
   /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
      seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
-  version: '1.4.0',
+  version: '1.5.0',
   checkedOn: '2026-10-15',
   /* The property data's state. Each line names its own jurisdiction. */
   jurisdiction: 'Sarawak',
@@ -35404,6 +35404,8 @@ const FEE_TABLE = {
   /* What changed, version by version: a reader of /data-sources who sees
      the figures move is owed the reason. Newest first. */
   changelog: [
+    { version: '1.5.0', date: '2026-10-25',
+      what: 'The valuation fee is charged on the value the valuer finds — your bank or valuer estimate, once you enter one — not on the price: the scale’s item is for a valuation on an improved-value basis, and nothing in it charges on the price. Until a valuation is entered the price stands in for it, so a deal with no valuation entered is unchanged; a valuation below the price lowers the fee, and one above it raises it. The scale’s eight bands and its RM400 minimum match the Board of Valuers’ published scale and a consolidated text of the Rules, and the Board’s Circular 3/2009 puts the current scale in force from 1 October 2009. The line stays an estimate until it is read in a gazetted copy. No rate is made up.' },
     { version: '1.4.0', date: '2026-10-15',
       what: 'Re-checked after Budget 2027, tabled on 9 October 2026: the speech and its tax measures annex, read in the Ministry of Finance’s English and Malay texts. No line’s rule or amount changes. The Budget proposes no change to the transfer duty scale or the loan agreement duty this tool charges (on a ringgit loan; its cap on foreign-currency loan agreements does not reach one), the charge’s stamp, service tax on legal or valuation services (its one service-tax change is elderly care, 8% to 6%), a non-citizen’s transfer duty, or gains tax on a sale. It proposes to revise the first-home exemption for sale and purchase agreements executed from 1 January 2027 to 31 December 2030: 100% on a first home priced up to RM500,000, and on one priced up to RM750,000, 100% on the first RM500,000 and 50% on the rest. That is a proposal, not law — no order had been gazetted and no Finance Bill tabled when this was read — so it is held below beside the exemption in force, applied to nothing. No rate is made up.' },
     { version: '1.3.0', date: '2026-10-13',
@@ -35501,18 +35503,24 @@ const FEE_TABLE = {
       label: 'Valuation fee',
       category: 'professional',
       basis: 'scale',
-      appliesTo: 'price',
+      /* Charged on the value the valuer finds, not the price: item 3 is a
+         valuation "based on an 'Improved Value' basis", and the price appears
+         nowhere in it. dealModel passes the bank or valuer estimate as
+         `value` once one is entered, and the price until then. */
+      appliesTo: 'value',
       provenance: 'estimated',
       jurisdiction: 'Federal',
+      /* Slice sizes, not bounds: they add up to the Rules' RM100,000, RM2m,
+         RM7m, RM15m, RM50m, RM200m and RM500m. */
       scale: [[100000, 0.0025], [1900000, 0.002], [5000000, 1 / 600], [8000000, 0.00125], [35000000, 0.001],
               [150000000, 1 / 1500], [300000000, 0.0005], [Infinity, 0.0004]],
       minimumFee: 400,
-      effectiveFrom: null,
-      source: { title: 'Valuers, Appraisers and Estate Agents Rules 1986 (P.U.(A) 64/1986), rule 48 and the Seventh Schedule — the scale as the Board of Valuers publishes it',
+      effectiveFrom: '2009-10-01',
+      source: { title: 'Valuers, Appraisers and Estate Agents Rules 1986 (P.U.(A) 64/1986), rule 48 and the Seventh Schedule — the scale as the Board of Valuers publishes it, in force from 1 October 2009 (Board Circular 3/2009)',
                 url: 'https://lpeph.gov.my/fees',
-                citation: 'Act 242; P.U.(A) 64/1986, r. 48(1), Seventh Schedule item 3' },
-      checkedOn: '2026-10-09',
-      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Held as an estimate because the Board’s page could not be confirmed against a gazetted copy — the date its current bands took effect was not found, the page still carries injected third-party text (re-read 9 October 2026), and the only full text of the Rules found was a third party’s copy of the 1986 original. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it. Not charged without a loan: the valuation is the lender’s, for the loan.',
+                citation: 'Act 242; P.U.(A) 64/1986, r. 48(1)–(2), Seventh Schedule item 3, as amended in 2009; Board of Valuers Circular 3/2009' },
+      checkedOn: '2026-10-25',
+      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Charged on the value the valuer finds — your bank or valuer estimate once you enter one, the price until then. Held as an estimate: the scale matches the Board of Valuers’ published scale and a consolidated text of the Rules, but has not been read in a gazetted copy. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it. Not charged without a loan: the valuation is the lender’s, for the loan.',
       /* What the line reads on a purchase with no loan (dealModel): nought,
          and why. A behaviour of the line, not a change of its rule. */
       withoutLoan: 'Not charged without a loan: the valuation is the lender’s, for the loan.',
@@ -41790,8 +41798,11 @@ function dealModel(d) {
      there is nothing to charge whatever the class. A Derived nought, as the
      loan's own fees are without a loan, not an estimate. */
   const notCharged = (r, why) => ({ ...r, amount: 0, provenance: 'verified', status: 'verified', notCharged: true, why });
-  const valuationR = loan > 0 ? feeGate(resolveFee('valuationFee', { price: d.price }), feeClass)
-    : notCharged(resolveFee('valuationFee', { price: d.price }), FEE_TABLE.lines.valuationFee.withoutLoan);
+  /* On the value the valuer finds: the estimate once entered, the price
+     standing in until then (the rulebook's valuationFee, 1.5.0). */
+  const valuedAt = bankValuation != null ? bankValuation : d.price;
+  const valuationR = loan > 0 ? feeGate(resolveFee('valuationFee', { value: valuedAt }), feeClass)
+    : notCharged(resolveFee('valuationFee', { value: valuedAt }), FEE_TABLE.lines.valuationFee.withoutLoan);
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
   const mrtaQuoted = isNum(d.mrtaPremium) && d.mrtaPremium > 0;
