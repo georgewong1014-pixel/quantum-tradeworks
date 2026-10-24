@@ -5913,7 +5913,7 @@ await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, devi
           const dets = [...document.querySelectorAll('details[data-file-holds]')];
           for (const d of dets) {
             const card = d.closest('.card'), cb = card.getBoundingClientRect(), sm = d.querySelector('summary'), sb = sm.getBoundingClientRect();
-            const only = [...card.querySelectorAll('p, .lede, div')].find(n => !d.contains(n) && /only copy/.test(n.textContent) && n.children.length === 0);
+            const only = [...card.querySelectorAll('p, .lede, div')].find(n => !d.contains(n) && /only copy|The backup above carries it too/.test(n.textContent) && n.children.length === 0);
             const ob = only ? only.getBoundingClientRect() : null;
             out.files.push({ kind: d.dataset.fileHolds, wasOpen: d.open, summary: sm.textContent.trim(), sh: sb.height, sl: sb.left, sr: sb.right, cl: cb.left, cr: cb.right,
               only: ob ? { h: ob.height, t: ob.top, over: only.scrollWidth > only.clientWidth + 1 } : null, onlyBeforeDetails: !!only && !!(only.compareDocumentPosition(d) & Node.DOCUMENT_POSITION_FOLLOWING),
