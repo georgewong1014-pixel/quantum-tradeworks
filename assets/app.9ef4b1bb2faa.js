@@ -12648,13 +12648,8 @@ const PRODUCTS = [
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
-<<<<<<<< HEAD:assets/app.6ca56e05eb5f.js
     boundary: 'The worker is not distributed yet; setups can be tested here on prices you supply.',
-    statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
-========
-    boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
     statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.' },
->>>>>>>> main:assets/app.9005f6c6a264.js
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
@@ -13587,11 +13582,7 @@ const META = {
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
   home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you follow and what you have saved — read from this browser and the scanner’s own record.',
-<<<<<<<< HEAD:assets/app.6ca56e05eb5f.js
-  onboarding:  'Four questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in — and where you start.',
-========
   onboarding:  'Three questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in.',
->>>>>>>> main:assets/app.9005f6c6a264.js
   launcher:    'Start with a task: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
@@ -65529,14 +65520,10 @@ const KM_NOT = {
   weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap, so not placed.' },
   street: { label: 'Not placed — named after a street', said: 'A street is a line, often kilometres long; a neighbourhood’s mark on it would claim more than the name says.' },
   none: { label: 'Not placed — no OpenStreetMap match', said: 'No OpenStreetMap name matches it, and no other source this map may use places it.' },
-<<<<<<<< HEAD:assets/app.6ca56e05eb5f.js
   /* In a customer's words, and as left out of the count of schemes
      (kmSchemeCount): the three rows are "1st Floor", "2nd Floor" and
      "3rd Floor" — copy-property-9. */
   'not-a-place': { label: 'Not a place', said: 'A row NAPIC’s rental table labels by floor, not by scheme: not a scheme’s name, and not counted as a scheme above.' },
-========
-  'not-a-place': { label: 'Not a place', said: 'A label from NAPIC’s rental table — a floor of a building — not a scheme’s name.' },
->>>>>>>> main:assets/app.9005f6c6a264.js
 };
 /* The schemes NAPIC's sample names: every row but those that are not a place
    (a floor of a building), so the count says what it counts. */
@@ -65759,13 +65746,9 @@ function kmList() {
     el('p', { class: 'metaline', id: 'km-find-said', 'aria-live': 'polite' }, ''),
   ]);
   card.append(find);
-<<<<<<<< HEAD:assets/app.6ca56e05eb5f.js
-  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once the page’s script has loaded NAPIC’s Kuching file; a row from one observation says so.`));
+  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once NAPIC’s Kuching figures have loaded; a row from one observation says so.`));
   const lic = kmLicence();
   if (lic) card.append(lic);
-========
-  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once NAPIC’s Kuching figures have loaded; a row from one observation says so.`));
->>>>>>>> main:assets/app.9005f6c6a264.js
   const groups = [
     ['placed', `Placed on the map — ${kmPlaced().length}`, (s) => s.status === 'placed'],
     ['weak', null, (s) => kmReason(s) === 'weak'],

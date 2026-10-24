@@ -768,8 +768,10 @@ table.dt thead th.chg { color: var(--ink-3); }
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 2px var(--md); margin-top: 10px; align-items: end;
 }
-.proof-row .pv { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.proof-row .pv { align-self: start; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
 .proof-row .pk { font-size: 12px; color: var(--ink-3); align-self: end; }
+/* What a figure rests on, under it: the cash required's amount on unverified lines. */
+.proof-row .pv-note { display: block; font-size: 12px; line-height: 1.35; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
 @media (max-width: 420px) { .proof-row .pv { font-size: 17px; } }
 
 .task-card { display: block; text-decoration: none; color: inherit; }
@@ -3254,9 +3256,20 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
    next. Each label sits on its figure's baseline row. */
 .pub-lab-figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr)); align-items: end; gap: 6px 8px; margin: 0; }
 .pub-lab-fig { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+/* Each figure two rows of the list's grid: its label, on the bottom of the
+   first, so a label on two lines keeps the figures in one line; its figure
+   at the top of the second, with the cash required's note under it (the
+   amount on unverified lines). The note lengthens its own row and moves no
+   figure. Where subgrid is not drawn, the column above stands. */
+@supports (grid-template-rows: subgrid) {
+  .pub-lab-fig { display: grid; grid-template-columns: minmax(0, 1fr); grid-row: span 2; grid-template-rows: subgrid; row-gap: 0; }
+  .pub-lab-fig > dt { align-self: end; }
+  .pub-lab-fig > dd { align-self: start; }
+}
 .pub-lab-figs dt { font-size: var(--ls-meta); line-height: 15px; color: var(--ink-2); min-width: 0; }
 .pub-lab-figs dd { margin: 0; font-size: var(--ls-body); line-height: 22px; font-weight: var(--weight-bold); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pub-lab-figs dd.neg { color: var(--dn-text); }
+.pub-lab-note { display: block; text-wrap: balance; font-size: var(--ls-meta); line-height: 15px; font-weight: var(--weight-body); color: var(--ink-2); white-space: normal; }
 .pub-lab-flow { display: flex; flex-direction: column; gap: 4px; }
 .pub-lab-bars { display: block; }
 .pub-lab-svg { display: block; width: 100%; height: 22px; }
@@ -3276,7 +3289,10 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
   background: linear-gradient(var(--line-2), var(--line-2)) center / 100% 4px no-repeat; border-radius: 2px; }
 @media (pointer: coarse), (max-width: 768px) { #views[data-served] .pub-lab-knob > .pub-lab-range[data-inert] { height: 44px; } }
 
-/* Not built: one line of text, never a card and never a link. */
+/* Not built: one line of text, never a card and never a link. On /pricing
+   (23 Oct 2026) it reads as the page's own line, left, with the plans' link
+   under it. */
+.plans-page .pub-soon { justify-content: flex-start; text-align: left; margin: var(--lg) 0 0; }
 .pub-soon { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 8px; margin: var(--md) 0 0;
   font-size: var(--ls-support); color: var(--ink-3); text-align: center; }
 .pub-soon-name { color: var(--ink-2); font-weight: var(--weight-semibold); }
@@ -5760,9 +5776,10 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    name and product on one line; the journey, its outcome step and the last
    result under the name on a wide screen, the whole width on a phone. */
 .proof-h { margin: var(--md) 0 0; font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--ink); }
+/* Scoped to the list on /status: the same class names a figure card's grid of labels and values (.proof-row, above), which this was overriding. */
 .proof-list { list-style: none; padding: 0; margin: var(--sm) 0 0; }
-.proof-row { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
-.proof-row > .status-badge { flex: none; min-width: 4.75rem; justify-content: center; }
+.proof-list > .proof-row { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.proof-list > .proof-row > .status-badge { flex: none; min-width: 4.75rem; justify-content: center; }
 .proof-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
 .proof-of { font-weight: var(--weight-body); color: var(--ink-2); }
 .proof-body { flex: 0 0 100%; box-sizing: border-box; padding-left: calc(4.75rem + 12px); }
@@ -7336,7 +7353,7 @@ input.au-in[type="text"] { text-align: left; }
       <span class="brand-name">Quantum <span>Tradeworks</span></span>
     </a>
 
-    <nav class="pubnav" id="pubnav" aria-label="Primary"><ul class="pubnav-list"><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuProductsBtn" aria-expanded="false" aria-controls="menuProducts">Products<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-products" id="menuProducts" hidden=""><ul class="pp-list"><li><a href="/research" data-path="/research" class="pp-row pub-acc-equities" data-product="equities" aria-description="Beta: Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Equities Research</span><span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span></span><span class="pp-blurb">Financial statements, ratios and valuation models.</span></span></a></li><li><a href="/app/scanner" data-path="/app/scanner" class="pp-row pub-acc-scanner" data-product="scanner" aria-description="Beta: Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Quantum Scanner</span><span class="status-badge status-beta" title="Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Beta</span></span><span class="pp-blurb">Your own rules, checked against each daily close in your price history, with a record of every match.</span></span></a></li><li><a href="/property" data-path="/property" class="pp-row pub-acc-property" data-product="property" aria-description="Live: Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Property Intelligence</span><span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Live</span><span class="pbadge-q">Your figures, sample to start</span></span></span><span class="pp-blurb">Financing, cash flow, rental yield and ROI.</span></span></a></li><li><div class="pp-row pp-row-off" data-product="business"><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Business Intelligence</span><span class="status-badge status-soon" title="Not built yet — nothing to open.">Coming soon</span></span><span class="pp-blurb">Cash flow, profitability and financing scenarios.</span></span></div></li></ul><p class="pp-foot"><a href="/how-it-works" data-path="/how-it-works" class="pp-foot-link">What Live, Beta and Coming soon mean</a></p></div></li><li><a href="/how-it-works" data-path="/how-it-works" class="publink" data-pub="howItWorks">How it works</a></li><li><a href="/pricing" data-path="/pricing" class="publink" data-pub="plans">Pricing</a></li><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuResourcesBtn" aria-expanded="false" aria-controls="menuResources">Resources<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-resources" id="menuResources" hidden=""><div class="rs-group"><p class="rs-label" id="menu-rs-method">Method and data</p><ul class="rs-list" aria-labelledby="menu-rs-method"><li><a href="/methodology" data-path="/methodology" class="rs-link">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources" class="rs-link">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary" class="rs-link">Glossary</a></li><li><a href="/learn" data-path="/learn" class="rs-link">Learn</a></li><li><a href="/corrections" data-path="/corrections" class="rs-link">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries" class="rs-link">What this product will not do</a></li></ul></div><div class="rs-group"><p class="rs-label" id="menu-rs-company">This build and its terms</p><ul class="rs-list" aria-labelledby="menu-rs-company"><li><a href="/status" data-path="/status" class="rs-link">Build status</a></li><li><a href="/about" data-path="/about" class="rs-link">About</a></li><li><a href="/contact" data-path="/contact" class="rs-link">Contact</a></li><li><a href="/privacy" data-path="/privacy" class="rs-link">Privacy</a></li><li><a href="/terms" data-path="/terms" class="rs-link">Terms</a></li></ul></div></div></li></ul></nav>
+    <nav class="pubnav" id="pubnav" aria-label="Primary"><ul class="pubnav-list"><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuProductsBtn" aria-expanded="false" aria-controls="menuProducts">Products<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-products" id="menuProducts" hidden=""><ul class="pp-list"><li><a href="/research" data-path="/research" class="pp-row pub-acc-equities" data-product="equities" aria-description="Beta: Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Equities Research</span><span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span></span><span class="pp-blurb">Financial statements, ratios and valuation models.</span></span></a></li><li><a href="/app/scanner" data-path="/app/scanner" class="pp-row pub-acc-scanner" data-product="scanner" aria-description="Beta: Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Quantum Scanner</span><span class="status-badge status-beta" title="Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Beta</span></span><span class="pp-blurb">Your own rules, checked against each daily close in your price history, with a record of every match.</span></span></a></li><li><a href="/property" data-path="/property" class="pp-row pub-acc-property" data-product="property" aria-description="Live: Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Property Intelligence</span><span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Live</span><span class="pbadge-q">Your figures; no live market data</span></span></span><span class="pp-blurb">Financing, cash flow, rental yield and ROI.</span></span></a></li><li><div class="pp-row pp-row-off" data-product="business"><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Business Intelligence</span><span class="status-badge status-soon" title="Not built yet — nothing to open.">Coming soon</span></span><span class="pp-blurb">Cash flow, profitability and financing scenarios.</span></span></div></li></ul><p class="pp-foot"><a href="/how-it-works" data-path="/how-it-works" class="pp-foot-link">What Live, Beta and Coming soon mean</a></p></div></li><li><a href="/how-it-works" data-path="/how-it-works" class="publink" data-pub="howItWorks">How it works</a></li><li><a href="/pricing" data-path="/pricing" class="publink" data-pub="plans">Pricing</a></li><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuResourcesBtn" aria-expanded="false" aria-controls="menuResources">Resources<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-resources" id="menuResources" hidden=""><div class="rs-group"><p class="rs-label" id="menu-rs-method">Method and data</p><ul class="rs-list" aria-labelledby="menu-rs-method"><li><a href="/methodology" data-path="/methodology" class="rs-link">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources" class="rs-link">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary" class="rs-link">Metric dictionary</a></li><li><a href="/corrections" data-path="/corrections" class="rs-link">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries" class="rs-link">What this product will not do</a></li></ul></div><div class="rs-group"><p class="rs-label" id="menu-rs-company">This site and its terms</p><ul class="rs-list" aria-labelledby="menu-rs-company"><li><a href="/status" data-path="/status" class="rs-link">Checks and status</a></li><li><a href="/about" data-path="/about" class="rs-link">About</a></li><li><a href="/contact" data-path="/contact" class="rs-link">Contact</a></li><li><a href="/privacy" data-path="/privacy" class="rs-link">Privacy</a></li><li><a href="/terms" data-path="/terms" class="rs-link">Terms</a></li></ul></div></div></li></ul></nav>
 
     <div class="bar-actions">
       <button type="button" class="iconbtn pub-theme" id="themeToggle" data-theme-toggle aria-label="Switch colour theme" title="Switch colour theme">
@@ -7368,7 +7385,7 @@ input.au-in[type="text"] { text-align: left; }
 
 <main id="main">
   <div class="ptabs-host" id="productTabs" hidden></div>
-  <div id="views" data-served="/"><section class="view" data-active="1" data-redrawn="1"><div class="shell"><div class="pub pub-home"><section class="pub-hero" aria-labelledby="pub-hero-h"><h1 class="pub-h1" id="pub-hero-h">Make financial decisions with greater clarity.</h1><p class="pub-lede">Companies, market setups and property, in one workspace.</p><div class="pub-ctas"><a class="btn btn-primary pub-btn" href="#products" id="pub-choose">Choose a tool<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></div></section><section class="pub-section pub-products" id="products" aria-labelledby="pub-products-h"><h2 class="sr-only" id="pub-products-h">What would you like to do?</h2><div class="pub-cards"><article class="pub-card ls-card pub-acc-equities" data-card="action" data-product="equities" aria-labelledby="pub-equities-t"><div class="pub-card-top"><span class="pub-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;flex:none"><path d="M3 3v18h18"></path><path d="m7 14 4-4 3 3 5-6"></path></svg></span><p class="pub-card-product" id="pub-equities-n">Equities Research</p></div><h3 class="pub-card-title" id="pub-equities-t"><a href="/research" class="pub-card-link ls-card-cta" aria-describedby="pub-equities-n pub-equities-out pub-equities-q pub-equities-note pub-equities-bound">Research a company<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></h3><p class="pub-card-outcome" id="pub-equities-out">Read a company’s filed financials and compare companies side by side.</p><div class="pub-card-qual"><span class="pbadge" data-badge-of="equities"><span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span><span class="pbadge-q" id="pub-equities-q">Filed + illustrative data</span></span><details class="pub-info"><summary class="pub-info-btn"><span class="pub-info-i" aria-hidden="true"></span><span class="sr-only">What Beta means for Equities Research</span></summary><p class="pub-info-body"><span id="pub-equities-note">Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.</span> <a href="/how-it-works#hiw-status" class="pub-textlink">What the labels mean</a></p></details></div><p class="pub-card-bound" id="pub-equities-bound">US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.</p><figure class="pub-vis pub-vis-eq" aria-labelledby="pub-vis-eq-src"><a class="pub-vis-link" href="/company/aapl-apple-inc" data-path="/company/aapl-apple-inc" aria-label="Apple Inc.’s filed statements"><span class="pub-vis-plot"><svg class="pub-vis-svg" viewBox="0 0 300 136" role="img" aria-label="Apple Inc.: filed revenue and net income, fiscal 2016 to 2025, in US dollars. Revenue $215.6B to $416.2B; net income $45.7B to $112.0B."><line class="pub-vis-base" x1="0" x2="300" y1="116" y2="116"></line><rect class="pub-col pub-col-rev" x="3.0" y="64.2" width="12.0" height="51.8" rx="1.5" data-fy="2016" data-line="rev" data-v="215.639"></rect><rect class="pub-col pub-col-ni" x="15.0" y="105.0" width="12.0" height="11.0" rx="1.5" data-fy="2016" data-line="ni" data-v="45.687"></rect><rect class="pub-col pub-col-rev" x="33.0" y="60.9" width="12.0" height="55.1" rx="1.5" data-fy="2017" data-line="rev" data-v="229.234"></rect><rect class="pub-col pub-col-ni" x="45.0" y="104.4" width="12.0" height="11.6" rx="1.5" data-fy="2017" data-line="ni" data-v="48.351"></rect><rect class="pub-col pub-col-rev" x="63.0" y="52.2" width="12.0" height="63.8" rx="1.5" data-fy="2018" data-line="rev" data-v="265.595"></rect><rect class="pub-col pub-col-ni" x="75.0" y="101.7" width="12.0" height="14.3" rx="1.5" data-fy="2018" data-line="ni" data-v="59.531"></rect><rect class="pub-col pub-col-rev" x="93.0" y="53.5" width="12.0" height="62.5" rx="1.5" data-fy="2019" data-line="rev" data-v="260.174"></rect><rect class="pub-col pub-col-ni" x="105.0" y="102.7" width="12.0" height="13.3" rx="1.5" data-fy="2019" data-line="ni" data-v="55.256"></rect><rect class="pub-col pub-col-rev" x="123.0" y="50.0" width="12.0" height="66.0" rx="1.5" data-fy="2020" data-line="rev" data-v="274.515"></rect><rect class="pub-col pub-col-ni" x="135.0" y="102.2" width="12.0" height="13.8" rx="1.5" data-fy="2020" data-line="ni" data-v="57.411"></rect><rect class="pub-col pub-col-rev" x="153.0" y="28.1" width="12.0" height="87.9" rx="1.5" data-fy="2021" data-line="rev" data-v="365.817"></rect><rect class="pub-col pub-col-ni" x="165.0" y="93.2" width="12.0" height="22.8" rx="1.5" data-fy="2021" data-line="ni" data-v="94.68"></rect><rect class="pub-col pub-col-rev" x="183.0" y="21.2" width="12.0" height="94.8" rx="1.5" data-fy="2022" data-line="rev" data-v="394.328"></rect><rect class="pub-col pub-col-ni" x="195.0" y="92.0" width="12.0" height="24.0" rx="1.5" data-fy="2022" data-line="ni" data-v="99.803"></rect><rect class="pub-col pub-col-rev" x="213.0" y="23.9" width="12.0" height="92.1" rx="1.5" data-fy="2023" data-line="rev" data-v="383.285"></rect><rect class="pub-col pub-col-ni" x="225.0" y="92.7" width="12.0" height="23.3" rx="1.5" data-fy="2023" data-line="ni" data-v="96.995"></rect><rect class="pub-col pub-col-rev" x="243.0" y="22.0" width="12.0" height="94.0" rx="1.5" data-fy="2024" data-line="rev" data-v="391.035"></rect><rect class="pub-col pub-col-ni" x="255.0" y="93.5" width="12.0" height="22.5" rx="1.5" data-fy="2024" data-line="ni" data-v="93.736"></rect><rect class="pub-col pub-col-rev" x="273.0" y="16.0" width="12.0" height="100.0" rx="1.5" data-fy="2025" data-line="rev" data-v="416.161"></rect><rect class="pub-col pub-col-ni" x="285.0" y="89.1" width="12.0" height="26.9" rx="1.5" data-fy="2025" data-line="ni" data-v="112.01"></rect><text class="pub-vis-val" x="300" y="12.0" text-anchor="end">$416.2B</text><text class="pub-vis-tick" x="0" y="132">FY2016</text><text class="pub-vis-tick" x="300" y="132" text-anchor="end">FY2025</text></svg></span></a><figcaption class="pub-vis-cap"><p class="pub-vis-src" id="pub-vis-eq-src"><a class="kind-badge kind-filed" data-kind-badge="filed" title="Apple Inc., SEC 10-K — Taken from a statement filed with the US SEC, as filed, or from NAPIC’s published property market data, as published. Not adjusted." href="/data-sources#kinds"><span class="kind-shape" aria-hidden="true"></span>Filed</a><span>Apple · SEC 10-K · US$</span></p><p class="pub-vis-legend" aria-hidden="true"><i class="pub-sw pub-sw-rev"></i>Revenue<i class="pub-sw pub-sw-ni"></i>Net income</p><p class="pub-vis-row"><span class="pub-vis-k">P/E</span><a class="kind-badge kind-unavailable" data-kind-badge="unavailable" title="P/E needs a price — No figure is shown, and the reason is stated beside it. Nothing is imputed." href="/data-sources#kinds"><span class="kind-shape" aria-hidden="true"></span>Unavailable</a><span>no licensed price</span></p></figcaption></figure></article><article class="pub-card ls-card pub-acc-scanner" data-card="action" data-product="scanner" aria-labelledby="pub-scanner-t"><div class="pub-card-top"><span class="pub-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;flex:none"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg></span><p class="pub-card-product" id="pub-scanner-n">Quantum Scanner</p></div><h3 class="pub-card-title" id="pub-scanner-t"><a href="/app/scanner/setups/new" class="pub-card-link ls-card-cta" aria-describedby="pub-scanner-n pub-scanner-out pub-scanner-q pub-scanner-note pub-scanner-bound">Build my setups<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></h3><p class="pub-card-outcome" id="pub-scanner-out">Write your own setup rules and see where they held in your price history.</p><div class="pub-card-qual"><span class="pbadge" data-badge-of="scanner"><span class="status-badge status-beta" title="Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Beta</span><span class="pbadge-q" id="pub-scanner-q">Your own price data</span></span><details class="pub-info"><summary class="pub-info-btn"><span class="pub-info-i" aria-hidden="true"></span><span class="sr-only">What Beta means for Quantum Scanner</span></summary><p class="pub-info-body"><span id="pub-scanner-note">Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.</span> <a href="/how-it-works#hiw-status" class="pub-textlink">What the labels mean</a></p></details></div><p class="pub-card-bound" id="pub-scanner-bound">No hosted monitoring: the worker runs on your computer, on price history you supply.</p><figure class="pub-vis pub-vis-scan"><p class="pub-vis-k pub-vis-k-top">Starting rule</p><p class="pub-rule" role="list" aria-label="The builder’s starting rule"><span class="pub-chip" role="listitem">Price</span><span class="pub-chip pub-chip-op" role="listitem">crosses above</span><span class="pub-chip" role="listitem">EMA 50</span></p><div class="pub-record" aria-hidden="true"><div class="pub-record-row"><i></i><i></i><i></i></div><div class="pub-record-row"><i></i><i></i><i></i></div><div class="pub-record-row"><i></i><i></i><i></i></div></div><figcaption class="pub-vis-cap pub-vis-empty"><span class="pub-vis-empty-mark" aria-hidden="true"></span><span>Matches are recorded by a worker you run, not by this site</span></figcaption></figure></article><article class="pub-card ls-card pub-acc-property" data-card="action" data-product="property" aria-labelledby="pub-property-t"><div class="pub-card-top"><span class="pub-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path><path d="M9 22V12h6v10"></path></svg></span><p class="pub-card-product" id="pub-property-n">Property Intelligence</p></div><h3 class="pub-card-title" id="pub-property-t"><a href="/property/calculator" class="pub-card-link ls-card-cta" aria-describedby="pub-property-n pub-property-out pub-property-q pub-property-note pub-property-bound">Analyse a property<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></h3><p class="pub-card-outcome" id="pub-property-out">See the cash required, the monthly position and scenarios for a deal.</p><div class="pub-card-qual"><span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Live</span><span class="pbadge-q" id="pub-property-q">Your figures, sample to start</span></span><details class="pub-info"><summary class="pub-info-btn"><span class="pub-info-i" aria-hidden="true"></span><span class="sr-only">What Live means for Property Intelligence</span></summary><p class="pub-info-body"><span id="pub-property-note">Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.</span> <a href="/how-it-works#hiw-status" class="pub-textlink">What the labels mean</a></p></details></div><p class="pub-card-bound" id="pub-property-bound">The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.</p><figure class="pub-vis pub-vis-lab" aria-labelledby="pub-vis-lab-src"><div class="pub-lab-knob"><label class="pub-vis-k">Price</label><output class="pub-lab-price num" for="pub-lab-price" id="pub-lab-price-v">RM572,000</output><span id="pub-lab-price" class="pub-lab-range" data-inert="range">RM572,000</span></div><dl class="pub-lab-figs"><div class="pub-lab-fig"><dt>Monthly repayment</dt><dd class="num" data-figure="instalment" data-v="2372.956498571095">RM2,373</dd></div><div class="pub-lab-fig"><dt>Cash required</dt><dd class="num" data-figure="safeCashRequired" data-v="118959.7">RM118,960</dd></div><div class="pub-lab-fig"><dt>Monthly position</dt><dd class="num neg" data-figure="cashflowMonthly" data-v="-1196.7981652377616">−RM1,197</dd></div></dl><div class="pub-lab-flow"><span class="pub-lab-bars"><svg class="pub-lab-svg" viewBox="0 0 100 22" preserveAspectRatio="none" role="img" aria-label="A month: rent RM1,850; repayment RM2,373 and other costs RM674."><rect class="pub-bar pub-bar-rent" x="0" y="0" width="60.72" height="9" rx="1" data-v="1850"></rect><rect class="pub-bar pub-bar-rep" x="0" y="13" width="77.88" height="9" rx="1" data-v="2372.956498571095"></rect><rect class="pub-bar pub-bar-cost" x="77.88" y="13" width="22.12" height="9" rx="1" data-v="673.8416666666667"></rect></svg></span><p class="pub-vis-legend" aria-hidden="true"><i class="pub-sw pub-sw-rent"></i>Rent<i class="pub-sw pub-sw-rep"></i>Repayment<i class="pub-sw pub-sw-cost"></i>Costs</p></div><figcaption class="pub-vis-cap"><p class="pub-vis-src" id="pub-vis-lab-src"><a class="kind-badge kind-illustrative" data-kind-badge="illustrative" title="The sample deal — A synthetic or sample figure that describes no real company or property: an illustrative company, or the tool’s starting deal." href="/data-sources#kinds"><span class="kind-shape" aria-hidden="true"></span>Illustrative</a><span>Sample deal — not a real listing</span></p></figcaption></figure><p class="pub-card-also"><a href="/property/lab" class="pub-textlink">Try the Scenario Lab<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></p></article></div><p class="pub-soon" data-product="business"><span class="pub-soon-name">Business Intelligence</span> · Plan my business · <span class="status-badge status-soon" title="Not built yet — nothing to open.">Coming soon</span></p></section><section class="pub-section pub-path" aria-labelledby="pub-path-h"><div class="pub-path-hd"><p class="pub-tag">Example path</p><h2 class="pub-h2" id="pub-path-h">Your research, connected.</h2></div><div class="pub-routes"><div class="pub-route"><h3 class="pub-route-t" id="pub-route-research">Research</h3><ol class="pub-steps" aria-labelledby="pub-route-research"><li class="pub-step"><a href="/research" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M3 3v18h18"></path><path d="m7 14 4-4 3 3 5-6"></path></svg></span><span class="pub-step-t">A company</span></a></li><li class="pub-step"><a href="/my/watchlists" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M9 6h11M9 12h11M9 18h11"></path><circle cx="4.5" cy="6" r="1"></circle><circle cx="4.5" cy="12" r="1"></circle><circle cx="4.5" cy="18" r="1"></circle></svg></span><span class="pub-step-t">A watchlist</span></a></li><li class="pub-step"><a href="/app/scanner/setups/new" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg></span><span class="pub-step-t">Your setup</span></a></li><li class="pub-step"><a href="/app/scanner" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg></span><span class="pub-step-t">A match, if you run the worker</span></a></li><li class="pub-step"><a href="/research" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7"></path><path d="M20 4v4.7h-4.7"></path><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.3"></path><path d="M4 20v-4.7h4.7"></path></svg></span><span class="pub-step-t">Back to the company</span></a></li></ol></div><div class="pub-route"><h3 class="pub-route-t" id="pub-route-property">Property</h3><ol class="pub-steps" aria-labelledby="pub-route-property"><li class="pub-step"><a href="/property/calculator" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path><path d="M9 22V12h6v10"></path></svg></span><span class="pub-step-t">A property</span></a></li><li class="pub-step"><a href="/property/lab" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><path d="M3 9h18M9 21V9"></path></svg></span><span class="pub-step-t">Its scenarios</span></a></li><li class="pub-step"><a href="/property/lab" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M12 3v18M5 7h14"></path><path d="m5 7-3 6h6ZM19 7l-3 6h6Z"></path></svg></span><span class="pub-step-t">A, B and C compared</span></a></li><li class="pub-step"><a href="/property/models" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M18 21l-6-4-6 4V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"></path></svg></span><span class="pub-step-t">Saved</span></a></li></ol></div></div><div class="pub-path-ft"><p class="pub-saved">Saved in this browser — no account.</p><details class="pub-info"><summary class="pub-info-btn"><span class="pub-info-i" aria-hidden="true"></span><span class="sr-only">Where saved work is kept</span></summary><p class="pub-info-body">There are no accounts and no copy on a server. <a href="/my/data" class="pub-textlink">Your data and the export</a> is the copy that travels.</p></details><a class="pub-textlink pub-path-more" href="/how-it-works#hiw-journey">How it connects<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></div></section></div></div></section></div>
+  <div id="views" data-served="/"><section class="view" data-active="1" data-redrawn="1"><div class="shell"><div class="pub pub-home"><section class="pub-hero" aria-labelledby="pub-hero-h"><h1 class="pub-h1" id="pub-hero-h">Make financial decisions with greater clarity.</h1><p class="pub-lede">Companies, market setups and property, in one workspace.</p><div class="pub-ctas"><a class="btn btn-primary pub-btn" href="#products" id="pub-choose">Choose a tool<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></div></section><section class="pub-section pub-products" id="products" aria-labelledby="pub-products-h"><h2 class="sr-only" id="pub-products-h">What would you like to do?</h2><div class="pub-cards"><article class="pub-card ls-card pub-acc-equities" data-card="action" data-product="equities" aria-labelledby="pub-equities-t"><div class="pub-card-top"><span class="pub-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;flex:none"><path d="M3 3v18h18"></path><path d="m7 14 4-4 3 3 5-6"></path></svg></span><p class="pub-card-product" id="pub-equities-n">Equities Research</p></div><h3 class="pub-card-title" id="pub-equities-t"><a href="/research" class="pub-card-link ls-card-cta" aria-describedby="pub-equities-n pub-equities-out pub-equities-q pub-equities-note pub-equities-bound">Research a company<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></h3><p class="pub-card-outcome" id="pub-equities-out">Read a company’s filed financials and compare companies side by side.</p><div class="pub-card-qual"><span class="pbadge" data-badge-of="equities"><span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span><span class="pbadge-q" id="pub-equities-q">Filed + illustrative data</span></span><details class="pub-info"><summary class="pub-info-btn"><span class="pub-info-i" aria-hidden="true"></span><span class="sr-only">What Beta means for Equities Research</span></summary><p class="pub-info-body"><span id="pub-equities-note">Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.</span> <a href="/how-it-works#hiw-status" class="pub-textlink">What the labels mean</a></p></details></div><p class="pub-card-bound" id="pub-equities-bound">US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.</p><figure class="pub-vis pub-vis-eq" aria-labelledby="pub-vis-eq-src"><a class="pub-vis-link" href="/company/aapl-apple-inc" data-path="/company/aapl-apple-inc" aria-label="Apple Inc.’s filed statements"><span class="pub-vis-plot"><svg class="pub-vis-svg" viewBox="0 0 300 136" role="img" aria-label="Apple Inc.: filed revenue and net income, fiscal 2016 to 2025, in US dollars. Revenue $215.6B to $416.2B; net income $45.7B to $112.0B."><line class="pub-vis-base" x1="0" x2="300" y1="116" y2="116"></line><rect class="pub-col pub-col-rev" x="3.0" y="64.2" width="12.0" height="51.8" rx="1.5" data-fy="2016" data-line="rev" data-v="215.639"></rect><rect class="pub-col pub-col-ni" x="15.0" y="105.0" width="12.0" height="11.0" rx="1.5" data-fy="2016" data-line="ni" data-v="45.687"></rect><rect class="pub-col pub-col-rev" x="33.0" y="60.9" width="12.0" height="55.1" rx="1.5" data-fy="2017" data-line="rev" data-v="229.234"></rect><rect class="pub-col pub-col-ni" x="45.0" y="104.4" width="12.0" height="11.6" rx="1.5" data-fy="2017" data-line="ni" data-v="48.351"></rect><rect class="pub-col pub-col-rev" x="63.0" y="52.2" width="12.0" height="63.8" rx="1.5" data-fy="2018" data-line="rev" data-v="265.595"></rect><rect class="pub-col pub-col-ni" x="75.0" y="101.7" width="12.0" height="14.3" rx="1.5" data-fy="2018" data-line="ni" data-v="59.531"></rect><rect class="pub-col pub-col-rev" x="93.0" y="53.5" width="12.0" height="62.5" rx="1.5" data-fy="2019" data-line="rev" data-v="260.174"></rect><rect class="pub-col pub-col-ni" x="105.0" y="102.7" width="12.0" height="13.3" rx="1.5" data-fy="2019" data-line="ni" data-v="55.256"></rect><rect class="pub-col pub-col-rev" x="123.0" y="50.0" width="12.0" height="66.0" rx="1.5" data-fy="2020" data-line="rev" data-v="274.515"></rect><rect class="pub-col pub-col-ni" x="135.0" y="102.2" width="12.0" height="13.8" rx="1.5" data-fy="2020" data-line="ni" data-v="57.411"></rect><rect class="pub-col pub-col-rev" x="153.0" y="28.1" width="12.0" height="87.9" rx="1.5" data-fy="2021" data-line="rev" data-v="365.817"></rect><rect class="pub-col pub-col-ni" x="165.0" y="93.2" width="12.0" height="22.8" rx="1.5" data-fy="2021" data-line="ni" data-v="94.68"></rect><rect class="pub-col pub-col-rev" x="183.0" y="21.2" width="12.0" height="94.8" rx="1.5" data-fy="2022" data-line="rev" data-v="394.328"></rect><rect class="pub-col pub-col-ni" x="195.0" y="92.0" width="12.0" height="24.0" rx="1.5" data-fy="2022" data-line="ni" data-v="99.803"></rect><rect class="pub-col pub-col-rev" x="213.0" y="23.9" width="12.0" height="92.1" rx="1.5" data-fy="2023" data-line="rev" data-v="383.285"></rect><rect class="pub-col pub-col-ni" x="225.0" y="92.7" width="12.0" height="23.3" rx="1.5" data-fy="2023" data-line="ni" data-v="96.995"></rect><rect class="pub-col pub-col-rev" x="243.0" y="22.0" width="12.0" height="94.0" rx="1.5" data-fy="2024" data-line="rev" data-v="391.035"></rect><rect class="pub-col pub-col-ni" x="255.0" y="93.5" width="12.0" height="22.5" rx="1.5" data-fy="2024" data-line="ni" data-v="93.736"></rect><rect class="pub-col pub-col-rev" x="273.0" y="16.0" width="12.0" height="100.0" rx="1.5" data-fy="2025" data-line="rev" data-v="416.161"></rect><rect class="pub-col pub-col-ni" x="285.0" y="89.1" width="12.0" height="26.9" rx="1.5" data-fy="2025" data-line="ni" data-v="112.01"></rect><text class="pub-vis-val" x="300" y="12.0" text-anchor="end">$416.2B</text><text class="pub-vis-tick" x="0" y="132">FY2016</text><text class="pub-vis-tick" x="300" y="132" text-anchor="end">FY2025</text></svg></span></a><figcaption class="pub-vis-cap"><p class="pub-vis-src" id="pub-vis-eq-src"><a class="kind-badge kind-filed" data-kind-badge="filed" title="Apple Inc., SEC 10-K — Taken from a statement filed with the US SEC, as filed, or from NAPIC’s published property market data, as published. Not adjusted." href="/data-sources#kinds"><span class="kind-shape" aria-hidden="true"></span>Filed</a><span>Apple · SEC 10-K · US$</span></p><p class="pub-vis-legend" aria-hidden="true"><i class="pub-sw pub-sw-rev"></i>Revenue<i class="pub-sw pub-sw-ni"></i>Net income</p><p class="pub-vis-row"><span class="pub-vis-k">P/E</span><a class="kind-badge kind-unavailable" data-kind-badge="unavailable" title="P/E needs a price — No figure is shown, and the reason is stated beside it. Nothing is imputed." href="/data-sources#kinds"><span class="kind-shape" aria-hidden="true"></span>Unavailable</a><span>no licensed price</span></p></figcaption></figure></article><article class="pub-card ls-card pub-acc-scanner" data-card="action" data-product="scanner" aria-labelledby="pub-scanner-t"><div class="pub-card-top"><span class="pub-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;flex:none"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg></span><p class="pub-card-product" id="pub-scanner-n">Quantum Scanner</p></div><h3 class="pub-card-title" id="pub-scanner-t"><a href="/app/scanner/setups/new" class="pub-card-link ls-card-cta" aria-describedby="pub-scanner-n pub-scanner-out pub-scanner-q pub-scanner-note pub-scanner-bound">Build my setups<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></h3><p class="pub-card-outcome" id="pub-scanner-out">Write your own setup rules and see where they held in your price history.</p><div class="pub-card-qual"><span class="pbadge" data-badge-of="scanner"><span class="status-badge status-beta" title="Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Beta</span><span class="pbadge-q" id="pub-scanner-q">Your own price data</span></span><details class="pub-info"><summary class="pub-info-btn"><span class="pub-info-i" aria-hidden="true"></span><span class="sr-only">What Beta means for Quantum Scanner</span></summary><p class="pub-info-body"><span id="pub-scanner-note">Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.</span> <a href="/how-it-works#hiw-status" class="pub-textlink">What the labels mean</a></p></details></div><p class="pub-card-bound" id="pub-scanner-bound">The worker is not distributed yet; setups can be tested here on prices you supply.</p><figure class="pub-vis pub-vis-scan"><p class="pub-vis-k pub-vis-k-top">Starting rule</p><p class="pub-rule" role="list" aria-label="The builder’s starting rule"><span class="pub-chip" role="listitem">Price</span><span class="pub-chip pub-chip-op" role="listitem">crosses above</span><span class="pub-chip" role="listitem">EMA 50</span></p><div class="pub-record" aria-hidden="true"><div class="pub-record-row"><i></i><i></i><i></i></div><div class="pub-record-row"><i></i><i></i><i></i></div><div class="pub-record-row"><i></i><i></i><i></i></div></div><figcaption class="pub-vis-cap pub-vis-empty"><span class="pub-vis-empty-mark" aria-hidden="true"></span><span>Matches are recorded by the worker, not by this site</span></figcaption></figure></article><article class="pub-card ls-card pub-acc-property" data-card="action" data-product="property" aria-labelledby="pub-property-t"><div class="pub-card-top"><span class="pub-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path><path d="M9 22V12h6v10"></path></svg></span><p class="pub-card-product" id="pub-property-n">Property Intelligence</p></div><h3 class="pub-card-title" id="pub-property-t"><a href="/property/calculator" class="pub-card-link ls-card-cta" aria-describedby="pub-property-n pub-property-out pub-property-q pub-property-note pub-property-bound">Analyse a property<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></h3><p class="pub-card-outcome" id="pub-property-out">See the cash required, the monthly position and scenarios for a deal.</p><div class="pub-card-qual"><span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Live</span><span class="pbadge-q" id="pub-property-q">Your figures; no live market data</span></span><details class="pub-info"><summary class="pub-info-btn"><span class="pub-info-i" aria-hidden="true"></span><span class="sr-only">What Live means for Property Intelligence</span></summary><p class="pub-info-body"><span id="pub-property-note">Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.</span> <a href="/how-it-works#hiw-status" class="pub-textlink">What the labels mean</a></p></details></div><p class="pub-card-bound" id="pub-property-bound">The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.</p><figure class="pub-vis pub-vis-lab" aria-labelledby="pub-vis-lab-src"><div class="pub-lab-knob"><label class="pub-vis-k">Price</label><output class="pub-lab-price num" for="pub-lab-price" id="pub-lab-price-v">RM572,000</output><span id="pub-lab-price" class="pub-lab-range" data-inert="range">RM572,000</span></div><dl class="pub-lab-figs"><div class="pub-lab-fig"><dt>Monthly repayment</dt><dd class="num" data-figure="instalment" data-v="2372.956498571095">RM2,373</dd></div><div class="pub-lab-fig"><dt>Cash required</dt><dd class="num" data-figure="safeCashRequired" data-v="118959.7">RM118,960<span class="pub-lab-note">RM3,960 on unverified lines</span></dd></div><div class="pub-lab-fig"><dt>Monthly position</dt><dd class="num neg" data-figure="cashflowMonthly" data-v="-1196.7981652377616">−RM1,197</dd></div></dl><div class="pub-lab-flow"><span class="pub-lab-bars"><svg class="pub-lab-svg" viewBox="0 0 100 22" preserveAspectRatio="none" role="img" aria-label="A month: rent RM1,850; repayment RM2,373 and other costs RM674."><rect class="pub-bar pub-bar-rent" x="0" y="0" width="60.72" height="9" rx="1" data-v="1850"></rect><rect class="pub-bar pub-bar-rep" x="0" y="13" width="77.88" height="9" rx="1" data-v="2372.956498571095"></rect><rect class="pub-bar pub-bar-cost" x="77.88" y="13" width="22.12" height="9" rx="1" data-v="673.8416666666667"></rect></svg></span><p class="pub-vis-legend" aria-hidden="true"><i class="pub-sw pub-sw-rent"></i>Rent<i class="pub-sw pub-sw-rep"></i>Repayment<i class="pub-sw pub-sw-cost"></i>Costs</p></div><figcaption class="pub-vis-cap"><p class="pub-vis-src" id="pub-vis-lab-src"><a class="kind-badge kind-illustrative" data-kind-badge="illustrative" title="The sample deal — A synthetic or sample figure that describes no real company or property: an illustrative company, or the tool’s starting deal." href="/data-sources#kinds"><span class="kind-shape" aria-hidden="true"></span>Illustrative</a><span>Sample deal — not a real listing</span></p></figcaption></figure><p class="pub-card-also"><a href="/property/lab" class="pub-textlink">Try the Scenario Lab<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></p></article></div></section><section class="pub-section pub-path" aria-labelledby="pub-path-h"><div class="pub-path-hd"><p class="pub-tag">Example path</p><h2 class="pub-h2" id="pub-path-h">Your research, connected.</h2></div><div class="pub-routes"><div class="pub-route"><h3 class="pub-route-t" id="pub-route-research">Research</h3><ol class="pub-steps" aria-labelledby="pub-route-research"><li class="pub-step"><a href="/research" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M3 3v18h18"></path><path d="m7 14 4-4 3 3 5-6"></path></svg></span><span class="pub-step-t">A company</span></a></li><li class="pub-step"><a href="/my/watchlists" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M9 6h11M9 12h11M9 18h11"></path><circle cx="4.5" cy="6" r="1"></circle><circle cx="4.5" cy="12" r="1"></circle><circle cx="4.5" cy="18" r="1"></circle></svg></span><span class="pub-step-t">A watchlist</span></a></li><li class="pub-step"><a href="/app/scanner/setups/new" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg></span><span class="pub-step-t">Your setup</span></a></li><li class="pub-step"><a href="/app/scanner" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg></span><span class="pub-step-t">A recorded match</span></a></li><li class="pub-step"><a href="/research" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7"></path><path d="M20 4v4.7h-4.7"></path><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.3"></path><path d="M4 20v-4.7h4.7"></path></svg></span><span class="pub-step-t">Back to research</span></a></li></ol></div><div class="pub-route"><h3 class="pub-route-t" id="pub-route-property">Property</h3><ol class="pub-steps" aria-labelledby="pub-route-property"><li class="pub-step"><a href="/property/calculator" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path><path d="M9 22V12h6v10"></path></svg></span><span class="pub-step-t">A property</span></a></li><li class="pub-step"><a href="/property/lab" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><path d="M3 9h18M9 21V9"></path></svg></span><span class="pub-step-t">Its scenarios</span></a></li><li class="pub-step"><a href="/property/lab" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M12 3v18M5 7h14"></path><path d="m5 7-3 6h6ZM19 7l-3 6h6Z"></path></svg></span><span class="pub-step-t">A, B and C compared</span></a></li><li class="pub-step"><a href="/property/models" class="pub-step-a"><span class="pub-step-node" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M18 21l-6-4-6 4V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"></path></svg></span><span class="pub-step-t">Saved</span></a></li></ol></div></div><div class="pub-path-ft"><p class="pub-saved">Saved in this browser — no account.</p><details class="pub-info"><summary class="pub-info-btn"><span class="pub-info-i" aria-hidden="true"></span><span class="sr-only">Where saved work is kept</span></summary><p class="pub-info-body">There are no accounts and no copy on a server. <a href="/my/data" class="pub-textlink">Your data and the export</a> is the copy that travels.</p></details><a class="pub-textlink pub-path-more" href="/how-it-works#hiw-journey">How it connects<span class="pub-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></a></div></section></div></div></section></div>
   <p class="sr-only" id="liveStatus" role="status" aria-live="polite"></p>
 </main>
 <header class="topbar appbar" id="appbar" hidden data-served-away="hidden">
@@ -7473,7 +7490,7 @@ input.au-in[type="text"] { text-align: left; }
           </span>
           <div class="foot-brand-body">
             <span class="brand-name">Quantum <span>Tradeworks</span></span>
-            <span class="brand-tagline" style="display:block">Research <i>·</i> Monitor <i class="amber">·</i> Model <i>·</i> Plan</span>
+            <span class="brand-tagline" style="display:block">Research <i>·</i> Follow <i class="amber">·</i> Model <i>·</i> Plan</span>
             <p class="body foot-desc">A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled.</p>
             <div class="row row-wrap" style="margin-top:var(--md);gap:6px">
               <span class="chip chip-us">United States</span>
@@ -7483,11 +7500,11 @@ input.au-in[type="text"] { text-align: left; }
       </div>
       <div>
         <h2>Products</h2>
-        <ul id="footProducts"><li><a href="/research" data-path="/research" class="foot-product" aria-description="Beta: Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Equities Research<span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span></a></li><li><a href="/app/scanner" data-path="/app/scanner" class="foot-product" aria-description="Beta: Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Quantum Scanner<span class="status-badge status-beta" title="Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Beta</span></a></li><li><a href="/property" data-path="/property" class="foot-product" aria-description="Live: Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Property Intelligence<span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Live</span><span class="pbadge-q">Your figures, sample to start</span></span></a></li><li><span class="foot-product foot-product-off">Business Intelligence<span class="status-badge status-soon" title="Not built yet — nothing to open.">Coming soon</span></span></li></ul>
+        <ul id="footProducts"><li><a href="/research" data-path="/research" class="foot-product" aria-description="Beta: Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Equities Research<span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span></a></li><li><a href="/app/scanner" data-path="/app/scanner" class="foot-product" aria-description="Beta: Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Quantum Scanner<span class="status-badge status-beta" title="Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Beta</span></a></li><li><a href="/property" data-path="/property" class="foot-product" aria-description="Live: Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Property Intelligence<span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Live</span><span class="pbadge-q">Your figures; no live market data</span></span></a></li><li><span class="foot-product foot-product-off">Business Intelligence<span class="status-badge status-soon" title="Not built yet — nothing to open.">Coming soon</span></span></li></ul>
       </div>
       <div>
         <h2>Resources</h2>
-        <ul id="footResources"><li><a href="/methodology" data-path="/methodology">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary">Glossary</a></li><li><a href="/learn" data-path="/learn">Learn</a></li><li><a href="/corrections" data-path="/corrections">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries">What this product will not do</a></li><li><a href="/status" data-path="/status">Build status</a></li><li><a href="/property-investing" data-path="/property-investing">Property investing in Sarawak</a></li><li><button type="button" class="linklike" data-action="report-error">Report a data error</button></li></ul>
+        <ul id="footResources"><li><a href="/methodology" data-path="/methodology">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary">Metric dictionary</a></li><li><a href="/corrections" data-path="/corrections">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries">What this product will not do</a></li><li><a href="/status" data-path="/status">Checks and status</a></li><li><a href="/property-investing" data-path="/property-investing">Property investing in Sarawak</a></li><li><button type="button" class="linklike" data-action="report-error">Record a data error here</button></li></ul>
       </div>
       <div>
         <h2>Company</h2>
@@ -20159,8 +20176,13 @@ function toast(msg) {
    The homepage card shows each product's; Property's is shown wherever its
    badge is (qualifyBadge: the header's menu and the phone sheet, the
    sidebar, the footer, the tab row, How it works, the search), because
-   "Live" alone read as live market data. The full note stays the badge's
-   title and the link's description, and the card's ⓘ prints it. */
+   "Live" alone read as live market data: it reads "Your figures; no live
+   market data" (the owner, 23 Oct 2026, asked for "Calculations on your
+   figures; no live market data", which takes the Property card to 14 words
+   against the homepage budget of 12; it was "Your figures, sample to
+   start"). The sample deal is labelled where it is drawn. The full note
+   stays the badge's title and the link's description, and the card's ⓘ
+   prints it. */
 const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
@@ -20183,7 +20205,7 @@ const PRODUCTS = [
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
-    boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
+    boundary: 'The worker is not distributed yet; setups can be tested here on prices you supply.',
     statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
@@ -20192,7 +20214,7 @@ const PRODUCTS = [
        (D5(d)) — until the map ships, when the card's action becomes
        "Explore Property". */
     also: { label: 'Try the Scenario Lab', path: '/property/lab' },
-    status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
+    status: 'live', qualifier: 'Your figures; no live market data', qualifyBadge: true,
     /* What the calculator does not do, in sight beside the homepage card's
        action (QT-D02-02, the 15 Oct report): served-check holds the words. */
     outcome: 'See the cash required, the monthly position and scenarios for a deal.',
@@ -20219,7 +20241,7 @@ const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
    for el() children; its own markup when put in a template string, because
    the pages that call it build both ways. */
 /* D17 (N2a, the 5 Oct audit; the owner's decision). Property's badge reads
-   "Live · Your figures, sample to start" wherever it appears — the tab row
+   "Live · Your figures; no live market data" wherever it appears — the tab row
    above /property's Scenario Lab, the header's Products menu, the phone
    sheet, the sidebar, the footer, /how-it-works and the homepage card. The
    qualifier is drawn here, as visible text beside the badge's word, never
@@ -20681,11 +20703,10 @@ const chromeOf = (view) => (PUBLIC_VIEWS.has(view) ? 'public' : 'app');
 const RESOURCES = [
   { label: 'Methodology',                   path: '/methodology',               group: 'method' },
   { label: 'Data sources',                  path: '/data-sources',              group: 'method' },
-  { label: 'Glossary',                      path: '/learn/glossary',            group: 'method' },
-  { label: 'Learn',                         path: '/learn',                     group: 'method' },
+  { label: 'Metric dictionary',             path: '/learn/glossary',            group: 'method' },
   { label: 'Corrections',                   path: '/corrections',               group: 'method' },
   { label: 'What this product will not do', path: '/learn/product-boundaries',  group: 'method' },
-  { label: 'Build status',                  path: '/status',                    group: 'company' },
+  { label: 'Checks and status',             path: '/status',                    group: 'company' },
   { label: 'About',                         path: '/about',                     group: 'company' },
   { label: 'Contact',                       path: '/contact',                   group: 'company' },
   { label: 'Privacy',                       path: '/privacy',                   group: 'company' },
@@ -20919,7 +20940,7 @@ const POSITIONING = {
   title: 'Quantum Tradeworks — your financial decision workspace',
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
-  kicker: 'Research · Monitor · Model · Plan',
+  kicker: 'Research · Follow · Model · Plan',
   /* The hero's lede under the held h1 (D5): with it, 14 words. */
   lede: 'Companies, market setups and property, in one workspace.',
   /* The footer's line on every page. Business planning is "planned, not
@@ -21827,7 +21848,7 @@ function resourceLists(prefix) {
     el('ul', { class: 'rs-list', 'aria-labelledby': `${prefix}-rs-${g}` },
       RESOURCES.filter(r => r.group === g).map(r => el('li', {}, shellLink(r.path, { class: 'rs-link' }, r.label)))),
   ]);
-  return [group('method', 'Method and data'), group('company', 'This build and its terms')];
+  return [group('method', 'Method and data'), group('company', 'This site and its terms')];
 }
 
 /* A disclosure menu of the public header: a button that says whether it is
@@ -21907,7 +21928,7 @@ const NAV_MARKUP = {
     /* The property landing (/property-investing): one link, the footer's
        only — not in the header's Resources menu, which it would crowd. */
     el('li', {}, shellLink('/property-investing', {}, 'Property investing in Sarawak')),
-    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')),
+    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Record a data error here')),
   ],
 };
 
@@ -35340,8 +35361,10 @@ const pubBadge = (p) => productBadge(p.id) || pubStatusBadge(p.status, p.statusN
 /* An in-app link that keeps the browser's own link behaviour: a modified or
    middle click opens a tab, as every other internal link in the product does. */
 function pubLink(path, attrs, ...kids) {
+  /* data-to is where the link goes now, when a page changes it after the
+     draw (pubCalcTo: the Property card carries the price the reader set). */
   return el('a', { href: href(path), ...attrs,
-    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, ...kids);
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(e.currentTarget.dataset.to || path); } }, ...kids);
 }
 /* A link to a section of this page. Scrolled here rather than left to the
    fragment: a changed hash fires popstate, and the router would repaint the
@@ -35384,8 +35407,8 @@ const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true
    It said everything in prose — 557 drawn words, no figure — and twice
    said what the data is. Now: the held headline, a lede of eight words and
    one action; three products, each a task, a qualifier with its ⓘ, and a
-   visual of what the product does, drawn from its own engine; Business as
-   one line of text; and an example path through the work, drawn, with no
+   visual of what the product does, drawn from its own engine; Business (23 Oct 2026: on /pricing
+   and in the footer, not here); and an example path through the work, drawn, with no
    figure, name or count in it. The strip above every page carries the one
    disclosure line; every sentence that left is one action away — in an ⓘ,
    the strip's Details, /how-it-works or /my/data.
@@ -35468,7 +35491,7 @@ function pubVisScanner() {
     el('div', { class: 'pub-record', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('div', { class: 'pub-record-row' }, [el('i'), el('i'), el('i')]))),
     el('figcaption', { class: 'pub-vis-cap pub-vis-empty' }, [
       el('span', { class: 'pub-vis-empty-mark', 'aria-hidden': 'true' }),
-      el('span', {}, 'Matches are recorded by a worker you run, not by this site'),
+      el('span', {}, 'Matches are recorded by the worker, not by this site'),
     ]),
   ]);
 }
@@ -35480,10 +35503,23 @@ function pubVisScanner() {
    the reader keeps, so it is the same page for every reader. Moving the
    price redraws the figures in place. */
 const PUB_LAB_KEYS = ['instalment', 'safeCashRequired', 'cashflowMonthly'];
+/* How much of a cash required rests on lines nobody has verified, in the
+   Scenario Lab's words ("RM3,960 on unverified lines", LAB_FIGURES), or null
+   when none does. /data-sources says it is stated wherever the cash required
+   is shown: the homepage's card, /property-investing's, and the two on
+   /how-it-works. */
+const pubUnverified = (m) => (m?.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null);
 /* The price the reader moved it to, kept in this tab's memory only (never
    stored: the page reads nothing the reader keeps) so a redraw — the
    filings landing a moment after the page opens — leaves it where it was. */
 let pubLabAt = null;
+/* Where the Property card's action goes: the calculator, on the sample deal
+   at the price the reader moved the slider to (?d=price:…, as the
+   calculator's own links write it). At the sample's price, or before it
+   moves, the plain address. The price is not lost at the next step. */
+function pubCalcTo(path, price) {
+  return isNum(price) && price !== num0(PROPERTY_DEFAULT_DEAL.price) ? `${path}?d=price:${Math.round(price)}` : path;
+}
 function pubLabRun(price) {
   const d = pmCopy(PROPERTY_DEFAULT_DEAL);
   d.price = price;
@@ -35509,7 +35545,14 @@ function pubVisProperty({ badgeLink = true } = {}) {
     figs.replaceChildren(...PUB_LAB_KEYS.map(k => {
       const f = LAB_FIGURES.find(x => x.key === k);
       const v = run ? f.read(m) : null;
-      return el('div', { class: 'pub-lab-fig' }, [el('dt', {}, f.label()), el('dd', { class: `num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-figure': k, 'data-v': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v))]);
+      /* Beside the cash required, how much of it rests on unverified lines,
+         in the Lab's own words (pubUnverified): /data-sources says it is
+         stated wherever the cash required is shown (copy-property-1). Under
+         the figure, in its <dd>, so the three figures stay three (mobile.mjs,
+         journeys.mjs). */
+      const note = k === 'safeCashRequired' && run ? pubUnverified(m) : null;
+      return el('div', { class: 'pub-lab-fig' }, [el('dt', {}, f.label()), el('dd', { class: `num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-figure': k, 'data-v': isNum(v) ? String(v) : '' },
+        [LAB_FORMATS[f.fmt](v), note ? el('span', { class: 'pub-lab-note' }, note) : null])]);
     }));
     /* Where the month's rent goes: the rent, against the repayment and the
        rest of the month's costs (vacancy and running costs, the rent less
@@ -35529,12 +35572,19 @@ function pubVisProperty({ badgeLink = true } = {}) {
   range.addEventListener('input', () => {
     const v = Number(range.value);
     pubLabAt = v;
+    /* The card's action opens the calculator at this price. */
+    const go = fig.closest('.pub-card')?.querySelector('.pub-card-link');
+    if (go) { const to = pubCalcTo(PRODUCTS.find(x => x.id === 'property').actionPath, v); go.dataset.to = to; go.setAttribute('href', href(to)); }
     val.textContent = inp.shown(v);
     range.setAttribute('aria-valuetext', inp.shown(v));
     paint(v);
     clearTimeout(said);
     said = setTimeout(() => {
-      const t = [...figs.querySelectorAll('dt')].map((dt, i) => `${dt.textContent} ${figs.querySelectorAll('dd')[i].textContent}`).join(', ');
+      /* Each figure, and the cash required's note apart from it. */
+      const t = [...figs.querySelectorAll('.pub-lab-fig')].map(x => {
+        const dd = x.querySelector('dd'), note = dd?.querySelector('.pub-lab-note');
+        return `${x.querySelector('dt')?.textContent || ''} ${dd?.firstChild?.textContent || ''}${note ? ` (${note.textContent})` : ''}`;
+      }).join(', ');
       const live = document.getElementById('liveStatus');
       if (live) live.textContent = `At ${inp.shown(v)}: ${t}.`;
     }, 700);
@@ -35551,18 +35601,27 @@ function pubVisProperty({ badgeLink = true } = {}) {
 }
 const PUB_VISUALS = { equities: pubVisEquities, scanner: pubVisScanner, property: pubVisProperty };
 
+/* A product that is not built, as one line of text with its badge: no link,
+   no button. On /pricing, beside the plans (the owner, 23 Oct 2026: it left
+   the homepage's choice of tools); the footer lists it too (footProducts). */
+function pubSoonLine(p) {
+  return el('p', { class: 'pub-soon', 'data-product': p.id }, [
+    el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
+  ]);
+}
+
 /* ONE PRODUCT, AS A CARD (plan 3.3). An <article>: its name, its task — the
    card's one action, an <h3> link stretched over the card — its qualifier
    with the ⓘ, and its visual. What sits over the stretched link (the ⓘ,
    the visual's own link and control, a badge, the Property card's second
    action) is its own target: no link, button or <details> inside a link.
-   Business, which is not built, is not a card: one line of text below. */
+   Business, which is not built, is not on the homepage (pubSoonLine). */
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') },
-    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
+    pubLink(p.id === 'property' ? pubCalcTo(p.actionPath, pubLabAt) : p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
   if (p.outcome) card.append(el('p', { class: 'pub-card-outcome', id: id('out') }, p.outcome));
   card.append(pubQualifier(p, id));
   if (p.boundary) card.append(el('p', { class: 'pub-card-bound', id: id('bound') }, p.boundary));
@@ -35598,11 +35657,9 @@ VIEWS.marketing = () => {
   products.append(el('h2', { class: 'sr-only', id: 'pub-products-h' }, 'What would you like to do?'));
   const built = PRODUCTS.filter(p => p.path && p.actionPath);
   products.append(el('div', { class: 'pub-cards' }, built.map(pubProductCard)));
-  for (const p of PRODUCTS.filter(x => !x.path)) {
-    products.append(el('p', { class: 'pub-soon', 'data-product': p.id }, [
-      el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
-    ]));
-  }
+  /* Business Intelligence, which is not built, is not a choice here: it is
+     one line of text on /pricing (pubSoonLine) and a row in the footer
+     (the owner, 23 Oct 2026). */
   wrap.append(products);
 
   /* -- 3. an example path through the work (plan 3.4, D22) ------------------
@@ -35621,7 +35678,7 @@ VIEWS.marketing = () => {
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A match, if you run the worker', '/app/scanner', 'bell'], ['Back to the company', '/research', 'loop']]),
+      ['A recorded match', '/app/scanner', 'bell'], ['Back to research', '/research', 'loop']]),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
@@ -35747,7 +35804,8 @@ function pubProofCard(title, source, rows, note) {
      in one grid line up; nested wrappers do not when one of them wraps. */
   const r = el('div', { class: 'proof-row' });
   rows.forEach(([k]) => r.append(el('span', { class: 'pk' }, k)));
-  rows.forEach(([, v, tone]) => r.append(el('span', { class: 'pv', style: tone ? `color:var(${tone})` : null }, v)));
+  rows.forEach(([, v, tone, note]) => r.append(el('span', { class: 'pv', style: tone ? `color:var(${tone})` : null },
+    note ? [v, el('span', { class: 'pv-note' }, note)] : v)));
   c.append(r);
   if (note) c.append(el('p', { class: 'proof-src', style: 'margin-top:8px' }, note));
   return c;
@@ -35768,7 +35826,7 @@ function hiwPropertyCard() {
   const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
   return pubProofCard('Sarawak property', 'your inputs', [
     [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
-    [cashPartial(pm) ? 'Cash required — partial' : pmShort(null) ? 'Cash required so far' : 'Cash required', fmtAmount(pm.safeCashRequired, 'MYR')],
+    [cashPartial(pm) ? 'Cash required — partial' : pmShort(null) ? 'Cash required so far' : 'Cash required', fmtAmount(pm.safeCashRequired, 'MYR'), null, pubUnverified(pm)],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.');
@@ -35831,13 +35889,20 @@ function hiwReportBody(r) {
   if (!r.c.real) out.push(el('p', { class: 'metaline hiw-label' }, [
     illusChip(r.c), ` ${r.c.name}: illustrative figures — synthetic, not filed. They show what the report contains, not what the company reported.`]));
   else out.push(el('p', { class: 'metaline hiw-label' }, `${r.c.name}: from audited statements filed with the SEC.`));
-  const score = (s) => (isNum(s?.score) ? `${s.score}/100` : '—');
+  /* A score with none behind it says Unavailable and why, not a bare dash
+     (the five reasons /data-sources promises; copy-property-12). A filed bank's
+     strength reads capital, impaired loans and loans to deposits, which sit in
+     regulatory returns and not in the statements filed with the SEC. */
+  const score = (s) => (isNum(s?.score) ? `${s.score}/100` : 'Unavailable');
+  const why = (s, usual, bank) => (isNum(s?.score) ? usual : r.c.type === 'bank' && bank ? bank : 'its inputs are not in the statements held');
+  const hasRange = isNum(r.val?.vals?.bear) && isNum(r.val?.vals?.bull);
   out.push(el('div', { class: 'grid grid-5 hiw-tiles' }, [
-    statTile('Business quality', score(r.scores?.quality), { sub: 'margin durability, returns, consistency' }),
-    statTile('Financial strength', score(r.scores?.strength), { sub: 'leverage, cover, liquidity' }),
-    statTile('Valuation range', isNum(r.val?.vals?.bear) && isNum(r.val?.vals?.bull)
+    statTile('Business quality', score(r.scores?.quality), { sub: why(r.scores?.quality, 'margin durability, returns, consistency') }),
+    statTile('Financial strength', score(r.scores?.strength), { sub: why(r.scores?.strength, 'leverage, cover, liquidity',
+      'capital ratio, impaired loans and loan/deposit are not in the SEC statements held') }),
+    statTile('Valuation range', hasRange
       ? `${fmtMoney(r.val.vals.bear, r.c.ccy)} – ${fmtMoney(r.val.vals.bull, r.c.ccy)}` : 'not computable',
-      { sub: r.val?.pack?.name || '—' }),
+      { sub: r.val?.pack?.name || '—', kind: hasRange ? kindFor(r.c, 'modelled') : null, fine: 'The valuation range' }),
     statTile('Principal risks', String((r.flags || []).length || 'none flagged'), { sub: 'raised from the reported figures' }),
     statTile('Data completeness', isNum(r.m?.coverage) ? `${r.m.coverage}%` : '—', { sub: 'computable ÷ applicable metrics' }),
   ]));
@@ -35890,6 +35955,7 @@ function hiwDealCheck() {
   const cashLabel = cashPartial(exm) ? 'Cash required — partial' : (exm.missingCostLines || []).length ? 'Cash required so far' : 'Cash required';
   const cashSub = isNum(exm.reserveCash) ? `deposit, fees, renovation and a ${exm.reserveMonths}-month reserve`
     : 'deposit, fees and renovation — the reserve cannot be priced';
+  const cashUnverified = pubUnverified(exm);
   const box = el('div', { class: 'hiw-example' });
   box.append(el('h4', { class: 'hiw-ex-t' }, 'A Sarawak property deal check'));
   box.append(el('p', { class: 'hiw-ex-b' }, `The calculator’s own model at ${rm0(EX_PRICE)} and ${rm0(EX_RENT)} a month.`));
@@ -35901,7 +35967,7 @@ function hiwDealCheck() {
       statTile('Monthly cash flow', rm0(exm.cashflowMonthly), { sub: 'after instalment, maintenance and vacancy',
         tone: isNum(exm.cashflowMonthly) && exm.cashflowMonthly < 0 ? '--dn-text' : null }),
       statTile('Break-even rent', rm0(exm.breakEvenRent), { sub: 'rent needed to cover every cost' }),
-      statTile(cashLabel, rm0(exm.safeCashRequired), { sub: cashSub }),
+      statTile(cashLabel, rm0(exm.safeCashRequired), { sub: cashUnverified ? `${cashSub} · ${cashUnverified}` : cashSub }),
     ]),
     el('p', { class: 'metaline hiw-label', style: 'margin-top:var(--md)' },
       'Computed by the calculator’s own model from its illustrative defaults at this price and rent — an example, not a listing, with no verified comparables behind it. Enter your own numbers to get your own answer.'),
@@ -37328,8 +37394,8 @@ VIEWS.about = () => trustPage('About',
       /* "Asks nothing about your circumstances" was unqualified, beside a
          property calculator whose loan-readiness check asks for income,
          debts and a credit record. */
-      ['Not advice. It does not tell you what to buy, hold or sell, produces no buy, sell or hold ratings and no single-figure target price, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment.',
-       'Not a data vendor. It does not redistribute market data, and where a price is shown its source and licence are stated on the page.']],
+      ['Not advice. It does not tell you what to buy, hold or sell, produces no buy, sell or hold ratings and no single-figure target price, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. The Scenario Lab’s optional objective only chooses which figures lead, and stays in this browser.',
+       'Not a data vendor. It does not redistribute market-data records; NAPIC’s published ranges are shown as derived figures, with their licence position beside them, and where a price is shown its source and licence are stated on the page.']],
     ['Legal entity and registration',
       ['No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.',
        operatorLine() || tp('The operating entity and its registered address are not published yet.')], true],
@@ -37424,7 +37490,7 @@ VIEWS.privacy = () => {
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
-        tp('Only requests for this site’s own files: the page itself and the data files it reads — the SEC filings, the instrument list, the Sarawak map and, when you open a locality on the area screen, NAPIC’s published figures for the division it lies in. Those are one file a division, so the address requested names the division. The Kuching scheme map asks for the Kuching map file, its style, lettering and symbols, and its drawing code, all from this site and only on that page; it reads the map file in pieces, so the host could infer which part of Kuching you looked at. The security policy this site is served with tells your browser to refuse any request the page itself makes to another address, so this is enforced by your browser, not only promised here.'),
+        tp('Only requests for this site’s own files: the page itself and the data files it reads — the SEC filings, the instrument list, the Sarawak map and, when you open a locality on the area screen, NAPIC’s published figures for the division it lies in. Those are one file a division, so the address requested names the division. The Kuching scheme map asks for the Kuching map file, its style, lettering and symbols, its drawing code and NAPIC’s Kuching figures, all from this site and only on that page; it reads the map file in pieces, so the host could infer which part of Kuching you looked at. The security policy this site is served with tells your browser to refuse any request the page itself makes to another address, so this is enforced by your browser, not only promised here.'),
         tp('Each request reaches the company that hosts this site, Vercel, carrying what every web request carries: your IP address, your browser’s name and version, and the address requested. This build does not read or keep those requests; what the host records about them, and for how long, is governed by the host’s own terms.'),
         tp('Some pages keep what is on screen in their address, so that a copied link reproduces it. The property calculator writes the deal’s figures there — the price, the rent and the other inputs you changed, never the borrower profile. An address reaches the host only when a page is loaded with it: a reload, or a link someone opens.'),
         tagged
@@ -37509,7 +37575,7 @@ VIEWS.terms = () => trustPage('Terms',
     ['No execution',
       'Nothing here places, routes or executes an order. There is no brokerage connection, and no instruction you give this site reaches a market, a broker or a bank.'],
     ['Prices and licensing',
-      'No market data is redistributed. Where a price is shown, its source and the right it is shown under are stated on the page.'],
+      'No market-data records are redistributed. NAPIC’s published ranges are shown as derived figures, with their licence position beside them. Where a price is shown, its source and the right it is shown under are stated on the page.'],
     ['Your data stays in your browser',
       [tp('What you enter is kept in this browser’s local storage and nowhere else — see ', tlink('Privacy', '/privacy'), '. Export anything you want to keep: clearing the browser’s storage deletes it, and there is no copy anywhere to restore it from.'),
        'Data you paste in stays under the terms you obtained it on — a broker’s export is still your broker’s data.']],
@@ -55412,7 +55478,7 @@ VIEWS.ips = () => {
     + 'This product publishes neither, and the reason is not stylistic.'));
   dev.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
     'It is research only. It holds no licence to advise and makes no personal recommendation, and the disclosure on every '
-    + 'page rests on that. The one place it takes figures about you is the property calculator’s optional loan-readiness check: the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. '
+    + 'page rests on that. The one place it takes figures about you is the property calculator’s optional loan-readiness check: the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. The Scenario Lab’s optional objective only chooses which figures lead, and stays in this browser. '
     + 'The substance of section 8 is kept in full; only the verb changes.'));
   const dl = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
   dl.append(el('thead', {}, el('tr', {}, ['IPS §8 says', 'This product says', 'Why it is the same information']
@@ -56954,6 +57020,12 @@ function napicBenchmarks(division, { locality = null, limit = 40 } = {}) {
   return { rows: rows.slice(0, limit), matched, total: rows.length, divisionTotal: all.length };
 }
 
+/* The licence position, in the one line every place that shows NAPIC's
+   ranges says it (the area screen's panel and the scheme map's list and
+   panel), so no two can word it differently. */
+const napicLicenceLine = (napic) => `Licence ${napic.licence.status.replace(/_/g, ' ').toLowerCase()} — derived display only. `
+  + 'Raw files are not published, NAPIC rows are not exported in bulk, and the extraction reconciles to the published Sarawak '
+  + `total of ${fmtNum(napic.reconciliation.target.count, 0)} transactions exactly.`;
 const napicUnitLabel = (b) => ({
   RM_PER_UNIT: 'per unit', RM_PER_SQM: 'per m²', RM_PER_HECTARE: 'per hectare',
 }[b.basisUnit] || '') + (b.perMonth ? ' a month' : '');
@@ -57082,10 +57154,7 @@ function officialBenchmarkPanel(city, area) {
     `Source period ${napic.period.code}. ${napic.licence.attribution}. `
     + 'Figures are official NAPIC aggregates or sample-based benchmarks for the stated reporting period. They are not live '
     + 'listings, complete transaction histories or professional valuations.'));
-  card.append(el('p', { class: 'metaline', style: 'margin-top:4px;color:var(--bronze)' },
-    `Licence ${napic.licence.status.replace(/_/g, ' ').toLowerCase()} — derived display only. `
-    + 'Raw files are not published, NAPIC rows are not exported in bulk, and the extraction reconciles to the published Sarawak '
-    + `total of ${fmtNum(napic.reconciliation.target.count, 0)} transactions exactly.`));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:4px;color:var(--bronze)' }, napicLicenceLine(napic)));
   return card;
 }
 /* ==========================================================================
@@ -71646,7 +71715,7 @@ function scopeCard() {
    /* Scoped to what is true. It said "any question about your income … or
       circumstances", and the property calculator's loan-readiness check asks
       for income, debts, commitments and a credit record. */
-   'Any question about your goals or risk tolerance. The one input about you is optional: the property calculator’s loan-readiness check, which uses the income, debts and credit record you choose to enter, held only in this browser, to judge whether a loan is within reach',
+   'Any question about your goals or risk tolerance, apart from the Scenario Lab’s optional objective, which only chooses which figures lead. The one input about your finances is optional: the property calculator’s loan-readiness check, which uses the income, debts and credit record you choose to enter, to judge whether a loan is within reach. Both are held only in this browser',
    'Output that differs from one user to another — everyone sees the same analysis',
    'Portfolio construction, allocation guidance or rebalancing instructions',
    'Trade execution, brokerage connection or order routing'].forEach(x =>
@@ -71791,6 +71860,9 @@ VIEWS.plans = () => {
   })));
   det.append(body);
   wrap.append(det);
+
+  /* The product that is not built, as text with its badge (pubSoonLine). */
+  PRODUCTS.filter(p => !p.path).forEach(p => wrap.append(pubSoonLine(p)));
 
   /* What is deliberately not monetised, and why: one link. */
   wrap.append(el('p', { class: 'plan-boundary' }, [
@@ -73005,8 +73077,14 @@ const KM_NOT = {
   weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap, so not placed.' },
   street: { label: 'Not placed — named after a street', said: 'A street is a line, often kilometres long; a neighbourhood’s mark on it would claim more than the name says.' },
   none: { label: 'Not placed — no OpenStreetMap match', said: 'No OpenStreetMap name matches it, and no other source this map may use places it.' },
-  'not-a-place': { label: 'Not a place', said: 'A label from NAPIC’s rental table — a floor of a building — not a scheme’s name.' },
+  /* In a customer's words, and as left out of the count of schemes
+     (kmSchemeCount): the three rows are "1st Floor", "2nd Floor" and
+     "3rd Floor" — copy-property-9. */
+  'not-a-place': { label: 'Not a place', said: 'A row NAPIC’s rental table labels by floor, not by scheme: not a scheme’s name, and not counted as a scheme above.' },
 };
+/* The schemes NAPIC's sample names: every row but those that are not a place
+   (a floor of a building), so the count says what it counts. */
+const kmSchemeCount = () => (KM_DATA?.schemes || []).filter(s => s.status !== 'not-a-place').length;
 const kmReason = (s) => (s.status === 'not-a-place' ? 'not-a-place' : s.reason);
 
 /* The page's state for this tab: the map, its mode and what is selected. The
@@ -73067,6 +73145,15 @@ function kmFigures(scheme, { change = false } = {}) {
   ])));
 }
 
+/* THE LICENCE POSITION OF NAPIC'S RANGES, beside them, in the area screen's
+   own line (napicLicenceLine, 81-napic.js): the ranges are shown as derived
+   figures, and /about and /terms say
+   so. Only once NAPIC's file is loaded, which is when the ranges are. */
+function kmLicence() {
+  const doc = napicDoc('Kuching');
+  return doc ? el('p', { class: 'metaline km-licence', style: 'color:var(--bronze)' }, napicLicenceLine(doc)) : null;
+}
+
 /* --------------------------------------------------------------- the page */
 VIEWS.areaMap = () => {
   const wrap = el('div', { class: 'km-page' });
@@ -73074,13 +73161,13 @@ VIEWS.areaMap = () => {
   /* NAPIC's Kuching file, asked for as the page is first drawn: the figures
      under each scheme come with it (loadNapic redraws the page). */
   if (!napicDivisions.has('Kuching')) loadNapic('Kuching');
-  const placed = kmPlaced(), all = KM_DATA.schemes;
+  const placed = kmPlaced();
   wrap.append(pageHead({ title: 'Kuching scheme map',
     /* Its own state, as the register row has it (80-registers.js): the area
        screen's tab is Live, and this view of it is new. */
     badge: el('span', { class: 'status-badge status-beta', title: 'New: positions only, most schemes not yet placed, nothing on the map priced.' }, 'Beta'),
     lede: 'Where NAPIC’s Kuching housing schemes are, wherever OpenStreetMap names them — positions only, never prices.',
-    note: `${placed.length} of ${all.length} residential schemes in NAPIC’s ${KM_DATA.period} sample are placed, each with its evidence and how sure it is. `
+    note: `${placed.length} of ${kmSchemeCount()} residential schemes in NAPIC’s ${KM_DATA.period} sample are placed, each with its evidence and how sure it is. `
       + 'NAPIC’s observed ranges stay in the list, under each scheme; the map carries no figure.' }));
   wrap.append(areaViewsNav('areaMap'));
 
@@ -73179,6 +73266,8 @@ function kmPanel() {
   panel.append(el('div', { class: 'card-hd-t km-panel-sub' }, [el('h4', { class: 'eyebrow' }, `NAPIC ${KM_DATA.period}, under this name`), kindBadge('filed', { fine: `NAPIC ${KM_DATA.period}` })]));
   panel.append(kmFigures(s.scheme, { change: true }) || el('p', { class: 'metaline' }, 'Loading NAPIC’s Kuching file…'));
   panel.append(el('p', { class: 'metaline' }, 'A range observed across NAPIC’s sample for the half-year: not the scheme’s price, not the latest sale, never a midpoint. A row from one observation is one property in the sample.'));
+  const lic = kmLicence();
+  if (lic) panel.append(lic);
   const acts = el('div', { class: 'km-acts' });
   if (placed) {
     acts.append(kmLabButton(s, 'km-panel-lab'));
@@ -73205,7 +73294,7 @@ function kmOpenLab(s) {
 /* -------------------------------------------------------------- the list */
 function kmList() {
   const card = el('section', { class: 'card km-list-card', id: 'km-list', 'aria-labelledby': 'km-list-h' });
-  card.append(cardHead(`Every Kuching residential scheme in NAPIC’s ${KM_DATA.period} sample — ${KM_DATA.schemes.length}`,
+  card.append(cardHead(`Every Kuching residential scheme in NAPIC’s ${KM_DATA.period} sample — ${kmSchemeCount()}`,
     'The map’s list, and the way to it from a keyboard or a screen reader: each scheme’s position and evidence, NAPIC’s figures under it, and the Scenario Lab.', null, { kind: 'filed', fine: `NAPIC ${KM_DATA.period}` }));
   const find = el('div', { class: 'km-find' }, [
     el('label', { for: 'km-find' }, 'Find a scheme'),
@@ -73215,6 +73304,8 @@ function kmList() {
   ]);
   card.append(find);
   card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once NAPIC’s Kuching figures have loaded; a row from one observation says so.`));
+  const lic = kmLicence();
+  if (lic) card.append(lic);
   const groups = [
     ['placed', `Placed on the map — ${kmPlaced().length}`, (s) => s.status === 'placed'],
     ['weak', null, (s) => kmReason(s) === 'weak'],
@@ -73261,7 +73352,7 @@ function kmFilter(root = document.getElementById('km-list')) {
   }
   for (const g of root.querySelectorAll('.km-group')) g.hidden = !g.querySelector('.km-item:not([hidden])');
   const said = root.querySelector('#km-find-said');
-  if (said) said.textContent = q ? `${shown} of ${KM_DATA.schemes.length} schemes match “${KM.filter.trim()}”.` : '';
+  if (said) said.textContent = q ? `${shown} of ${KM_DATA.schemes.length} listed names match “${KM.filter.trim()}”.` : '';
 }
 
 /* -------------------------------------------------------- choosing one */

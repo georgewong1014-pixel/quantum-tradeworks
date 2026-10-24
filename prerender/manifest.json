@@ -35,7 +35,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ab3a0618f9ea6b50",
+      "digest": "db5154abd6399f12",
       "changed": "2026-10-24"
     },
     "pages/about.html": {
@@ -47,7 +47,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          13
+          12
         ],
         "resources": "Current page: About",
         "appnav": []
@@ -64,8 +64,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "950160f6577a6a7a",
-      "changed": "2026-10-17"
+      "digest": "56652226d846fb64",
+      "changed": "2026-10-24"
     },
     "pages/admin/scanner.html": {
       "path": "/admin/scanner",
@@ -209,7 +209,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3926fee233e6c282",
+      "digest": "b61a78e987f5bcea",
       "changed": "2026-10-24"
     },
     "pages/app/equities.html": {
@@ -4080,7 +4080,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          14
+          13
         ],
         "resources": "Current page: Contact",
         "appnav": []
@@ -4109,7 +4109,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          10
+          9
         ],
         "resources": "Current page: Corrections",
         "appnav": []
@@ -4126,7 +4126,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "566366e8442d439b",
+      "digest": "92b8c05a64cd2e40",
       "changed": "2026-10-24"
     },
     "pages/data-sources.html": {
@@ -4329,7 +4329,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9d04c568345f282b",
+      "digest": "3b4e3c1da80b6c8b",
       "changed": "2026-10-24"
     },
     "pages/learn.html": {
@@ -4341,9 +4341,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          9
+          8
         ],
-        "resources": "Current page: Learn",
+        "resources": "Current page: Metric dictionary",
         "appnav": []
       },
       "inert": {
@@ -4372,7 +4372,7 @@
         "pubnav": [
           8
         ],
-        "resources": "Current page: Glossary",
+        "resources": "Current page: Metric dictionary",
         "appnav": []
       },
       "inert": {
@@ -4399,7 +4399,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          11
+          10
         ],
         "resources": "Current page: What this product will not do",
         "appnav": []
@@ -4416,8 +4416,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f056bb3a86170c3b",
-      "changed": "2026-10-11"
+      "digest": "abb20fd0829a35b5",
+      "changed": "2026-10-24"
     },
     "pages/learn/trading-index.html": {
       "path": "/learn/trading-index",
@@ -4501,7 +4501,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "20b70f64eadc971e",
+      "digest": "dbff15896c010c0b",
       "changed": "2026-10-24"
     },
     "pages/methodology/property.html": {
@@ -4849,7 +4849,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3a551745caf05e2a",
+      "digest": "ad3791bd22a15f6c",
       "changed": "2026-10-24"
     },
     "pages/privacy.html": {
@@ -4861,7 +4861,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          15
+          14
         ],
         "resources": "Current page: Privacy",
         "appnav": []
@@ -4878,7 +4878,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "71b20044fa00f7f7",
+      "digest": "9cc053864fb9c456",
       "changed": "2026-10-24"
     },
     "pages/property-investing.html": {
@@ -4905,8 +4905,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "43debf509bcc9a5b",
-      "changed": "2026-10-22"
+      "digest": "3c53ed17a11dbbe2",
+      "changed": "2026-10-24"
     },
     "pages/property.html": {
       "path": "/property",
@@ -4934,8 +4934,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "abb4e6a459ab08dc",
-      "changed": "2026-10-22"
+      "digest": "ea07e3adf6b2cc06",
+      "changed": "2026-10-24"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -4963,7 +4963,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "724d83d6da4a7def",
+      "digest": "55e6fe5b18bc5a4e",
       "changed": "2026-10-24"
     },
     "pages/property/areas/map.html": {
@@ -4992,7 +4992,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "40411dbf2420b1c9",
+      "digest": "f7e97cb502af8381",
       "changed": "2026-10-24"
     },
     "pages/property/calculator.html": {
@@ -5021,8 +5021,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d6b9147bb89faad4",
-      "changed": "2026-10-22"
+      "digest": "3265daf8b92f7f39",
+      "changed": "2026-10-24"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -5050,8 +5050,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3f8ed2e139aa8d2a",
-      "changed": "2026-10-22"
+      "digest": "7f2ae3a703daa25b",
+      "changed": "2026-10-24"
     },
     "pages/property/lab.html": {
       "path": "/property/lab",
@@ -5079,8 +5079,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "abb4e6a459ab08dc",
-      "changed": "2026-10-22"
+      "digest": "ea07e3adf6b2cc06",
+      "changed": "2026-10-24"
     },
     "pages/property/models.html": {
       "path": "/property/models",
@@ -5108,8 +5108,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "70787921fe40eee3",
-      "changed": "2026-10-22"
+      "digest": "4cf4935e078001c4",
+      "changed": "2026-10-24"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
@@ -5137,8 +5137,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "aea7f4ce59222b7a",
-      "changed": "2026-10-22"
+      "digest": "afe9025fffa8d401",
+      "changed": "2026-10-24"
     },
     "pages/research.html": {
       "path": "/research",
@@ -5265,9 +5265,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          12
+          11
         ],
-        "resources": "Current page: Build status",
+        "resources": "Current page: Checks and status",
         "appnav": []
       },
       "inert": {
@@ -5294,7 +5294,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          16
+          15
         ],
         "resources": "Current page: Terms",
         "appnav": []
@@ -5311,7 +5311,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "63a12d85b241928f",
+      "digest": "8facdbe1a9ec5e60",
       "changed": "2026-10-24"
     },
     "pages/us-options/wheel.html": {
