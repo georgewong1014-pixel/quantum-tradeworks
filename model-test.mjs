@@ -10474,8 +10474,10 @@ try {
          collected, RM1,710 and RM855 — not of the RM22,800 let (RM2,280
          and RM1,140).
      5 — UPFRONT CASH AND THE RESERVE. B with a 6-month reserve and
-         RM5,000 already paid; B with a RM400,000 valuation: every line of
-         the cash required and no other, the two burns, the reserve, the
+         RM5,000 already paid; B with a RM400,000 valuation, with a RM450,000
+         one (above the price: lent on the price, the valuer's fee on the
+         valuation) and with a RM380,000 one lent on the valuation alone:
+         every line of the cash required and no other, the two burns, the reserve, the
          totals and what is still to pay at completion.
      6 — EXIT, TAX AND THE RATE OF RETURN, each on its own. X is B with 40%
          down, held 5 years, legal 0.1% of the sale and a 24% tax rate:
@@ -10505,6 +10507,8 @@ try {
       v0: { ...B, ...MANAGED, vacancyPct: 0 }, v9: { ...B, ...MANAGED, vacancyPct: 9 }, v25: { ...B, ...MANAGED, vacancyPct: 25 },
       upfront: { ...B, reserveMonths: 6, bookingDepositPaid: 5000 },
       lowVal: { ...B, bankValuation: 400000 },
+      highVal: { ...B, bankValuation: 450000 },
+      valOnly: { ...B, bankValuation: 380000, valuationRule: 'valuation_only' },
       x: { ...B, ...X }, xCo: { ...B, ...X, disposerCategory: 'company' }, xNc: { ...B, ...X, disposerCategory: 'foreign' }, xFlat: { ...B, ...X, apprecPct: 0 },
       taxB: { ...B, marginalTaxPct: 24 },
     };
@@ -10552,7 +10556,7 @@ try {
     const work = (d) => {
       if (!d.selfManaged && (d.mgmtMinMonthly || d.leasingFeeMonths)) throw new Error('a minimum or a placement fee is not worked here');
       const e = {};
-      const basis = d.bankValuation > 0 ? Math.min(d.price, d.bankValuation) : d.price;
+      const basis = d.bankValuation > 0 ? (d.valuationRule === 'valuation_only' ? d.bankValuation : Math.min(d.price, d.bankValuation)) : d.price;
       const loan = basis * (100 - d.downPct) / 100;
       Object.assign(e, { loan, deposit: basis - loan, gap: d.price - basis });
       const n = d.tenureYears * 12, i = d.ratePct / 100 / 12;
@@ -10733,7 +10737,7 @@ try {
 
     d8('5, upfront cash and the reserve', (p) => {
       const words = [];
-      for (const [k, months, what] of [['upfront', 6, 'a 6-month reserve, RM5,000 already paid'], ['lowVal', 3, 'a RM400,000 valuation']]) {
+      for (const [k, months, what] of [['upfront', 6, 'a 6-month reserve, RM5,000 already paid'], ['lowVal', 3, 'a RM400,000 valuation'], ['highVal', 3, 'a RM450,000 valuation, above the price'], ['valOnly', 3, 'a RM380,000 valuation, lent on it alone']]) {
         const g = got[k], e = work(CASES[k]);
         for (const f of ['loan', 'deposit', 'gap']) chk(p, `${k}: the ${f}`, g[f], e[f]);
         ledgerChk(p, `${k}:`, g, e);
