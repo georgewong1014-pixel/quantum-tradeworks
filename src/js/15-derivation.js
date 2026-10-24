@@ -394,7 +394,7 @@ function restoreBackup(text) {
    analytics is switched on, and not before. */
 const LAUNCH = {
   waitlistEndpoint: '',
-  contactEmail: '',
+  contactEmail: 'georgewong1014@gmail.com',
 };
 const waitlistReady = () => !!LAUNCH.waitlistEndpoint;
 /* The support address, or '' while none is published. Every surface that
