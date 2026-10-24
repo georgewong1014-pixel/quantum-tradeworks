@@ -2135,7 +2135,7 @@ const NAV_MARKUP = {
     /* The property landing (/property-investing): one link, the footer's
        only — not in the header's Resources menu, which it would crowd. */
     el('li', {}, shellLink('/property-investing', {}, 'Property investing in Sarawak')),
-    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Record a data error here')),
+    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')),
   ],
 };
 
