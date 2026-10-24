@@ -2513,6 +2513,9 @@ const HOME_PAGE = read(HOME);
     const m = mainOf(got.get(path)?.body || '');
     if (!m) continue;
     for (const a of all(m).filter(n => n.tag === 'a' && attr(n, 'href') === '/pricing')) {
+      /* A link inside a closed <details> is not in sight (the status page's register, Day-10 IW-21). */
+      let cl = a.parent; while (cl && !(cl.tag === 'details' && attr(cl, 'open') === null)) cl = cl.parent;
+      if (cl) continue;
       let blk = a.parent; while (blk && !/^(p|li|section|article|div)$/.test(blk.tag)) blk = blk.parent;
       while (blk && blk.parent && blk.tag !== '#root' && wordsIn(sight(blk)).length < 6) blk = blk.parent;
       if (!/not on sale/i.test(blk ? sight(blk) : '')) noSale.push(`${path}: "${sight(a)}"`);
@@ -3240,7 +3243,7 @@ const HOME_PAGE = read(HOME);
    counted as theirs. Held here on the served HTML, before any script:
    - each page's #views holds one backup line (data-backup-line), its state
      "never", reading exactly "Never exported" on /my/data and "Backup: never
-     exported. Export from Your data & settings" on /app — no digit in it;
+     exported. Back up everything" on /app — no digit in it;
    - its render read the export record (lastExport in data-served-reads), so
      a reader who has exported is kept from the fresh page until the script
      draws their own (FIRST_SCRIPT, build.mjs);
@@ -3250,7 +3253,7 @@ const HOME_PAGE = read(HOME);
   const p = [];
   const B = await import('./build.mjs');
   const all = B.allOf, attr = B.attrOf, sight = B.sightText;
-  const WANT = { '/my/data': 'Never exported', '/app': 'Backup: never exported. Export from Your data & settings' };
+  const WANT = { '/my/data': 'Never exported', '/app': 'Backup: never exported. Back up everything' };
   const got = await getAll(Object.keys(WANT));
   const said = [];
   for (const [path, want] of Object.entries(WANT)) {
@@ -3448,12 +3451,12 @@ const HOME_PAGE = read(HOME);
     else {
       const t = sight(card);
       said.card = t;
-      if (!/\bproduction\b/i.test(t) || !/\bthis build\b/i.test(t)) p.push(`the point-in-time card does not say which is the production policy and which is this build: "${t.slice(0, 160)}…"`);
+      if (!/should use only what was known/i.test(t) || !/does not do that yet/i.test(t)) p.push(`the point-in-time card does not say what the policy is and that this product does not do it yet: "${t.slice(0, 160)}…"`);
       const dts = all(card).filter(n => n.tag === 'dt'), row = dts.find(d => sight(d) === 'Restatement link');
       const dd = row ? row.parent.kids.slice(row.parent.kids.indexOf(row) + 1).find(k => k.tag === 'dd') : null;
       said.row = dd ? sight(dd) : null;
       if (!said.row) p.push('the point-in-time card has no "Restatement link" row');
-      else if (!/\bthis build\b/i.test(said.row) || !/\boverwrite/i.test(said.row)) p.push(`the restatement row does not say what this build does: "${said.row}"`);
+      else if (!/\bnot yet\b/i.test(said.row) || !/\breplaces/i.test(said.row)) p.push(`the restatement row does not say what this product does: "${said.row}"`);
     }
   }
   judge(p, `/data-sources says what is policy and what is this build (the claims audit, rank 5): no "history is never overwritten"; Restatement link — "${said.row || '—'}"`,
@@ -3506,9 +3509,11 @@ const HOME_PAGE = read(HOME);
      "Monitor my existing portfolio — Track what you already hold", where
      nothing on this site monitors anything without prices. */
   gone(/Monitor my existing portfolio|Track what you already hold/, '"Monitor my existing portfolio — Track what you already hold"');
-  here('/welcome', /Research Bursa companies An illustrative set — synthetic figures, not filed statements/, 'the Bursa option qualified as an illustrative set');
-  here('/welcome', /Record my portfolio What you hold, valued where a price is held or you supply one/, '"Record my portfolio — What you hold, valued where a price is held or you supply one"');
-  said.push('/welcome "An illustrative set — synthetic figures" and "Record my portfolio"');
+  /* Day-10 CL-15: /welcome no longer asks for a goal (one picker, /start), so the
+     Bursa and portfolio options it qualified are no longer asked there (the
+     /welcome check below), not reworded. */
+  here('/welcome', /Step 1 of 3/, '/welcome\'s three preference questions');
+  said.push('/welcome asks three preference questions and no goal');
   /* 6d — the Value Map's "As of" (F-19, R-29): "Latest reported period,
      current price", on a page whose every plotted company is on a sample
      price or a close the reader supplied. */
@@ -3580,7 +3585,8 @@ const HOME_PAGE = read(HOME);
   const said = [];
   if (!status || status.status !== 200) p.push(`/status: ${status?.status || 'no answer'}, not 200`);
   else {
-    const tree = B.htmlTree(status.body);
+    /* The register is in a closed <details> since Day-10 IW-21; read it open here. */
+    const tree = B.htmlTree(status.body.replace(/<details class="status-fold"/g, '<details class="status-fold" open'));
     const rows = all(tree).filter(n => n.tag === 'tr');
     for (const [name, w] of Object.entries(WANT)) {
       const tr = rows.find(r => all(r).some(n => n.tag === 'div' && sight(n) === name));
@@ -4120,7 +4126,8 @@ const HOME_PAGE = read(HOME);
     if (/(\+?\d[\d\s().-]{7,}\d)/.test(body.replace(/\b(19|20)\d{2}\b/g, ''))) p.push(`${path} carries a run of digits that reads as a telephone number: "${/(\+?\d[\d\s().-]{7,}\d)/.exec(body)[0]}"`);
   }
   const contact = pageText(html('/contact'));
-  if (!/Customer support is not available yet\. The correction tool saves a case in this browser and prepares text for you to copy\. It does not send the case or notify Quantum Tradeworks\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');
+  if (!/Customer support is not available yet\. Report a data error records a case in this browser and gives you its text to copy; it sends nothing\. Every case is listed under Corrections ?\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');
+  if (/What works today|One route does work/.test(contact)) p.push('/contact still calls the report form a route that works');
   if (/<strong>Customer support is not available yet\.<\/strong>/.test(html('/contact')) === false) p.push('/contact does not bold "Customer support is not available yet."');
   if (!/The operating entity and its registered address are not published yet\./.test(pageText(html('/about')))) p.push('/about does not say the operating entity and its registered address are not published yet');
   const marks = (path) => (html(path).match(/data-tbs=/g) || []).length;
@@ -4188,7 +4195,7 @@ const HOME_PAGE = read(HOME);
     '/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists'];
   const got = await getAll(paths);
   const text = (path) => got.get(path)?.body || '';
-  const mainOf = (path) => { const m = B.allOf(B.htmlTree(text(path))).find(n => n.tag === 'main'); return m ? B.sightText(m) : ''; };
+  const mainOf = (path) => { const m = B.allOf(B.htmlTree(text(path).replace(/<details class="status-fold"/g, '<details class="status-fold" open'))).find(n => n.tag === 'main'); return m ? B.sightText(m) : ''; };
   for (const path of paths) if (got.get(path)?.status !== 200) p.push(`${path} is served ${got.get(path)?.status}`);
   const pi = mainOf('/property-investing');
   if (/fee rulebook \d|checked \d{1,2} [A-Z][a-z]{2} \d{4}/.test(pi)) p.push(`/property-investing still serves the rulebook's version or checked day: "${(/fee rulebook \d[^.]*|checked \d{1,2} [A-Z][a-z]{2} \d{4}/.exec(pi) || [''])[0]}"`);
@@ -4196,7 +4203,7 @@ const HOME_PAGE = read(HOME);
   if (!/Version \d+\.\d+\.\d+, checked \d{1,2} [A-Z][a-z]{2} \d{4}/.test(mainOf('/data-sources'))) p.push('/data-sources does not carry the fee rulebook\'s "Version N, checked <day>"');
   const cmp = mainOf('/compare');
   if (/feature-flagged|not counted as operational|\bP1\b/.test(cmp)) p.push('/compare still serves the register\'s words (feature-flagged, not counted as operational or a priority code)');
-  if (!/Partial\s+Company comparison[\s\S]{0,400}Usable as it stands\. Build status/.test(cmp)) p.push('/compare\'s partial-feature notice does not read "Partial", the feature, what is missing, "Usable as it stands." and the Build status link');
+  if (!/Partial\s+Company comparison[\s\S]{0,400}Usable as it stands\. Checks and status/.test(cmp)) p.push('/compare\'s partial-feature notice does not read "Partial", the feature, what is missing, "Usable as it stands." and the Build status link');
   if (!/Flagged: /.test(mainOf('/status'))) p.push('/status no longer lists the flagged rows');
   for (const path of ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists']) {
     const t = mainOf(path);
@@ -4218,6 +4225,86 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end copy-cleanup ---- */
 
+
+/* ---- site-pages ---- */
+/* THE SITE'S OWN PAGES, PLAIN (Day-10 pre-audit, track F3; the owner's decisions
+   of 23 Oct 2026). Held on the served HTML, before any script:
+   - /status opens with what a visitor needs — the journeys' latest result, the
+     property lines and how old the data is, all in the open — and the engineering
+     detail (the journeys' steps and suites, the register) is in two <details>
+     closed on arrival, the same elements and ids inside them; no backlog id,
+     brief or file name stands outside them;
+   - /learn/glossary opens with the property terms a property buyer meets;
+   - /corrections puts the reader's cases and the log before the product's
+     boundaries;
+   - /pricing's comparison has no All-Access column; /my/data is headed by its
+     task and "Bring your own prices" is a section further down; /my/reports,
+     empty, leads to the property calculator; the Resources pages carry no
+     internal vocabulary the findings named. */
+{
+  const p = [];
+  const got = await getAll(['/welcome', '/status', '/learn/glossary', '/corrections', '/pricing', '/my/data', '/my/reports', '/contact', '/data-sources']);
+  const body = (path) => got.get(path)?.body || '';
+  const main = (path) => (/<main\b[\s\S]*?<\/main>/.exec(body(path)) || [''])[0];
+  const text = (path) => pageText(main(path));
+  const at = (path, s) => main(path).indexOf(s);
+  for (const path of got.keys()) if (got.get(path)?.status !== 200) p.push(`${path}: ${got.get(path)?.status}, not 200`);
+
+  const st = main('/status');
+  if (!/<h1>Checks and status<\/h1>/.test(st)) p.push('/status is not headed "Checks and status"');
+  const folds = [...st.matchAll(/<details class="status-fold"[^>]*>/g)].map(m => m[0]);
+  if (folds.length !== 2 || folds.some(f => /\sopen(=|\s|>)/.test(f))) p.push(`/status serves ${folds.length} fold(s), ${folds.filter(f => /\sopen(=|\s|>)/.test(f)).length} open; want two, closed`);
+  const f1 = st.indexOf('id="status-record"'), f2 = st.indexOf('id="status-register"');
+  if (!(f1 > 0 && f2 > f1)) p.push('/status: the check record and the register folds are missing or out of order');
+  for (const [id, want] of [['status-glance', 'before'], ['health-journeys-sum', 'before'], ['status-property', 'before'], ['status-dates', 'before'],
+    ['health-h', 'inside'], ['health-journeys"', 'inside'], ['health-proofs', 'inside'], ['health-quick', 'inside']]) {
+    const i = st.indexOf(`id="${id}`);
+    if (i < 0) { p.push(`/status serves no #${id}`); continue; }
+    if (want === 'before' && !(i < f1)) p.push(`/status: #${id} is not in the open part of the page`);
+    if (want === 'inside' && !(i > f1)) p.push(`/status: #${id} is not inside a closed section`);
+  }
+  const open = st.slice(0, f1);
+  if (/help you with|What would you like Quantum Tradeworks/.test(pageText(main('/welcome')))) p.push('/welcome still asks a goal question');
+  for (const re of [/\bEQ-\d{3}\b/, /\bSC-\d{3}\b/, /\bP[01] ?·/, /Checked by:/, /\.mjs\b/, /docs\/phase/, /register-check/, /Receiving current build capacity/, /\bBook [12]\b/])
+    if (re.test(open)) p.push(`/status: the open part of the page carries engineering detail (${re})`);
+  if (/Receiving current build capacity/.test(st)) p.push('/status still defines a status as "Receiving current build capacity"');
+  if (!/Available; work continues\./.test(st)) p.push('/status does not define Active Core Build as "Available; work continues."');
+  if (/This build|this build/.test(open)) p.push('/status\'s open part says "this build"');
+
+  const gl = text('/learn/glossary');
+  if (!/<h1>Glossary<\/h1>/.test(main('/learn/glossary'))) p.push('/learn/glossary is not headed "Glossary"');
+  for (const term of ['Cash required', 'Monthly position', 'Net yield', 'Break-even occupancy', 'Price gap', 'Effective acquisition cost', 'Proclamation of Sale', 'Underwriting grade'])
+    if (!new RegExp(`<dt>${term}</dt>`).test(main('/learn/glossary'))) p.push(`/learn/glossary defines no "${term}"`);
+
+  const co = main('/corrections');
+  const iCases = co.indexOf('id="my-cases"'), iLog = co.indexOf('Corrections log'), iOffer = co.indexOf('What is on offer');
+  if (!(iCases > 0 && iLog > iCases && iOffer > iLog)) p.push(`/corrections: cases ${iCases}, log ${iLog}, boundaries ${iOffer} — the reader's cases and the log must come first`);
+  if (!/22 Oct 2026/.test(co) || !/09 Oct 2026/.test(co) || !/13 Oct 2026/.test(co)) p.push('/corrections: the log stops before the property changes of October');
+  if (/state-machine test|surfaces call it|this build/.test(pageText(co))) p.push('/corrections still words an entry as an engineering note');
+
+  const pr = text('/pricing');
+  if (/All-Access/.test((/<thead>[\s\S]*?<\/thead>/.exec(main('/pricing')) || [''])[0])) p.push('/pricing: All-Access is still a column of the comparison');
+  if (/not applied in this build/.test(pr)) p.push('/pricing: a cell still says "not applied in this build"');
+  if (/comparable transactions you record|NAPIC’s published price and rental ranges/.test(pr)) p.push('/pricing: the investor report still claims comparable transactions or NAPIC ranges');
+
+  const ud = main('/my/data');
+  if (!/<h1>Your data &amp; settings<\/h1>/.test(ud)) p.push('/my/data is not headed "Your data & settings"');
+  if (!(ud.indexOf('id="user-prices-h"') > ud.indexOf('Back up everything in this browser'))) p.push('/my/data: "Bring your own prices" is not a section below the backups');
+  if ((ud.match(/is the only copy/g) || []).length !== 1) p.push(`/my/data says a file is "the only copy" ${(ud.match(/is the only copy/g) || []).length} times, not once`);
+
+  const rp = text('/my/reports');
+  if (/Start research/.test(rp)) p.push('/my/reports, empty, still leads to Start research');
+  if (!/Analyse a property/.test(rp)) p.push('/my/reports, empty, does not lead to "Analyse a property"');
+
+  const ds = text('/data-sources');
+  if (/Connected for the US only/.test(ds) || !/A one-off US load/.test(ds)) p.push('/data-sources still says the US data is "connected"');
+  if (/data workstream|feature architecture|production deployment would need/.test(ds)) p.push('/data-sources still reads as an internal planning memo');
+  if (/can source and analyse/.test(ds)) p.push('/data-sources still says the product can source and analyse NAPIC transactions');
+
+  judge(p, '/status opens with the journeys\' latest result, Property\'s lines and the data\'s age, and keeps the check record and the register in two closed sections; the glossary defines the property terms; /corrections opens with the reader\'s cases and the log, up to date; /pricing compares the plans that can be bought; /my/data is headed by its task with one "only copy"; the empty reports page leads to the property calculator; /data-sources says one-off load and no NAPIC transaction analysis',
+    'a site page reads as the Day-10 pre-audit found it');
+}
+/* ---- end site-pages ---- */
 
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);

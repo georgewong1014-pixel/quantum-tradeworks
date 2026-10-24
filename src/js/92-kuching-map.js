@@ -173,7 +173,7 @@ function areaViewsNav(here) {
 
 /* The box the map is drawn in, kept across redraws: a fresh box on a new
    visit, the same one (with its map) on a redraw of the page. */
-const KM_SERVED_SAY = 'The map is drawn here by the page’s script, from this site’s own map file. The list below has every scheme it places, with its evidence.';
+const KM_SERVED_SAY = 'The map needs JavaScript and uses this site’s own map file. The list below has every scheme it places, with its evidence.';
 function kmBox() {
   if (KM.box && KM.box.isConnected) return KM.box;
   if (KM.box && KM.map) return KM.box;
@@ -274,7 +274,7 @@ function kmList() {
     el('p', { class: 'metaline', id: 'km-find-said', 'aria-live': 'polite' }, ''),
   ]);
   card.append(find);
-  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once the page’s script has loaded NAPIC’s Kuching file; a row from one observation says so.`));
+  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once NAPIC’s Kuching figures have loaded; a row from one observation says so.`));
   const groups = [
     ['placed', `Placed on the map — ${kmPlaced().length}`, (s) => s.status === 'placed'],
     ['weak', null, (s) => kmReason(s) === 'weak'],

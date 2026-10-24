@@ -706,8 +706,8 @@ const HIW_STATUS = [
   ['beta', 'Works, with data or delivery still limited as its note says.'],
   ['demo', 'Illustrative data only.'],
   ['soon', 'Not built, nothing to open.'],
-  ['delayed', 'Works, on a file older than its own date allows; its note says which file, and how old.'],
-  ['unavailable', 'Cannot work here: a file it needs did not load, or is never on this site. Shown as text, never as a link.'],
+  ['delayed', 'Works on data older than it should be; its note says which and how old.'],
+  ['unavailable', 'Cannot work here: data it needs did not load or is not on this site. Shown as text, never as a link.'],
 ];
 function hiwStatus(P) {
   const s = el('section', { class: 'hiw-status', id: 'hiw-status', 'aria-labelledby': 'hiw-status-h' });
@@ -822,7 +822,7 @@ VIEWS.launcher = () => {
 
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Start here'),
-    el('h1', {}, 'Start with your goal'),
+    el('h1', {}, 'Start with a task'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Five things this product does. Pick one and it opens the right tool with what you tell it already filled in. '
       + 'These questions route a workflow — they are not a suitability assessment and nothing here recommends an investment.'),
@@ -1114,7 +1114,7 @@ function backupLine({ compact = false } = {}) {
     : h.since ? `${h.since} change${h.since === 1 ? '' : 's'} since` : 'no changes since';
   const p = el('p', { class: compact ? 'caption dash-backup' : 'metaline backup-line', 'data-backup-line': '', 'data-backup-state': state }, [
     compact ? 'Backup: ' : null, el('strong', {}, head), tail ? ` — ${tail}` : null, compact ? '. ' : null]);
-  if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Export from Your data & settings'));
+  if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Back up everything'));
   return p;
 }
 /* Export everything, handed over as a file, and recorded. False, said,
@@ -1187,21 +1187,25 @@ const fileHolds = (kind, body) => el('details', { class: 'explain', 'data-file-h
 
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(pageHead({ title: 'Bring your own prices', lede: 'Your prices, your backups and your settings, kept in this browser.',
+  wrap.append(pageHead({ title: 'Your data & settings', lede: 'Your prices, your backups and your settings, kept in this browser.',
     note: 'This site ships no market prices, because none of the prices it could ship are licensed for it to redistribute. Yours are a different question.' }));
   appendSampleBanner(wrap);
+  /* The cards about prices are drawn last, under their own heading, "Bring your
+     own prices" (CL-12: the page's task was the title, and sat 866 words down
+     under a heading about something else). */
+  const priceCards = [];
 
   /* Why this exists, said once and without hedging. */
   const why = el('div', { class: 'card' });
   why.append(cardHead('What happens to what you paste',
     'It stays in this browser.'));
   why.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'Held in this browser’s local storage, on this device. It is not uploaded, not sent to a server, and not visible to anyone else — this build has no accounts and no backend to send it to.'),
+    el('li', {}, 'Held in this browser’s local storage, on this device. It is not uploaded, not sent to a server, and not visible to anyone else — there are no accounts and no server to send it to.'),
     el('li', {}, 'Every figure derived from it is labelled as yours rather than treated as a source of record. A price you supplied and a licensed close are not the same evidence.'),
     el('li', {}, 'Clearing your browser data removes it. There is no copy anywhere else, so export it if it took work to assemble.'),
     el('li', {}, 'Whatever you paste remains under whatever terms you obtained it. This tool does not acquire it, republish it, or give you a right to share it — a broker export is still your broker’s data.'),
   ]));
-  wrap.append(why);
+  priceCards.push(why);
 
   /* ---------- backup, restore and saved work ----------
      This page already explained that everything lives in this browser and dies
@@ -1379,7 +1383,7 @@ VIEWS.userdata = () => {
     status.append(el('p', { class: 'body', style: 'font-size:13px' },
       'Without prices, anything price-derived is shown as unavailable rather than estimated: market capitalisation, multiples, dividend yield, the difference to a model estimate, and every trend indicator. The statements, scorecards and risk flags all work without them.'));
   }
-  wrap.append(status);
+  priceCards.push(status);
 
   /* ---------- everything, not only the prices ----------
      The export above covers pasted price series. Everything else a reader makes
@@ -1388,7 +1392,7 @@ VIEWS.userdata = () => {
      the longest was the work most easily lost. */
   const all = el('div', { class: 'card' });
   all.append(cardHead('Everything you have made',
-    'All of it is held in this browser and nowhere else, so this file is the only copy that survives a cleared browser, a second machine or private mode closing.'));
+    'All of it is held in this browser and nowhere else. The backup above carries it too, and your settings besides; this file holds what you made.'));
 
   const held = PORTABLE_KEYS.map(({ k, label }) => {
     const v = store.read(k, null);
@@ -1497,7 +1501,7 @@ VIEWS.userdata = () => {
 
   add.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
     'Dates must be YYYY-MM-DD, or day-first where the day is unambiguous. 03/04/2026 is refused rather than guessed — reading it the wrong way round would move the whole series by months.'));
-  wrap.append(add);
+  priceCards.push(add);
 
   /* Restore exported prices. Named for the one file it takes: as "Restore an
      export — a file previously exported from this page" it refused both the
@@ -1505,7 +1509,7 @@ VIEWS.userdata = () => {
      prices have been pasted. The other two files are pointed to the control
      that takes them. */
   const restore = el('div', { class: 'card' });
-  restore.append(cardHead('Restore exported prices', 'A file from “Export these prices” above — the price series you pasted. A backup and the Export everything file each have their own restore, further up this page.'));
+  restore.append(cardHead('Restore exported prices', 'A file saved earlier with “Export these prices” — the price series you pasted. A backup and an Export everything file each have their own restore, in the cards above.'));
   const file = el('input', { class: 'input', type: 'file', accept: '.json', 'aria-label': 'Restore exported prices' });
   file.addEventListener('change', async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -1528,7 +1532,12 @@ VIEWS.userdata = () => {
     } catch { toast('That file could not be read as JSON'); }
   });
   restore.append(file);
-  wrap.append(restore);
+  priceCards.push(restore);
+
+  const prices = el('section', { class: 'stack', id: 'user-prices', 'aria-labelledby': 'user-prices-h' });
+  prices.append(el('h2', { class: 'h-section', id: 'user-prices-h' }, 'Bring your own prices'));
+  priceCards.forEach(c => prices.append(c));
+  wrap.append(prices);
 
   return wrap;
 };
@@ -1931,7 +1940,7 @@ function supplied(k) {
    does on every other page. Privacy and Terms are drafts for counsel and
    keep their markers. */
 const supportUnavailable = () => [el('strong', {}, 'Customer support is not available yet.'),
-  ' The correction tool saves a case in this browser and prepares text for you to copy. It does not send the case or notify Quantum Tradeworks. Do not include confidential or sensitive information.'];
+  ' ', el('strong', {}, 'Report a data error'), ' records a case in this browser and gives you its text to copy; it sends nothing. Every case is listed under ', tlink('Corrections', '/corrections'), '. Do not include confidential or sensitive information.'];
 /* The supplied details of the operator, as the words that give them: the
    entity and the address when either is supplied, else null. */
 function operatorLine() {
@@ -2040,16 +2049,16 @@ VIEWS.about = () => trustPage('About',
    address — the page did not read it at all, although LAUNCH's own note
    says /contact does. */
 VIEWS.contact = () => trustPage('Contact',
-  'What works today to reach whoever is responsible for a page, a figure or a correction — and what does not exist yet.',
+  'What exists today to reach whoever is responsible for a page, a figure or a correction — and what does not exist yet.',
   [
-    ['What works today',
-      [(() => {
-        const v = OPERATOR.email.value();
+    ['What exists today',
+      [...(() => {
+        const v = supportEmail();
         return v
-          ? tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.')
-          : tp(...supportUnavailable());
+          ? [tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.'),
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step gives you the report to copy and send to that address from your own email program; the case stays recorded here, not confirmed received, and is listed under ', tlink('Corrections', '/corrections'), '.')]
+          : [tp(...supportUnavailable())];
       })(),
-       tp('One route does work. ', el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. It does not send the case: the last step hands it to you as text to copy, and every case you record is listed under ', tlink('Corrections', '/corrections'), ', ready to send once there is somewhere to send it.'),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
        ])]],
@@ -2065,7 +2074,7 @@ VIEWS.contact = () => trustPage('Contact',
     ['What to include',
       'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'],
     ['The corrections log',
-      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this build — what was wrong and what changed, dated by the change. A case you record is not added to it, because nobody has received it.')]],
+      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this product — what was wrong and what changed, dated by the change. A case you record is not added to it, because nobody has received it.')]],
   ]);
 
 VIEWS.privacy = () => {

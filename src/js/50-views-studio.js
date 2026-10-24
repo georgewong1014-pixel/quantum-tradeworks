@@ -3553,20 +3553,13 @@ const saveAlertKinds = () => store.write('alertKinds', State.alertKinds);
    which is why there is no question about goals or risk tolerance here — those
    would shape a recommendation, and this product does not make one.
    ========================================================================== */
+/* THREE QUESTIONS, NOT FOUR (Day-10 pre-audit CL-15, NAV-18). The first question was a
+   second goal picker beside /start, with a different set of five and the word
+   "goal" the corrections page says the product never asks. The one goal picker is
+   /start ("Start with a task"), the homepage's own choice of tool; a first
+   visit to /welcome ends there. The goal answer is still honoured where an
+   older record or caller carries one (FIRST, below). */
 const OB_STEPS = [
-  { key:'goal', q:'What would you like Quantum Tradeworks to help you with?',
-    note:'This decides where you land at the end, and nothing else.',
-    options:[
-      /* Qualified as each set is (the claims audit of 11 Oct 2026, rank 6;
-         F-18, R-28): the Bursa figures are an illustrative set, and nothing
-         here monitors a holding — it records it, valued where a price is
-         held or you supply one. */
-      { v:'bursa',    t:'Research Bursa companies',      n:'An illustrative set — synthetic figures, not filed statements' },
-      { v:'us',       t:'Research US companies',         n:'Filed with the SEC, audited annual statements' },
-      { v:'monitor',  t:'Record my portfolio',           n:'What you hold, valued where a price is held or you supply one' },
-      { v:'property', t:'Analyse a property',            n:'Model a purchase to its monthly cash flow' },
-      { v:'learn',    t:'Learn investment fundamentals', n:'Start with how the measures work' },
-    ] },
   { key:'level', q:'How much of this is familiar already?',
     note:'This sets how much explanation appears by default. It never changes a number, and it never changes what you are shown — only how much is said about it.',
     options:[
@@ -3597,6 +3590,7 @@ function completeOnboarding(answers) {
      visit replaced the stored record with {skipped:true}, so the level, the
      market and the currency answered last time were gone. */
   const { done: _d, at: _a, skipped: _s, ...before } = isRecord(State.onboarding) ? State.onboarding : {};
+  const firstTime = !_d;
   const done = { ...before, ...answers, done: true, at: new Date().toISOString() };
   State.onboarding = done;
   store.write('onboarding', done);
@@ -3633,7 +3627,7 @@ function completeOnboarding(answers) {
     property: () => navigate('/property/calculator'),
     learn:    () => navigate('/learn'),
   };
-  (FIRST[done.goal] || (() => navigate('/app')))();
+  (FIRST[done.goal] || (() => navigate(firstTime ? '/start' : '/app')))();
 }
 
 /* render() replaces the pressed button, so focus fell to <body> on every step

@@ -1961,7 +1961,7 @@ const METRICS = [
   { k: 'rev5', g: 'Growth and profitability', cat: 'growth', label: 'Revenue CAGR (4y)',
     unit: 'pct', dp: 1, kind: 'calculated', counted: true, span: 5,
     formula: '(latest ÷ earliest)^(1/n) − 1', inputs: ['rev'], period: 'w5',
-    miss: 'Null when the base period is non-positive.',
+    miss: 'Not shown when the base period is zero or negative.',
     nmWhy: 'The starting year’s revenue is zero or negative, so a compound growth rate has no meaning.',
     help: { simple: 'How fast sales have grown each year, on average, over the last four years.',
       context: 'A compound rate describes the two ends of the window and nothing between them — a company that fell and recovered can show the same rate as one that grew steadily. Read it beside the revenue drawdown.',
@@ -2043,7 +2043,7 @@ const METRICS = [
   { k: 'pe', g: 'Valuation and income', cat: 'valuation', label: 'Price / earnings',
     unit: 'x', dp: 1, kind: 'market', counted: true, na: ['early'],
     formula: 'price ÷ earnings per share', inputs: ['price', 'ni', 'sh'], period: 'latestPx',
-    miss: 'Null when earnings are negative.',
+    miss: 'Not shown when earnings are negative.',
     nmWhy: 'Earnings per share are zero or negative, so a price-to-earnings multiple has no meaning.',
     help: { simple: 'How many years of current profit you are paying for the shares.',
       context: 'Low is not automatically cheap. A cyclical company looks cheapest at the top of its cycle, when earnings are at their peak and about to fall.',
@@ -2235,7 +2235,7 @@ const METRICS = [
       technical: 'Net income ÷ average total assets. Blocked: total assets are not stored.' } },
   { k: 'cr', cat: 'liquidity', label: 'Current ratio', unit: 'x', kind: 'calculated', screener: false,
     formula: 'current assets ÷ current liabilities', inputs: [], needs: ['current assets', 'current liabilities'], period: 'latest',
-    blocked: 'Current assets and current liabilities have no column in the stored statements, and the statements held here predate them.',
+    blocked: 'Current assets and current liabilities are not held.',
     help: { simple: 'Whether what the company will turn into cash within a year covers what it must pay within a year.',
       context: 'Below 1× short-term bills exceed short-term assets. Not available here: the two lines are not stored.',
       technical: 'Current assets ÷ current liabilities. Blocked: neither line is a column of the stored statements.' } },
@@ -2666,9 +2666,15 @@ function restoreBackup(text) {
                      Formspree, Buttondown, a Vercel function, anything that
                      returns 2xx. Until it is set the waitlist does not render.
 
-   contactEmail      Used for the fallback mail link and for the contact page.
-                     Until it is set, /contact keeps saying no route is
-                     published, because none is.
+   contactEmail      The address of the mailbox the owner monitors for
+                     support and data-error reports. Until it is set, /contact
+                     keeps saying no route is published, because none is. Once
+                     it is set, /contact shows it and the last step of "Report
+                     a data error" offers the report to copy, with the address
+                     as text and a mailto link: the visitor's own email program
+                     sends it, nothing on this site does. It does NOT switch
+                     the waitlist on (waitlistReady reads the endpoint alone):
+                     a mailbox for support is not a list a visitor is added to.
 
    ANALYTICS: none. The Vercel Web Analytics tag was removed from the page
    (src/index.template.html) because analytics was never switched on and the
@@ -2678,7 +2684,11 @@ const LAUNCH = {
   waitlistEndpoint: '',
   contactEmail: '',
 };
-const waitlistReady = () => !!(LAUNCH.waitlistEndpoint || LAUNCH.contactEmail);
+const waitlistReady = () => !!LAUNCH.waitlistEndpoint;
+/* The support address, or '' while none is published. Every surface that
+   would name it reads it here, so setting LAUNCH.contactEmail is the one step
+   that switches the route on (tests set it at run time, never in source). */
+const supportEmail = () => LAUNCH.contactEmail || '';
 
 /* THE COVERAGE MANIFEST — one count, counted once, in one place.
    ---------------------------------------------------------------------------
@@ -2769,7 +2779,7 @@ function covText(fn, pending = COVERAGE_PENDING) {
    (prerender.mjs), to every crawler and to a reader with no script, for whom
    it never loads. The element is marked so (data-now, NOW in 35-ui.js):
    served, it says who counts it; drawn, the count or the wait. */
-const COVERAGE_SERVED = 'Counted by this page’s script once the audited set has loaded.';
+const COVERAGE_SERVED = 'Counted once the audited set has loaded.';
 /* HELD TO THE LONGER OF ITS TWO TEXTS (`hold`, 10 Oct 2026). The served box
    is the served sentence's; the wait drawn into it is longer, and in a
    narrow column it took another line: on /status at 390 the US equities row
@@ -3758,7 +3768,7 @@ const IPS_EVIDENCE_TIERS = [
   { tier: 1, label: 'Regulatory filings, audited statements, official transaction data, legal documents',
     maps: ['verified'], note: 'In this product: SEC-filed statements, and a transacted price or signed tenancy you have seen.' },
   { tier: 2, label: 'Authoritative sources — Bursa, SEC, investor relations, BNM, NAPIC, JPPH',
-    maps: ['public'], note: 'Published by an authority or a listed source. NAPIC and JPPH Sarawak transaction data is reachable and can be analysed here; republishing records to subscribers needs a licence NAPIC has not granted, so anything sourced that way is held as licence-pending. The data-sources page states where each request stands.' },
+    maps: ['public'], note: 'Published by an authority or a listed source. NAPIC and JPPH Sarawak transaction data is reachable; this site holds only NAPIC’s published aggregates and scheme ranges; republishing records to subscribers needs a licence NAPIC has not granted, so anything sourced that way is held as licence-pending. The data-sources page states where each request stands.' },
   { tier: 3, label: 'Reputable market-data providers and independently verified industry data',
     maps: [], note: 'No provider is licensed to this product. This tier is empty here, and saying so is more useful than implying it is full.' },
   { tier: 4, label: 'Agent, developer, management or channel checks — only with verification',
@@ -3946,9 +3956,9 @@ const SARAWAK_TRANSACTION_SOURCES = [
    source and hash). Published on the data-sources page, so the attribution
    the map carries in its corner has its full statement one link away. */
 const MAP_DATA_SOURCES = [
-  { name: 'The basemap of Greater Kuching', from: 'OpenStreetMap, as a Protomaps basemap extract (data/tiles/kuching-<date>.pmtiles)',
+  { name: 'The basemap of Greater Kuching', from: 'OpenStreetMap, as a Protomaps basemap extract',
     licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors' },
-  { name: 'Where a NAPIC scheme is placed', from: 'OpenStreetMap names — a residential area, a place or a building named as the scheme, or lanes carrying its name — matched once, on a developer’s machine',
+  { name: 'Where a NAPIC scheme is placed', from: 'OpenStreetMap names — a residential area, a place or a building named as the scheme, or lanes carrying its name — matched once, by name',
     licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors. A few hundred names and positions, each with the object it rests on.' },
   { name: 'The heights a tilted map raises', from: 'OpenStreetMap’s height tag on a building, in metres; nothing estimated',
     licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors' },
@@ -13462,7 +13472,7 @@ const ROUTES = [
   { path: '/app/scanner/alerts/:alert',      view: 'scannerAlert',      title: 'Scanner alert' },
   { path: '/app/scanner/settings',           view: 'scannerSettings',   title: 'Scanner settings' },
   /* end Phase 3 — user */
-  { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
+  { path: '/start',               view: 'launcher',  title: 'Start with a task' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data & settings' },
   { path: '/my/workspace',        view: 'workspace', title: 'Saved work' },
   { path: '/app/workspace',       view: 'workspace', title: 'Saved work', alias: true },
@@ -13514,7 +13524,7 @@ const ROUTES = [
   { path: '/methodology/property', view: 'learn',   tab: 'property',  title: 'Property routes and assets' },
   { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
-  { path: '/status',              view: 'status',    title: 'Build status' },
+  { path: '/status',              view: 'status',    title: 'Checks and status' },
   { path: '/decision-record',     view: 'decisionRecord', title: 'Decision record' },
   { path: '/methodology/ips',     view: 'ips',       title: 'Investment Policy Statement' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
@@ -13557,19 +13567,19 @@ const META = {
   scannerAdminJobs:     'Every run the scanner worker recorded on this machine, with status, duration and errors, and the log of controls.',
   scannerAdminDelivery: 'Which delivery channels exist for scanner alerts — in-app only — and why email, Telegram and push are not configured.',
   /* /Phase 3 — ops */
-  learn:     'The methodology in public: the metric dictionary, the scoring architecture, the valuation model router, the data and its rights, and the corrections log — each a tab of this page.',
-  'learn:glossary': 'The metric dictionary: each measure defined once, with its formula, the statement lines it reads, its unit and period and what happens when a figure is missing — and the measures blocked because the stored statements lack a line.',
+  learn:     'The methodology in public: the glossary, the scoring architecture, the valuation model router, the data and its rights, and the corrections log — each a tab of this page.',
+  'learn:glossary': 'The glossary: the property terms the calculator uses, and each company measure defined once, with its formula, the statement lines it reads, its unit and period and what happens when a figure is missing — and the measures blocked because the stored statements lack a line.',
   'learn:property': 'What the property calculator needs, returns and will not assume for each purchase route — subsale, auction and new development — on residential, commercial and land: the states a missing figure reads as, the gates and the fee lines not yet checked by class.',
   'learn:models': 'How each company type is routed to a valuation model pack — bank, insurer, REIT, cyclical, growth, subscription software, holding company and the rest — with each pack’s secondary checks and its published limitations.',
-  'learn:data': 'Where each figure comes from and what may be done with it: the source hierarchy, the badge words, the property fee rulebook with each line’s rule and checked date, the NAPIC licence position, the point-in-time policy and what this build does not hold.',
-  'learn:trust': 'The corrections log — what was wrong and what changed, most recent first — the research and advisory modes, the cases you record in this browser, and how a figure is reported against the exact item.',
+  'learn:data': 'Where each figure comes from and what may be done with it: the source hierarchy, the badge words, the property fee rulebook with each line’s rule and checked date, the NAPIC licence position, the point-in-time policy and what is not held.',
+  'learn:trust': 'The corrections log — what was wrong and what changed, most recent first — the cases you record in this browser, how a figure is reported against the exact item, and the research and advisory modes.',
   plans:     'Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.',
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
-  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you monitor and what you have saved — read from this browser and the scanner’s own record.',
-  onboarding:  'Four questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in — and where you start.',
-  launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
+  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you follow and what you have saved — read from this browser and the scanner’s own record.',
+  onboarding:  'Three questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in.',
+  launcher:    'Start with a task: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
   thesis:      'What you believe about a company and what would prove you wrong, checked against the latest data.',
@@ -13584,13 +13594,13 @@ const META = {
   areaMap:     'Kuching on a map made of this site’s own files, with the NAPIC housing schemes OpenStreetMap names placed on it — positions only, each with its evidence; NAPIC’s ranges stay in the list.',
   wheel:       'A cash-secured put and covered call cycle modelled from figures you enter — no chain data, no recommended contract.',
   boundaries:  'What this product will not do, and why each of those absences is deliberate.',
-  status:      'What is built, what is gated, and what is holding it.',
+  status:      'Whether the tools work, when that was last checked and how old the data is — with the checks and the state of every capability behind it.',
   decisionRecord: 'One printable page: the figures, every input with where it came from, and everything still open.',
   researchReport: 'One company on one printable page: statements, metrics with their status, your valuation assumptions, and where every figure came from. Saved as PDF through your browser’s print.',
   workspace:   'Everything you have saved in this browser, across kinds, with the model and data version each was saved against.',
   ips:         'The Investment Policy Statement this product’s calculations carry out, and where the product departs from it.',
   about:       'What Quantum Tradeworks is and is not, and who is responsible for it.',
-  contact:     'What works today to report a wrong figure — the report form records a case in your browser — and where a contact route will be published.',
+  contact:     'What exists today to report a wrong figure — the report form records a case in your browser — and where a contact route will be published.',
   privacy:     'What this build stores, where it stores it and what leaves your device — no cookies, no accounts — and a draft PDPA 2010 notice.',
   terms:       'Draft terms for this build: a research tool, not advice, with illustrative data, no warranty and nothing for sale; governed by Malaysian law.',
 };
@@ -17596,7 +17606,7 @@ VIEWS.home = () => {
     ways.append(el('h2', { id: 'dash-ways-hd', class: 'h-card' }, 'Other ways in'));
     ways.append(el('div', { class: 'dash-more' }, [
       myDashLink('/welcome', { class: 'dash-more-link' }, [el('strong', {}, 'Set your preferences'),
-        el('span', { class: 'caption' }, onboarded() && !State.onboarding?.skipped ? 'Answered — change your market, currency or level of detail.' : 'Four questions: your goal, your experience, your market and your currency.')]),
+        el('span', { class: 'caption' }, onboarded() && !State.onboarding?.skipped ? 'Answered — change your market, currency or level of detail.' : 'Three questions: how much is explained, your market and your currency.')]),
       myDashLink('/start', { class: 'dash-more-link' }, [el('strong', {}, 'Not sure where to start?'),
         el('span', { class: 'caption' }, 'Pick what you want to find out, and the right tool opens.')]),
     ]));
@@ -17816,7 +17826,7 @@ function myDashSampleNote() {
     /* What this browser was given is said by the page drawn in it (NOW,
        35-ui.js): served to a reader whose browser runs no script, it was
        given nothing. */
-    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are given to a browser running this page’s script, so other pages have something to show. This page counts none of them.' },
+    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are added to a browser on a first visit, so that the other pages have something to show. Nothing on this page counts any of the samples.' },
       'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear the sample data'),
   ]);
@@ -27624,20 +27634,13 @@ const saveAlertKinds = () => store.write('alertKinds', State.alertKinds);
    which is why there is no question about goals or risk tolerance here — those
    would shape a recommendation, and this product does not make one.
    ========================================================================== */
+/* THREE QUESTIONS, NOT FOUR (Day-10 pre-audit CL-15, NAV-18). The first question was a
+   second goal picker beside /start, with a different set of five and the word
+   "goal" the corrections page says the product never asks. The one goal picker is
+   /start ("Start with a task"), the homepage's own choice of tool; a first
+   visit to /welcome ends there. The goal answer is still honoured where an
+   older record or caller carries one (FIRST, below). */
 const OB_STEPS = [
-  { key:'goal', q:'What would you like Quantum Tradeworks to help you with?',
-    note:'This decides where you land at the end, and nothing else.',
-    options:[
-      /* Qualified as each set is (the claims audit of 11 Oct 2026, rank 6;
-         F-18, R-28): the Bursa figures are an illustrative set, and nothing
-         here monitors a holding — it records it, valued where a price is
-         held or you supply one. */
-      { v:'bursa',    t:'Research Bursa companies',      n:'An illustrative set — synthetic figures, not filed statements' },
-      { v:'us',       t:'Research US companies',         n:'Filed with the SEC, audited annual statements' },
-      { v:'monitor',  t:'Record my portfolio',           n:'What you hold, valued where a price is held or you supply one' },
-      { v:'property', t:'Analyse a property',            n:'Model a purchase to its monthly cash flow' },
-      { v:'learn',    t:'Learn investment fundamentals', n:'Start with how the measures work' },
-    ] },
   { key:'level', q:'How much of this is familiar already?',
     note:'This sets how much explanation appears by default. It never changes a number, and it never changes what you are shown — only how much is said about it.',
     options:[
@@ -27668,6 +27671,7 @@ function completeOnboarding(answers) {
      visit replaced the stored record with {skipped:true}, so the level, the
      market and the currency answered last time were gone. */
   const { done: _d, at: _a, skipped: _s, ...before } = isRecord(State.onboarding) ? State.onboarding : {};
+  const firstTime = !_d;
   const done = { ...before, ...answers, done: true, at: new Date().toISOString() };
   State.onboarding = done;
   store.write('onboarding', done);
@@ -27704,7 +27708,7 @@ function completeOnboarding(answers) {
     property: () => navigate('/property/calculator'),
     learn:    () => navigate('/learn'),
   };
-  (FIRST[done.goal] || (() => navigate('/app')))();
+  (FIRST[done.goal] || (() => navigate(firstTime ? '/start' : '/app')))();
 }
 
 /* render() replaces the pressed button, so focus fell to <body> on every step
@@ -28466,8 +28470,8 @@ const HIW_STATUS = [
   ['beta', 'Works, with data or delivery still limited as its note says.'],
   ['demo', 'Illustrative data only.'],
   ['soon', 'Not built, nothing to open.'],
-  ['delayed', 'Works, on a file older than its own date allows; its note says which file, and how old.'],
-  ['unavailable', 'Cannot work here: a file it needs did not load, or is never on this site. Shown as text, never as a link.'],
+  ['delayed', 'Works on data older than it should be; its note says which and how old.'],
+  ['unavailable', 'Cannot work here: data it needs did not load or is not on this site. Shown as text, never as a link.'],
 ];
 function hiwStatus(P) {
   const s = el('section', { class: 'hiw-status', id: 'hiw-status', 'aria-labelledby': 'hiw-status-h' });
@@ -28582,7 +28586,7 @@ VIEWS.launcher = () => {
 
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Start here'),
-    el('h1', {}, 'Start with your goal'),
+    el('h1', {}, 'Start with a task'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Five things this product does. Pick one and it opens the right tool with what you tell it already filled in. '
       + 'These questions route a workflow — they are not a suitability assessment and nothing here recommends an investment.'),
@@ -28874,7 +28878,7 @@ function backupLine({ compact = false } = {}) {
     : h.since ? `${h.since} change${h.since === 1 ? '' : 's'} since` : 'no changes since';
   const p = el('p', { class: compact ? 'caption dash-backup' : 'metaline backup-line', 'data-backup-line': '', 'data-backup-state': state }, [
     compact ? 'Backup: ' : null, el('strong', {}, head), tail ? ` — ${tail}` : null, compact ? '. ' : null]);
-  if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Export from Your data & settings'));
+  if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Back up everything'));
   return p;
 }
 /* Export everything, handed over as a file, and recorded. False, said,
@@ -28947,21 +28951,25 @@ const fileHolds = (kind, body) => el('details', { class: 'explain', 'data-file-h
 
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(pageHead({ title: 'Bring your own prices', lede: 'Your prices, your backups and your settings, kept in this browser.',
+  wrap.append(pageHead({ title: 'Your data & settings', lede: 'Your prices, your backups and your settings, kept in this browser.',
     note: 'This site ships no market prices, because none of the prices it could ship are licensed for it to redistribute. Yours are a different question.' }));
   appendSampleBanner(wrap);
+  /* The cards about prices are drawn last, under their own heading, "Bring your
+     own prices" (CL-12: the page's task was the title, and sat 866 words down
+     under a heading about something else). */
+  const priceCards = [];
 
   /* Why this exists, said once and without hedging. */
   const why = el('div', { class: 'card' });
   why.append(cardHead('What happens to what you paste',
     'It stays in this browser.'));
   why.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'Held in this browser’s local storage, on this device. It is not uploaded, not sent to a server, and not visible to anyone else — this build has no accounts and no backend to send it to.'),
+    el('li', {}, 'Held in this browser’s local storage, on this device. It is not uploaded, not sent to a server, and not visible to anyone else — there are no accounts and no server to send it to.'),
     el('li', {}, 'Every figure derived from it is labelled as yours rather than treated as a source of record. A price you supplied and a licensed close are not the same evidence.'),
     el('li', {}, 'Clearing your browser data removes it. There is no copy anywhere else, so export it if it took work to assemble.'),
     el('li', {}, 'Whatever you paste remains under whatever terms you obtained it. This tool does not acquire it, republish it, or give you a right to share it — a broker export is still your broker’s data.'),
   ]));
-  wrap.append(why);
+  priceCards.push(why);
 
   /* ---------- backup, restore and saved work ----------
      This page already explained that everything lives in this browser and dies
@@ -29139,7 +29147,7 @@ VIEWS.userdata = () => {
     status.append(el('p', { class: 'body', style: 'font-size:13px' },
       'Without prices, anything price-derived is shown as unavailable rather than estimated: market capitalisation, multiples, dividend yield, the difference to a model estimate, and every trend indicator. The statements, scorecards and risk flags all work without them.'));
   }
-  wrap.append(status);
+  priceCards.push(status);
 
   /* ---------- everything, not only the prices ----------
      The export above covers pasted price series. Everything else a reader makes
@@ -29148,7 +29156,7 @@ VIEWS.userdata = () => {
      the longest was the work most easily lost. */
   const all = el('div', { class: 'card' });
   all.append(cardHead('Everything you have made',
-    'All of it is held in this browser and nowhere else, so this file is the only copy that survives a cleared browser, a second machine or private mode closing.'));
+    'All of it is held in this browser and nowhere else. The backup above carries it too, and your settings besides; this file holds what you made.'));
 
   const held = PORTABLE_KEYS.map(({ k, label }) => {
     const v = store.read(k, null);
@@ -29257,7 +29265,7 @@ VIEWS.userdata = () => {
 
   add.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
     'Dates must be YYYY-MM-DD, or day-first where the day is unambiguous. 03/04/2026 is refused rather than guessed — reading it the wrong way round would move the whole series by months.'));
-  wrap.append(add);
+  priceCards.push(add);
 
   /* Restore exported prices. Named for the one file it takes: as "Restore an
      export — a file previously exported from this page" it refused both the
@@ -29265,7 +29273,7 @@ VIEWS.userdata = () => {
      prices have been pasted. The other two files are pointed to the control
      that takes them. */
   const restore = el('div', { class: 'card' });
-  restore.append(cardHead('Restore exported prices', 'A file from “Export these prices” above — the price series you pasted. A backup and the Export everything file each have their own restore, further up this page.'));
+  restore.append(cardHead('Restore exported prices', 'A file saved earlier with “Export these prices” — the price series you pasted. A backup and an Export everything file each have their own restore, in the cards above.'));
   const file = el('input', { class: 'input', type: 'file', accept: '.json', 'aria-label': 'Restore exported prices' });
   file.addEventListener('change', async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -29288,7 +29296,12 @@ VIEWS.userdata = () => {
     } catch { toast('That file could not be read as JSON'); }
   });
   restore.append(file);
-  wrap.append(restore);
+  priceCards.push(restore);
+
+  const prices = el('section', { class: 'stack', id: 'user-prices', 'aria-labelledby': 'user-prices-h' });
+  prices.append(el('h2', { class: 'h-section', id: 'user-prices-h' }, 'Bring your own prices'));
+  priceCards.forEach(c => prices.append(c));
+  wrap.append(prices);
 
   return wrap;
 };
@@ -29691,7 +29704,7 @@ function supplied(k) {
    does on every other page. Privacy and Terms are drafts for counsel and
    keep their markers. */
 const supportUnavailable = () => [el('strong', {}, 'Customer support is not available yet.'),
-  ' The correction tool saves a case in this browser and prepares text for you to copy. It does not send the case or notify Quantum Tradeworks. Do not include confidential or sensitive information.'];
+  ' ', el('strong', {}, 'Report a data error'), ' records a case in this browser and gives you its text to copy; it sends nothing. Every case is listed under ', tlink('Corrections', '/corrections'), '. Do not include confidential or sensitive information.'];
 /* The supplied details of the operator, as the words that give them: the
    entity and the address when either is supplied, else null. */
 function operatorLine() {
@@ -29800,16 +29813,16 @@ VIEWS.about = () => trustPage('About',
    address — the page did not read it at all, although LAUNCH's own note
    says /contact does. */
 VIEWS.contact = () => trustPage('Contact',
-  'What works today to reach whoever is responsible for a page, a figure or a correction — and what does not exist yet.',
+  'What exists today to reach whoever is responsible for a page, a figure or a correction — and what does not exist yet.',
   [
-    ['What works today',
-      [(() => {
-        const v = OPERATOR.email.value();
+    ['What exists today',
+      [...(() => {
+        const v = supportEmail();
         return v
-          ? tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.')
-          : tp(...supportUnavailable());
+          ? [tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.'),
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step gives you the report to copy and send to that address from your own email program; the case stays recorded here, not confirmed received, and is listed under ', tlink('Corrections', '/corrections'), '.')]
+          : [tp(...supportUnavailable())];
       })(),
-       tp('One route does work. ', el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. It does not send the case: the last step hands it to you as text to copy, and every case you record is listed under ', tlink('Corrections', '/corrections'), ', ready to send once there is somewhere to send it.'),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
        ])]],
@@ -29825,7 +29838,7 @@ VIEWS.contact = () => trustPage('Contact',
     ['What to include',
       'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'],
     ['The corrections log',
-      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this build — what was wrong and what changed, dated by the change. A case you record is not added to it, because nobody has received it.')]],
+      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this product — what was wrong and what changed, dated by the change. A case you record is not added to it, because nobody has received it.')]],
   ]);
 
 VIEWS.privacy = () => {
@@ -30348,7 +30361,7 @@ VIEWS.workspace = () => {
     `Nothing here leaves this device. A cleared browser, private mode or a second machine starts empty; the export on Your data & settings is the only copy that travels, and it carries every kind listed here. “Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`));
   lim.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', href: href('/my/data'),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/data'); } },
-    'Export or restore everything'));
+    'Back up everything'));
   wrap.append(lim);
 
   if (!all.length) {
@@ -30637,7 +30650,11 @@ VIEWS.reports = () => {
       'A report is one page made from your own work, laid out to print or save as PDF: a company’s research report — its statements, its measures and your valuation assumptions, with where every figure came from — a saved property’s investor report, decision record and client proposal, or the decision record of a Cash Wheel contract or of Trading Index chart evidence.'));
     empty.append(el('p', { class: 'caption' },
       'Open a company’s page, save a property, enter a contract or record chart evidence, and its report is listed here.'));
+<<<<<<<< HEAD:assets/app.3b532e6a3e11.js
     empty.append(reportLink('/property/calculator', { class: 'btn btn-primary' }, 'Property calculator'));
+========
+    empty.append(reportLink(productById('property')?.actionPath || '/property/calculator', { class: 'btn btn-primary' }, productById('property')?.action || 'Analyse a property'));
+>>>>>>>> day10/f3-site:assets/app.81c276a061f3.js
     wrap.append(empty);
     return wrap;
   }
@@ -32062,7 +32079,7 @@ State.learnTab = 'dictionary';
    ?tab= against both without knowing the view's internals. */
 const LEARN_TAB_ALIAS = { glossary:'dictionary', methodology:'models', 'data-sources':'data', corrections:'trust' };
 const LEARN_TABS = [
-  { id:'dictionary', label:'Metric dictionary' },
+  { id:'dictionary', label:'Glossary' },
   { id:'scoring',    label:'Scoring architecture' },
   { id:'models',     label:'Valuation model router' },
   { id:'property',   label:'Property routes and assets' },
@@ -32084,7 +32101,7 @@ VIEWS.learn = () => {
      page — Methodology, Data sources, Glossary, Learn, Corrections — and every
      one landed on the same "Methodology, in public", so the heading never
      confirmed which had been chosen. The section's name is the eyebrow. */
-  const tabLabel = LEARN_TABS.find(t => t.id === State.learnTab)?.label || 'Metric dictionary';
+  const tabLabel = LEARN_TABS.find(t => t.id === State.learnTab)?.label || 'Glossary';
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Learn · Methodology, in public'),
     el('h1', {}, tabLabel),
@@ -32116,13 +32133,35 @@ VIEWS.learn = () => {
    the metric registry, by the ratio library's categories, and a measure
    whose line is not stored is listed as blocked with the line it needs. */
 const TYPE_PLURAL = { bank: 'banks', insurer: 'insurers', early: 'pre-profit companies', reit: 'REITs' };
+/* THE PROPERTY TERMS A PROPERTY BUYER MEETS (Day-10 pre-audit OP-19). The
+   page held equity ratios only. Each term is the product's own definition:
+   the plain line of METRIC_HELP where the calculator already explains it
+   (read from there, so the glossary and the drawer cannot word it twice),
+   and for the auction and grade terms the rule the model applies
+   (auctionModel, gradeModel, 75-property-grade.js). */
+const PROPERTY_TERMS = [
+  ['Cash required', () => METRIC_HELP.propSafeCash.simple],
+  ['Monthly position', () => METRIC_HELP.propCashflow.simple],
+  ['Gross yield', () => METRIC_HELP.grossYield.simple],
+  ['Net yield', () => METRIC_HELP.netYield.simple],
+  ['Break-even occupancy', () => METRIC_HELP.propBreakEvenOccupancy.simple],
+  ['Price gap', () => 'The asking price less the median of the comparable prices you named from your register. Your own records, not a valuation.'],
+  ['Effective acquisition cost', () => 'At an auction, the winning bid plus what the sale adds: repairs, arrears passed to you, possession, transaction costs and the holding months, each only as you enter it or the fee rulebook prices it.'],
+  ['True discount', () => 'At an auction, (your comparables’ median − effective cost) ÷ that median.'],
+  ['Proclamation of Sale', () => 'The document that sets an auction’s terms: the deposit, the days to pay the balance and any extension. The auction figures use the terms you enter from it; none are assumed.'],
+  ['Underwriting grade', () => 'A, B, C or D across six pillars (evidence, price support, financing, cash flow, downside and local demand), or U where the evidence is too thin or a hard gate caps it. A research grade on what you enter, not a bank’s decision.'],
+];
 function learnDictionary() {
   const wrap = el('div');
   const blocked = METRICS.filter(x => x.blocked);
   const published = METRICS.filter(x => !x.blocked);
+  const terms = el('div', { class: 'card', id: 'property-terms', style: 'margin-bottom:var(--md)' });
+  terms.append(cardHead('Property terms', 'The words the property calculator uses, in the sense it uses them. Company measures follow.'));
+  terms.append(el('dl', { class: 'fee-book-dl fee-book-key', 'data-property-terms': '' }, PROPERTY_TERMS.flatMap(([k, f]) => [el('dt', {}, k), el('dd', {}, f())])));
+  wrap.append(terms);
   const intro = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   intro.append(cardHead(`${published.length} measures from the stored statements, ${blocked.length} blocked`,
-    `Every measure is defined once, in one registry, and the screener, the source drawer, the explanations and this page are all read from it. Version: ${MODEL_VERSION.split('·')[0].trim()}.`));
+    `Each measure is defined once, and every page uses that definition. Version: ${MODEL_VERSION.split('·')[0].trim()}.`));
   intro.append(el('p', { class: 'body', style: 'max-width:72ch' },
     'The stored statements hold ten lines a year: revenue, operating profit (EBIT), net income, operating cash flow, capital expenditure, equity, debt, cash, shares in issue and dividend per share. A measure that needs any other line cannot be computed for any company, and is listed below as blocked rather than filled from a stand-in:'));
   const ul = el('ul', { class: 'dict-blocked' });
@@ -32132,7 +32171,7 @@ function learnDictionary() {
   ])));
   intro.append(ul);
   intro.append(el('p', { class: 'caption', style: 'max-width:72ch' },
-    'Adding them means storing more of each statement than this build holds.'));
+    'Adding them needs more of each statement than is held.'));
   wrap.append(intro);
 
   METRIC_CATEGORIES.forEach(cat => {
@@ -32325,7 +32364,7 @@ function learnModels() {
    as the fee rulebook is: a phone reads it as cards, never a sideways
    scroll. */
 const PROPERTY_CONTRACTS = [
-  { id: 'subsale-residential', route: 'Subsale', asset: 'Residential', note: 'The default, and every deal saved before the routes existed.',
+  { id: 'subsale-residential', route: 'Subsale', asset: 'Residential', note: 'The default, and the route of any deal saved without one.',
     enter: 'The price, the down payment, the loan’s rate and tenure, the rent, and the running costs — the sample’s, marked Illustrative, until you change them.',
     optional: 'The asking price; comparables named from your register; a tenancy and its rent; condition and age; charges the sale passes to you; a target for the monthly position or the net yield; a valuation; a booking deposit already paid; mortgage protection, left out unless you include it or enter a quote.',
     returns: 'The cash required, every fee line with its kind; the monthly position, before tax on the rent; the net yield; the break-even rent and occupancy; the value less the loan at the sale; the rate of return; the gap between the asking price and your comparables; and the highest price that meets your target.',
@@ -32339,7 +32378,11 @@ const PROPERTY_CONTRACTS = [
   { id: 'auction', route: 'Auction', asset: 'Residential or commercial', note: 'The same model for both.',
     enter: 'The winning bid you expect. For the true discount, a comparable — typed with its source and date, or named from your register. For the deposit at risk, the deposit’s per cent, what it is a share of (the reserve or the bid) and the days to pay the balance: never assumed.',
     optional: 'The reserve price; arrears passed to you — maintenance and sinking fund, quit rent, assessment, utilities, each only if entered; repairs; the cost and months of getting possession; your lawyer’s quote; a financing buffer; holding months; the six checks; and a bid ceiling, as an all-in cost of your own or a margin under your comparables’ median.',
+<<<<<<<< HEAD:assets/app.3b532e6a3e11.js
     returns: 'The steps from your comparables’ median to the bid and on to the effective acquisition cost; the true discount — that median less the effective cost, as a share of it; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.',
+========
+    returns: 'The steps from your comparables’ median to the bid and on to the effective acquisition cost; the true discount — (your comparables’ median − effective cost) ÷ that median; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.',
+>>>>>>>> day10/f3-site:assets/app.81c276a061f3.js
     missing: 'Every auction figure reads Not final while any of the six checks is open. A cost not entered is “not entered, not counted”, and named beside the effective cost and the ceiling. A margin ceiling with no comparables’ median is Unavailable.',
     fees: 'commercial', legal: 'auction' },
   { id: 'newdev-residential', route: 'New development', asset: 'Residential',
@@ -32372,7 +32415,7 @@ function learnProperty() {
   const intro = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   intro.append(cardHead('Each purchase route, for each kind of property',
     'What the property calculator needs from you, what it returns and what it will not assume — for a subsale, an auction and a new development, on a residential unit, a commercial unit and land. Every figure is arithmetic on your own inputs, your registers or the fee rulebook. None is a market figure, and nothing is ranked.'));
-  intro.append(el('p', { class: 'metaline' }, 'Each row is held in the test suite to answers worked by hand from these rules — never read back from the calculator — and the suite runs before every release.'));
+  intro.append(el('p', { class: 'metaline' }, 'Each row is checked against answers worked by hand from these rules, never read back from the calculator.'));
   wrap.append(intro);
 
   const states = el('section', { class: 'card', id: 'property-states', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'property-states-h' });
@@ -32421,13 +32464,13 @@ function learnProperty() {
 function learnData() {
   const wrap = el('div');
   const src = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  src.append(cardHead('Source hierarchy', 'What a production deployment would need, and which of them this build actually reaches. One is connected; the rest are not. No price source is connected at any tier.'));
+  src.append(cardHead('Source hierarchy', 'The sources this product needs, and which one is loaded. One is loaded; the rest are not. No price source is connected at any tier.'));
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, ['Rank', 'Source', 'Used for', 'Status in this prototype'].map(h => el('th', {}, h)))));
+  t.append(el('thead', {}, el('tr', {}, ['Rank', 'Source', 'Used for', 'Status here'].map(h => el('th', {}, h)))));
   t.append(el('tbody', {}, [
     ['1', 'Regulatory filings and exchange announcements', 'Reported facts',
-      'Connected for the US only — audited annual statements from SEC EDGAR XBRL company facts. Bursa filings are not reachable on any compliant route, so the Malaysian financials are illustrative.'],
+      'A one-off US load — audited annual statements from SEC EDGAR XBRL company facts. Bursa filings are not reachable on any compliant route, so the Malaysian financials are illustrative.'],
     ['2', 'Licensed market-data provider', 'Prices, corporate actions, reference data, redistribution rights',
       'Not connected, on either market. This is why every price-derived measure on a filed company reads as unavailable, and why share counts cannot be split-adjusted.'],
     ['3', 'Licensed estimates and news provider', 'Forward estimates, earnings calendar', 'Out of scope'],
@@ -32436,14 +32479,14 @@ function learnData() {
   ].map(r => el('tr', {}, r.map((c, i) => el('td', { class: i === 0 ? 'ident' : '', style: i > 0 ? 'text-align:left;white-space:normal' : '' }, c))))));
   tw.append(t); src.append(tw);
   src.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:13px' },
-    'Bursa Malaysia data is licensed, not free. Information-service licensing terms, a published price list and redistribution rights make the data workstream a commercial prerequisite — it has to be settled before the feature architecture is locked, not after.'));
+    'Bursa Malaysia data needs a paid licence, which is not in place.'));
   wrap.append(src);
 
   /* THE STATUS ON EVERY FIGURE. Five kinds of number and five reasons for an
      absence; the screener's cells and the drawer behind each use exactly these
      words, from the same registry this table reads. */
   const lg = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  lg.append(cardHead('How every figure is labelled', 'A number carries one of five kinds; an absence carries one of five reasons. The screener cell and the drawer behind it read the same registry, so they cannot disagree about one figure.'));
+  lg.append(cardHead('How every figure is labelled', 'A number’s badge says where it comes from — five of the eight badge words below; an absence carries one of five reasons. The screener and its source panel use the same definitions, so they cannot disagree about one figure.'));
   const legendTable = (heads, rows) => {
     const tw = el('div', { class: 'tablewrap', style: 'margin-bottom:var(--sm)' });
     const t = el('table', { class: 'dt' });
@@ -32451,7 +32494,7 @@ function learnData() {
     t.append(el('tbody', {}, rows.map(r => el('tr', {}, r.map((x, i) => el('td', { style: i ? 'text-align:left;white-space:normal' : '' }, x))))));
     tw.append(t); return tw;
   };
-  lg.append(legendTable(['Kind', 'Meaning'], ['reported', 'calculated', 'modelled', 'market', 'illustrative'].map(k => [[provChip(k), ' ', kindBadge(KIND_OF_PROVENANCE[k], { link: false })], PROVENANCE[k].note])));
+  lg.append(legendTable(['Badge', 'Meaning'], ['reported', 'calculated', 'modelled', 'market', 'illustrative'].map(k => [kindBadge(KIND_OF_PROVENANCE[k], { link: false }), PROVENANCE[k].note])));
   lg.append(legendTable(['Absence', 'Meaning'], Object.entries(ABSENCE).map(([k, a]) => [el('span', { class: 'chip chip-bronze' }, `Unavailable — ${k}`), a.legend])));
   lg.append(el('p', { class: 'metaline' }, 'Every empty cell on the screener prints the short form of its reason and opens the drawer that names the line, the flag or the price behind it.'));
   wrap.append(lg);
@@ -32468,7 +32511,6 @@ function learnData() {
     el('dt', {}, kindBadge(k, { link: false })),
     el('dd', {}, KIND_BADGES[k].note),
   ])));
-  kinds.append(el('p', { class: 'metaline' }, 'The kinds in the table above read as badges this way: reported as Filed, calculated as Derived, market as Yours.'));
   wrap.append(kinds);
 
   /* THE PROPERTY FEE RULEBOOK (the owner's property track, 8 Oct 2026):
@@ -32489,7 +32531,8 @@ function learnData() {
     + 'republish records to subscribers. This product may source and analyse; it may not redistribute.'));
   nap.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:13px' }, [
     el('strong', {}, 'The position, stated once: '),
-    'Quantum Tradeworks can source and analyse official transaction evidence for Sarawak through NAPIC. '
+    'Quantum Tradeworks may source and analyse official transaction evidence for Sarawak through NAPIC. '
+    + 'This site loads none: only NAPIC’s published aggregates and scheme ranges. '
     + 'Record-level republication remains restricted until NAPIC or another licensed provider grants commercial '
     + 'redistribution rights. Nothing sourced that way is shown to anyone but the person who loaded it.',
   ]));
@@ -32582,20 +32625,20 @@ function learnData() {
      policy is what a production build must do; this build does not, and
      each is said as which it is. */
   const pit = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  pit.append(cardHead('Point-in-time policy', 'The policy a production build has to meet: screens and backtests query what was known on the selected date, not the latest corrected database — without it, historical results are not credible. This build does not meet it yet: it holds one version of each period, and of the times below it carries only the day the SEC statements were retrieved.'));
+  pit.append(cardHead('Point-in-time policy', 'Screens and backtests should use only what was known on the date chosen; without that, historical results are not credible. This product does not do that yet: it holds one version of each period, and of the times below only the day the SEC statements were retrieved.'));
   const kv = el('dl', { class: 'kv' });
   [['Source event time', 'When the company published it'],
    ['Provider receipt time', 'When the vendor made it available'],
-   ['Ingestion time', 'When the platform stored it'],
+   ['Ingestion time', 'When this product stored it'],
    ['Calculation time', 'When the derived metric was computed'],
    ['Effective availability time', 'The timestamp a point-in-time query uses'],
-   ['Restatement link', 'Production policy: an amended filing is kept as a new version beside the one it amends. This build: one version of each period, so a restatement overwrites it — see Absent by design, below']]
+   ['Restatement link', 'Not yet: one version of each period, so a restatement replaces it — see Absent by design, below']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
   pit.append(kv);
   wrap.append(pit);
 
   const cov = el('div', { class: 'card' });
-  cov.append(cardHead('Coverage in this prototype', 'What is deliberately absent is as important as what is present.'));
+  cov.append(cardHead('Coverage in the beta', 'What is deliberately absent is as important as what is present.'));
   const g = el('div', { class: 'grid g-2' });
   const have = el('div');
   have.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Present'));
@@ -32617,18 +32660,18 @@ function learnData() {
    /* The ingest now keeps the first-filed figure beside the latest and flags
       the year; the shipped file predates that, and even with it a period
       holds one figure, so this stays on the list. */
-   'Restatement and amendment versioning — the dataset holds one version of each period, so a restatement overwrites rather than branches. The SEC ingest now records the first-filed value beside the latest and flags a restated year, but the shipped statements predate it',
+   'Restatements are not tracked: a restated year replaces the original, and the shipped statements do not flag one',
    'Winsorisation of extreme inputs — score inputs are clamped at their published anchor range instead, which bounds the score but does not treat the outlier',
    'Lease, minority-interest, associate and non-controlling-interest adjustments — these lines are not carried, so enterprise value is unadjusted for them',
    'Share-based compensation as a separate line — it cannot be isolated from operating cash flow in this dataset',
    'Accounts and sign-in — every list, portfolio, thesis and alert lives in this browser and is lost if you clear it',
-   'Free trial, billing, cancellation and renewal — no payment system exists, and a mocked one would be a claim the product cannot honour',
+   'Free trial, billing, cancellation and renewal — no payment system exists, and a pretend one would promise what the product cannot honour',
    /* This said nothing was gated, while the plan switcher on /pricing visibly
       unlocks the full property report and the cross-asset view. Both were true
       of different things — there is no SERVER entitlement, and there is a local
       one — and the sentence collapsed them into a claim a reader could disprove
       in two clicks. */
-   'Server-side entitlement — plan tiers are enforced in this browser only, for inspection. Switching plan on the pricing page does change what renders, including the full property report and the cross-asset view. There is no identity, no payment, no subscription record and no production access control behind it'].forEach(x => ll.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
+   'Plan limits — previewed in this browser only. Switching plan on the pricing page does change what renders, including the full property report and the cross-asset view, but no account or payment stands behind it'].forEach(x => ll.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
   lack.append(ll); g.append(lack);
   cov.append(g);
   wrap.append(cov);
@@ -32637,40 +32680,16 @@ function learnData() {
 
 function learnTrust() {
   const wrap = el('div');
-  wrap.append(el('div', { style: 'margin-bottom:var(--md)' }, scopeCard()));
-  const modes = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  modes.append(cardHead('Product modes',
-    'The architecture supports two configurations. This prototype runs in Research mode only; the advisory surfaces do not exist in the build, they are not merely hidden.'));
-  const g = el('div', { class: 'grid g-2' });
-  const rm = el('div', { class: 'panel' });
-  rm.append(el('div', { class: 'row', style: 'gap:6px;margin-bottom:8px' }, [el('span', { class: 'chip chip-brand' }, 'Active'), el('h4', { class: 'h-card' }, 'Research mode')]));
-  const rl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  ['Factual and analytical outputs', 'Published formulas and linked evidence', 'User-controlled assumptions',
-   'No suitability questionnaire', 'No action recommendation', 'No target allocation',
-   'Themes described as rule-based research universes', 'Alerts describe changed facts and conditions'].forEach(x =>
-    rl.append(el('li', { style: 'font-size:13px;color:var(--ink-2)' }, `✓ ${x}`)));
-  rm.append(rl); g.append(rm);
-  const am = el('div', { class: 'panel', style: 'opacity:.72' });
-  am.append(el('div', { class: 'row', style: 'gap:6px;margin-bottom:8px' }, [el('span', { class: 'chip' }, 'Not built'), el('h4', { class: 'h-card' }, 'Licensed advisory mode')]));
-  const al = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  ['Suitability and risk profiling', 'Representative oversight and governance', 'Advice rationale and record keeping',
-   'Conflict and compensation disclosure', 'Controlled recommendation language', 'Policy approvals and surveillance'].forEach(x =>
-    al.append(el('li', { style: 'font-size:13px;color:var(--ink-3)' }, `· ${x}`)));
-  am.append(al); g.append(am);
-  modes.append(g);
-  modes.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'A disclaimer does not change the substance of a feature. In Malaysia, automated algorithm-based investment advice is treated as investment advice under the Capital Markets and Services Act and requires a licence when carried on as a business — so each surface needs written legal classification before launch, not a footnote.'));
-  wrap.append(modes);
 
   /* The reader's own cases, above the sample log — a case they raised and
      cannot find again is a case they have no reason to believe was kept. */
   const mine = State.corrections || [];
   const mineCard = el('div', { class: 'card', id: 'my-cases', style: 'margin-bottom:var(--md)' });
   mineCard.append(cardHead(`Cases you have recorded — ${mine.length}`,
-    'Held in this browser only. Nothing has been sent, because there is no server behind this build and no contact address published yet.'));
+    `Held in this browser only. Nothing has been sent, because there is no server and ${supportEmail() ? 'a case is sent only when you send it from your own email program' : 'no contact address yet'}.`));
   if (!mine.length) {
     mineCard.append(el('p', { class: 'metaline' },
-      'None yet. Any figure on this site can be challenged — the report button in the footer records a case with the page, the model version and the data date attached.'));
+      'None yet. Any figure on this site can be reported — the report button in the footer records a case with the page, the model version and the data date attached.'));
   } else {
     const mt = el('table', { class: 'dt' });
     mt.append(el('thead', {}, el('tr', {}, ['Case', 'Raised', 'Item', 'Status', ''].map(h =>
@@ -32727,11 +32746,35 @@ function learnTrust() {
      the site that cannot be allowed to be. Every row below is a correction
      that shipped, dated by its commit, and describes what was wrong and what
      changed. Nothing here is illustrative. */
-  corr.append(cardHead('Corrections log', 'Drawn from the change history of this build. Every correction records what was wrong and what changed; the most recent is first.'));
+  corr.append(cardHead('Corrections log', 'Corrections to the product, most recent first. Each says what was wrong and what changed.'));
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, ['Date', 'Scope', 'What was wrong', 'What changed'].map(h => el('th', {}, h)))));
   t.append(el('tbody', {}, [
+    ['22 Oct 2026', 'Property model — auction',
+      'The holding months before the property earns were priced in the effective cost only, as the full month with no rent from the day of the sale, the loan instalment included. The cash required and the rate of return did not count them.',
+      'The holding months are priced once and every figure reads that: no rent, the running costs owed with no tenancy, and the instalment only from the day the balance falls due. They are a line of the cash required, and the hold’s years count from when the property earns. With no days to pay the balance entered, the instalment is not priced and the page says so.'],
+    ['22 Oct 2026', 'Property model',
+      'The first tenant’s placement fee was left out of the tax deduction for year one only, which is right for a 12-month tenancy alone: on a 24-month tenancy half of it was deducted in year two, and on a 6-month tenancy a replacement tenant’s fee was left out in year one.',
+      'Each fee is spread over its tenancy. The first tenant’s fee is left out of the deduction while that tenancy runs, and a replacement tenant’s is deducted. A deal that pays an agent moves; a self-managed deal does not.'],
+    ['22 Oct 2026', 'Fee rulebook',
+      'The loan legal fee under rule 7 was worked in floating point, so a fee that fell exactly on a half sen could round down.',
+      'It is worked in whole sen and a half sen rounds up, so the fee moves by one sen on those loans: a loan of RM395,288.10 now shows RM4,208.78, not RM4,208.77.'],
+    ['21 Oct 2026', 'Property model',
+      'For a managed property the break-even rent and the break-even occupancy held the agent’s minimum fee and the placement fee at their values for the rent entered, so they were not the rent and occupancy at which the month is nil. On the sample managed by an agent at 8%, the break-even rent read RM3,629.16 where the month at that rent was −RM74.13; the figure is RM3,728.00. The occupancy disagreed with “Survives vacancy to”. The reserve’s month with no rent left out the part of the management fee owed whatever the rent: with a RM150 minimum fee on that sample, the reserve was RM8,666.',
+      'Each is solved on the model’s own running costs, so the month is nil to the sen at the break-even rent and at the break-even occupancy, and the occupancy agrees with “Survives vacancy to”. The reserve’s month with no rent is the model’s own month at 100% vacancy: that sample’s reserve is RM9,070. A self-managed deal does not move.'],
+    ['14 Oct 2026', 'Property model',
+      'Cash-on-cash divided a year’s cash flow by the cash before the reserve, beside a rate of return on the cash including it, and the renovation-overrun table headed the cash before the reserve “Cash required”. A price of −RM500,000, a deposit of 150% and a price of 0 were accepted and produced a cash required.',
+      'Cash-on-cash is over the cash required including the reserve, the headline’s cash, and the table names its columns “Cash before reserve” and “Cash required including reserve”. The calculator refuses a negative amount, a share over 100% and a price of 0, keeps the figure and says why.'],
+    ['13 Oct 2026', 'Property model — new development',
+      'The rate of return and the holding period counted from the purchase, as though the property were let on signing.',
+      'With the month of signing and the month of vacant possession entered, the cash required leaves at signing, no rent or instalment comes before the keys, the holding period counts from vacant possession and the gains tax from the SPA date. Without both months the calculator says it counts from signing.'],
+    ['10 Oct 2026', 'Property model — fee rulebook 1.2.0',
+      'On commercial property and land, fee lines whose rule differs by class were charged at the residential rule although it had not been checked for that class.',
+      'Those lines carry no amount until they are checked, and the cash required reads as a partial total that names them. Residential deals did not move.'],
+    ['09 Oct 2026', 'Property model — fee rulebook 1.1.0',
+      'The cash required included an estimated mortgage protection premium the reader had not chosen: RM8,000 on the sample.',
+      'Mortgage protection is optional and off by default. It counts only if you include it, at the rulebook’s RM8,000 estimate, or enter the premium you were quoted. The sample’s cash required fell by RM8,000.'],
     ['28 Sep 2026', 'Metric dictionary',
       'Net margin was computed and published nowhere; free cash flow, operating cash flow margin and net-income growth were supported by the stored statements and not offered; twenty-four screener measures had no plain-language definition; and gross margin, return on assets, the current and quick ratios and EV/EBITDA were simply missing from the dictionary, with nothing to say why. A bank’s free cash flow was published although every measure built on it was declared not applicable.',
       'Metrics 1.7.0 and scores 1.4.0. Six measures are published — net margin, operating cash flow margin, free cash flow, net income growth over four years and one, and revenue growth over one — every measure has a definition, unit and period, and the five that need lines the statements do not carry are listed as blocked. A bank’s free cash flow is not computed, so Citigroup and Goldman Sachs no longer carry a negative-free-cash-flow risk flag. No coverage figure changed.'],
@@ -32746,7 +32789,7 @@ function learnTrust() {
       'Every per-share growth rate is withheld where the share series breaks, and the statement table says why.'],
     ['26 Sep 2026', 'Property model',
       'The five- and ten-year exit table totalled rent before tax while the year-by-year path beside it was after tax. The stress rows charged a management fee to a self-managed owner. A quoted MRTA premium never replaced the RM8,000 placeholder in the ledger.',
-      'One year’s cash flow is computed in one place and both surfaces call it. One composition of running costs serves the model and the stress tests. The reader’s quote takes the line, marked as a quote.'],
+      'The exit table and the year-by-year path now use the same after-tax cash flow, and the stress tests the same running costs. The reader’s quote takes the line, marked as a quote.'],
     ['09 Sep 2026', 'Property model',
       'The asset class was asked for and then ignored: a bare parcel was given a rental yield, a debt-service cover and a break-even rent, and graded on them.',
       'Land withholds every rent-derived figure; the carrying cost and the exit remain. No residential figure moved.'],
@@ -32758,21 +32801,49 @@ function learnTrust() {
       'A real internal rate of return, solved on the cash-flow vector and shown beside the multiple with the gap explained. Rental income tax with the interest deductible and the principal not.'],
     ['21 Aug 2026', 'Property register',
       'One demand record disabled undo for every earlier change in the register, silently. Backups dropped demand records.',
-      'Entities declare their undo and replay together; a backup carries every entity; a state-machine test now fails the build if undo jams.'],
+      'Undo now works for every earlier change, and a backup keeps every record.'],
     ['09 Aug 2026', 'Score model',
       'The valuation pillar substituted fixed scores for its three price-dependent inputs, so 115 companies with no price scored exactly 46 with coverage reported as 100%. Share-count growth across a split read Apple’s four-for-one as 12% a year of issuance.',
       'The pillar scores over the inputs that were testable and returns no score when none were. Share-count growth and buyback yield are withheld across a split and the discontinuity is named on the page.'],
     ['07 Aug 2026', 'Company pages',
-      'A company with filings and no price threw when viewed in another currency; the price-alert form prefilled RM0.00 for it; the Financial Strength scorecard printed a broken, non-numeric weight in its Weight column.',
+      'A company with filings and no price showed an error when viewed in another currency; the price-alert form prefilled RM0.00 for it; the Financial Strength scorecard printed a broken, non-numeric weight in its Weight column.',
       'All three fixed. No score changed.'],
   ].map(r => el('tr', {}, r.map((c, i) => el('td', { class: i === 0 ? 'ident' : '', style: i > 1 ? 'text-align:left;white-space:normal;max-width:300px' : '' }, c))))));
   tw.append(t); corr.append(tw);
   wrap.append(corr);
 
   const rep = el('div', { class: 'card' });
-  rep.append(cardHead('Report an error', 'Every data item in the product is reportable, and a report is tied to the exact item rather than to a general inbox.'));
+  rep.append(cardHead('Report an error', supportEmail()
+    ? 'Each report names the exact item and is saved in this browser; you send it from your own email program.'
+    : 'Each report names the exact item and is saved in this browser; nothing is sent until a contact address is published.'));
   rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the error form'));
   wrap.append(rep);
+  /* The reader's own cases and the log come first (Day-10 pre-audit CL-25, NAV-14): the page is reached to check a case or the log, and the
+     product's boundaries, which stay in full and unchanged, follow. */
+  wrap.append(el('div', { style: 'margin-top:var(--md);margin-bottom:var(--md)' }, scopeCard()));
+  const modes = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  modes.append(cardHead('Product modes',
+    'Only Research mode exists; the advisory features are not built.'));
+  const g = el('div', { class: 'grid g-2' });
+  const rm = el('div', { class: 'panel' });
+  rm.append(el('div', { class: 'row', style: 'gap:6px;margin-bottom:8px' }, [el('span', { class: 'chip chip-brand' }, 'Active'), el('h4', { class: 'h-card' }, 'Research mode')]));
+  const rl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
+  ['Factual and analytical outputs', 'Published formulas and linked evidence', 'User-controlled assumptions',
+   'No suitability questionnaire', 'No action recommendation', 'No target allocation',
+   'Themes described as rule-based research universes', 'Alerts describe changed facts and conditions'].forEach(x =>
+    rl.append(el('li', { style: 'font-size:13px;color:var(--ink-2)' }, `✓ ${x}`)));
+  rm.append(rl); g.append(rm);
+  const am = el('div', { class: 'panel', style: 'opacity:.72' });
+  am.append(el('div', { class: 'row', style: 'gap:6px;margin-bottom:8px' }, [el('span', { class: 'chip' }, 'Not built'), el('h4', { class: 'h-card' }, 'Licensed advisory mode')]));
+  const al = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
+  ['Suitability and risk profiling', 'Representative oversight and governance', 'Advice rationale and record keeping',
+   'Conflict and compensation disclosure', 'Controlled recommendation language', 'Policy approvals and surveillance'].forEach(x =>
+    al.append(el('li', { style: 'font-size:13px;color:var(--ink-3)' }, `· ${x}`)));
+  am.append(al); g.append(am);
+  modes.append(g);
+  modes.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'A disclaimer does not change the substance of a feature. In Malaysia, automated algorithm-based investment advice is treated as investment advice under the Capital Markets and Services Act and requires a licence when carried on as a business — so each surface needs written legal classification before launch, not a footnote.'));
+  wrap.append(modes);
   return wrap;
 }
 
@@ -32960,12 +33031,9 @@ function waitlistCard() {
        satisfy a regex, loses a real person for nothing. */
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { status.textContent = 'That does not look like an email address.'; return; }
 
-    if (!LAUNCH.waitlistEndpoint) {
-      /* No endpoint, but an address exists: hand it over rather than pretend. */
-      location.href = `mailto:${LAUNCH.contactEmail}?subject=${encodeURIComponent('Quantum Tradeworks waitlist')}`
-        + `&body=${encodeURIComponent(`Please add ${email} to the waitlist.`)}`;
-      return;
-    }
+    /* waitlistReady() is true only with an endpoint (15-derivation.js): a
+       support address does not switch the waitlist on, so there is no mailto
+       fallback here any more. */
     submit.disabled = true;
     status.textContent = 'Sending…';
     try {
@@ -32997,7 +33065,9 @@ function openReportError() {
   const opener = document.activeElement;
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
-    'This records a case in this browser and gives it an identifier. It does not send anything — there is no server behind this build and no contact address published yet — so the last step hands you the case to send yourself.'));
+    supportEmail()
+      ? 'This records a case in this browser and gives it an identifier. It does not send anything — there is no server — so the last step gives you the report to send yourself, from your own email program.'
+      : 'This records a case in this browser and gives it an identifier. It does not send anything — there is no server and no contact address yet — so the last step hands you the case to send yourself.'));
 
   const state = { item: (FIELDS[0] && FIELDS[0].label) || '', subject: '', shownValue: '', expectedValue: '', sourceRef: '', description: '' };
   const field = (label, key, kind, placeholder) => {
@@ -33041,7 +33111,7 @@ function openReportError() {
       id: nextCaseId(now),
       createdAt: caseRaisedAt(now),
       route: location.pathname + location.search,
-      status: 'recorded — not sent',
+      status: supportEmail() ? 'recorded here, not confirmed received' : 'recorded — not sent',
       modelVersion: MODEL_VERSION, asOf: AS_OF,
       /* A case is evidence. Recording the sample counts against it because the
          audited set had not landed yet would file a case that misdescribes the
@@ -33064,8 +33134,13 @@ function openReportError() {
     if (back && back !== document.body) back.focus({ preventScroll: true });
     openDrawer(`Case ${c.id} recorded`, (() => {
       const w = el('div');
-      w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
-        `Recorded in this browser as ${c.id}. Nothing has been sent and nobody has received it — there is no server behind this build, and no contact address is published yet. Copy the case below and keep it, or send it once there is somewhere to send it to.`));
+      const addr = supportEmail();
+      /* With a support address (LAUNCH.contactEmail), the report is the visitor's
+         to send: the address is shown as text, the mailto is a convenience, and
+         the case stays recorded here, not confirmed received. */
+      w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, addr
+        ? [`Recorded here as ${c.id}, not confirmed received. Nothing on this site sends it: copy the report and send it to `, el('strong', { 'data-support-address': '' }, addr), ', from your own email program.']
+        : `Recorded in this browser as ${c.id}. Nothing has been sent and nobody has received it — there is no server, and no contact address is published yet. Copy the case below and keep it, or send it once there is somewhere to send it to.`));
       const pre = el('textarea', { class: 'input', 'aria-label': `Case ${c.id}, as text to copy`, style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px' });
       pre.value = correctionPayload(c);
       w.append(pre);
@@ -33074,7 +33149,9 @@ function openReportError() {
           pre.select();
           (navigator.clipboard ? navigator.clipboard.writeText(pre.value) : Promise.reject())
             .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
-        } }, 'Copy the case'),
+        } }, addr ? 'Copy the report' : 'Copy the case'),
+        addr ? el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '',
+          href: `mailto:${addr}?subject=${encodeURIComponent(`Data error report ${c.id}`)}&body=${encodeURIComponent(correctionPayload(c))}` }, 'Open in my email program') : null,
         el('a', { class: 'btn btn-ghost btn-sm', href: href('/corrections'),
           onclick: e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); closeDrawer(); navigate('/corrections'); } },
           'See my recorded cases'),
@@ -35330,7 +35407,7 @@ const FEE_TABLE = {
     { version: '1.1.0', date: '2026-10-09',
       what: 'Mortgage protection (MRTA/MLTA) is an optional line, off by default: left out of the cash required unless you include it or enter a quote, and listed as “Optional: mortgage protection” so its absence is visible — the sample’s cash required falls by its RM8,000 estimate. The ledger is split into five kinds: statutory charges, professional fees on a published scale, quotations, optional products and estimates. Registration of the transfer and the charge (RM10 an instrument, Land and Survey Department, Sarawak) and the stamp duty on the charge (one-fifth of the loan agreement’s duty, at most RM10: Item 27(b)) are verified and taken out of the disbursements estimate, which keeps the rest. The valuation fee, the searches and the firm’s disbursements, and the utility deposits stay estimates: no primary source fixing them was found.' },
     { version: '1.0.0', date: '2026-10-08',
-      what: 'Replaced 0.1.0-unverified: the transfer and loan agreement stamp duty, Sarawak’s advocates’ scale for the purchase and loan legal fees, and service tax verified from official texts; the valuation fee carried at the Board of Valuers’ ceiling as an estimate.' },
+      what: 'Replaced the unverified first draft: the transfer and loan agreement stamp duty, Sarawak’s advocates’ scale for the purchase and loan legal fees, and service tax verified from official texts; the valuation fee carried at the Board of Valuers’ ceiling as an estimate.' },
   ],
 
   lines: {
@@ -36745,7 +36822,7 @@ function cityMapHold(cityId, waiting) {
   const { pad, maxH, minH } = CITY_MAP_BOX;
   return el('div', { class: 'map-hold', style: `--map-r:${r};--map-pad:${pad}px;--map-min:${minH}px;--map-max:${maxH}px` },
     el('p', { class: 'caption map-hold-say',
-      'data-now': 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.' }, waiting));
+      'data-now': 'The map needs JavaScript; the table below is the same without it.' }, waiting));
 }
 /* label: what the diagram is said to be where it stands for something else
    — the Kuching scheme map's fallback (92-kuching-map.js), under which no
@@ -43662,8 +43739,8 @@ VIEWS.sarawak = () => {
   queueMicrotask(syncTheme);
   add.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     swkCands.length
-      ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from the instrument registry, which carries their name and listing code — not a price, not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
-      : 'No company has been flagged as having Sarawak operations in the instrument registry.'));
+      ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from our company list, which holds their name and listing code — not a price, not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
+      : 'No company has been flagged as having Sarawak operations in our company list.'));
   wrap.append(add);
 
   /* The collection itself. */
@@ -45170,7 +45247,11 @@ VIEWS.property = () => {
     const aff = affordabilityPanel(cityDef.name);
     if (aff) mapWrap.append(el('div', { style: 'margin-top:12px' }, aff));
     else mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+<<<<<<<< HEAD:assets/app.3b532e6a3e11.js
       'District household income is not shown: its licence is not yet confirmed.'));
+========
+      'District household income is not shown: its licence is unconfirmed.'));
+>>>>>>>> day10/f3-site:assets/app.81c276a061f3.js
     explore.push(mapWrap);
     loc.append(pcL3('district', `${d.district}: what moves demand, the map and your records`, explore));
   }
@@ -47939,7 +48020,7 @@ VIEWS.ips = () => {
    because "coming soon" is what a roadmap says when nobody has decided.
    ========================================================================== */
 const FEATURE_STATUS = [
-  { id:'active-core', label:'Active Core Build', note:'Receiving current build capacity.' },
+  { id:'active-core', label:'Active Core Build', note:'Available; work continues.' },
   { id:'maintenance', label:'Active Maintenance', note:'Available and supported; reliability work continues.' },
   { id:'beta',        label:'Beta', note:'Available with a stated limitation.' },
   /* THE PHASE 2 BRIEF'S RELEASE RULE: a P1 surface that is not finished is
@@ -48002,7 +48083,7 @@ const BURSA_COVERAGE_WAIT = `${COVERAGE_PENDING} — how many companies carry il
 const CAPABILITY_REGISTER = [
   { name:'Sarawak property underwriting', status:'active-core', path:'/property/calculator',
     now:'Capital ledger, valuation gap, grade, downside and plain-language result.' },
-  { name:'True capital ledger', status:'active-core', path:'/property/calculator',
+  { name:'Capital ledger', status:'active-core', path:'/property/calculator',
     now:'Every completion, rent-ready and reserve line, reconciled.',
     /* Counted from the fee rulebook, not typed: "Seven fee lines carry
        placeholder values" stood here from rulebook 0.1.0 to 1.2.0, while
@@ -48067,7 +48148,7 @@ const CAPABILITY_REGISTER = [
             { file:'equity-test.mjs', name:'ratios match figures recomputed by hand from the filings' }] },
   /* The statements explorer and per-figure lineage. Active, with the parts
      the shipped data cannot fill stated as the gate rather than hidden. */
-  { name:'Statements and figure lineage', status:'active-core', path:'/company/msft-microsoft-corp?tab=financials',
+  { name:'Statements and figure lineage', status:'maintenance', path:'/company/msft-microsoft-corp?tab=financials',
     brief:['EQ-206', 'EQ-209'], priority:'P0',
     checks:[{ file:'equity-test.mjs', name:'the statements table is three statements whose every cell opens its source' },
             { file:'equity-test.mjs', name:'the statements CSV round-trips the table' },
@@ -48078,7 +48159,7 @@ const CAPABILITY_REGISTER = [
      page for weeks. One row was describing two things — the classifier that
      ships and the saved strategy plan that does not — so shipping half of it
      left the row wrong about both. Split. */
-  { name:'Equity Strategy Lens', status:'active-core', path:'/research',
+  { name:'Equity Strategy Lens', status:'maintenance', path:'/research',
     now:'On every company page: instrument type, business archetype, return role, and eight evidence bands that separate banded from unassessed, not applicable, not built and illustrative.',
     gate:'Evidence bands describe how far the evidence meets a strategy’s requirements. They are not an entry plan and imply no allocation.' },
   { name:'Saved strategy plans and leverage stress', status:'queued', path:null,
@@ -48103,7 +48184,7 @@ const CAPABILITY_REGISTER = [
     split:{ tool:'wheel', data:'no authorised option-chain data — each contract is entered by hand, and live chains, a recommended contract and execution are not built' },
     now:'Cash-secured put and covered-call arithmetic, collateral gates, downside scenarios and the full risk card, from figures you enter.',
     gate:'No authorised option-chain data, so contracts are entered by hand. Live chains, any recommended contract, broker routing and execution stay Compliance Gated and are not built.' },
-  { name:'QT Trading Index', status:'active-core', path:'/research/trading-index',
+  { name:'QT Trading Index', status:'maintenance', path:'/research/trading-index',
     now:'Multi-timeframe trend regime, first-tranche readiness against your own rules, screenshot confidence, template and derivative hard gates, from chart evidence you record.',
     gate:'Phase 1 only. It does not read your screenshot — OCR and vision extraction are phase 2. No indicator here has been backtested on point-in-time data, so no rule is claimed to be effective.' },
   { name:'Trade-setup scanner', status:'data-gated', path:'/app/scanner',
@@ -48134,7 +48215,7 @@ const CAPABILITY_REGISTER = [
     now:'Holdings, weights, currency attribution and thesis links.' },
   { name:'Thesis, catalysts and invalidation', status:'maintenance', path:'/my/theses',
     now:'User-authored conditions evaluated against current data, with the proximity rule published.' },
-  { name:'Watchlists', status:'active-core', path:'/my/watchlists',
+  { name:'Watchlists', status:'maintenance', path:'/my/watchlists',
     brief:['EQ-208', 'EQ-214'], priority:'P0',
     checks:[{ file:'equity-test.mjs', name:'watchlists are one service' },
             { file:'equity-test.mjs', name:'a watchlist survives a reload' },
@@ -48156,7 +48237,7 @@ const CAPABILITY_REGISTER = [
   { name:'Valuation models', status:'flagged', path:'/company/aapl-apple-inc?tab=valuation',
     brief:['EQ-211'], priority:'P1',
     now:'In the Valuation Studio: net debt, the share count and a signed adjustment are inputs, labelled as yours once changed; edits are kept per company across reloads; the sensitivity grid takes any two inputs and steps; the calculation and the confidence score are explained with your figures.',
-    flag:'Editing sits behind the local plan switch in this prototype — no payment exists. Lease, minority and associate adjustments are not pre-filled from any filing; the adjustment is your figure.',
+    flag:'Editing sits behind the local plan switch in this beta — no payment exists. Lease, minority and associate adjustments are not pre-filled from any filing; the adjustment is your figure.',
     checks:[{ file:'equity-test.mjs', name:'the DCF bridge is equity = EV' },
             { file:'equity-test.mjs', name:'net debt and the adjustment are the reader' },
             { file:'equity-test.mjs', name:'the sensitivity grid takes the reader' },
@@ -48379,7 +48460,7 @@ function flagNoticeFor(row) {
       el('strong', {}, row.name)]),
     el('p', {}, row.flag),
     el('p', { class: 'metaline' }, [`Usable as it stands. `,
-      el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Build status')]),
+      el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Checks and status')]),
   ]);
 }
 /* Where the notice goes: under the page heading when the view has one, and on
@@ -61058,7 +61139,7 @@ VIEWS.scannerDashboard = () => {
   const h = scanOpsHistory();
   const hm = scanOpsHistoryMeta(h);
   const mon = el('section', { class: first ? 'scan-run-part' : 'card' });
-  mon.append(cardHead('Monitored instruments', 'The instruments in the universes of your enabled setups that hold a series in your price history — the only ones the worker can evaluate.', null, hm ? { kind: 'yours', fine: 'From your own closes and the worker’s records' } : { kind: 'unavailable', fine: 'No price history loaded' }));
+  mon.append(cardHead('Instruments your setups cover', 'The instruments in the universes of your enabled setups that hold a series in your price history — the only ones the worker can evaluate.', null, hm ? { kind: 'yours', fine: 'From your own closes and the worker’s records' } : { kind: 'unavailable', fine: 'No price history loaded' }));
   const m = st.monitored;
   mon.append(el('dl', { class: 'kv scan-kv' }, [
     el('dt', {}, 'Monitored'), el('dd', {}, m ? scanOpsPlural(m.instruments, 'instrument') : hm ? 'no enabled setup' : 'no price history loaded'),
@@ -61275,7 +61356,7 @@ VIEWS.scannerMarket = () => {
     ...mk.list.map(m => el('option', { value: m.market, selected: S.market === m.market ? '' : null }, `${m.market}${m.label ? ` — ${m.label}` : ''} (${m.series} of your series)`)),
   ]);
   g.append(el('div', { class: 'field' }, [el('label', { for: 'scan-market-pick' }, 'Market'), msel,
-    el('p', { class: 'metaline' }, `Markets as the instrument registry places your series, alphabetically.${mk.unplaced ? ` ${scanOpsPlural(mk.unplaced, 'series', 'series')} with no registry row can be screened only under “everything”.` : ''}`)]));
+    el('p', { class: 'metaline' }, `Markets, as your series are listed, alphabetically.${mk.unplaced ? ` ${scanOpsPlural(mk.unplaced, 'series', 'series')} with no registry row can be screened only under “everything”.` : ''}`)]));
   /* A replay is of a session that has happened: the worker refuses an
      --as-of after today, and so does the screen (below). */
   const today = scanOpsNow().slice(0, 10);
@@ -61719,7 +61800,7 @@ VIEWS.scannerAdmin = () => {
   wrap.append(panel('Usage', 'On this machine. There are no users to count.',
     el('dl', { class: 'kv scan-kv' }, [el('dt', {}, 'Active setups'), el('dd', {}, scanOpsSetupsDoc()
       ? `${a.enabled - a.expired} (of ${a.valid} valid, ${refused.file ? 'the whole file refused' : `${refused.setups} refused`})` : 'no setups file'),
-      el('dt', {}, 'Monitored instruments'), el('dd', {}, st.monitored ? fmtNum(st.monitored.instruments, 0) : 'no price history loaded'),
+      el('dt', {}, 'Instruments your setups cover'), el('dd', {}, st.monitored ? fmtNum(st.monitored.instruments, 0) : 'no price history loaded'),
       el('dt', {}, 'Alerts recorded'), el('dd', {}, (() => { const d = scanOpsAlertsDoc(); const l = Array.isArray(d) ? d : d?.alerts; return Array.isArray(l) ? fmtNum(l.length, 0) : 'no alerts file'; })())])));
 
   /* 8 — errors. The runs that did not finish their work: failed, cancelled
@@ -62825,7 +62906,7 @@ VIEWS.areas = () => {
     /* "Loading" is this tab's, now (data-now, NOW in 35-ui.js): served, it
        was the page's first draw with nothing loaded, and to a reader with no
        script it said so for good. */
-    if (geoLoadState !== 'failed') hd.querySelector('.caption')?.setAttribute('data-now', 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.');
+    if (geoLoadState !== 'failed') hd.querySelector('.caption')?.setAttribute('data-now', 'The map needs JavaScript; the table below is the same without it.');
     wait.append(hd);
     wrap.append(wait);
   }
@@ -63753,17 +63834,79 @@ function openObservationDrawer(o) {
   openDrawer(`${OBS_BY_ID[o.kind] ? OBS_BY_ID[o.kind].label : 'Observation'} · ${fmtNum(o.value, 0)}`, body);
 }
 
+/* THE STATUS PAGE, READABLE (the owner's decision of 23 Oct 2026; Day-10 pre-audit IW-21).
+   It opens with what a visitor needs: whether the journeys pass and when
+   they were last run, which tools are Live and which are not, and how old
+   the data is. The engineering detail — the commit, the suites, every
+   journey step, the in-browser checks, and every register row with its
+   backlog item and the check that covers it — is below, in two closed
+   sections. Nothing an auditor reads is removed: the same elements, with
+   the same ids and the same served and drawn words, stand in the closed
+   sections, and a link to one of them (#journey-…, #health-proofs) opens
+   the section it is in. */
+const statusFoldOpen = {};
+function statusFold(id, title, sub, children) {
+  const det = el('details', { class: 'status-fold', id, open: statusFoldOpen[id] ? '' : null,
+    ontoggle: (e) => { statusFoldOpen[id] = e.currentTarget.open; } });
+  det.append(el('summary', { class: 'plan-compare-sum' }, [
+    el('span', {}, [el('span', { class: 'status-fold-t' }, title), sub ? el('span', { class: 'status-fold-s' }, sub) : null]),
+    el('span', { class: 'plan-compare-chev', 'aria-hidden': 'true' })]));
+  det.append(el('div', { class: 'status-fold-body' }, children));
+  return det;
+}
+/* Open the closed sections around an element, and keep them open across a redraw. */
+function statusOpenAround(node) {
+  for (let d = node?.closest?.('details.status-fold'); d; d = d.parentElement?.closest?.('details.status-fold')) {
+    d.open = true; statusFoldOpen[d.id] = true;
+  }
+}
 VIEWS.status = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Status'),
-    el('h1', {}, 'What is built, what is gated, and what is holding it'),
+    el('h1', {}, 'Checks and status'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Nothing here is removed when it cannot yet work. It is labelled, and the thing blocking it is named — a capability with no stated gate and no owner is a promise, not a plan.'),
+      'Whether the tools work, when that was last checked, and how old the data is. The detail behind each check is further down, in two closed sections.'),
   ])));
-  wrap.append(statusPropertySection());   /* Property's model and market data on two lines (N2d): 91-health.js */
-  wrap.append(healthSection());   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
 
+  const health = healthSection();   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
+
+  /* The journeys' latest result: the page's own element (#health-journeys-sum). */
+  const journeys = el('section', { class: 'card status-glance', id: 'status-glance', 'aria-labelledby': 'status-glance-h' });
+  journeys.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'status-glance-h' }, 'Do the main journeys pass?'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
+      'A real browser works through the main journeys on the live site, twice a day. This is the latest run. A journey shows that a path works, not that any figure on it is accurate.'),
+  ])));
+  journeys.append(health.glanceSum);
+  wrap.append(journeys);
+
+  wrap.append(statusPropertySection());   /* Property's model and market data on two lines (N2d): 91-health.js */
+
+  /* How old the data is, from the constants the pages themselves read. */
+  const dates = el('section', { class: 'card status-dates', id: 'status-dates', 'aria-labelledby': 'status-dates-h' });
+  dates.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'status-dates-h' }, 'How old the data is'),
+  ])));
+  const dl = el('dl', { class: 'kv' });
+  [['Filed US companies', 'Audited statements from SEC filings, loaded once. Each company’s page gives the day its statements were retrieved.'],
+   ['Illustrative companies', `Synthetic figures, as of ${AS_OF}.`],
+   ['Property fees', `Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}.`],
+   ['Market prices', 'None. No market-data licence is in place, so no price is shown for a filed company.']]
+    .forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', { style: 'text-align:left' }, v)); });
+  dates.append(dl);
+  wrap.append(dates);
+
+  const foot = el('div', { class: 'card' });
+  foot.append(cardHead('Why a gate is named rather than hidden',
+    'A capability that quietly vanishes is indistinguishable from one that never worked.'));
+  foot.append(el('p', { class: 'body', style: 'font-size:13px' },
+    'Three things here are blocked by something no amount of engineering resolves: the Malaysian financial statements need a data licence, the paid tiers need a registered operating entity, and advice mode needs Securities Commission authorisation. Naming them is more useful than a progress bar, because it tells a reader which of these is a matter of time and which is a matter of decision.'));
+  wrap.append(foot);
+
+  wrap.append(statusFold('status-record', 'Check record', 'Journey steps, the suites run on each commit, and the checks your browser runs when the page opens', [health]));
+
+  const regs = [];
   const key = el('div', { class: 'card' });
   /* Counted, so the sentence cannot fall behind the list it describes — it
      said "Six states" and would have gone on saying it beside seven. */
@@ -63777,7 +63920,7 @@ VIEWS.status = () => {
     el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, s.note),
   ])));
   kt.append(kb); key.append(el('div', { class: 'tablewrap' }, kt));
-  wrap.append(key);
+  regs.push(key);
 
   /* THE RELEASE CONDITION, IN NUMBERS. The Phase 2 brief's rule is that no
      P0 item is marked complete until its checks pass and no P1 surface is
@@ -63801,7 +63944,7 @@ VIEWS.status = () => {
      ['Checked', `On every push, a static check fails the build if a row in an operational state has no working route, a prioritised row names a check that does not exist, or a partial P1 surface is not flagged${phase === 3 ? ', or a P2 row looks available' : ''}.`]]
       .filter(Boolean).forEach(([k, v]) => { rl.append(el('dt', {}, k)); rl.append(el('dd', { style: 'text-align:left' }, v)); });
     rel.append(rl);
-    wrap.append(rel);
+    regs.push(rel);
   });
 
   FEATURE_STATUS.forEach(s => {
@@ -63849,15 +63992,22 @@ VIEWS.status = () => {
       ]),
     ])));
     t.append(tb); card.append(el('div', { class: 'tablewrap' }, t));
-    wrap.append(card);
+    regs.push(card);
   });
 
-  const foot = el('div', { class: 'card' });
-  foot.append(cardHead('Why a gate is named rather than hidden',
-    'A capability that quietly vanishes is indistinguishable from one that never worked.'));
-  foot.append(el('p', { class: 'body', style: 'font-size:13px' },
-    'Three things here are blocked by something no amount of engineering resolves: the Malaysian financial statements need a data licence, the paid tiers need a registered operating entity, and advice mode needs Securities Commission authorisation. Naming them is more useful than a progress bar, because it tells a reader which of these is a matter of time and which is a matter of decision.'));
-  wrap.append(foot);
+  wrap.append(statusFold('status-register', 'Every capability and its state', 'What each part of the product is, where it is, and what holds it back', regs));
+
+  /* A link to an element inside a closed section opens the section first. */
+  wrap.addEventListener('click', (e) => {
+    const a = e.target.closest?.('a[href^="#"]');
+    const id = a && decodeURIComponent(a.getAttribute('href').slice(1));
+    const t = id ? document.getElementById(id) : null;
+    if (t) statusOpenAround(t);
+  });
+  if (location.hash.length > 1) requestAnimationFrame(() => {
+    const t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (t && t.closest('details.status-fold')) { statusOpenAround(t); t.scrollIntoView({ block: 'start' }); }
+  });
   return wrap;
 };
 
@@ -64040,10 +64190,10 @@ VIEWS.plans = () => {
     ['Watchlists', pl => `${pl.limits.watchlists} × ${pl.limits.watchlistStocks} companies`],
     ['Portfolios', pl => `${pl.limits.portfolios} × ${pl.limits.holdings} holdings`],
     ['Compare', pl => `${pl.limits.compare} companies`],
-    ['Screener metrics', pl => pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}` : `All ${FIELDS.length} — the limit of ${pl.limits.screenerFields} is not applied in this build`],
+    ['Screener metrics', pl => pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}` : `All ${FIELDS.length} for now (planned limit: ${pl.limits.screenerFields})`],
     ['Peer-percentile screening', pl => pl.limits.percentileMode ? 'Yes' : 'No'],
     ['Editable valuation assumptions', pl => pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
-    ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown — this plan excludes them, but that is not applied in this build'],
+    ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown for now (not in this plan)'],
     ['Price alerts', pl => `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
     ['Exports', pl => pl.limits.exports ? 'Yes' : 'No'],
     ['Property calculator', pl => pl.limits.propertyCalculator ? 'Included' : 'No'],
@@ -64056,8 +64206,11 @@ VIEWS.plans = () => {
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt plan-table' });
   t.append(el('caption', { class: 'sr-only' }, 'What each proposed plan would include'));
-  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PL.map(head)])));
-  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PL.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
+  /* The table compares the plans that could be bought; All-Access has not launched, and the line
+     below it says what it would include (Day-10 pre-audit CL-32). */
+  const PL_COMPARED = PL.filter(pl => pl.launched !== false);
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PL_COMPARED.map(head)])));
+  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PL_COMPARED.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
   tw.append(t);
   body.append(tw);
   /* Said once each: the size of the universe, from the universe on screen,
@@ -64206,7 +64359,7 @@ function localityTransactionPanel(city, area) {
       `No transactions recorded for ${area}.`));
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       'NAPIC publishes Sarawak transaction records through Open Sales Data, its quarterly tables and PRISM e-Data. '
-      + 'This product can source and analyse them; it may not republish records until NAPIC grants redistribution rights, '
+      + 'It may not republish records until NAPIC grants redistribution rights, '
       + 'so nothing is loaded here. The data-sources page states where that stands.'));
     return card;
   }
@@ -65209,7 +65362,12 @@ function healthSection() {
     if (age > HEALTH_STALE_MS) sum.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
     jlist.innerHTML = out.list;
   }
-  card.append(sum, jlist);
+  /* The summary sentence is the page's own opening line (VIEWS.status, 90-area-screen.js):
+     the same element, with its id and its served and drawn words, drawn there
+     instead of here. The list of every journey and its steps stays in this
+     closed section. */
+  card.append(jlist);
+  card.glanceSum = sum;
   card.append(proofSection());
 
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Checked in your browser now'));
@@ -65413,7 +65571,7 @@ function areaViewsNav(here) {
 
 /* The box the map is drawn in, kept across redraws: a fresh box on a new
    visit, the same one (with its map) on a redraw of the page. */
-const KM_SERVED_SAY = 'The map is drawn here by the page’s script, from this site’s own map file. The list below has every scheme it places, with its evidence.';
+const KM_SERVED_SAY = 'The map needs JavaScript and uses this site’s own map file. The list below has every scheme it places, with its evidence.';
 function kmBox() {
   if (KM.box && KM.box.isConnected) return KM.box;
   if (KM.box && KM.map) return KM.box;
@@ -65514,7 +65672,7 @@ function kmList() {
     el('p', { class: 'metaline', id: 'km-find-said', 'aria-live': 'polite' }, ''),
   ]);
   card.append(find);
-  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once the page’s script has loaded NAPIC’s Kuching file; a row from one observation says so.`));
+  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once NAPIC’s Kuching figures have loaded; a row from one observation says so.`));
   const groups = [
     ['placed', `Placed on the map — ${kmPlaced().length}`, (s) => s.status === 'placed'],
     ['weak', null, (s) => kmReason(s) === 'weak'],

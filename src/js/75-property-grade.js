@@ -2664,8 +2664,8 @@ VIEWS.sarawak = () => {
   queueMicrotask(syncTheme);
   add.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     swkCands.length
-      ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from the instrument registry, which carries their name and listing code — not a price, not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
-      : 'No company has been flagged as having Sarawak operations in the instrument registry.'));
+      ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from our company list, which holds their name and listing code — not a price, not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
+      : 'No company has been flagged as having Sarawak operations in our company list.'));
   wrap.append(add);
 
   /* The collection itself. */
@@ -4172,7 +4172,7 @@ VIEWS.property = () => {
     const aff = affordabilityPanel(cityDef.name);
     if (aff) mapWrap.append(el('div', { style: 'margin-top:12px' }, aff));
     else mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
-      'District household income is not shown: its licence is not yet confirmed.'));
+      'District household income is not shown: its licence is unconfirmed.'));
     explore.push(mapWrap);
     loc.append(pcL3('district', `${d.district}: what moves demand, the map and your records`, explore));
   }

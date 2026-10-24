@@ -495,6 +495,8 @@ await send('Page.navigate', { url: BASE + '/status' }, sessionId);
 await sleep(2500);
 {
   const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    /* The register and the check record are closed on arrival (Day-10 IW-21); their links are measured open. */
+    document.querySelectorAll('main details.status-fold').forEach(d => { d.open = true; });
     const links = [...document.querySelectorAll('main table.status-dt td a')];
     const small = links.filter(a => { const b = a.getBoundingClientRect(); return b.width < 44 || b.height < 44; })
       .map(a => a.textContent + ' ' + Math.round(a.getBoundingClientRect().width) + '×' + Math.round(a.getBoundingClientRect().height) + 'px');
@@ -512,6 +514,8 @@ for (const path of ['/status']) {
   await send('Page.navigate', { url: BASE + path }, sessionId);
   await sleep(2500);
   const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    /* The register and the check record are closed on arrival (Day-10 IW-21); their links are measured open. */
+    document.querySelectorAll('main details.status-fold').forEach(d => { d.open = true; });
     const links = [...document.querySelectorAll('main .journeys-log, main .journey-line-link')];
     const small = links.filter(a => { const b = a.getBoundingClientRect(); return b.width < 44 || b.height < 44; })
       .map(a => a.textContent + ' ' + Math.round(a.getBoundingClientRect().width) + '×' + Math.round(a.getBoundingClientRect().height) + 'px');
@@ -5909,7 +5913,7 @@ await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, devi
           const dets = [...document.querySelectorAll('details[data-file-holds]')];
           for (const d of dets) {
             const card = d.closest('.card'), cb = card.getBoundingClientRect(), sm = d.querySelector('summary'), sb = sm.getBoundingClientRect();
-            const only = [...card.querySelectorAll('p, .lede, div')].find(n => !d.contains(n) && /only copy/.test(n.textContent) && n.children.length === 0);
+            const only = [...card.querySelectorAll('p, .lede, div')].find(n => !d.contains(n) && /only copy|The backup above carries it too/.test(n.textContent) && n.children.length === 0);
             const ob = only ? only.getBoundingClientRect() : null;
             out.files.push({ kind: d.dataset.fileHolds, wasOpen: d.open, summary: sm.textContent.trim(), sh: sb.height, sl: sb.left, sr: sb.right, cl: cb.left, cr: cb.right,
               only: ob ? { h: ob.height, t: ob.top, over: only.scrollWidth > only.clientWidth + 1 } : null, onlyBeforeDetails: !!only && !!(only.compareDocumentPosition(d) & Node.DOCUMENT_POSITION_FOLLOWING),

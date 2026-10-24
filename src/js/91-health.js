@@ -771,7 +771,12 @@ function healthSection() {
     if (age > HEALTH_STALE_MS) sum.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
     jlist.innerHTML = out.list;
   }
-  card.append(sum, jlist);
+  /* The summary sentence is the page's own opening line (VIEWS.status, 90-area-screen.js):
+     the same element, with its id and its served and drawn words, drawn there
+     instead of here. The list of every journey and its steps stays in this
+     closed section. */
+  card.append(jlist);
+  card.glanceSum = sum;
   card.append(proofSection());
 
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Checked in your browser now'));

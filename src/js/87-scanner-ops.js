@@ -726,7 +726,7 @@ VIEWS.scannerDashboard = () => {
   const h = scanOpsHistory();
   const hm = scanOpsHistoryMeta(h);
   const mon = el('section', { class: first ? 'scan-run-part' : 'card' });
-  mon.append(cardHead('Monitored instruments', 'The instruments in the universes of your enabled setups that hold a series in your price history — the only ones the worker can evaluate.', null, hm ? { kind: 'yours', fine: 'From your own closes and the worker’s records' } : { kind: 'unavailable', fine: 'No price history loaded' }));
+  mon.append(cardHead('Instruments your setups cover', 'The instruments in the universes of your enabled setups that hold a series in your price history — the only ones the worker can evaluate.', null, hm ? { kind: 'yours', fine: 'From your own closes and the worker’s records' } : { kind: 'unavailable', fine: 'No price history loaded' }));
   const m = st.monitored;
   mon.append(el('dl', { class: 'kv scan-kv' }, [
     el('dt', {}, 'Monitored'), el('dd', {}, m ? scanOpsPlural(m.instruments, 'instrument') : hm ? 'no enabled setup' : 'no price history loaded'),
@@ -943,7 +943,7 @@ VIEWS.scannerMarket = () => {
     ...mk.list.map(m => el('option', { value: m.market, selected: S.market === m.market ? '' : null }, `${m.market}${m.label ? ` — ${m.label}` : ''} (${m.series} of your series)`)),
   ]);
   g.append(el('div', { class: 'field' }, [el('label', { for: 'scan-market-pick' }, 'Market'), msel,
-    el('p', { class: 'metaline' }, `Markets as the instrument registry places your series, alphabetically.${mk.unplaced ? ` ${scanOpsPlural(mk.unplaced, 'series', 'series')} with no registry row can be screened only under “everything”.` : ''}`)]));
+    el('p', { class: 'metaline' }, `Markets, as your series are listed, alphabetically.${mk.unplaced ? ` ${scanOpsPlural(mk.unplaced, 'series', 'series')} with no registry row can be screened only under “everything”.` : ''}`)]));
   /* A replay is of a session that has happened: the worker refuses an
      --as-of after today, and so does the screen (below). */
   const today = scanOpsNow().slice(0, 10);
@@ -1387,7 +1387,7 @@ VIEWS.scannerAdmin = () => {
   wrap.append(panel('Usage', 'On this machine. There are no users to count.',
     el('dl', { class: 'kv scan-kv' }, [el('dt', {}, 'Active setups'), el('dd', {}, scanOpsSetupsDoc()
       ? `${a.enabled - a.expired} (of ${a.valid} valid, ${refused.file ? 'the whole file refused' : `${refused.setups} refused`})` : 'no setups file'),
-      el('dt', {}, 'Monitored instruments'), el('dd', {}, st.monitored ? fmtNum(st.monitored.instruments, 0) : 'no price history loaded'),
+      el('dt', {}, 'Instruments your setups cover'), el('dd', {}, st.monitored ? fmtNum(st.monitored.instruments, 0) : 'no price history loaded'),
       el('dt', {}, 'Alerts recorded'), el('dd', {}, (() => { const d = scanOpsAlertsDoc(); const l = Array.isArray(d) ? d : d?.alerts; return Array.isArray(l) ? fmtNum(l.length, 0) : 'no alerts file'; })())])));
 
   /* 8 — errors. The runs that did not finish their work: failed, cancelled

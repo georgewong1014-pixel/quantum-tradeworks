@@ -277,7 +277,7 @@ VIEWS.areas = () => {
     /* "Loading" is this tab's, now (data-now, NOW in 35-ui.js): served, it
        was the page's first draw with nothing loaded, and to a reader with no
        script it said so for good. */
-    if (geoLoadState !== 'failed') hd.querySelector('.caption')?.setAttribute('data-now', 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.');
+    if (geoLoadState !== 'failed') hd.querySelector('.caption')?.setAttribute('data-now', 'The map needs JavaScript; the table below is the same without it.');
     wait.append(hd);
     wrap.append(wait);
   }
@@ -1205,17 +1205,79 @@ function openObservationDrawer(o) {
   openDrawer(`${OBS_BY_ID[o.kind] ? OBS_BY_ID[o.kind].label : 'Observation'} · ${fmtNum(o.value, 0)}`, body);
 }
 
+/* THE STATUS PAGE, READABLE (the owner's decision of 23 Oct 2026; Day-10 pre-audit IW-21).
+   It opens with what a visitor needs: whether the journeys pass and when
+   they were last run, which tools are Live and which are not, and how old
+   the data is. The engineering detail — the commit, the suites, every
+   journey step, the in-browser checks, and every register row with its
+   backlog item and the check that covers it — is below, in two closed
+   sections. Nothing an auditor reads is removed: the same elements, with
+   the same ids and the same served and drawn words, stand in the closed
+   sections, and a link to one of them (#journey-…, #health-proofs) opens
+   the section it is in. */
+const statusFoldOpen = {};
+function statusFold(id, title, sub, children) {
+  const det = el('details', { class: 'status-fold', id, open: statusFoldOpen[id] ? '' : null,
+    ontoggle: (e) => { statusFoldOpen[id] = e.currentTarget.open; } });
+  det.append(el('summary', { class: 'plan-compare-sum' }, [
+    el('span', {}, [el('span', { class: 'status-fold-t' }, title), sub ? el('span', { class: 'status-fold-s' }, sub) : null]),
+    el('span', { class: 'plan-compare-chev', 'aria-hidden': 'true' })]));
+  det.append(el('div', { class: 'status-fold-body' }, children));
+  return det;
+}
+/* Open the closed sections around an element, and keep them open across a redraw. */
+function statusOpenAround(node) {
+  for (let d = node?.closest?.('details.status-fold'); d; d = d.parentElement?.closest?.('details.status-fold')) {
+    d.open = true; statusFoldOpen[d.id] = true;
+  }
+}
 VIEWS.status = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Status'),
-    el('h1', {}, 'What is built, what is gated, and what is holding it'),
+    el('h1', {}, 'Checks and status'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Nothing here is removed when it cannot yet work. It is labelled, and the thing blocking it is named — a capability with no stated gate and no owner is a promise, not a plan.'),
+      'Whether the tools work, when that was last checked, and how old the data is. The detail behind each check is further down, in two closed sections.'),
   ])));
-  wrap.append(statusPropertySection());   /* Property's model and market data on two lines (N2d): 91-health.js */
-  wrap.append(healthSection());   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
 
+  const health = healthSection();   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
+
+  /* The journeys' latest result: the page's own element (#health-journeys-sum). */
+  const journeys = el('section', { class: 'card status-glance', id: 'status-glance', 'aria-labelledby': 'status-glance-h' });
+  journeys.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'status-glance-h' }, 'Do the main journeys pass?'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
+      'A real browser works through the main journeys on the live site, twice a day. This is the latest run. A journey shows that a path works, not that any figure on it is accurate.'),
+  ])));
+  journeys.append(health.glanceSum);
+  wrap.append(journeys);
+
+  wrap.append(statusPropertySection());   /* Property's model and market data on two lines (N2d): 91-health.js */
+
+  /* How old the data is, from the constants the pages themselves read. */
+  const dates = el('section', { class: 'card status-dates', id: 'status-dates', 'aria-labelledby': 'status-dates-h' });
+  dates.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'status-dates-h' }, 'How old the data is'),
+  ])));
+  const dl = el('dl', { class: 'kv' });
+  [['Filed US companies', 'Audited statements from SEC filings, loaded once. Each company’s page gives the day its statements were retrieved.'],
+   ['Illustrative companies', `Synthetic figures, as of ${AS_OF}.`],
+   ['Property fees', `Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}.`],
+   ['Market prices', 'None. No market-data licence is in place, so no price is shown for a filed company.']]
+    .forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', { style: 'text-align:left' }, v)); });
+  dates.append(dl);
+  wrap.append(dates);
+
+  const foot = el('div', { class: 'card' });
+  foot.append(cardHead('Why a gate is named rather than hidden',
+    'A capability that quietly vanishes is indistinguishable from one that never worked.'));
+  foot.append(el('p', { class: 'body', style: 'font-size:13px' },
+    'Three things here are blocked by something no amount of engineering resolves: the Malaysian financial statements need a data licence, the paid tiers need a registered operating entity, and advice mode needs Securities Commission authorisation. Naming them is more useful than a progress bar, because it tells a reader which of these is a matter of time and which is a matter of decision.'));
+  wrap.append(foot);
+
+  wrap.append(statusFold('status-record', 'Check record', 'Journey steps, the suites run on each commit, and the checks your browser runs when the page opens', [health]));
+
+  const regs = [];
   const key = el('div', { class: 'card' });
   /* Counted, so the sentence cannot fall behind the list it describes — it
      said "Six states" and would have gone on saying it beside seven. */
@@ -1229,7 +1291,7 @@ VIEWS.status = () => {
     el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, s.note),
   ])));
   kt.append(kb); key.append(el('div', { class: 'tablewrap' }, kt));
-  wrap.append(key);
+  regs.push(key);
 
   /* THE RELEASE CONDITION, IN NUMBERS. The Phase 2 brief's rule is that no
      P0 item is marked complete until its checks pass and no P1 surface is
@@ -1253,7 +1315,7 @@ VIEWS.status = () => {
      ['Checked', `On every push, a static check fails the build if a row in an operational state has no working route, a prioritised row names a check that does not exist, or a partial P1 surface is not flagged${phase === 3 ? ', or a P2 row looks available' : ''}.`]]
       .filter(Boolean).forEach(([k, v]) => { rl.append(el('dt', {}, k)); rl.append(el('dd', { style: 'text-align:left' }, v)); });
     rel.append(rl);
-    wrap.append(rel);
+    regs.push(rel);
   });
 
   FEATURE_STATUS.forEach(s => {
@@ -1301,15 +1363,22 @@ VIEWS.status = () => {
       ]),
     ])));
     t.append(tb); card.append(el('div', { class: 'tablewrap' }, t));
-    wrap.append(card);
+    regs.push(card);
   });
 
-  const foot = el('div', { class: 'card' });
-  foot.append(cardHead('Why a gate is named rather than hidden',
-    'A capability that quietly vanishes is indistinguishable from one that never worked.'));
-  foot.append(el('p', { class: 'body', style: 'font-size:13px' },
-    'Three things here are blocked by something no amount of engineering resolves: the Malaysian financial statements need a data licence, the paid tiers need a registered operating entity, and advice mode needs Securities Commission authorisation. Naming them is more useful than a progress bar, because it tells a reader which of these is a matter of time and which is a matter of decision.'));
-  wrap.append(foot);
+  wrap.append(statusFold('status-register', 'Every capability and its state', 'What each part of the product is, where it is, and what holds it back', regs));
+
+  /* A link to an element inside a closed section opens the section first. */
+  wrap.addEventListener('click', (e) => {
+    const a = e.target.closest?.('a[href^="#"]');
+    const id = a && decodeURIComponent(a.getAttribute('href').slice(1));
+    const t = id ? document.getElementById(id) : null;
+    if (t) statusOpenAround(t);
+  });
+  if (location.hash.length > 1) requestAnimationFrame(() => {
+    const t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (t && t.closest('details.status-fold')) { statusOpenAround(t); t.scrollIntoView({ block: 'start' }); }
+  });
   return wrap;
 };
 
@@ -1492,10 +1561,10 @@ VIEWS.plans = () => {
     ['Watchlists', pl => `${pl.limits.watchlists} × ${pl.limits.watchlistStocks} companies`],
     ['Portfolios', pl => `${pl.limits.portfolios} × ${pl.limits.holdings} holdings`],
     ['Compare', pl => `${pl.limits.compare} companies`],
-    ['Screener metrics', pl => pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}` : `All ${FIELDS.length} — the limit of ${pl.limits.screenerFields} is not applied in this build`],
+    ['Screener metrics', pl => pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}` : `All ${FIELDS.length} for now (planned limit: ${pl.limits.screenerFields})`],
     ['Peer-percentile screening', pl => pl.limits.percentileMode ? 'Yes' : 'No'],
     ['Editable valuation assumptions', pl => pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
-    ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown — this plan excludes them, but that is not applied in this build'],
+    ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown for now (not in this plan)'],
     ['Price alerts', pl => `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
     ['Exports', pl => pl.limits.exports ? 'Yes' : 'No'],
     ['Property calculator', pl => pl.limits.propertyCalculator ? 'Included' : 'No'],
@@ -1508,8 +1577,11 @@ VIEWS.plans = () => {
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt plan-table' });
   t.append(el('caption', { class: 'sr-only' }, 'What each proposed plan would include'));
-  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PL.map(head)])));
-  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PL.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
+  /* The table compares the plans that could be bought; All-Access has not launched, and the line
+     below it says what it would include (Day-10 pre-audit CL-32). */
+  const PL_COMPARED = PL.filter(pl => pl.launched !== false);
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PL_COMPARED.map(head)])));
+  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PL_COMPARED.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
   tw.append(t);
   body.append(tw);
   /* Said once each: the size of the universe, from the universe on screen,
@@ -1658,7 +1730,7 @@ function localityTransactionPanel(city, area) {
       `No transactions recorded for ${area}.`));
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       'NAPIC publishes Sarawak transaction records through Open Sales Data, its quarterly tables and PRISM e-Data. '
-      + 'This product can source and analyse them; it may not republish records until NAPIC grants redistribution rights, '
+      + 'It may not republish records until NAPIC grants redistribution rights, '
       + 'so nothing is loaded here. The data-sources page states where that stands.'));
     return card;
   }

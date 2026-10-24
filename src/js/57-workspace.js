@@ -195,7 +195,7 @@ VIEWS.workspace = () => {
     `Nothing here leaves this device. A cleared browser, private mode or a second machine starts empty; the export on Your data & settings is the only copy that travels, and it carries every kind listed here. “Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`));
   lim.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', href: href('/my/data'),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/data'); } },
-    'Export or restore everything'));
+    'Back up everything'));
   wrap.append(lim);
 
   if (!all.length) {

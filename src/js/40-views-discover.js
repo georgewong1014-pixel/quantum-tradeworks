@@ -792,7 +792,7 @@ VIEWS.home = () => {
     ways.append(el('h2', { id: 'dash-ways-hd', class: 'h-card' }, 'Other ways in'));
     ways.append(el('div', { class: 'dash-more' }, [
       myDashLink('/welcome', { class: 'dash-more-link' }, [el('strong', {}, 'Set your preferences'),
-        el('span', { class: 'caption' }, onboarded() && !State.onboarding?.skipped ? 'Answered — change your market, currency or level of detail.' : 'Four questions: your goal, your experience, your market and your currency.')]),
+        el('span', { class: 'caption' }, onboarded() && !State.onboarding?.skipped ? 'Answered — change your market, currency or level of detail.' : 'Three questions: how much is explained, your market and your currency.')]),
       myDashLink('/start', { class: 'dash-more-link' }, [el('strong', {}, 'Not sure where to start?'),
         el('span', { class: 'caption' }, 'Pick what you want to find out, and the right tool opens.')]),
     ]));
@@ -1012,7 +1012,7 @@ function myDashSampleNote() {
     /* What this browser was given is said by the page drawn in it (NOW,
        35-ui.js): served to a reader whose browser runs no script, it was
        given nothing. */
-    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are given to a browser running this page’s script, so other pages have something to show. This page counts none of them.' },
+    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are added to a browser on a first visit, so that the other pages have something to show. Nothing on this page counts any of the samples.' },
       'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear the sample data'),
   ]);
