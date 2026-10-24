@@ -4096,12 +4096,22 @@ const HOME_PAGE = read(HOME);
    17 Oct 2026: QT-D03-01 and QT-D04-01; the owner's 16 Oct rule — public
    copy helps the customer decide and act, internal placeholders stay out).
    Held as served:
-   - /contact and /about carry no "To be supplied" text and no marker; /contact
-     says "Customer support is not available yet." and what the correction
-     tool does and does not do, /about that the operating entity and its
-     registered address are not published yet; neither carries a mailto: link
-     or a run of digits that reads as a telephone number. /privacy and /terms
-     are drafts for counsel and keep their markers (counted, not forbidden);
+   - /contact and /about carry no "To be supplied" text and no marker, and no
+     run of digits that reads as a telephone number; /about says the operating
+     entity and its registered address are not published yet and links no
+     mailto:. /contact follows LAUNCH.contactEmail (15-derivation.js): with no
+     address it says "Customer support is not available yet." and what the
+     correction tool does and does not do, and links no mailto:; with the
+     address the owner supplied (georgewong1014@gmail.com, 23 Oct 2026, the
+     Day-10/11 reports) it says "Write to" that address, once, that nothing
+     on the site sends a message by itself, that the report's last step hands
+     the report over to send and the case stays "recorded here, not confirmed
+     received", and not to include confidential information — its only
+     mailto: links are to that address, and the interim line is gone.
+     /privacy and /terms are drafts for counsel and keep their markers
+     (counted, not forbidden); with the address set, /privacy no longer says
+     there is no contact address, and says what writing to it hands over.
+     Never an address this check invents: it reads the one in LAUNCH;
    - /property serves "Calculations on figures you enter are live; the
      Scenario Lab is beta." once, as the Lab's lede under its heading and its
      Beta badge (it replaced "Move a slider and every figure below follows."),
@@ -4116,19 +4126,35 @@ const HOME_PAGE = read(HOME);
   const p = [], said = [];
   const got = await getAll(['/contact', '/about', '/privacy', '/terms', '/property', '/property/lab', '/app']);
   const html = (path) => got.get(path)?.body || '';
+  const SUPPORT = /\bcontactEmail:\s*'([^']*)'/.exec(read('src/js/15-derivation.js'))?.[1] ?? '';
   for (const path of ['/contact', '/about']) {
     const h = html(path), t = pageText(h);
     if (got.get(path)?.status !== 200) { p.push(`${path} is served ${got.get(path)?.status}`); continue; }
     if (/To be supplied/i.test(t) || /data-tbs=/.test(h)) p.push(`${path} still serves a "To be supplied" marker`);
     const main = (/<main\b[\s\S]*?<\/main>/.exec(h) || [h])[0];
-    if (/mailto:/i.test(main)) p.push(`${path} links a mailto: address`);
+    const mailtos = [...main.matchAll(/href="mailto:([^"]*)"/gi)].map(m => m[1]);
+    if (path === '/contact' && SUPPORT) { if (!mailtos.length || mailtos.some(a => a !== SUPPORT)) p.push(`/contact links mailto: ${mailtos.join(', ') || 'nothing'}, not only ${SUPPORT}`); }
+    else if (/mailto:/i.test(main)) p.push(`${path} links a mailto: address`);
     const body = pageText(main);
     if (/(\+?\d[\d\s().-]{7,}\d)/.test(body.replace(/\b(19|20)\d{2}\b/g, ''))) p.push(`${path} carries a run of digits that reads as a telephone number: "${/(\+?\d[\d\s().-]{7,}\d)/.exec(body)[0]}"`);
   }
   const contact = pageText(html('/contact'));
-  if (!/Customer support is not available yet\. Report a data error records a case in this browser and gives you its text to copy; it sends nothing\. Every case is listed under Corrections ?\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');
+  if (SUPPORT) {
+    const at = SUPPORT.replace(/[.+]/g, '\\$&');
+    if (!new RegExp(`Write to ${at} ?\\. Nothing on this site sends a message by itself: the address opens your own email program\\.`).test(contact)) p.push(`/contact does not say "Write to ${SUPPORT}." and that nothing on the site sends a message by itself`);
+    if (!/Its last step gives you the report to copy and send to that address from your own email program; the case stays recorded here, not confirmed received, and is listed under Corrections ?\./.test(contact)) p.push('/contact does not say the report is handed over to send, recorded here and not confirmed received');
+    if (!/Do not include confidential or sensitive information\./.test(contact)) p.push('/contact no longer says not to include confidential or sensitive information');
+    if (/Customer support is not available yet|because nobody has received it/.test(contact)) p.push('/contact still serves the no-address copy beside the address');
+    if (contact.split(SUPPORT).length - 1 !== 1) p.push(`/contact says ${SUPPORT} ${contact.split(SUPPORT).length - 1} times, not once`);
+    const priv = pageText(html('/privacy'));
+    if (/there is no contact address yet|Until these are supplied there is no one to send a request to/.test(priv)) p.push('/privacy still says there is no contact address');
+    if (!priv.includes(`If you write to ${SUPPORT}, your email address, your message and anything you attach reach that mailbox`)) p.push('/privacy does not say what writing to the address hands over');
+    said.push(`the support address ${SUPPORT} on /contact, once, its only mailto:`);
+  } else {
+    if (!/Customer support is not available yet\. Report a data error records a case in this browser and gives you its text to copy; it sends nothing\. Every case is listed under Corrections ?\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');
+    if (/<strong>Customer support is not available yet\.<\/strong>/.test(html('/contact')) === false) p.push('/contact does not bold "Customer support is not available yet."');
+  }
   if (/What works today|One route does work/.test(contact)) p.push('/contact still calls the report form a route that works');
-  if (/<strong>Customer support is not available yet\.<\/strong>/.test(html('/contact')) === false) p.push('/contact does not bold "Customer support is not available yet."');
   if (!/The operating entity and its registered address are not published yet\./.test(pageText(html('/about')))) p.push('/about does not say the operating entity and its registered address are not published yet');
   const marks = (path) => (html(path).match(/data-tbs=/g) || []).length;
   if (!marks('/privacy') || !marks('/terms')) p.push(`/privacy (${marks('/privacy')}) and /terms (${marks('/terms')}) keep their markers`);
@@ -4160,7 +4186,7 @@ const HOME_PAGE = read(HOME);
   const app = html('/app');
   if (!/Start a property model in the Scenario Lab<\/h3>\s*(?:<span class="pbadge"[^>]*>)?<span class="status-badge status-live"/.test(app)) p.push('/app: the property step is not "Start a property model in the Scenario Lab" followed by the product\'s Live badge');
   if (!/The Scenario Lab is beta\./.test(app)) p.push('/app: the property step does not say "The Scenario Lab is beta."');
-  judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied", no mailto: and no telephone-like digits, /contact the interim support copy and /about the not-published line; /property serves "${LINE}" once as the Lab's lede, under its Beta badge, the Live badge in the tab row; /app's step is "Start a property model in the Scenario Lab"; ${said.join('; ')} left`,
+  judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied" and no telephone-like digits, /about no mailto: and the not-published line, /contact ${SUPPORT ? 'the support address the owner supplied, and the report handed over to send' : 'no mailto: and the interim support copy'}; /property serves "${LINE}" once as the Lab's lede, under its Beta badge, the Live badge in the tab row; /app's step is "Start a property model in the Scenario Lab"; ${said.join('; ')} left`,
     'a customer page serves a placeholder marker, or the Live/Beta labels are not said once');
 }
 /* ---- end contact-status ---- */

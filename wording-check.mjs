@@ -316,7 +316,9 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
    out:
    1. the details come from one table, OPERATOR (55-views-public.js), whose
       entries are empty or read from LAUNCH, so a supplied detail is one edit
-      and every page follows; while an entry is empty its marker shows;
+      and every page follows; while an entry is empty its marker shows. The
+      contact email is the one detail supplied so far (the owner's address,
+      23 Oct 2026), and LAUNCH may hold that address or nothing;
    2. none of the trust pages or the plans page writes a detail into its
       text anyway — no email address, no company suffix (Sdn Bhd, Berhad,
       PLT), no registration number, no Malaysian telephone number;
@@ -340,7 +342,13 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
     const value = row[1].match(/value:\s*([^,]+)/)?.[1].trim();
     if (value !== "''" && value !== '() => LAUNCH.contactEmail') wrong.push(`OPERATOR.${k} holds ${value} — a detail is supplied by the owner, never written in here`);
   }
-  if (!/contactEmail:\s*'',/.test(launch)) wrong.push('LAUNCH.contactEmail is set: the markers and this check need the address the owner supplied');
+  /* The one detail the owner has supplied: the support address, approved on
+     23 Oct 2026 (the Day-10/11 reports). Any other value is one nobody
+     supplied. */
+  const SUPPLIED_EMAIL = ['', 'georgewong1014@gmail.com'];
+  const email = launch.match(/\bcontactEmail:\s*'([^']*)',/)?.[1];
+  if (email === undefined) wrong.push('LAUNCH.contactEmail is not a plain string the owner can set');
+  else if (!SUPPLIED_EMAIL.includes(email)) wrong.push(`LAUNCH.contactEmail is "${email}", not the address the owner supplied`);
   const INVENTED = [[/[\w.+-]+@[\w-]+\.[a-z]{2,}/i, 'an email address'], [/\bSdn\.?\s*Bhd\b|\bBerhad\b|\bPLT\b/, 'a company suffix'],
     [/\b\d{12}\b|\b\d{6,7}-[A-Z]\b/, 'a registration number'], [/(\+?6?0)1\d[\s-]?\d{3,4}[\s-]?\d{4}|\+60[\s-]?\d/, 'a telephone number']];
   for (const [name, text] of [['the trust pages', trust], ['the plans page', plansView], ['05-plans.js', code(plansCore)]])
@@ -352,7 +360,7 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
     bad += wrong.length;
     console.error(`FAIL  the legal pages: ${wrong.length} problem(s)`);
     wrong.forEach(x => console.error(`      ${x}`));
-  } else console.log(`ok    the legal pages invent no party: the ${Object.keys(KEYS).length} details come from OPERATOR, none filled in, each shown as a "To be supplied" marker on Terms and Privacy (About and Contact say plainly what is not available yet); no email, company, registration or telephone number is written into the trust or plans pages; Terms and Privacy open with the draft line`);
+  } else console.log(`ok    the legal pages invent no party: the ${Object.keys(KEYS).length} details come from OPERATOR, ${email ? `only the contact email filled in, from LAUNCH (${email}, the owner's), the rest` : 'none filled in, each'} shown as a "To be supplied" marker on Terms and Privacy (About and Contact say plainly what is not available yet); no email, company, registration or telephone number is written into the trust or plans pages; Terms and Privacy open with the draft line`);
 }
 /* ---- end audit: content ---- */
 

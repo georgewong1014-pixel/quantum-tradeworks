@@ -2063,18 +2063,19 @@ VIEWS.contact = () => trustPage('Contact',
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
        ])]],
     /* Nothing supplied, nothing to list: the card appears with the first
-       detail the owner supplies, and lists only the details there are. */
-    ...(operatorValue('email') || operatorValue('address') || operatorValue('entity') ? [['Contact address',
-      [tp(operatorValue('email') ? 'Email: ' : null, operatorValue('email') ? supplied('email') : null,
-          operatorValue('email') && (operatorValue('address') || operatorValue('entity')) ? ' · ' : null,
-          operatorValue('address') ? 'Post: ' : null, operatorValue('address') ? supplied('address') : null,
+       postal detail the owner supplies, and lists only the details there
+       are. The email address is the first card's, so it is not said twice. */
+    ...(operatorValue('address') || operatorValue('entity') ? [['Contact address',
+      [tp(operatorValue('address') ? 'Post: ' : null, operatorValue('address') ? supplied('address') : null,
           operatorValue('address') && operatorValue('entity') ? ', for ' : null,
           !operatorValue('address') && operatorValue('entity') ? 'Operated by ' : null,
           operatorValue('entity') ? supplied('entity') : null, '.')]]] : []),
     ['What to include',
-      'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'],
+      'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'
+        + (supportEmail() ? ' Do not include confidential or sensitive information.' : '')],
     ['The corrections log',
-      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this product — what was wrong and what changed, dated by the change. A case you record is not added to it, because nobody has received it.')]],
+      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this product — what was wrong and what changed, dated by the change. ',
+        supportEmail() ? 'A case you record or send is not added to it; a correction it leads to is.' : 'A case you record is not added to it, because nobody has received it.')]],
   ]);
 
 VIEWS.privacy = () => {
@@ -2126,7 +2127,9 @@ VIEWS.privacy = () => {
         waitlistReady()
           ? tp('If you enter an email address in the waitlist, that address is sent to the form service configured for this deployment and used for one message about launch. Nothing else on this page is sent with it.')
           : tp('There is no form on this site that sends anything anywhere. No email address is requested and none can be submitted.'),
-        tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing — there is no contact address yet. Its last step hands you the case as text to copy; copying uses your clipboard only when you press the button.'),
+        supportEmail()
+          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing itself. Its last step hands you the case as text to copy and send to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
+          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing — there is no contact address yet. Its last step hands you the case as text to copy; copying uses your clipboard only when you press the button.'),
         tp('Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.'),
         tp('Links to outside sources — SEC EDGAR, NAPIC, Bursa Malaysia and others — take you to those sites only when you follow one. That visit is between you and that site; the policy this site is served with lets your browser tell it at most this site’s name, never the page you were on.'),
       ]],
@@ -2142,23 +2145,29 @@ VIEWS.privacy = () => {
       [tp(supplied('entity'), ', ', supplied('address'), ', operating this site at ', supplied('domain'), '.'),
        'No operating entity has been registered yet. The data user named here will be responsible for any personal data a launch collects; this build collects none on a server.']],
     ['What personal data is processed, and where it comes from',
-      ['Today this build collects none. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. The only personal data that reaches anyone is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
-       'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address and message if you write to the contact address; your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']],
+      supportEmail()
+        ? ['This build collects none on a server. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. What every web request carries reaches the host — your IP address and your browser’s name and version — as set out above.',
+           tp('If you write to ', supplied('email'), ', your email address, your message and anything you attach reach that mailbox, from you directly; it is hosted by Google, which runs the email service. Nothing else is collected.'),
+           'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']
+        : ['Today this build collects none. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. The only personal data that reaches anyone is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
+           'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address and message if you write to the contact address; your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']],
     ['Purposes',
-      'Today there are none, because nothing is collected. At launch, personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
+      (supportEmail() ? 'Today, a message you send to the contact address is used only to answer it and to check and correct the figure it is about. At launch, ' : 'Today there are none, because nothing is collected. At launch, ') + 'personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
     ['Who it is disclosed to',
-      'Today, no one: this build holds nothing to disclose. At launch, only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
+      (supportEmail() ? 'Today, no one: a message you send is held in the contact mailbox, which Google hosts, and is not passed on. At launch,' : 'Today, no one: this build holds nothing to disclose. At launch,') + ' only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
     ['Whether you must provide it',
       'Nothing is obligatory. Every page works without you giving any personal data. At launch, if you choose not to give an email address, the only consequence is that no reply or message can reach you.'],
     ['Access and correction',
       ['The Act gives you the right to ask a data user for a copy of the personal data it holds about you, to ask for it to be corrected, to withdraw your consent to its processing, and to require that it is not used for direct marketing.',
-       tp('Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. At launch, send requests to ', supplied('email'), '.')]],
+       tp('Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. ', supportEmail() ? 'Send requests to ' : 'At launch, send requests to ', supplied('email'), '.')]],
     ['Your choices',
       'You can use everything here without giving anything, and export or clear what this browser stores at any time. At launch you would be able to decline any message you did not ask for, and withdraw from one you did.'],
     ['Security and retention',
       'On your device, anyone who can use this browser profile can read what it stores — clear it on a shared computer. The site’s security policy stops the page itself connecting to any other address. At launch, personal data would be kept only as long as its purpose needs, and the period would be stated here.'],
     ['Requests and complaints',
-      [tp('Write to ', supplied('email'), ' or to ', supplied('address'), '. Until these are supplied there is no one to send a request to — and nothing held to request.'),
+      [supportEmail()
+         ? tp('Write to ', supplied('email'), '. A postal address, ', supplied('address'), ', is not published yet.')
+         : tp('Write to ', supplied('email'), ' or to ', supplied('address'), '. Until these are supplied there is no one to send a request to — and nothing held to request.'),
        'If a request is not resolved, you may complain to the Personal Data Protection Commissioner.']],
     ['Bahasa Malaysia',
       [tp('The Act requires this notice in the national language as well as in English. The Bahasa Malaysia version is ', supplied('bm'), ': it will be translated for legal use, not by machine, and until it is, this English draft is the only version.')]],

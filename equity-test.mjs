@@ -10765,10 +10765,13 @@ try {
     if (p.length) fail('audit content C1: /pricing says the plans are not on sale and no control on it reads as a purchase', p);
     else ok(`audit content C1: /pricing reads "${r.h1}", its lead says nothing can be bought, no payment provider exists and no refund policy is needed; each paid plan is marked not on sale at a proposed price, its button previews it in this browser, and it stays in the header and the sitemap`);
   }
-  /* THE SUPPORT ROUTE, PREPARED (Day-10 F3; the owner's decision of 23 Oct 2026).
-     Support is an address the owner monitors, and none is supplied: nothing
-     visible changes while LAUNCH.contactEmail is empty. When it is set — here,
-     at run time, never in committed source — /contact shows it, the last step of
+  /* THE SUPPORT ROUTE (Day-10 F3; the owner's decisions of 23 Oct 2026).
+     Support is an address the owner monitors, and the owner supplied it:
+     the committed LAUNCH.contactEmail is georgewong1014@gmail.com (held to
+     that by wording-check). Here it is emptied, then set to a test address, at
+     run time, and restored after. Empty, nothing reads as support. Set,
+     /contact shows it once and Privacy says what writing to it hands over and
+     no longer says there is no contact address; the last step of
      "Report a data error" offers "Copy the report" with the address as text and a
      mailto convenience and says the visitor's own email program sends it, the
      case is recorded "recorded here, not confirmed received", and the waitlist
@@ -10800,6 +10803,8 @@ try {
         navigate('/contact'); await w(250);
         out.setContact = document.querySelector('main').innerText;
         out.setMailtos = [...document.querySelectorAll('main a[href^="mailto:"]')].map(a => a.getAttribute('href'));
+        navigate('/privacy'); await w(250);
+        out.setPrivacy = document.querySelector('main').innerText;
         out.set = await record();
         navigate('/corrections'); await w(250);
         out.setCard = [...document.querySelectorAll('#my-cases')].map(n => n.innerText).join(' ');
@@ -10821,8 +10826,14 @@ try {
       || !/not confirmed received/.test(r.set.text) || !/your own email program/.test(r.set.text) || /Nothing has been sent and nobody has received it/.test(r.set.text))
       p.push(`with an address set, the last step reads ${JSON.stringify(r.set).slice(0, 400)}`);
     if (r.set.status !== 'recorded here, not confirmed received') p.push(`with an address set, the case is "${r.set.status}"`);
+    if (r.setContact.split('support@example.test').length !== 2 || !/Do not include confidential or sensitive information\./.test(r.setContact) || /because nobody has received it/.test(r.setContact))
+      p.push(`with an address set, /contact says it ${r.setContact.split('support@example.test').length - 1} times, or keeps the no-address lines: ${r.setContact.replace(/\s+/g, ' ').slice(0, 300)}`);
+    if (/there is no contact address yet|Until these are supplied there is no one to send a request to|At launch, send requests to/.test(r.setPrivacy)
+      || !/If you write to support@example\.test, your email address, your message and anything you attach reach that mailbox/.test(r.setPrivacy)
+      || !/Send requests to support@example\.test\./.test(r.setPrivacy))
+      p.push(`with an address set, Privacy reads: ${(r.setPrivacy.match(/[^.]*(contact address|support@example\.test|send requests)[^.]*\./gi) || []).join(' | ').slice(0, 400)}`);
     if (p.length) fail('the support route switches on with LAUNCH.contactEmail and leaves the waitlist off; with no address nothing changes', p);
-    else ok('the support route: with no address /contact, the report form and the waitlist read as before; with an address set at run time /contact shows it, the report\'s last step offers "Copy the report", the address as text and a mailto, the case reads "recorded here, not confirmed received", and the waitlist stays off');
+    else ok('the support route: with no address /contact, the report form and the waitlist read as before; with an address set at run time /contact shows it once and Privacy says what writing to it hands over, the report\'s last step offers "Copy the report", the address as text and a mailto, the case reads "recorded here, not confirmed received", and the waitlist stays off');
   }
   {
     const { readFileSync, readdirSync } = await import('node:fs');
@@ -10842,6 +10853,9 @@ try {
           heads: [...m.querySelectorAll('h2, h3')].map(h => h.tagName + ' ' + h.textContent.trim()) };
       };
       const out = {};
+      /* The pages as they read with no support address: the block above
+         checks them with one. The committed address is restored below. */
+      out.contactEmail = LAUNCH.contactEmail; LAUNCH.contactEmail = '';
       const tag = document.querySelector('script[src*="/_vercel/insights/"]');
       out.tag = !!tag;
       out.privacy = await page('/privacy');
@@ -10876,7 +10890,7 @@ try {
       navigate('/contact'); await w(200);
       out.restoredContact = main().innerText;
       out.cookie = document.cookie;
-      out.contactEmail = LAUNCH.contactEmail;
+      LAUNCH.contactEmail = out.contactEmail;
       return out;
     })()`);
     const p = [];
@@ -10903,7 +10917,6 @@ try {
       r[k].marks.filter(m => !/^To be supplied: \S/.test(m.text) || m.border !== 'dashed' || m.bg === m.card || /rgba\(0, 0, 0, 0\)|transparent/.test(m.bg) || m.color === m.around)
         .forEach(m => p.push(`${k}: the "${m.key}" marker reads "${m.text}" with a ${m.border} border on ${m.bg}, ${m.color} in ${m.around} text`));
     }
-    if (r.contactEmail) p.push('LAUNCH.contactEmail is set; this check describes a build with no contact address');
     /* Privacy: what the build processes, true to the code. */
     const pv = r.privacy.text;
     for (const [re, what] of [[/no cookies/i, 'no cookies'], [/There are no accounts/, 'no accounts'], [/this site's own files|this site’s own files/, 'only this site\'s own files are requested'],
