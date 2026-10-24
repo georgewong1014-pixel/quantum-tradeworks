@@ -616,7 +616,7 @@ try {
         loanLegal: [514800, 0, 395288.10, 342317.70].map(l => fee('loanLegal', { loan: l })),
         sst: fee('professionalServiceTax', { legalFees: 9858.5 }),
         peninsular: pen ? [572000, 30000, 8000000].map(v => scaled(pen.scale, v, { minimumFee: pen.minimumFee })) : null,
-        valuation: [572000, 100000, 120000, 3000000].map(p => Math.round(fee('valuationFee', { price: p }) * 100) / 100),
+        valuation: [572000, 100000, 120000, 3000000].map(p => Math.round(fee('valuationFee', { value: p }) * 100) / 100),
         /* 1.1.0: Item 27(b), one-fifth of the principal's duty, at most RM10;
            Sarawak's registration, RM10 an instrument on one title. */
         chargeDuty: [2575, 40, 50, 0].map(v => fee('chargeStampDuty', { loanDuty: v })),
@@ -655,8 +655,9 @@ try {
        not checked for commercial property and land; 1.1.0 (9 Oct) stays in
        the changelog beneath it. 1.3.0 (13 Oct, the 12 Oct audit's #3) reads
        the purchase legal fees by route over both (val G5). 1.4.0 (15 Oct)
-       is the re-check after Budget 2027, which moves no amount. */
-    if (r.version !== '1.4.0' || r.changelog[0] !== r.version || r.changelog[1] !== '1.3.0' || r.changelog[2] !== '1.2.0' || r.changelog[3] !== '1.1.0') p.push(`the rulebook is ${r.version} and its changelog starts at ${r.changelog[0]}, ${r.changelog[1]}, ${r.changelog[2]}, ${r.changelog[3]} — 15 Oct's Budget 2027 re-check is 1.4.0, over 13 Oct's route readings at 1.3.0, 10 Oct's 1.2.0 and 9 Oct's 1.1.0; the owner's 10 Oct decision is 1.2.0, over 9 Oct's 1.1.0, each with a changelog line`);
+       is the re-check after Budget 2027, which moves no amount. 1.5.0
+       (25 Oct) charges the valuation fee on the value the valuer finds. */
+    if (r.version !== '1.5.0' || r.changelog[0] !== r.version || r.changelog[1] !== '1.4.0' || r.changelog[2] !== '1.3.0' || r.changelog[3] !== '1.2.0') p.push(`the rulebook is ${r.version} and its changelog starts at ${r.changelog[0]}, ${r.changelog[1]}, ${r.changelog[2]}, ${r.changelog[3]} — 25 Oct's valuation-fee base is 1.5.0, over 15 Oct's Budget 2027 re-check at 1.4.0, 13 Oct's route readings at 1.3.0 and 10 Oct's 1.2.0; the owner's 10 Oct decision is 1.2.0, over 9 Oct's 1.1.0, each with a changelog line`);
     if (JSON.stringify(r.kinds) !== JSON.stringify(['statutory', 'professional', 'quotation', 'optional', 'estimate'])) p.push(`the ledger's kinds are ${JSON.stringify(r.kinds)}, not the owner's five in order`);
     if (r.cats.some(c => !r.kinds.includes(c))) p.push(`a line's category is none of the five: ${JSON.stringify(r.cats)}`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(r.checkedOn || '')) p.push(`the rulebook's checked date is ${r.checkedOn}`);
@@ -6412,9 +6413,21 @@ try {
          and from it the reserve, the cash required and everything measured
          on it — cash-on-cash, the flows, the rate of return, the NPV, the
          exits and the equities comparison (-> e5b40f7a:31632). Was: managed
-         93fc8436:31578. */
-      const BASE = { sample: 'a27fbebd:31517', land: '85288185:31396', shophouse: '80e1f5ca:32382', condoAsCommercial: 'c2d3db97:32537',
-        taxed: 'd948fe97:31707', cash: '4b67c9ab:30156', lowValuation: '0e3902c3:31743', noTenure: '21477857:29223', managed: 'e5b40f7a:31632' };
+         93fc8436:31578.
+         Recorded again for the fee rulebook 1.5.0 (25 Oct 2026): the
+         valuation fee is charged on the value the valuer finds — the bank or
+         valuer estimate once entered, the price until then. The line, which
+         the result carries, gained 76 characters (its note, source and the
+         in-force date); no deal here but lowValuation enters a valuation, so
+         eight move by exactly those 76 and no amount. lowValuation moves 164:
+         the 76, and its fee charged on RM540,000, not RM572,000 (RM1,130,
+         not RM1,194, and the service tax and everything after with it).
+         Was: sample a27fbebd:31517, land 85288185:31396, shophouse
+         80e1f5ca:32382, condoAsCommercial c2d3db97:32537, taxed
+         d948fe97:31707, cash 4b67c9ab:30156, lowValuation 0e3902c3:31743,
+         noTenure 21477857:29223, managed e5b40f7a:31632. */
+      const BASE = { sample: '403db6fd:31593', land: '7ba794e5:31472', shophouse: '5de245d6:32458', condoAsCommercial: 'b1d5fec3:32613',
+        taxed: 'a165b157:31783', cash: '1fb5a807:30232', lowValuation: 'b96edfdb:31907', noTenure: 'b809d617:29299', managed: 'bd4ccde6:31708' };
       const p = [];
       for (const [k, d] of Object.entries(deals)) {
         const was = pmCanon(d), cls = propertyClassOf(d);
@@ -7451,10 +7464,10 @@ try {
       return JSON.stringify({ sample, withCm, calc, lab });
     })()`));
     const p = [];
-    if (r.sample !== 'a27fbebd:31517' || r.withCm !== r.sample) p.push(`the sample prints ${r.sample}, with commercial fields ${r.withCm} (P1 R1's fingerprint a27fbebd:31517)`);
+    if (r.sample !== '403db6fd:31593' || r.withCm !== r.sample) p.push(`the sample prints ${r.sample}, with commercial fields ${r.withCm} (P1 R1's fingerprint 403db6fd:31593)`);
     if (r.calc.section || r.calc.inputs || !r.calc.tenancy || r.lab) p.push(`a residential deal: ${JSON.stringify(r)}`);
     if (p.length) fail('p5 C5: residential deals unchanged', p);
-    else ok('p5 C5: the sample prints P1 R1\'s fingerprint a27fbebd:31517 with or without commercial fields; a residential deal draws no commercial section on the calculator or the Lab, and keeps its subsale tenancy fields');
+    else ok('p5 C5: the sample prints P1 R1\'s fingerprint 403db6fd:31593 with or without commercial fields; a residential deal draws no commercial section on the calculator or the Lab, and keeps its subsale tenancy fields');
   });
   await p5try('p5 C6: the answers travel in the address in their own words', async () => {
     const r = await evaluate(`(() => {
@@ -8260,7 +8273,7 @@ try {
         navigate('/property'); await w(900);
         const tile = document.querySelector('.lab-tile[data-tile="safeCashRequired"]')?.textContent?.replace(/\\s+/g, ' ') || null;
         navigate('/data-sources'); await w(900);
-        const book = { version: document.getElementById('fee-rulebook')?.textContent.includes('Version 1.4.0') || false,
+        const book = { version: document.getElementById('fee-rulebook')?.textContent.includes('Version 1.5.0') || false,
           log: document.querySelector('[data-fee-version="1.2.0"]')?.textContent || null,
           cls: Object.fromEntries([...document.querySelectorAll('[data-fee-class-line]')].map(n => [n.dataset.feeClassLine, [n.dataset.commercial, n.dataset.land]])) };
         State.deal = keep.deal; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(400);
@@ -8271,7 +8284,7 @@ try {
       if (!/Cash required \(with a 3-month reserve\) — partial/.test(r.total || '')) p.push(`the ledger's total reads "${r.total}"`);
       if (r.dock && !/Cash required — partial/.test(r.dock)) p.push(`the dock reads "${r.dock.slice(0, 120)}"`);
       if (!/Cash required — partial/.test(r.tile || '') || !/partial — 4 lines not checked for commercial/.test(r.tile || '')) p.push(`the Lab's tile reads "${r.tile}"`);
-      if (!r.book.version || !/not yet checked/.test(r.book.log || '')) p.push(`the rulebook page: version 1.4.0 ${r.book.version}, changelog "${(r.book.log || '').slice(0, 80)}"`);
+      if (!r.book.version || !/not yet checked/.test(r.book.log || '')) p.push(`the rulebook page: version 1.5.0 ${r.book.version}, changelog "${(r.book.log || '').slice(0, 80)}"`);
       const want = { transferStampDuty: ['same', 'same'], loanStampDuty: ['same', 'same'], chargeStampDuty: ['same', 'same'], registration: ['same', 'same'], purchaseLegal: ['same', 'same'],
         loanLegal: ['gated', 'same'], professionalServiceTax: ['follows', 'follows'], valuationFee: ['same', 'gated'], valuationServiceTax: ['follows', 'follows'],
         disbursements: ['gated', 'gated'], utilityDeposits: ['gated', 'gated'], mortgageProtection: ['gated', 'gated'] };
@@ -8320,13 +8333,13 @@ try {
       if (!near(r.ndq.q, 5000) || r.ndq.pl !== null || !near(r.ndq.st, 712) || !near(r.ndq.cash, 65030) || JSON.stringify(r.ndq.kind) !== '["quoted","quotation","Purchase legal fees — your lawyer’s quote"]') p.push(`a new development with a RM5,000 quote: ${JSON.stringify(r.ndq)} — by hand 5,000 Quoted, 712 of tax, 65,030`);
       if (r.subq.q !== null || !near(r.subq.cash, 63302) || r.auq.q !== null || !near(r.auq.cash, 63302)) p.push(`the quote on a subsale or an auction: ${JSON.stringify([r.subq, r.auq])} — it is the new development's, so unchanged`);
       if (r.landq.q !== null || !near(r.landq.cash, 308226)) p.push(`the quote on land answered New development: ${JSON.stringify(r.landq)} — the route is not run for a parcel, 308,226 as G2`);
-      if (r.version !== '1.4.0' || r.log !== '1.4.0' || JSON.stringify(r.routes) !== '{"subsale":"assumed","auction":"not-decided","newdev":"not-decided"}' || r.unverified.length !== 2) p.push(`the rulebook: ${JSON.stringify({ v: r.version, log: r.log, routes: r.routes, unverified: r.unverified })}`);
+      if (r.version !== '1.5.0' || r.log !== '1.5.0' || JSON.stringify(r.routes) !== '{"subsale":"assumed","auction":"not-decided","newdev":"not-decided"}' || r.unverified.length !== 2) p.push(`the rulebook: ${JSON.stringify({ v: r.version, log: r.log, routes: r.routes, unverified: r.unverified })}`);
       if (!/rules 2 and 3/.test(r.notes.nd) || !/your lawyer’s quote/.test(r.notes.nd) || !/13\(b\)/.test(r.notes.au) || !/not decided here/.test(r.notes.au)) p.push(`the routes' fee notes: ${JSON.stringify(r.notes)}`);
       if (JSON.stringify(r.book) !== '[["subsale","assumed"],["auction","not-decided"],["newdev","not-decided"]]' || !/Swk\. L\.N\. \(F\) 348 of 2022, First Schedule, rules 1–5, 12, 13 and 14/.test(r.cite)) p.push(`/data-sources: ${JSON.stringify(r.book)}, "${r.cite.slice(0, 160)}"`);
       if (r.meth.some(([, t, a]) => !/Not decided by the Rules/.test(t) || !a)) p.push(`/methodology/property's legal fees: ${JSON.stringify(r.meth)}`);
       if (r.field.kind !== 'quoted' || r.field.value !== '5000' || !/Quoted/.test(r.ledger || '') || !/RM5\.0k$|RM5,000$/.test(r.ledger || '')) p.push(`the calculator: the field ${JSON.stringify(r.field)}, the ledger "${r.ledger}"`);
       if (p.length) fail('val G5: purchase legal fees by route — not decided by the rules, the quote in their place', p);
-      else ok('val G5: an auction and a new development with no quote are charged rule 1\'s full scale as before (3,400; RM63,302) — the rules do not decide them by the route, and rulebook 1.4.0 says so in its route readings, its unverified list, each route\'s fee note, /data-sources and /methodology/property; a RM5,000 lawyer\'s quote on a new development takes the line\'s place, Quoted (RM712 of tax, RM65,030 by hand), and stands nowhere else — not on a subsale, an auction or land');
+      else ok('val G5: an auction and a new development with no quote are charged rule 1\'s full scale as before (3,400; RM63,302) — the rules do not decide them by the route, and rulebook 1.5.0 says so in its route readings, its unverified list, each route\'s fee note, /data-sources and /methodology/property; a RM5,000 lawyer\'s quote on a new development takes the line\'s place, Quoted (RM712 of tax, RM65,030 by hand), and stands nowhere else — not on a subsale, an auction or land');
     });
   }
   /* ---- end val-fee-gates ---- */
@@ -10461,8 +10474,10 @@ try {
          collected, RM1,710 and RM855 — not of the RM22,800 let (RM2,280
          and RM1,140).
      5 — UPFRONT CASH AND THE RESERVE. B with a 6-month reserve and
-         RM5,000 already paid; B with a RM400,000 valuation: every line of
-         the cash required and no other, the two burns, the reserve, the
+         RM5,000 already paid; B with a RM400,000 valuation, with a RM450,000
+         one (above the price: lent on the price, the valuer's fee on the
+         valuation) and with a RM380,000 one lent on the valuation alone:
+         every line of the cash required and no other, the two burns, the reserve, the
          totals and what is still to pay at completion.
      6 — EXIT, TAX AND THE RATE OF RETURN, each on its own. X is B with 40%
          down, held 5 years, legal 0.1% of the sale and a 24% tax rate:
@@ -10492,6 +10507,8 @@ try {
       v0: { ...B, ...MANAGED, vacancyPct: 0 }, v9: { ...B, ...MANAGED, vacancyPct: 9 }, v25: { ...B, ...MANAGED, vacancyPct: 25 },
       upfront: { ...B, reserveMonths: 6, bookingDepositPaid: 5000 },
       lowVal: { ...B, bankValuation: 400000 },
+      highVal: { ...B, bankValuation: 450000 },
+      valOnly: { ...B, bankValuation: 380000, valuationRule: 'valuation_only' },
       x: { ...B, ...X }, xCo: { ...B, ...X, disposerCategory: 'company' }, xNc: { ...B, ...X, disposerCategory: 'foreign' }, xFlat: { ...B, ...X, apprecPct: 0 },
       taxB: { ...B, marginalTaxPct: 24 },
     };
@@ -10539,7 +10556,7 @@ try {
     const work = (d) => {
       if (!d.selfManaged && (d.mgmtMinMonthly || d.leasingFeeMonths)) throw new Error('a minimum or a placement fee is not worked here');
       const e = {};
-      const basis = d.bankValuation > 0 ? Math.min(d.price, d.bankValuation) : d.price;
+      const basis = d.bankValuation > 0 ? (d.valuationRule === 'valuation_only' ? d.bankValuation : Math.min(d.price, d.bankValuation)) : d.price;
       const loan = basis * (100 - d.downPct) / 100;
       Object.assign(e, { loan, deposit: basis - loan, gap: d.price - basis });
       const n = d.tenureYears * 12, i = d.ratePct / 100 / 12;
@@ -10559,7 +10576,8 @@ try {
       }
       const loanDutySen = loan > 0 ? Math.ceil(loan / 1000) * 500 : 0;
       const chargeSen = Math.min(loanDutySen / 5, 1000);
-      const valuerSen = loan > 0 ? Math.max(scaleSen(d.price, VALUER), 40000) : 0;
+      /* On the value the valuer finds once one is entered (rulebook 1.5.0). */
+      const valuerSen = loan > 0 ? Math.max(scaleSen(d.bankValuation > 0 ? d.bankValuation : d.price, VALUER), 40000) : 0;
       const legalTaxSen = Math.round((purchaseSen + loanLegalSen) * 8 / 100);
       const valuerTaxSen = Math.round(valuerSen * 8 / 100);
       e.duty = dutySen / 100; e.purchaseLegal = purchaseSen / 100;
@@ -10719,7 +10737,7 @@ try {
 
     d8('5, upfront cash and the reserve', (p) => {
       const words = [];
-      for (const [k, months, what] of [['upfront', 6, 'a 6-month reserve, RM5,000 already paid'], ['lowVal', 3, 'a RM400,000 valuation']]) {
+      for (const [k, months, what] of [['upfront', 6, 'a 6-month reserve, RM5,000 already paid'], ['lowVal', 3, 'a RM400,000 valuation'], ['highVal', 3, 'a RM450,000 valuation, above the price'], ['valOnly', 3, 'a RM380,000 valuation, lent on it alone']]) {
         const g = got[k], e = work(CASES[k]);
         for (const f of ['loan', 'deposit', 'gap']) chk(p, `${k}: the ${f}`, g[f], e[f]);
         ledgerChk(p, `${k}:`, g, e);

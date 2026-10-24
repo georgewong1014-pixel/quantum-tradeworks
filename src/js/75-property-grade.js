@@ -709,8 +709,11 @@ function dealModel(d) {
      there is nothing to charge whatever the class. A Derived nought, as the
      loan's own fees are without a loan, not an estimate. */
   const notCharged = (r, why) => ({ ...r, amount: 0, provenance: 'verified', status: 'verified', notCharged: true, why });
-  const valuationR = loan > 0 ? feeGate(resolveFee('valuationFee', { price: d.price }), feeClass)
-    : notCharged(resolveFee('valuationFee', { price: d.price }), FEE_TABLE.lines.valuationFee.withoutLoan);
+  /* On the value the valuer finds: the estimate once entered, the price
+     standing in until then (the rulebook's valuationFee, 1.5.0). */
+  const valuedAt = bankValuation != null ? bankValuation : d.price;
+  const valuationR = loan > 0 ? feeGate(resolveFee('valuationFee', { value: valuedAt }), feeClass)
+    : notCharged(resolveFee('valuationFee', { value: valuedAt }), FEE_TABLE.lines.valuationFee.withoutLoan);
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
   const mrtaQuoted = isNum(d.mrtaPremium) && d.mrtaPremium > 0;
