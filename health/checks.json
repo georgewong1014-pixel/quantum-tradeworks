@@ -1,12 +1,12 @@
 {
   "kind": "quantum-tradeworks-checks",
   "schema": 1,
-  "commit": "8d1e0f213bdedfb46c202df5d7580b2612fb1629",
-  "recordedAt": "2026-10-24T18:11:55.004Z",
-  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/40108551387",
-  "ranAt": "2026-10-24T17:10:47Z",
-  "event": "workflow_dispatch",
-  "conclusion": "success",
+  "commit": "0f8fbafcaaecadc9d54902f2bb58081b14579d46",
+  "recordedAt": "2026-10-24T23:22:33.623Z",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/40142242439",
+  "ranAt": "2026-10-24T23:21:08Z",
+  "event": "push",
+  "conclusion": "failure",
   "note": null,
   "suites": [
     {
@@ -14,22 +14,22 @@
       "name": "model-test",
       "kind": "numbers",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 290,
-      "failed": 0,
-      "said": "all 290 model invariants hold",
-      "exit": 0
+      "status": "NOT RUN",
+      "passed": null,
+      "failed": null,
+      "said": "no result from this run on the commit",
+      "exit": null
     },
     {
       "id": "equity-test",
       "name": "equity-test",
       "kind": "numbers",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 292,
-      "failed": 0,
-      "said": "292 passed, 0 failed",
-      "exit": 0
+      "status": "NOT RUN",
+      "passed": null,
+      "failed": null,
+      "said": "no result from this run on the commit",
+      "exit": null
     },
     {
       "id": "scanner-test",
@@ -95,18 +95,18 @@
       "passed": 4,
       "failed": 0,
       "said": "data blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): 4 passed, 0 failed",
-      "exit": 0
+      "exit": 1
     },
     {
       "id": "served-check",
       "name": "served-check, pages",
       "kind": "layout",
       "job": "static",
-      "status": "PASS",
-      "passed": 57,
-      "failed": 0,
-      "said": "57 passed, 0 failed (of 61 passed, 0 failed; the data blocks apart)",
-      "exit": 0
+      "status": "FAIL",
+      "passed": 56,
+      "failed": 1,
+      "said": "56 passed, 1 failed (of 60 passed, 1 failed; the data blocks apart)",
+      "exit": 1
     },
     {
       "id": "build-check",
@@ -124,44 +124,44 @@
       "name": "prerender --check",
       "kind": "layout",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 183,
-      "failed": 0,
-      "said": "183 of 183 pages are the app's own render as committed",
-      "exit": 0
+      "status": "NOT RUN",
+      "passed": null,
+      "failed": null,
+      "said": "no result from this run on the commit",
+      "exit": null
     },
     {
       "id": "sweep",
       "name": "sweep",
       "kind": "layout",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 107,
-      "failed": 0,
-      "said": "107/107 routes clean",
-      "exit": 0
+      "status": "NOT RUN",
+      "passed": null,
+      "failed": null,
+      "said": "no result from this run on the commit",
+      "exit": null
     },
     {
       "id": "coverage-frames",
       "name": "coverage-frames",
       "kind": "layout",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 207,
-      "failed": 0,
-      "said": "207 passed, 0 failed",
-      "exit": 0
+      "status": "NOT RUN",
+      "passed": null,
+      "failed": null,
+      "said": "no result from this run on the commit",
+      "exit": null
     },
     {
       "id": "mobile",
       "name": "mobile",
       "kind": "layout",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 44,
-      "failed": 0,
-      "said": "no horizontal overflow at any width, and no focus stop hidden (44 ok, 0 FAIL)",
-      "exit": 0
+      "status": "NOT RUN",
+      "passed": null,
+      "failed": null,
+      "said": "no result from this run on the commit",
+      "exit": null
     }
   ]
 }
