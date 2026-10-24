@@ -2682,7 +2682,7 @@ function restoreBackup(text) {
    analytics is switched on, and not before. */
 const LAUNCH = {
   waitlistEndpoint: '',
-  contactEmail: '',
+  contactEmail: 'georgewong1014@gmail.com',
 };
 const waitlistReady = () => !!LAUNCH.waitlistEndpoint;
 /* The support address, or '' while none is published. Every surface that
@@ -17384,11 +17384,15 @@ function myDashSteps(o) {
       action: sc?.action || 'Create a setup', path: sc?.actionPath || '/app/scanner/setups/new' },
     /* The property step opens Property's landing, the Scenario Lab (D12; N3
        made /property the Lab): the price, the rent and the loan moved and
-       the figures following, before anything is typed into the calculator. */
-    { k: 'property', product: 'property', tool: 'lab', title: 'Start a property model in the Scenario Lab', done: o.dealStarted || o.propertySnaps > 0,
-      note: o.dealStarted || o.propertySnaps
+       the figures following, before anything is typed into the calculator.
+       The step wears the product's Live badge, as the homepage and /status
+       do; the Lab's Beta is said in words, as the Lab's own lede says it
+       (the Day-10 report, QT-D10-01: Live there and Beta here read as two
+       answers about one product). */
+    { k: 'property', product: 'property', title: 'Start a property model in the Scenario Lab', done: o.dealStarted || o.propertySnaps > 0,
+      note: (o.dealStarted || o.propertySnaps
         ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '.'
-        : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.',
+        : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.') + ' The Scenario Lab is beta.',
       action: pr?.action || 'Analyse a property', path: '/property' },
   ];
 }
@@ -21581,7 +21585,8 @@ function companyActions(r) {
   const sampleCase = !!thesis && SEEDED_THESIS_IDS.includes(thesis.id);
   acts.append(el('button', { class: `btn ${watching ? 'btn-primary' : 'btn-ghost'} btn-sm`,
     title: sampleCase ? 'A sample investment case, written into this browser on a first visit to show what one looks like. Not your work.'
-      : 'Your investment case for this company: one line, quality, valuation, catalysts, risks and the conditions that would change your mind',
+      : thesis ? 'Your investment case for this company: one line, quality, valuation, catalysts, risks and the conditions that would change your mind'
+      : 'Creates a draft in this browser: your investment case for this company — one line, quality, valuation, catalysts, risks and the conditions that would change your mind. Its suggested fields stay suggested until you confirm them.',
     onclick: () => addToThesis(c.id) }, sampleCase ? 'Open the sample investment case' : thesis ? 'Open your investment case' : 'Start an investment case'));
   const sym = c.tk || c.code || c.id;
   const on = scannerLaneOn();
@@ -29827,18 +29832,19 @@ VIEWS.contact = () => trustPage('Contact',
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
        ])]],
     /* Nothing supplied, nothing to list: the card appears with the first
-       detail the owner supplies, and lists only the details there are. */
-    ...(operatorValue('email') || operatorValue('address') || operatorValue('entity') ? [['Contact address',
-      [tp(operatorValue('email') ? 'Email: ' : null, operatorValue('email') ? supplied('email') : null,
-          operatorValue('email') && (operatorValue('address') || operatorValue('entity')) ? ' · ' : null,
-          operatorValue('address') ? 'Post: ' : null, operatorValue('address') ? supplied('address') : null,
+       postal detail the owner supplies, and lists only the details there
+       are. The email address is the first card's, so it is not said twice. */
+    ...(operatorValue('address') || operatorValue('entity') ? [['Contact address',
+      [tp(operatorValue('address') ? 'Post: ' : null, operatorValue('address') ? supplied('address') : null,
           operatorValue('address') && operatorValue('entity') ? ', for ' : null,
           !operatorValue('address') && operatorValue('entity') ? 'Operated by ' : null,
           operatorValue('entity') ? supplied('entity') : null, '.')]]] : []),
     ['What to include',
-      'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'],
+      'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'
+        + (supportEmail() ? ' Do not include confidential or sensitive information.' : '')],
     ['The corrections log',
-      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this product — what was wrong and what changed, dated by the change. A case you record is not added to it, because nobody has received it.')]],
+      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this product — what was wrong and what changed, dated by the change. ',
+        supportEmail() ? 'A case you record or send is not added to it; a correction it leads to is.' : 'A case you record is not added to it, because nobody has received it.')]],
   ]);
 
 VIEWS.privacy = () => {
@@ -29890,7 +29896,9 @@ VIEWS.privacy = () => {
         waitlistReady()
           ? tp('If you enter an email address in the waitlist, that address is sent to the form service configured for this deployment and used for one message about launch. Nothing else on this page is sent with it.')
           : tp('There is no form on this site that sends anything anywhere. No email address is requested and none can be submitted.'),
-        tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing — there is no contact address yet. Its last step hands you the case as text to copy; copying uses your clipboard only when you press the button.'),
+        supportEmail()
+          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing itself. Its last step hands you the case as text to copy and send to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
+          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing — there is no contact address yet. Its last step hands you the case as text to copy; copying uses your clipboard only when you press the button.'),
         tp('Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.'),
         tp('Links to outside sources — SEC EDGAR, NAPIC, Bursa Malaysia and others — take you to those sites only when you follow one. That visit is between you and that site; the policy this site is served with lets your browser tell it at most this site’s name, never the page you were on.'),
       ]],
@@ -29906,23 +29914,29 @@ VIEWS.privacy = () => {
       [tp(supplied('entity'), ', ', supplied('address'), ', operating this site at ', supplied('domain'), '.'),
        'No operating entity has been registered yet. The data user named here will be responsible for any personal data a launch collects; this build collects none on a server.']],
     ['What personal data is processed, and where it comes from',
-      ['Today this build collects none. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. The only personal data that reaches anyone is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
-       'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address and message if you write to the contact address; your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']],
+      supportEmail()
+        ? ['This build collects none on a server. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. What every web request carries reaches the host — your IP address and your browser’s name and version — as set out above.',
+           tp('If you write to ', supplied('email'), ', your email address, your message and anything you attach reach that mailbox, from you directly; it is hosted by Google, which runs the email service. Nothing else is collected.'),
+           'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']
+        : ['Today this build collects none. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. The only personal data that reaches anyone is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
+           'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address and message if you write to the contact address; your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']],
     ['Purposes',
-      'Today there are none, because nothing is collected. At launch, personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
+      (supportEmail() ? 'Today, a message you send to the contact address is used only to answer it and to check and correct the figure it is about. At launch, ' : 'Today there are none, because nothing is collected. At launch, ') + 'personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
     ['Who it is disclosed to',
-      'Today, no one: this build holds nothing to disclose. At launch, only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
+      (supportEmail() ? 'Today, no one: a message you send is held in the contact mailbox, which Google hosts, and is not passed on. At launch,' : 'Today, no one: this build holds nothing to disclose. At launch,') + ' only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
     ['Whether you must provide it',
       'Nothing is obligatory. Every page works without you giving any personal data. At launch, if you choose not to give an email address, the only consequence is that no reply or message can reach you.'],
     ['Access and correction',
       ['The Act gives you the right to ask a data user for a copy of the personal data it holds about you, to ask for it to be corrected, to withdraw your consent to its processing, and to require that it is not used for direct marketing.',
-       tp('Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. At launch, send requests to ', supplied('email'), '.')]],
+       tp('Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. ', supportEmail() ? 'Send requests to ' : 'At launch, send requests to ', supplied('email'), '.')]],
     ['Your choices',
       'You can use everything here without giving anything, and export or clear what this browser stores at any time. At launch you would be able to decline any message you did not ask for, and withdraw from one you did.'],
     ['Security and retention',
       'On your device, anyone who can use this browser profile can read what it stores — clear it on a shared computer. The site’s security policy stops the page itself connecting to any other address. At launch, personal data would be kept only as long as its purpose needs, and the period would be stated here.'],
     ['Requests and complaints',
-      [tp('Write to ', supplied('email'), ' or to ', supplied('address'), '. Until these are supplied there is no one to send a request to — and nothing held to request.'),
+      [supportEmail()
+         ? tp('Write to ', supplied('email'), '. A postal address, ', supplied('address'), ', is not published yet.')
+         : tp('Write to ', supplied('email'), ' or to ', supplied('address'), '. Until these are supplied there is no one to send a request to — and nothing held to request.'),
        'If a request is not resolved, you may complain to the Personal Data Protection Commissioner.']],
     ['Bahasa Malaysia',
       [tp('The Act requires this notice in the national language as well as in English. The Bahasa Malaysia version is ', supplied('bm'), ': it will be translated for legal use, not by machine, and until it is, this English draft is the only version.')]],
@@ -30650,11 +30664,7 @@ VIEWS.reports = () => {
       'A report is one page made from your own work, laid out to print or save as PDF: a company’s research report — its statements, its measures and your valuation assumptions, with where every figure came from — a saved property’s investor report, decision record and client proposal, or the decision record of a Cash Wheel contract or of Trading Index chart evidence.'));
     empty.append(el('p', { class: 'caption' },
       'Open a company’s page, save a property, enter a contract or record chart evidence, and its report is listed here.'));
-<<<<<<<< HEAD:assets/app.3b532e6a3e11.js
-    empty.append(reportLink('/property/calculator', { class: 'btn btn-primary' }, 'Property calculator'));
-========
     empty.append(reportLink(productById('property')?.actionPath || '/property/calculator', { class: 'btn btn-primary' }, productById('property')?.action || 'Analyse a property'));
->>>>>>>> day10/f3-site:assets/app.81c276a061f3.js
     wrap.append(empty);
     return wrap;
   }
@@ -32378,11 +32388,7 @@ const PROPERTY_CONTRACTS = [
   { id: 'auction', route: 'Auction', asset: 'Residential or commercial', note: 'The same model for both.',
     enter: 'The winning bid you expect. For the true discount, a comparable — typed with its source and date, or named from your register. For the deposit at risk, the deposit’s per cent, what it is a share of (the reserve or the bid) and the days to pay the balance: never assumed.',
     optional: 'The reserve price; arrears passed to you — maintenance and sinking fund, quit rent, assessment, utilities, each only if entered; repairs; the cost and months of getting possession; your lawyer’s quote; a financing buffer; holding months; the six checks; and a bid ceiling, as an all-in cost of your own or a margin under your comparables’ median.',
-<<<<<<<< HEAD:assets/app.3b532e6a3e11.js
-    returns: 'The steps from your comparables’ median to the bid and on to the effective acquisition cost; the true discount — that median less the effective cost, as a share of it; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.',
-========
     returns: 'The steps from your comparables’ median to the bid and on to the effective acquisition cost; the true discount — (your comparables’ median − effective cost) ÷ that median; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.',
->>>>>>>> day10/f3-site:assets/app.81c276a061f3.js
     missing: 'Every auction figure reads Not final while any of the six checks is open. A cost not entered is “not entered, not counted”, and named beside the effective cost and the ceiling. A margin ceiling with no comparables’ median is Unavailable.',
     fees: 'commercial', legal: 'auction' },
   { id: 'newdev-residential', route: 'New development', asset: 'Residential',
@@ -45247,11 +45253,7 @@ VIEWS.property = () => {
     const aff = affordabilityPanel(cityDef.name);
     if (aff) mapWrap.append(el('div', { style: 'margin-top:12px' }, aff));
     else mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
-<<<<<<<< HEAD:assets/app.3b532e6a3e11.js
-      'District household income is not shown: its licence is not yet confirmed.'));
-========
       'District household income is not shown: its licence is unconfirmed.'));
->>>>>>>> day10/f3-site:assets/app.81c276a061f3.js
     explore.push(mapWrap);
     loc.append(pcL3('district', `${d.district}: what moves demand, the map and your records`, explore));
   }
@@ -64540,7 +64542,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","quick":"Property Quick model: typed figures move the answer, the full model holds the same deal","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","property-flow":"Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved","journey-bar":"Property journey bar: the property, how it is bought, its evidence and its moves on every page; Evidence lands where its figures are confirmed","map":"Property map: Kuching’s placed schemes from the list, positions only, opened in the Scenario Lab","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Print & share","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","research-case":"Investment case: started from a company, a default confirmed, reopened from Saved work","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","quick":"Property Quick model: typed figures move the answer, the full model holds the same deal","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","property-flow":"Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved","journey-bar":"Property journey bar: the property, how it is bought, its evidence and its moves on every page; Evidence lands where its figures are confirmed","map":"Property map: Kuching’s placed schemes from the list, positions only, opened in the Scenario Lab","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Print & share","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","research-case":"Investment case: started from a company, a default confirmed, reopened from Saved work, restored from a backup","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
    and 7). health/checks.json, written with the journeys' record by the same
