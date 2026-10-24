@@ -32,11 +32,16 @@ const DECISION_SUBJECTS = [
 ];
 
 /* The provenance word for one property input, in the reader's terms rather than
-   the storage layer's. "Missing" is a real answer and gets said. */
+   the storage layer's. "Missing" is a real answer and gets said. A figure
+   still the calculator's starting one is "Sample" whichever input it is —
+   inputIsSeeded, the calculator's own test (the Day-10 pre-audit, CL-02):
+   the deposit, the rate, the tenure, the vacancy, the growth and the hold
+   read "Assumed" here while the sentence under the table called the same
+   figure "Illustrative default". */
 function inputProvenance(d, k) {
   const ev = shownEvidence(d, k);
   if (!isNum(d[k]) && !d[k]) return { word: 'Missing', why: 'Nothing has been entered.', tone: '--dn-text' };
-  if (ev === 'illustrative_default')
+  if (inputIsSeeded(d, k))
     return { word: 'Sample', tone: '--bronze',
              why: 'Carried by this tool as a starting number. Nobody chose it for this property.' };
   if (isTouched(d, k))
@@ -75,7 +80,9 @@ function decisionRecordProperty() {
     /* The record's own line, "Prepared …", stays the head's metaline: it is
        the one the date check and a reader look for under the heading. */
     el('p', { class: 'metaline' },
-      [preparedNow(), `${MODEL_VERSION} · research only, not advice`]),
+      /* The fee rulebook the costs follow, not the equity models' versions,
+         which say nothing about a property (the Day-10 pre-audit, IW-12). */
+      [preparedNow(), `fee rulebook ${FEE_TABLE.version} · research only, not advice`]),
     el('p', { class: 'caption dr-which' }, `Of ${which}.`),
   ]));
 
@@ -170,7 +177,7 @@ function decisionRecordProperty() {
 
   const unreviewed = propertyReviewQueue(d);
   if (unreviewed.length) out.append(el('p', { class: 'dr-warn' },
-    `${unreviewed.length} of these ${unreviewed.length === 1 ? 'is' : 'are'} still the figure this tool seeded: `
+    `${unreviewed.length} of these ${unreviewed.length === 1 ? 'is still the calculator’s starting figure' : 'are still the calculator’s starting figures'}: `
     + `${unreviewed.map(f => f.label.toLowerCase()).join(', ')}. `
     + 'Nobody has replaced them with anything observed, so every output above inherits that.'));
 
@@ -184,12 +191,17 @@ function decisionRecordProperty() {
     const sens = propertySensitivity(d);
     if (sens.ok && sens.drivers.length) {
       const t0 = sens.drivers[0];
-      const weak = t0.ev && t0.ev.rank <= 1;
+      /* Still the calculator's starting figure: said as the table says it
+         (CL-02), whatever kind of input it is. */
+      const seeded = inputIsSeeded(d, t0.k);
+      const weak = seeded || (t0.ev && t0.ev.rank <= 1);
       out.append(el('p', { class: weak ? 'dr-warn' : 'metaline', style: 'margin-top:var(--sm)' },
         `This answer rests on ${t0.label.toLowerCase()} more than on anything else: one step moves the rate of `
         + `return ${t0.span.toFixed(2)} percentage points, against ${sens.drivers[sens.drivers.length - 1].span.toFixed(2)} `
         + `for ${sens.drivers[sens.drivers.length - 1].label.toLowerCase()}. `
-        + (weak
+        + (seeded
+          ? 'It is still a sample figure, so the figure this record depends on most is the one with the least behind it.'
+          : weak
           ? `It is graded "${t0.ev.label}", so the figure this record depends on most is the one with the least behind it.`
           : t0.ev
             ? `It is graded "${t0.ev.label}".`
@@ -243,7 +255,7 @@ function decisionRecordProperty() {
     })(),
     'Title, tenure and eligibility are recorded from user input and have not been verified. Confirm with a '
       + 'Sarawak property lawyer and the Land and Survey Department.',
-    'Costs, duties and fees follow the registry in this build and change without notice. Confirm every figure '
+    `Costs, duties and fees follow fee rulebook ${FEE_TABLE.version} (checked ${feeDay(FEE_TABLE.checkedOn)}) and change without notice. Confirm every figure `
       + 'with the lender, the solicitor and the local authority before committing.',
   ].forEach(x => lim.append(el('li', {}, x)));
   out.append(lim);

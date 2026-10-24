@@ -225,7 +225,7 @@ function searchSavedIndex() {
     kind: 'Scanner setup', icon: 'target', detail: `Version ${s.version} · ${s.enabled === false ? 'disabled' : 'enabled'}`, subject: s.id,
     sample: false, illus: null, path: scanSetupPath(s.id), open: () => navigate(scanSetupPath(s.id)) }));
   if (typeof workspaceItems === 'function') workspaceItems().forEach(i => {
-    const prop = i.kind === 'work' && typeof pmFind === 'function' && !!pmFind(i.key);
+    const prop = (i.kind === 'property' || i.kind === 'work') && typeof pmFind === 'function' && !!pmFind(i.key);
     const type = prop ? 'property' : i.kind;
     out.push({ type, id: i.key, name: i.name, kind: prop ? 'Saved property' : WORKSPACE_KIND_ONE[i.kind] || 'Saved item', icon: SEARCH_SAVED_ICON[type] || 'folder',
       detail: i.detail, subject: i.subject, sample: !!i.sample, illus: i.illustrative === 'all' || i.illustrative === 'some' ? i.illustrative : null,
@@ -306,7 +306,7 @@ function searchPageRow(r, { when = null } = {}) {
    noted in Recent as itself. */
 function searchSavedRow(item, { when = null } = {}) {
   const chips = [
-    item.sample ? el('span', { class: 'chip chip-bronze', title: 'Seeded on a first visit to show what one looks like. Not your work.' }, 'sample') : null,
+    item.sample ? el('span', { class: 'chip chip-bronze', title: 'Added on a first visit as an example. Not your work.' }, 'sample') : null,
     item.illus === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
       : item.illus === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,
   ];

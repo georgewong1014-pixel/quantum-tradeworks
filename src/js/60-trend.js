@@ -504,7 +504,7 @@ VIEWS.tracked = () => {
       r.chg == null ? '—' : withSign(r.chg, 2)));
     const cell = el('td');
     if (r.values.length >= 2) cell.append(sparkline(r.values));
-    else cell.append(el('span', { class: 'metaline' }, 'building'));
+    else cell.append(el('span', { class: 'metaline' }, 'none'));
     tr.append(cell);
 
     /* Trend state, or how much more history it needs. Never a computed-looking
@@ -523,7 +523,7 @@ VIEWS.tracked = () => {
     } else {
       const p200 = t.pending.find(x => x.id === 'sma200');
       tCell.append(el('span', { class: 'metaline' },
-        p200 ? `${p200.more} more days` : 'no history'));
+        p200 ? `${p200.more} more closes` : 'no history'));
     }
     tCell.style.cursor = 'pointer';
     tCell.setAttribute('role', 'button');
@@ -734,7 +734,7 @@ VIEWS.alerts = () => {
      cut "None of them is an instruction to buy or sell" from sight; that
      sentence is the lede now, which a phone shows whole. */
   wrap.append(pageHead({ title: 'My Alerts',
-    lede: 'What changed in the research you follow, and where your scanner setups held. None of it is an instruction to buy or sell.',
+    lede: 'What holds now in the research you follow, and where your scanner setups held. None of it is an instruction to buy or sell.',
     note: 'Each alert is labelled by kind — Research or Scanner matches — and names its source.' }));
   appendSampleBanner(wrap);
 
@@ -746,7 +746,7 @@ VIEWS.alerts = () => {
       sev:'serious', kind:'thesis', id:t.ticker,
       /* A condition the tool added and the reader has not confirmed is said to be
          the tool's, not the reader's. */
-      title:`${BY_ID.get(t.ticker).c.tk}${illusText(BY_ID.get(t.ticker).c)} — ${b.suggested === true ? 'suggested condition breached, not yet confirmed by you' : 'thesis condition breached'}`,
+      title:`${BY_ID.get(t.ticker).c.tk}${illusText(BY_ID.get(t.ticker).c)} — ${b.suggested === true ? 'suggested condition breached, not yet confirmed by you' : 'case condition breached'}`,
       what:b.label,
       detail:`Current value ${(b.type === 'val' ? fmtPct(b.actual, 1) : fmtFor(b.k)(b.actual))} against ${b.suggested === true ? 'the tool’s suggested' : 'your'} threshold of ${b.op} ${b.type === 'val' ? fmtPct(b.v, 1) : fmtFor(b.k)(b.v)}.`,
       source:`FY${latestFy(BY_ID.get(t.ticker).c)} reported · ${dataDateLabel(BY_ID.get(t.ticker).c)}`,
@@ -792,7 +792,7 @@ VIEWS.alerts = () => {
     const to = [inList ? `${listSample ? 'the sample list' : 'your watchlist'} “${wl.name}”` : null,
       th ? `${caseSample ? 'the sample investment case' : 'your investment case'} on ${tk}` : null].filter(Boolean).join(' and ');
     items.push({ sev:f.sev, kind:f.kind, id:f.id, title:f.title, what:f.detail,
-      detail:`Mapped to ${to}. ${th ? 'None of its conditions covers this yet.' : 'No thesis condition covers this yet.'}`, source:`FY${latestFy(BY_ID.get(f.id)?.c)} reported · ${dataDateLabel(BY_ID.get(f.id)?.c)}` });
+      detail:`Mapped to ${to}. ${th ? 'None of its conditions covers this yet.' : 'No case condition covers this yet.'}`, source:`FY${latestFy(BY_ID.get(f.id)?.c)} reported · ${dataDateLabel(BY_ID.get(f.id)?.c)}` });
   });
 
   /* User-set price thresholds, evaluated against the current price. Collected
@@ -835,7 +835,7 @@ VIEWS.alerts = () => {
   if (kind !== 'scanner') {
     const feedCard = el('section', { class: 'card al-sec', id: 'al-research', 'aria-labelledby': 'al-research-hd' });
     feedCard.append(alertsSectionHead('al-research-hd', `Research — ${shown.length}`,
-      'The facts that changed in the companies you follow and your investment cases, thesis-linked first, and any price threshold of yours crossed. Rebuilt from the current data on each load, so never unread; not deduplicated — one company can appear once per source that reports on it.'));
+      'The conditions that hold now in the companies you follow and your investment cases, case-linked first, and any price threshold of yours crossed. Rebuilt each visit, so never unread; a company can appear once per source.'));
     if (hiddenN) feedCard.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
       `${hiddenN} more item${hiddenN === 1 ? ' is' : 's are'} hidden by the types switched off under Alert types.`));
     /* Empty, it says what fills it and offers the one action that starts
@@ -913,7 +913,7 @@ VIEWS.alerts = () => {
       row.append(el('span', { class: 'metaline' }, `${pa.op} ${r ? fmtMoney(pa.price, r.c.ccy) : pa.price}`));
       row.append(el('span', { class: 'spacer' }));
       row.append(!priced ? el('span', { class: 'chip', title: 'No price is carried for this company, so the threshold cannot be tested.' }, 'No price')
-        : hit ? sevChip('info', kindOn('price') ? 'Crossed' : 'Crossed · Price move is off') : el('span', { class: 'chip' }, 'Waiting'));
+        : hit ? sevChip('info', kindOn('price') ? 'Crossed' : 'Crossed · Price move is off') : el('span', { class: 'chip', title: 'Tested on the sample price, which does not move; load your own prices to test it.' }, 'Not crossed'));
       row.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Edit ${tk} price alert`,
         onclick: () => openPriceAlertEditor(pa) }, 'Edit'));
       pal.append(row);
@@ -922,13 +922,13 @@ VIEWS.alerts = () => {
     rail.append(pac);
 
     const rules = el('div', { class: 'card' });
-    rules.append(cardHead('Alert types', 'Which types the research feed shows. Defaults are thesis-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
-    ALERT_KINDS.forEach(k => {
-      const built = k.built !== false;
+    rules.append(cardHead('Alert types', 'Which types the research feed shows. Defaults are case-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
+    const notProduced = ALERT_KINDS.filter(k => k.built === false).map(k => k.label.toLowerCase());
+    ALERT_KINDS.filter(k => k.built !== false).forEach(k => {
       const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
       /* An id and renderKeepFocus: render() rebuilt the switch, so Space on
          one dropped focus on <body> and the next Tab started from the top. */
-      lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
+      lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: kindOn(k.id) ? '' : null,
         style: 'margin-top:3px', 'aria-describedby': `ak-${k.id}`,
         onchange: e => {
           State.alertKinds = e.target.checked ? [...new Set([...State.alertKinds, k.id])] : State.alertKinds.filter(x => x !== k.id);
@@ -936,11 +936,11 @@ VIEWS.alerts = () => {
         } }));
       const tx = el('div');
       tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
-      tx.append(el('div', { class: 'metaline', id: `ak-${k.id}` },
-        built ? k.note : `${k.note} Nothing in this build produces this type yet, so there is nothing for the switch to show or hide.`));
+      tx.append(el('div', { class: 'metaline', id: `ak-${k.id}` }, k.note));
       lab.append(tx);
       rules.append(lab);
     });
+    if (notProduced.length) rules.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, `Not available: ${notProduced.join(', ')}.`));
     rail.append(rules);
   }
 
@@ -949,16 +949,7 @@ VIEWS.alerts = () => {
      address held under a privacy notice. The card used to read as though a
      digest ran; these are the preferences a delivery would honour, recorded
      and inert, and the card says so first. */
-  pref.append(cardHead('Delivery — not built', 'Nothing is sent. These are the preferences a delivery would honour, recorded here and inert until there is a server to honour them.'));
-  const kv = el('dl', { class: 'kv' });
-  [['Delivery', 'would be a daily digest'], ['Deduplication window', 'would be 24 hours'], ['Time zone', MARKETS.MY.tz],
-   ['Quiet hours', 'would be 22:00 – 07:00'], ['Per-company cap', 'would be 3 a day']].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
-  pref.append(kv);
-  /* The scanner's matches were "recorded to a file; see /my/scanner" — a
-     pointer away from the page. They are listed here now, and are not
-     delivered either. */
-  pref.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'A US filing published after the Malaysian market closes would be held to the next digest rather than sent overnight — when there is a digest to hold it to. Scanner matches are not sent either: the worker records them to a file on your own computer, and this page lists them from it.'));
+  pref.append(cardHead('Delivery — not built', 'Nothing is sent: research alerts and scanner matches are listed on this page only.'));
   rail.append(pref);
   layout.append(rail);
   wrap.append(layout);

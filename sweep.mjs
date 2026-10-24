@@ -571,7 +571,8 @@ for (const route of ROUTES) {
       if (done) break;
       await sleep(100);
     }
-    const out = await evalValue(`({ sum: document.getElementById('health-journeys-sum')?.textContent || '',
+    /* The check record is closed on arrival (Day-10 IW-21): read open, as its rows are the thing measured. */
+    const out = await evalValue(`(document.querySelectorAll('#views details.status-fold').forEach(d => { d.open = true; }), { sum: document.getElementById('health-journeys-sum')?.textContent || '',
       rows: [...document.querySelectorAll('#health-journeys > li')].map(li => ({ status: li.dataset.status, text: li.innerText })),
       quick: [...document.querySelectorAll('#health-quick > li')].map(li => ({ status: li.dataset.status, text: li.innerText })),
       quickSum: document.getElementById('health-quick-sum')?.textContent || '', h2: document.querySelector('#health h2')?.textContent || '',
@@ -740,8 +741,7 @@ for (const route of ROUTES) {
       check, never read from disk) bring the Market, Historical and Alerts
       back, and a history ten days old makes them Delayed.
    4. Each result screen has exactly one primary button: the company page
-      ("Add to watchlist", then "Create a setup for MSFT" to the builder with
-      the symbol), the scanner alert ("Open Apple Inc. research"), the
+      ("Add to watchlist", then "Start an investment case"), the scanner alert ("Open Apple Inc. research"), the
       calculator, and the dashboard (the first step, then "Continue").
    5. The goal words: the homepage cards read the products' actions and open
       where each starts, Business reads "Coming soon" as text, and How it
@@ -981,7 +981,7 @@ for (const route of ROUTES) {
   await sleep(400);
   const co2 = await ev(PRIMARIES);
   if (co1.length !== 1 || co1[0].t !== 'Add to watchlist') p.push(`company page, not on a list: primary actions ${JSON.stringify(co1)}`);
-  if (co2.length !== 1 || co2[0].t !== 'Create a setup for MSFT' || !/\/app\/scanner\/setups\/new\?.*symbol=MSFT/.test(co2[0].href || ''))
+  if (co2.length !== 1 || co2[0].t !== 'Start an investment case')
     p.push(`company page, on a list: primary actions ${JSON.stringify(co2)}`);
   await load(BASE + '/property/calculator');
   const calc = await ev(PRIMARIES);
@@ -1777,7 +1777,7 @@ for (const route of ROUTES) {
       const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       for (let t = w.nextNode(); t; t = w.nextNode()) {
         const s = t.nodeValue.trim();
-        if (!s || t.parentElement.closest('script,style,select,option,textarea,svg') || inGradeColumn(t.parentElement)) continue;
+        if (!s || t.parentElement.closest('script,style,select,option,textarea,svg,[data-no-figure]') || inGradeColumn(t.parentElement)) continue;
         let c = cos.find(c => tokenRe.get(c.id).test(s) || s === c.name);
         if (!c && s.length <= 80) c = cos.find(c => anyRe.get(c.id)?.test(s));
         if (c) occ.push({ node: t.parentElement, c, svg: false });
@@ -2351,11 +2351,11 @@ for (const route of ROUTES) {
        screener: /research draws no panel since N7). */
     await load(BASE + '/discover/screener');
     const d9 = await ev(`(async () => {
-      State.plan = 'free'; store.write('plan', 'free');
+      State.plan = 'free'; store.write('plan', 'free'); REPORT_CAP_ENFORCED = true;
       State.reportLog = { month: meterMonth(), ids: U.map(r => r.c.id).filter(id => id !== 'AAPL-SEC').slice(0, 5) }; store.write('reportLog', State.reportLog);
       render(); await new Promise(r => setTimeout(r, 200));
       const ex = [...document.querySelectorAll('.start-here .start-here-ex')].find(n => /Apple/.test(n.textContent));
-      State.reportLog = { month: meterMonth(), ids: [] }; store.write('reportLog', State.reportLog); render();
+      State.reportLog = { month: meterMonth(), ids: [] }; store.write('reportLog', State.reportLog); REPORT_CAP_ENFORCED = false; render();
       return ex?.tagName || null; })()`);
     if (d9 !== 'SPAN') q.push(`with the month's reports used, Start here's Apple example is ${d9 === 'A' ? 'a link' : JSON.stringify(d9)}`);
 
@@ -2932,7 +2932,7 @@ for (const route of ROUTES) {
   };
   const mark = () => ev('window.__dlMark = 1');
   const WANT = { '/my/portfolio': 'Understand your exposures — not a trading screen', '/my/watchlists': 'Watchlists', '/my/theses': 'What you believe, and what would prove you wrong',
-    '/my/alerts': 'My Alerts', '/my/reports': 'Print & share', '/my/tracked': 'Tracked', '/my/data': 'Bring your own prices', '/my/workspace': 'Everything you have saved' };
+    '/my/alerts': 'My Alerts', '/my/reports': 'Print & share', '/my/tracked': 'Tracked', '/my/data': 'Your data & settings', '/my/workspace': 'Everything you have saved' };
   bucket = [];
   for (const [path, h1] of Object.entries(WANT)) {
     for (const how of ['entered', 'reloaded']) {

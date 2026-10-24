@@ -750,7 +750,7 @@ try {
     })()`));
     const p = [];
     for (const path of ['/property/calculator?', '/property/calculator?view=full', '/property', '/data-sources']) if (r[path]) p.push(`${path} says “…${r[path]}…”`);
-    if (!(r.unconfirmed > 0) || !/rests on unverified or unknown lines/.test(r.formula) || !/on unverified lines/.test(r.note)) p.push(`the Lab's cash required row: note “${r.note}”, formula “${String(r.formula).slice(0, 140)}”`);
+    if (!(r.unconfirmed > 0) || !/rests on estimated lines/.test(r.formula) || !/on estimated lines/.test(r.note)) p.push(`the Lab's cash required row: note “${r.note}”, formula “${String(r.formula).slice(0, 140)}”`);
     if (p.length) fail('no total is called verified while an unverified line is in it', p);
     else ok(`no “fully verified” claim on the calculator, the Lab or /data-sources with RM${Math.round(r.unconfirmed).toLocaleString('en')} on unverified lines in the sample's total; the Lab's row says “${r.note}”`);
   }
@@ -883,7 +883,7 @@ try {
     if (!r.lines.some(l => l.provenance === 'quote' && l.badge === 'quoted')) p.push('no quoted line was drawn with the Quoted badge');
     if (!r.optRow || !/^Optional: mortgage protection/.test(r.optRow) || !/not included/.test(r.optRow)) p.push(`on the sample the optional row reads "${r.optRow}"`);
     if (!/^By kind: statutory charges RM/.test(r.split || '') || !/Optional, left out: mortgage protection is not included\./.test(r.split || '')) p.push(`the ledger's split reads "${(r.split || '').slice(0, 160)}"`);
-    if (!r.safe.includes(`${r.want} of this rests on unverified or unknown lines`)) p.push(`"Cash required (with a 3-month reserve)" reads "${r.safe}", without "${r.want} of this rests on unverified or unknown lines"`);
+    if (!r.safe.includes(`${r.want} of this rests on estimated lines`)) p.push(`"Cash required (with a 3-month reserve)" reads "${r.safe}", without "${r.want} of this rests on estimated lines" (the sample's uncertain lines are all estimates)`);
     if (!r.note.startsWith(`${r.want} of this`)) p.push(`the ledger's note reads "${r.note.slice(0, 120)}"`);
     if (!r.book) p.push('/data-sources has no #fee-rulebook');
     else {
@@ -1245,6 +1245,37 @@ try {
     else if (!(r.liqYes > r.liqNo) || r.liqNo !== r.liqUnsure) fail('any answer to the resale question still credits liquidity', r);
     else if (r.strataYesFlag || !r.strataNoFlag || !r.floodYesFlag) fail('a risk flag is raised on the favourable answer, or missed on the adverse one', r);
     else ok(`the checklist is read by its answers — demand ${r.yes} all-yes, ${r.no} all-no, ${r.unsure} not sure`, r);
+  }
+
+  /* 40b — THE SAMPLE'S FIGURES ARE SAID AS THE SAMPLE'S (the Day-10 pre-audit,
+           OP-03). The report's risk flags compared the reader's price, rent
+           and vacancy with the synthetic sample project's and called its
+           invented figures "recently transacted here", "the observed rental
+           range" and "roughly 9% observed in Kuching"; the leasehold flag came
+           from the sample's tenure, even where the reader entered 0 — freehold. */
+  {
+    const r = await evaluate(`(() => {
+      const flags = d => propertyRiskFlags(d, dealModel(d));
+      const over = flags({ ...${FRESH}, price: 700000, rent: 2600, vacancyPct: 5 });
+      const mid = flags({ ...${FRESH}, price: 600000 });
+      const lease = (t, y) => flags({ ...${FRESH}, titleType: t, remainingLease: y }).some(f => f.t === 'Leasehold tenure');
+      return { over: over.map(f => f.t + ' | ' + f.n), mid: mid.map(f => f.t + ' | ' + f.n),
+               strata: lease('strata', 88), free: lease('mixed-zone', 0), leased: lease('mixed-zone', 70) };
+    })()`);
+    const p = [];
+    const all = [...r.over, ...r.mid];
+    const want = [/^Above the sample’s range \| At RM667 psf you would pay above the synthetic sample’s top, RM610 psf\.$/,
+      /^Rent above the sample’s range \| RM2,600 is above the synthetic sample’s rent range \(top RM2,200\)\./,
+      /^Vacancy below the sample’s \| You have assumed 5% vacancy, below the synthetic sample’s 9%\.$/];
+    for (const re of want) if (!r.over.some(x => re.test(x))) p.push(`no flag reads ${re}: ${JSON.stringify(r.over)}`);
+    if (!r.mid.some(x => /^Above the sample’s median \| RM571 psf is above the synthetic sample’s RM545 psf median\.$/.test(x))) p.push(`at RM600,000 no flag reads "Above the sample’s median": ${JSON.stringify(r.mid)}`);
+    const fact = all.filter(x => /recently transacted|observed|highest recent transaction|area norm/i.test(x));
+    if (fact.length) p.push(`a flag states the sample's figures as market fact: ${JSON.stringify(fact)}`);
+    if (r.strata) p.push('the leasehold flag is raised on a strata parcel, from the sample project’s tenure');
+    if (r.free) p.push('the leasehold flag is raised where the reader entered 0 years — freehold');
+    if (!r.leased) p.push('the leasehold flag is not raised where the reader entered 70 years remaining');
+    if (p.length) fail('OP-03: the risk flags say the sample’s figures are the synthetic sample’s, and leasehold is the reader’s answer', p);
+    else ok('OP-03: the risk flags name the synthetic sample’s top, median, rent range and vacancy — none "observed" or "recently transacted" — and "Leasehold tenure" follows the years the reader entered (70: raised; 0, freehold: not; a strata parcel: not)');
   }
 
   /* 41 — a loan-readiness total is withheld while credit or affordability is open. */
@@ -1804,7 +1835,7 @@ try {
         const heads = table ? [...table.querySelectorAll('thead th')].map(th => th.textContent.trim()) : null;
         const row = table ? [...table.querySelector('tbody tr').children].map(td => td.textContent.trim()) : null;
         const m = dealModel(d);
-        return { text, heads, row, y1: m.path[0], monthlySub: pcAnswerFigs(d, m).monthly[2] };
+        return { text, heads, row, y1: m.path[0], monthlySub: pcAnswerFigs(d, m).monthly[2], beSub: pcAnswerFigs(d, m).breakeven[2] };
       };
       let taxed, plain;
       try {
@@ -1816,9 +1847,14 @@ try {
       return { taxed, plain, fmt: { tax: fmtAmount(taxed.y1.tax, 'MYR'), cf: fmtAmount(taxed.y1.cf, 'MYR') } };
     })()`);
     const p = [], t = r.taxed, b = r.plain;
-    for (const s of ['After costs, vacancy and the loan, before tax on the rent', 'Rent needed to cover everything, before tax on the rent', 'Year 1’s cash flow before tax ÷ cash required including reserve'])
+    /* The monthly position and the break-even rent say it in the headline
+       row, where each stands once since the full model's "Free calculator"
+       tiles went (the Day-10 pre-audit, CL-20). */
+    for (const s of ['Year 1’s cash flow before tax ÷ cash required including reserve'])
       if (!t.text.includes(s)) p.push(`with a rate entered the page does not say "${s}"`);
     if (!/before tax on the rent$/.test(t.monthlySub)) p.push(`the answer's monthly position reads "${t.monthlySub}"`);
+    if (!/before tax on the rent$/.test(t.beSub)) p.push(`the answer's break-even rent reads "${t.beSub}"`);
+    if (/before tax/.test(b.beSub) || /before tax/.test(b.monthlySub)) p.push(`with no rate entered the answer reads "${b.monthlySub}" and "${b.beSub}"`);
     if (!t.heads || !t.heads.includes('Tax on the rent') || !t.heads.includes('Net cash flow after tax')) p.push(`the scenario table's headings: ${JSON.stringify(t.heads)}`);
     else {
       const i = t.heads.indexOf('Tax on the rent'), j = t.heads.indexOf('Net cash flow after tax');
@@ -2319,7 +2355,7 @@ try {
         const g = propertyGrade(d, dealModel(d));
         State.deal = d; navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render();
         await new Promise(res => setTimeout(res, 150));
-        const card = [...document.querySelectorAll('main h3')].find(x => /Underwriting Grade/.test(x.textContent))?.closest('.card');
+        const card = [...document.querySelectorAll('main h3')].find(x => /Research Grade/.test(x.textContent))?.closest('.card');
         const text = card ? card.textContent : '';
         out[name] = { grade: g.grade, verdict: g.verdict, coverage: g.coverage, reachable: g.reachable, gates: g.gates.length,
           noEvidence: /no further evidence changes that/.test(text), wantOfCoverage: /could be scored, against the 80% a grade requires/.test(text),
@@ -3832,7 +3868,7 @@ try {
           openPropertyModel(A.id, { show: false });
           navigate('/property/calculator'); await w(400);
           const n0 = pmAll().length;
-          document.getElementById('wb-property-list').click(); await w(400);
+          navigate('/property/models'); await w(400);
           document.getElementById('pm-open-' + B.id).click(); await w(500);
           const onB = State.deal.modelId === B.id;
           history.back(); await w(600);
@@ -3842,7 +3878,7 @@ try {
           /* A duplicate has the same figures, so the same address: Back from
              it to the property it copies is still Back to that property. */
           const C = duplicatePropertyModel(A.id);
-          document.getElementById('wb-property-list').click(); await w(400);
+          navigate('/property/models'); await w(400);
           document.getElementById('pm-open-' + C.id).click(); await w(500);
           const onC = State.deal.modelId === C.id;
           history.back(); await w(600);
@@ -4028,7 +4064,7 @@ try {
           if (!r.row.inSec || r.row.primary) p.push(`the row is ${r.row.inSec ? '' : 'not in the section, '}${r.row.primary ? 'holding a btn-primary' : 'quiet'}`);
           const names = r.row.acts.map(a => a.t);
           const first = names[0] === 'Client proposal' || names[0] === 'Save this property first';
-          if (!first || names[1] !== 'Investor report' || names[2] !== 'Decision record' || names.length !== 3) p.push(`the row's actions read ${JSON.stringify(names)}, not the client proposal (or its save-first), the investor report and the decision record`);
+          if (!first || names[1] !== 'Full investor report' || names[2] !== 'Decision record' || names.length !== 3) p.push(`the row's actions read ${JSON.stringify(names)}, not the client proposal (or its save-first), the investor report and the decision record`);
         }
         if (p.length) fail('D11 property-model: the calculator\'s last section is "Decide", #report lands on it, with one "See plans", one preview button and a quiet Share / Export row', p);
         else ok('D11 property-model: /property/calculator#report opens the full model at "Decide" (index, "Next: Decide →" and heading agree); the section holds one "See plans", one "Preview … in this browser" button and a quiet Share / Export row of the client proposal, the investor report and the decision record');
@@ -4170,7 +4206,7 @@ try {
         const hsT = tables.find(t => t.textContent.includes('Rental cash to date'));
         const hsLast = hsT ? [...hsT.querySelectorAll('tbody tr')].pop() : null;
         calc.holdLast = hsLast ? [...hsLast.children].map(txt) : null;
-        calc.unconfirmed = ([...document.querySelectorAll('#views td, #views p, #views .metaline')].map(txt).filter(x => x.length < 600).find(x => /of this — [\\d.]+% — rests on unverified or unknown lines/.test(x)) || '').match(/of this — ([\\d.]+%) —/)?.[1] || null;
+        calc.unconfirmed = ([...document.querySelectorAll('#views td, #views p, #views .metaline')].map(txt).filter(x => x.length < 600).find(x => /of this — [\\d.]+% — rests on (?:estimated|unverified or unknown) lines/.test(x)) || '').match(/of this — ([\\d.]+%) —/)?.[1] || null;
         /* The loan at the entered margin, in the table of margins — the loan
            card's list is drawn only once a valuation is entered. */
         const mofT = tables.find(t => t.textContent.includes('Cash equity needed'));
@@ -4653,7 +4689,8 @@ try {
         if (/preparer’s assumption/.test(r.words.exitNote) || !/Sample/.test(r.words.exitNote)) p8.push(`with the growth rate untouched the sale note reads "${r.words.exitNote.slice(0, 200)}"`);
         if (!/preparer’s assumption/.test(r.growthSet)) p8.push(`with the growth rate set the sale note reads "${r.growthSet.slice(0, 200)}"`);
         /* The fee registry is named as a source; the client is not "you". */
-        if (!/fee registry/.test(r.words.registry)) p8.push(`the disclosure credits every figure to the listed inputs alone: "${r.words.registry.slice(0, 160)}"`);
+        /* Named as every page names it, by its version (IW-13). */
+        if (!/fee rulebook \d/.test(r.words.registry)) p8.push(`the disclosure credits every figure to the listed inputs alone: "${r.words.registry.slice(0, 160)}"`);
         if (/your quote/i.test(r.quote)) p8.push('a quoted premium prints as "your quote" on the client\'s page');
         if (p8.length) fail('property-proposal PP8: each figure\'s words say what it is', p8.slice(0, 20));
         else ok(`property-proposal PP8: a cash purchase is described with no loan, rate or repayment; "the price is met by" a loan and a deposit that add up to it, and a loan on a valuation above the price is flagged instead; a rent of 1850.5 prints RM1,850.50 and 572000.755 as entered; what a scenario changes is in words, as entered (4.375%), with no input hint, raw value or first person, and the name a scenario is offered is in the same words, whole ("${r.offered}"); the growth rate is credited to whoever set it; the fee registry is named; a quote is not "your quote"`);
@@ -6252,7 +6289,7 @@ try {
       })()`));
       const p = [], s = r.sample, W = r.want;
       if (r.view !== 'propertyLab') p.push(`/property opened ${r.view}`);
-      if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on unverified lines`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on unverified lines`);
+      if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on estimated lines`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on estimated lines`);
       if (s.cashflowMonthly?.value !== W.monthly) p.push(`Monthly position: ${s.cashflowMonthly?.value}, the model's ${W.monthly}`);
       if (s.netYield?.value !== W.yield || s.netYield?.sub !== `gross ${W.gross}`) p.push(`Net yield: ${JSON.stringify(s.netYield)}, the model's ${W.yield}, gross ${W.gross}`);
       if (['safeCashRequired', 'cashflowMonthly', 'netYield', 'next'].some(k => s[k]?.kind !== 'illustrative_default')) p.push(`on the sample every tile is "Illustrative default": ${JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.kind])))}`);
@@ -7816,8 +7853,8 @@ try {
       if (r.final) p.push('with no check ticked the auction reads final');
       if (r.margin.status !== 'solved' || r.margin.bid !== 383103 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 424999.57) || !near(r.margin.above, 425000.58)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 383,103 (424,999.57; +1 → 425,000.58)`);
       if (r.cost.status !== 'solved' || r.cost.bid !== 387919 || !near(r.cost.eff, 429999.96) || !near(r.cost.above, 430000.98)) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 387,919 (429,999.96; +1 → 430,000.98)`);
-      if (r.noMv.status !== 'unavailable' || !/market value/.test(r.noMv.why || '')) p.push(`a margin with no market value: ${JSON.stringify(r.noMv)} — not Unavailable`);
-      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 387919) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
+      if (r.noMv.status !== 'unavailable' || !/your comparables’ median/.test(r.noMv.why || '')) p.push(`a margin with no comparables’ median: ${JSON.stringify(r.noMv)} — not Unavailable`);
+      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 387919) p.push(`a cost ceiling needs no comparables’ median: ${JSON.stringify(r.costNoMv)}`);
       if (r.none !== 'no-target') p.push(`no ceiling entered is ${r.none}, not "no target"`);
       if (p.length) fail('val V3: auction × residential — effective cost, discount, forfeiture and the bid ceiling', p);
       else ok('val V3: auction × residential — RM20,530 of transaction costs and RM1,000 of holding (the instalment from the day the balance falls due) make the effective cost RM442,530, an 11.494% true discount on the RM500,000 the comparables imply; RM38,000 at risk, Not final; the bid ceiling is RM383,103 at 15% under the market value (RM425,000) and RM387,919 at a cost of RM430,000 — each to the ringgit, worked by hand; a margin with no market value is Unavailable, a cost needs none');
@@ -7944,7 +7981,7 @@ try {
       if (h.status !== 'below-reserve' || h.bid !== 383103 || !near(h.atReserve, 432153.35)) p.push(`with a RM390,000 reserve: ${h.status} at ${h.bid}, the cost at the reserve ${h.atReserve} — by hand below the reserve, RM432,153.35`);
       if (!/No winning bid/.test(h.text) || !/No winning bid fits these costs/.test(h.text) || !h.text.includes('RM432,153.35') || /a winning bid of at most/.test(h.text)) p.push(`the card reads "${h.text.slice(0, 260)}"`);
       if (!/no winning bid fits these costs/.test(h.formula)) p.push(`the working reads "${h.formula.slice(0, 200)}"`);
-      if (!near(r.cap, 449750.8995, 1e-6) || !o.text.includes('10.05% under the market value') || !o.text.includes('at or under RM449,750.90')) p.push(`a 10.05% margin on RM500,001: "${o.text.slice(0, 260)}"`);
+      if (!near(r.cap, 449750.8995, 1e-6) || !o.text.includes('10.05% under your comparables’ median') || !o.text.includes('at or under RM449,750.90')) p.push(`a 10.05% margin on RM500,001: "${o.text.slice(0, 260)}"`);
       if (!/The financing buffer is cash you set aside for the part of the balance the loan does not cover\./.test(r.notes) || /late or short/.test(r.notes)) p.push('the buffer is not defined as what it is set against');
       if (r.down !== 'Down payment (%)' || r.ledger[0] !== 'Down payment' || r.sub !== 'Deposit (%)' || r.labDown !== 'Down payment (%)' || r.labSub !== 'Deposit (%)' || r.model0 !== 'Deposit') p.push(`the Lab's slider reads "${r.labDown}" (on a subsale "${r.labSub}"); the model's line "${r.model0}"`), p.push(`the loan's deposit on the auction route reads "${r.down}" and "${r.ledger[0]}" (on a subsale "${r.sub}")`);
       if (p.length) fail('val V3c: the auction ceiling, buffer and deposit words say what their figures are', p);
@@ -9708,7 +9745,7 @@ try {
      twice. Each time every field, the review, the run and the assumption the
      reader edited are what they were, the case is in storage once, and its
      card shows each of them. A sample case saved before stamping (the seeded
-     case, which carries no stamp) still reads "Saved before stamping" in the
+     case, which carries no stamp) still reads "Saved before versions were recorded" in the
      workspace's list and on its page. The browser's own work is put back. */
   {
     const r = JSON.parse(await evaluate(`(async () => {
@@ -9796,7 +9833,7 @@ try {
         const item = workspaceItems().find(i => i.kind === 'thesis' && i.key === sample.id);
         out.sample = item ? { label: item.diff.label, status: item.diff.status, sample: item.sample } : null;
         navigate('/my/workspace'); await w(500);
-        out.sampleOnPage = /Saved before stamping/.test((document.getElementById('views') || document.body).textContent);
+        out.sampleOnPage = /Saved before versions were recorded/.test((document.getElementById('views') || document.body).textContent);
         out.stampedLabel = stampDiff(out.saved.rec.stamp).label;
       } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
       /* the browser's own work, put back (after leaving the pages that record a visit) */
@@ -9851,12 +9888,12 @@ try {
     if (!r.inFile || !r.inFile.theses || !r.inFile.reviews || !r.inFile.runs) p.push(`the backup file does not hold the case, its review and its run: ${JSON.stringify(r.inFile)}`);
     if (!r.gone || r.gone.n !== 0 || r.gone.reviews.length || r.gone.nRuns) p.push(`the records were not cleared before the restore: ${JSON.stringify(r.gone && { n: r.gone.n, reviews: r.gone.reviews.length, runs: r.gone.nRuns })}`);
     if (!r.restored1 || !r.restored1.ok || !r.restored2 || !r.restored2.ok) p.push(`restoreBackup: ${JSON.stringify([r.restored1, r.restored2])}`);
-    if (!r.sample || r.sample.label !== 'Saved before stamping' || r.sample.status !== 'unstamped' || !r.sample.sample) p.push(`the unstamped sample case reads ${JSON.stringify(r.sample)} in the workspace list`);
-    if (!r.sampleOnPage) p.push('the Saved work page does not say "Saved before stamping" for the unstamped sample case');
-    if (r.stampedLabel === 'Saved before stamping') p.push('a case saved now reads "Saved before stamping"');
+    if (!r.sample || r.sample.label !== 'Saved before versions were recorded' || r.sample.status !== 'unstamped' || !r.sample.sample) p.push(`the unstamped sample case reads ${JSON.stringify(r.sample)} in the workspace list`);
+    if (!r.sampleOnPage) p.push('the Saved work page does not say "Saved before versions were recorded" for the unstamped sample case');
+    if (r.stampedLabel === 'Saved before versions were recorded') p.push('a case saved now reads "Saved before versions were recorded"');
     if (!r.cleaned || !r.restoredKeys) p.push(`the browser's own work was not put back: theses ${r.cleaned}, every key ${r.restoredKeys}${r.differ.length ? `; changed: ${r.differ.join(", ")}` : ""}`);
-    if (p.length) fail('qt-day7: a saved investment case, reopened and restored from its backup file, keeps every field, its review and its run; an unstamped sample still reads "Saved before stamping"', p);
-    else ok(`qt-day7: a test case on ${r.id} — ${FIELDS.length} fields, two conditions, a linked valuation run with the edited assumption "${r.editKey}", and one decision review — reads the same saved, reopened, and restored twice from its backup file after its three records were cleared (in storage once; its card shows each); the seeded sample without a stamp reads "Saved before stamping" in the list and on the page`);
+    if (p.length) fail('qt-day7: a saved investment case, reopened and restored from its backup file, keeps every field, its review and its run; an unstamped sample still reads "Saved before versions were recorded"', p);
+    else ok(`qt-day7: a test case on ${r.id} — ${FIELDS.length} fields, two conditions, a linked valuation run with the edited assumption "${r.editKey}", and one decision review — reads the same saved, reopened, and restored twice from its backup file after its three records were cleared (in storage once; its card shows each); the seeded sample without a stamp reads "Saved before versions were recorded" in the list and on the page`);
   }
   /* A MALFORMED BACKUP FILE CHANGES NOTHING (the Day-7 report: "Test …
      malformed backup"). Text that is not JSON, JSON of another format, a
@@ -11181,7 +11218,7 @@ try {
       if (!o || !o.row || !/Saved before snapshots/.test(o.row) || /Suggested defaults/.test(o.row) || !o.untouched || !o.noFields) p.push(`an old case in Saved work reads "${o && o.row}", untouched ${o && o.untouched}, with no field invented ${o && o.noFields}`);
       if (!o || o.steps[1][1] !== 'Next review 2027-01-19, horizon 3–5 years.' || o.steps[0][1] !== '1 invalidation condition(s), but no investment case written yet.') p.push(`an old case's steps 6 and 7 read ${canon(o && o.steps)}`);
       if (B.sample?.record?.head !== 'Saved before snapshots' || B.sample.button) p.push(`the seeded sample reads ${canon(B.sample)}`);
-      if (!/Saved before snapshots/.test(B.sampleRow || '') || !/Saved before stamping/.test(B.sampleRow || '')) p.push(`the seeded sample's Saved work row reads "${B.sampleRow}"`);
+      if (!/Saved before snapshots/.test(B.sampleRow || '') || !/Saved before versions were recorded/.test(B.sampleRow || '')) p.push(`the seeded sample's Saved work row reads "${B.sampleRow}"`);
       if (!B.missing || !B.missing.length) p.push('no company with little data was found for the missing-data case');
       for (const m of B.missing || []) {
         if (m.threw || !m.noNaN || !m.rendered || m.zeroPillars || (m.errorModel && (m.base !== null || m.conf !== null || m.confBand !== null))) p.push(`a case on ${m.id} (coverage ${m.coverage}%, model unavailable ${m.errorModel}): ${canon(m)}`);
@@ -11282,6 +11319,43 @@ try {
     if (!r.managed.includes(`less than the ${r.floor} a year minimum you entered, which is owed whatever the property collects — ${r.money} more than the percentage at this rent, and more as collections fall.`) || /does not fall with rent|treats it as fixed/.test(r.managed)) p.push(`the minimum fee's note: by hand ${r.floor} owed, ${r.money} above 8% of RM20,202`);
     if (p.length) fail('qt-words: the calculator\'s tiles, captions and notes say what their figures are', p);
     else ok(`qt-words: "Negative even at 0%: the loan’s repayment is more than the rent leaves" (RM${inst0.toFixed(2)} against RM${left.toFixed(2)}, by hand); "At fixed vacancy levels"; "Larger move"; the RM300 minimum named, owed whatever is collected, ${r.money} above 8% at this rent`);
+  }
+
+  /* nav-07 — A PRICE CARRIED IN A LINK OPENS AS THAT PRICE (the Day-10
+     pre-audit, NAV-07). The homepage card's slider is to carry the price
+     the reader moved it to, as ?d=price:…, to the calculator and to the
+     Scenario Lab: the calculator read it, the Lab opened at the sample's
+     RM572,000. Both open at RM486,000 now, the deal they replace kept
+     aside to restore, and the Lab's columns drawn on the linked deal. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal'), before = localStorage.getItem('vl.dealBeforeLink');
+      const out = {};
+      try {
+        store.write('dealBeforeLink', null);
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, price: 640000 }; saveDeal();
+        navigate('/property/lab?d=price:486000'); render(); await w(500);
+        const L = LAB[labSubject];
+        out.lab = { view: State.view, deal: State.deal.price, cols: L ? L.cols.map(c => c.key + ':' + c.work.price) : null,
+          kept: store.read('dealBeforeLink', null)?.price ?? null };
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, price: 640000 }; saveDeal();
+        navigate('/property/calculator?d=price:486000'); render(); await w(500);
+        out.calc = { view: State.view, deal: State.deal.price };
+      } finally {
+        State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); saveDeal();
+        if (before == null) localStorage.removeItem('vl.dealBeforeLink'); else localStorage.setItem('vl.dealBeforeLink', before);
+        delete LAB.deal; navigate(back, { replace: true }); render(); await w(250);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (r.lab.view !== 'propertyLab' || r.lab.deal !== 486000) p.push(`/property/lab?d=price:486000 opened ${r.lab.view} on RM${r.lab.deal}`);
+    if (!r.lab.cols || !r.lab.cols.length || r.lab.cols.some(c => !c.endsWith(':486000'))) p.push(`the Lab's columns stand at ${JSON.stringify(r.lab.cols)}, not RM486,000`);
+    if (r.lab.kept !== 640000) p.push(`the deal it replaced (RM640,000) is not kept aside to restore: ${r.lab.kept}`);
+    if (r.calc.view !== 'property' || r.calc.deal !== 486000) p.push(`/property/calculator?d=price:486000 opened ${r.calc.view} on RM${r.calc.deal}`);
+    if (p.length) fail('nav-07: a price carried in a link opens the calculator and the Scenario Lab at that price', p);
+    else ok(`nav-07: ?d=price:486000 opens the Scenario Lab on a RM486,000 deal (columns ${r.lab.cols.join(', ')}), the RM640,000 deal it replaced kept aside to restore, and the calculator on RM486,000`);
   }
 
   /* qt-bases — EACH PERCENTAGE SAYS WHAT IT IS A PERCENTAGE OF (the Day-8

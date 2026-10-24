@@ -53,6 +53,13 @@ VIEWS.areas = () => {
   const names = [...new Set([...mapped, ...(city.districts || []), ...recorded])];
   const canMap = mapped.length > 0;
 
+  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
+     said first (the daily audit's item #6; the Day-10 pre-audit, CL-14) —
+     it stood under the filters, the map and the table, 326 words down. */
+  if (!(State.observations || []).some(o => o.city === S.city)) wrap.append(el('div', { class: 'card' }, el('p', { class: 'body ef-empty', style: 'margin:0;font-size:var(--ls-support)' }, [
+    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
+    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')])));
+
   /* ---- filters, one row above everything they scope ---- */
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center' });
@@ -156,7 +163,7 @@ VIEWS.areas = () => {
       ? 'Loading locality positions…'
       : geoLoadState === 'failed'
         ? `The locality positions could not be loaded, and nothing is recorded for ${city.name} yet. Reload the page to try again.`
-        : `No mapped localities are held for ${city.name}. The map draws only places this build has a recorded position for; none has been invented.`));
+        : `No mapped localities are held for ${city.name}. The map draws only places this product has a recorded position for; none has been invented.`));
     return wrap;
   }
 
@@ -239,10 +246,10 @@ VIEWS.areas = () => {
   legend.append(swatch(null, 'Not recorded', true));
   mapCard.append(legend);
   if (layer.caveat) mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm);color:var(--bronze)' }, layer.caveat));
-  mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    layer.kind === 'quantity'
-      ? 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'
-      : 'Positions are geocoded approximations of the locality, not parcel boundaries. Confirm any address against the title and the Land and Survey Department.'));
+  /* The positions' note is said once, in "What this screen cannot tell
+     you" (the Day-10 pre-audit, CL-14); here, a quantity layer's banding. */
+  if (layer.kind === 'quantity') mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'));
   if (hasWorkedExample()) {
     const n = sampleObservations().length;
     const warn = el('div', { class: 'card', style: 'border-color:var(--bronze)' });
@@ -270,7 +277,7 @@ VIEWS.areas = () => {
     /* "Loading" is this tab's, now (data-now, NOW in 35-ui.js): served, it
        was the page's first draw with nothing loaded, and to a reader with no
        script it said so for good. */
-    if (geoLoadState !== 'failed') hd.querySelector('.caption')?.setAttribute('data-now', 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.');
+    if (geoLoadState !== 'failed') hd.querySelector('.caption')?.setAttribute('data-now', 'The map needs JavaScript; the table below is the same without it.');
     wait.append(hd);
     wrap.append(wait);
   }
@@ -380,13 +387,8 @@ VIEWS.areas = () => {
   const tCard = el('div', { class: 'card' });
   tCard.append(cardHead(`${shown.length} of ${names.length} localit${names.length === 1 ? 'y' : 'ies'}`,
     shown.length === names.length
-      ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
+      ? 'Every mapped locality in this town.'
       : 'Filtered. The map shades the same set.', null, AK));
-  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
-     said where its absence is seen (the daily audit's item #6). */
-  if (!(State.observations || []).some(o => o.city === S.city)) tCard.append(el('p', { class: 'body ef-empty', style: 'margin-top:var(--sm);font-size:var(--ls-support)' }, [
-    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
-    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')]));
   gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
   /* A size container, so the recorder in its row can be as wide as what shows
      of the table rather than the table itself — see areaRecorder. */
@@ -413,9 +415,9 @@ VIEWS.areas = () => {
     wrap.append(localityTransactionPanel(S.city, S.editing));
     wrap.append(landRiskPanel(S.city, S.editing));
   }
-  tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Rent, vacancy and price columns are medians over the comparables register and move as you add to it. '
-    + 'A dash is an absence of evidence, never a zero.'));
+  /* The medians' note is said once, in "What this screen cannot tell you"
+     (CL-14). */
+  tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, 'A dash is an absence of evidence, never a zero.'));
   wrap.append(tCard);
 
   wrap.append(el('div', { class: 'card' }, [
@@ -557,7 +559,7 @@ function areaRecorder(city, area) {
      4 whether you checked it against the source yourself;
      5 record it, and use it: a price is named in the Scenario Lab's
        comparables (a what-if until saved), where the price gap and the
-       auction's market value take it with its source and date.
+       auction's median of comparables take it with its source and date.
    WHAT IT IS AND IS NOT. The reader's own record, in this browser (Yours).
    Locality-level: it names no building, and whatever its source it is never
    a verified building transaction (observationStanding: scope 'area') — it
@@ -691,7 +693,7 @@ function evidenceFlowDone(o) {
   box.append(el('p', { class: 'metaline' }, [`Source: ${o.sourceRef}. `, el('span', { class: st.tone, title: st.why }, st.label)]));
   if (EF_PRICE.has(o.kind)) {
     box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
-      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
+      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s median take it — with its source and date — as a what-if until you save.'
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
     box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
       onclick: () => { State.labUseComparable = o.id; pfResumeLab(); } }, 'Use it in the Scenario Lab'),
@@ -790,7 +792,7 @@ VIEWS.comparables = () => {
   const head = el('div', { class: 'card' });
   head.append(cardHead(`${rows.length} record${rows.length === 1 ? '' : 's'}`,
     rows.length ? 'Standing is decided by the source, not by the number.'
-                : 'The register is empty, which is the true state of the evidence rather than a gap in the software.'));
+                : 'The register is empty: no evidence has been recorded yet.'));
   if (rows.length) {
     /* Every standing has a tile, so the tiles add up to the count above them.
        A worked-example row has its own standing and had no tile: with the
@@ -811,13 +813,13 @@ VIEWS.comparables = () => {
        copy-property-8). */
     const nSources = SARAWAK_TRANSACTION_SOURCES.length;
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
-      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.`));
+      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above.`));
     head.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, WORKED_EXAMPLE_NOTE));
     head.append(workedExampleControls({ primary: false }));
+    /* One place to record one: the five steps above. A second, on the
+       calculator, sent the reader away from the form on this page (the
+       Day-10 pre-audit, NAV-19). */
     head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
-      el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/calculator'),
-        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
-        'Open the calculator to record one'),
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/data-sources'),
         onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/data-sources'); } },
         'Why no market data can be loaded'),
@@ -1203,17 +1205,79 @@ function openObservationDrawer(o) {
   openDrawer(`${OBS_BY_ID[o.kind] ? OBS_BY_ID[o.kind].label : 'Observation'} · ${fmtNum(o.value, 0)}`, body);
 }
 
+/* THE STATUS PAGE, READABLE (the owner's decision of 23 Oct 2026; Day-10 pre-audit IW-21).
+   It opens with what a visitor needs: whether the journeys pass and when
+   they were last run, which tools are Live and which are not, and how old
+   the data is. The engineering detail — the commit, the suites, every
+   journey step, the in-browser checks, and every register row with its
+   backlog item and the check that covers it — is below, in two closed
+   sections. Nothing an auditor reads is removed: the same elements, with
+   the same ids and the same served and drawn words, stand in the closed
+   sections, and a link to one of them (#journey-…, #health-proofs) opens
+   the section it is in. */
+const statusFoldOpen = {};
+function statusFold(id, title, sub, children) {
+  const det = el('details', { class: 'status-fold', id, open: statusFoldOpen[id] ? '' : null,
+    ontoggle: (e) => { statusFoldOpen[id] = e.currentTarget.open; } });
+  det.append(el('summary', { class: 'plan-compare-sum' }, [
+    el('span', {}, [el('span', { class: 'status-fold-t' }, title), sub ? el('span', { class: 'status-fold-s' }, sub) : null]),
+    el('span', { class: 'plan-compare-chev', 'aria-hidden': 'true' })]));
+  det.append(el('div', { class: 'status-fold-body' }, children));
+  return det;
+}
+/* Open the closed sections around an element, and keep them open across a redraw. */
+function statusOpenAround(node) {
+  for (let d = node?.closest?.('details.status-fold'); d; d = d.parentElement?.closest?.('details.status-fold')) {
+    d.open = true; statusFoldOpen[d.id] = true;
+  }
+}
 VIEWS.status = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Status'),
-    el('h1', {}, 'What is built, what is gated, and what is holding it'),
+    el('h1', {}, 'Checks and status'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Nothing here is removed when it cannot yet work. It is labelled, and the thing blocking it is named — a capability with no stated gate and no owner is a promise, not a plan.'),
+      'Whether the tools work, when that was last checked, and how old the data is. The detail behind each check is further down, in two closed sections.'),
   ])));
-  wrap.append(statusPropertySection());   /* Property's model and market data on two lines (N2d): 91-health.js */
-  wrap.append(healthSection());   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
 
+  const health = healthSection();   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
+
+  /* The journeys' latest result: the page's own element (#health-journeys-sum). */
+  const journeys = el('section', { class: 'card status-glance', id: 'status-glance', 'aria-labelledby': 'status-glance-h' });
+  journeys.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'status-glance-h' }, 'Do the main journeys pass?'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
+      'A real browser works through the main journeys on the live site, twice a day. This is the latest run. A journey shows that a path works, not that any figure on it is accurate.'),
+  ])));
+  journeys.append(health.glanceSum);
+  wrap.append(journeys);
+
+  wrap.append(statusPropertySection());   /* Property's model and market data on two lines (N2d): 91-health.js */
+
+  /* How old the data is, from the constants the pages themselves read. */
+  const dates = el('section', { class: 'card status-dates', id: 'status-dates', 'aria-labelledby': 'status-dates-h' });
+  dates.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'status-dates-h' }, 'How old the data is'),
+  ])));
+  const dl = el('dl', { class: 'kv' });
+  [['Filed US companies', 'Audited statements from SEC filings, loaded once. Each company’s page gives the day its statements were retrieved.'],
+   ['Illustrative companies', `Synthetic figures, as of ${AS_OF}.`],
+   ['Property fees', `Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}.`],
+   ['Market prices', 'None. No market-data licence is in place, so no price is shown for a filed company.']]
+    .forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', { style: 'text-align:left' }, v)); });
+  dates.append(dl);
+  wrap.append(dates);
+
+  const foot = el('div', { class: 'card' });
+  foot.append(cardHead('Why a gate is named rather than hidden',
+    'A capability that quietly vanishes is indistinguishable from one that never worked.'));
+  foot.append(el('p', { class: 'body', style: 'font-size:13px' },
+    'Three things here are blocked by something no amount of engineering resolves: the Malaysian financial statements need a data licence, the paid tiers need a registered operating entity, and advice mode needs Securities Commission authorisation. Naming them is more useful than a progress bar, because it tells a reader which of these is a matter of time and which is a matter of decision.'));
+  wrap.append(foot);
+
+  wrap.append(statusFold('status-record', 'Check record', 'Journey steps, the suites run on each commit, and the checks your browser runs when the page opens', [health]));
+
+  const regs = [];
   const key = el('div', { class: 'card' });
   /* Counted, so the sentence cannot fall behind the list it describes — it
      said "Six states" and would have gone on saying it beside seven. */
@@ -1227,7 +1291,7 @@ VIEWS.status = () => {
     el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, s.note),
   ])));
   kt.append(kb); key.append(el('div', { class: 'tablewrap' }, kt));
-  wrap.append(key);
+  regs.push(key);
 
   /* THE RELEASE CONDITION, IN NUMBERS. The Phase 2 brief's rule is that no
      P0 item is marked complete until its checks pass and no P1 surface is
@@ -1251,7 +1315,7 @@ VIEWS.status = () => {
      ['Checked', `On every push, a static check fails the build if a row in an operational state has no working route, a prioritised row names a check that does not exist, or a partial P1 surface is not flagged${phase === 3 ? ', or a P2 row looks available' : ''}.`]]
       .filter(Boolean).forEach(([k, v]) => { rl.append(el('dt', {}, k)); rl.append(el('dd', { style: 'text-align:left' }, v)); });
     rel.append(rl);
-    wrap.append(rel);
+    regs.push(rel);
   });
 
   FEATURE_STATUS.forEach(s => {
@@ -1299,15 +1363,22 @@ VIEWS.status = () => {
       ]),
     ])));
     t.append(tb); card.append(el('div', { class: 'tablewrap' }, t));
-    wrap.append(card);
+    regs.push(card);
   });
 
-  const foot = el('div', { class: 'card' });
-  foot.append(cardHead('Why a gate is named rather than hidden',
-    'A capability that quietly vanishes is indistinguishable from one that never worked.'));
-  foot.append(el('p', { class: 'body', style: 'font-size:13px' },
-    'Three things here are blocked by something no amount of engineering resolves: the Malaysian financial statements need a data licence, the paid tiers need a registered operating entity, and advice mode needs Securities Commission authorisation. Naming them is more useful than a progress bar, because it tells a reader which of these is a matter of time and which is a matter of decision.'));
-  wrap.append(foot);
+  wrap.append(statusFold('status-register', 'Every capability and its state', 'What each part of the product is, where it is, and what holds it back', regs));
+
+  /* A link to an element inside a closed section opens the section first. */
+  wrap.addEventListener('click', (e) => {
+    const a = e.target.closest?.('a[href^="#"]');
+    const id = a && decodeURIComponent(a.getAttribute('href').slice(1));
+    const t = id ? document.getElementById(id) : null;
+    if (t) statusOpenAround(t);
+  });
+  if (location.hash.length > 1) requestAnimationFrame(() => {
+    const t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (t && t.closest('details.status-fold')) { statusOpenAround(t); t.scrollIntoView({ block: 'start' }); }
+  });
   return wrap;
 };
 
@@ -1486,14 +1557,14 @@ VIEWS.plans = () => {
       paid && pl.priceYr ? el('span', { class: 'plan-col-yr' }, `RM${pl.priceYr} a year${pl.founding ? `; RM${pl.founding} founding, first ${pl.foundingSeats}` : ''}`) : null]);
   };
   const rows = [
-    ['Company reports', pl => pl.limits.reportsPerMonth === Infinity ? 'Unlimited' : `${pl.limits.reportsPerMonth} a month`],
+    ['Company reports', pl => pl.limits.reportsPerMonth === Infinity ? 'Unlimited' : `${pl.limits.reportsPerMonth} a month — not applied while the beta is free`],
     ['Watchlists', pl => `${pl.limits.watchlists} × ${pl.limits.watchlistStocks} companies`],
     ['Portfolios', pl => `${pl.limits.portfolios} × ${pl.limits.holdings} holdings`],
     ['Compare', pl => `${pl.limits.compare} companies`],
-    ['Screener metrics', pl => pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}` : `All ${FIELDS.length} — the limit of ${pl.limits.screenerFields} is not applied in this build`],
+    ['Screener metrics', pl => pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}` : `All ${FIELDS.length} for now (planned limit: ${pl.limits.screenerFields})`],
     ['Peer-percentile screening', pl => pl.limits.percentileMode ? 'Yes' : 'No'],
     ['Editable valuation assumptions', pl => pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
-    ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown — this plan excludes them, but that is not applied in this build'],
+    ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown for now (not in this plan)'],
     ['Price alerts', pl => `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
     ['Exports', pl => pl.limits.exports ? 'Yes' : 'No'],
     ['Property calculator', pl => pl.limits.propertyCalculator ? 'Included' : 'No'],
@@ -1506,8 +1577,11 @@ VIEWS.plans = () => {
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt plan-table' });
   t.append(el('caption', { class: 'sr-only' }, 'What each proposed plan would include'));
-  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PL.map(head)])));
-  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PL.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
+  /* The table compares the plans that could be bought; All-Access has not launched, and the line
+     below it says what it would include (Day-10 pre-audit CL-32). */
+  const PL_COMPARED = PL.filter(pl => pl.launched !== false);
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PL_COMPARED.map(head)])));
+  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PL_COMPARED.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
   tw.append(t);
   body.append(tw);
   /* Said once each: the size of the universe, from the universe on screen,
@@ -1516,15 +1590,17 @@ VIEWS.plans = () => {
   body.append(el('p', { class: 'metaline' }, 'Price data is not available on any plan — no market-data licence is in place. The last row says what each plan would carry once one is.'));
   body.append(el('p', { class: 'metaline' }, `All-Access has not launched and cannot be bought: ${PLANS.all.blurb}`));
 
-  /* The per-report prices, the RM89 line as it reads today (D11(d)). */
-  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property Deal Check — proposed prices per report'));
+  /* The per-report prices, the RM89 line as it reads today (D11(d)). Headed
+     by what the cards above call them, "Property reports" — "Property Deal
+     Check" named a product nowhere else sold (the Day-10 pre-audit, CL-09). */
+  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property reports — proposed prices per report'));
   body.append(el('p', { class: 'caption' }, 'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
   const pt = el('table', { class: 'dt dt-stack' });
   pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds', 'Today'].map((h, i) => el('th', { style: i >= 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
     ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.', 'Available now, free: save a property in the Scenario Lab or the calculator.'],
-    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'The comparable transactions you record, NAPIC’s published price and rental ranges, net operating income, ten-year scenarios, exit costs and the equity comparison.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
+    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'Net operating income, ten-year scenarios, exit costs and the equity comparison, on your figures.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
     ['Verified project report', `RM${PROPERTY_REPORT_PRICE.verified}`, 'The full report against a verified project dataset rather than user-entered figures.', 'Not available: it needs a verified project dataset, and none is held.'],
   ].map(r2 => el('tr', {}, r2.map((cell, i) =>
     el('td', { class: i === 0 ? 'ident' : '', style: i >= 2 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));
@@ -1654,7 +1730,7 @@ function localityTransactionPanel(city, area) {
       `No transactions recorded for ${area}.`));
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       'NAPIC publishes Sarawak transaction records through Open Sales Data, its quarterly tables and PRISM e-Data. '
-      + 'This product can source and analyse them; it may not republish records until NAPIC grants redistribution rights, '
+      + 'It may not republish records until NAPIC grants redistribution rights, '
       + 'so nothing is loaded here. The data-sources page states where that stands.'));
     return card;
   }

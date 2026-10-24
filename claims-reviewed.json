@@ -218,13 +218,13 @@
       "date": "2026-10-12"
     },
     {
-      "hash": "a721137bf9a9da84",
-      "text": "True discount = (market value − effective cost) ÷ market value = (… − …) ÷ … = …….",
+      "hash": "4e47be86a2fe3a85",
+      "text": "True discount = (your comparables’ median − effective cost) ÷ that median = (… − …) ÷ … = …….",
       "file": "src/js/83-property-decision.js",
       "family": "accuracy",
-      "reason": "\"True discount\" is the auction mode’s defined formula, written out beside it.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
-      "date": "2026-10-12"
+      "reason": "\"True discount\" is the auction mode’s defined formula, written out beside it. The same arithmetic as the line confirmed on 12 Oct 2026 (a721137bf9a9da84), with \"market value\" renamed \"your comparables’ median\" by the owner's decision of 23 Oct 2026 (Day-10 OP-01).",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026; re-confirmed by the owner, 23 Oct 2026",
+      "date": "2026-10-23"
     },
     {
       "hash": "4df9f4e6926717ae",

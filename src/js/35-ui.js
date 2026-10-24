@@ -104,8 +104,8 @@ function provenance(row, extra = [], { freshness = false } = {}) {
      the data holds it and said to be missing where it does not. */
   const fy = latestFy(c), end = fyEndOf(c, fy);
   const lead = freshness ? [
-    `<b>Statements</b> FY${fy}${end ? ` ended ${esc(fmtFyEnd(end))}` : c.real && !c.personal ? ' <span title="The period end date is not in this dataset yet: the statements were retrieved before the ingest recorded it.">(period end not yet held)</span>' : ''}`,
-    `<b>Source</b> ${c.real ? (c.personal ? 'your annual statements, personal research' : `SEC EDGAR companyfacts, CIK ${esc(String(Number(c.cik)))}`) : 'synthetic sample, not a filing'}`,
+    `<b>Statements</b> FY${fy}${end ? ` ended ${esc(fmtFyEnd(end))}` : c.real && !c.personal ? ' <span title="The period end date is not recorded for these statements yet.">(period end not yet held)</span>' : ''}`,
+    `<b>Source</b> ${c.real ? (c.personal ? 'your annual statements, personal research' : `SEC EDGAR financial data, CIK ${esc(String(Number(c.cik)))}`) : 'synthetic sample, not a filing'}`,
     `<b>As of</b> ${esc(dataDateLabel(c))}`,
   ] : [];
   const bits = [
@@ -135,7 +135,7 @@ const illusText = (c) => c?.real ? '' : ' · illustrative';
    cut off or never drawn. dataChip and dataText say which, the personal
    lane's statements included; a chart mark's name carries dataTag. The
    one-sided pair stays where only the synthetic needs saying. */
-const FILED_TITLE = 'SEC-filed — figures from the audited statements the company filed with the SEC (EDGAR companyfacts), not adjusted.';
+const FILED_TITLE = 'SEC-filed — from the audited statements the company filed with the SEC (EDGAR), not adjusted.';
 const PERSONAL_TITLE = 'Personal research — figures from annual statements you supplied on this machine: not an SEC filing, and not redistributable.';
 const dataTag = (c) => (!c ? '' : !c.real ? 'illustrative' : c.personal ? 'personal research' : 'SEC-filed');
 const dataChip = (c) => (!c ? null : !c.real ? illusChip(c)
@@ -401,14 +401,14 @@ const PRODUCTS = [
     statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
      promised a watch this site never keeps — it ships no prices, and the
-     worker that records a match runs on the reader's own computer. */
+     worker that records a match is not distributed yet (23 Oct 2026). */
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
     task: 'Build my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
     boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
-    statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
+    statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
@@ -555,7 +555,7 @@ const TOOLS = [
     status: 'beta', statusNote: 'Companies side by side on the measures that fit each business model, every period, basis and absent cell stated; period-end months cannot be aligned yet.',
     action: { label: 'Compare companies', path: '/compare' } },
   { id: 'queue', product: 'equities', label: 'Research queue', path: '/research/queue', views: ['researchQueue'], tab: true, needs: ['filings'],
-    status: 'beta', statusNote: 'What changed in the reported figures, your watchlist first, with the data’s freshness — each company labelled filed or illustrative, nothing recommended.',
+    status: 'beta', statusNote: 'What holds in the reported figures, your watchlist first, with the data’s freshness — each company labelled filed or illustrative, nothing recommended.',
     action: { label: 'Open the research queue', path: '/research/queue' } },
   { id: 'sarawak', product: 'equities', label: 'Sarawak watch', path: '/discover/sarawak', views: ['sarawak'], tab: true,
     status: 'beta', statusNote: 'Names the Bursa companies that operate in Sarawak; no statements are held for them, and each one’s exposure stays empty until you record it.',
@@ -589,7 +589,7 @@ const TOOLS = [
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
     status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
     proof: { journey: 'registers', step: 'Record a property: it is listed with what is known and what is not' },
-    action: { label: 'Record a property', path: '/property/opportunities' } },
+    action: { label: 'Record a candidate', path: '/property/opportunities' } },
   /* Quantum Scanner — its sections, each a tab of the Scanner's row as the
      other two products' tools are (Release B, B5): its own strip, drawn
      inside every scanner page from a table of its own, is gone. In the order
@@ -597,13 +597,13 @@ const TOOLS = [
      says, as the strip did, that it screens the reader's own series, not the
      market. */
   { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'], tab: true,
-    status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from the worker’s records on your own computer — or from files you open here.',
+    status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from files you open here; the worker that writes them is not distributed yet.',
     action: { label: 'Open the scanner', path: '/app/scanner' } },
   { id: 'market', product: 'scanner', label: 'Market (your series)', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'], tab: true,
     status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
     action: { label: 'Screen your series', path: '/app/scanner/market' } },
   { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'], tab: true,
-    status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; the worker on your computer runs them once exported, and evaluating one here needs your price history.',
+    status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; evaluating one here needs your price history.',
     action: { label: 'Create a setup', path: '/app/scanner/setups/new' } },
   { id: 'scanWatchlists', product: 'scanner', label: 'Watchlist scanner', path: '/app/scanner/watchlists', views: ['scannerWatchlists'], tab: true,
     status: 'beta', statusNote: 'Your watchlists as the universe a setup checks, exported to the file the worker reads.',
@@ -632,7 +632,7 @@ const TOOLS = [
     proof: { journey: 'equities', step: 'The watchlist lists it' },
     action: { label: 'Create a watchlist', path: '/my/watchlists' } },
   { id: 'myAlerts', product: null, label: 'My Alerts', path: '/my/alerts', views: ['alerts'],
-    status: 'live', statusNote: 'Both kinds, each labelled: the facts that changed in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.',
+    status: 'live', statusNote: 'Both kinds, each labelled: the conditions that hold now in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.',
     proof: { journey: 'cases', step: 'Set a price threshold: crossed, and listed with its source once price moves are shown' },
     action: { label: 'Review your alerts', path: '/my/alerts' } },
   { id: 'saved', product: null, label: 'Saved work', path: '/my/workspace', views: ['workspace'],
@@ -1236,10 +1236,10 @@ const ROUTES = [
   { path: '/app/scanner/alerts/:alert',      view: 'scannerAlert',      title: 'Scanner alert' },
   { path: '/app/scanner/settings',           view: 'scannerSettings',   title: 'Scanner settings' },
   /* end Phase 3 — user */
-  { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
+  { path: '/start',               view: 'launcher',  title: 'Start with a task' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data & settings' },
-  { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
-  { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
+  { path: '/my/workspace',        view: 'workspace', title: 'Saved work' },
+  { path: '/app/workspace',       view: 'workspace', title: 'Saved work', alias: true },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
   /* /PROPERTY OPENS THE SCENARIO LAB (N3, the owner's decision D18). The
      product's landing is the Lab on the calculator's deal — the sample on a
@@ -1288,7 +1288,7 @@ const ROUTES = [
   { path: '/methodology/property', view: 'learn',   tab: 'property',  title: 'Property routes and assets' },
   { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
-  { path: '/status',              view: 'status',    title: 'Build status' },
+  { path: '/status',              view: 'status',    title: 'Checks and status' },
   { path: '/decision-record',     view: 'decisionRecord', title: 'Decision record' },
   { path: '/methodology/ips',     view: 'ips',       title: 'Investment Policy Statement' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
@@ -1331,40 +1331,40 @@ const META = {
   scannerAdminJobs:     'Every run the scanner worker recorded on this machine, with status, duration and errors, and the log of controls.',
   scannerAdminDelivery: 'Which delivery channels exist for scanner alerts — in-app only — and why email, Telegram and push are not configured.',
   /* /Phase 3 — ops */
-  learn:     'The methodology in public: the metric dictionary, the scoring architecture, the valuation model router, the data and its rights, and the corrections log — each a tab of this page.',
-  'learn:glossary': 'The metric dictionary: each measure defined once, with its formula, the statement lines it reads, its unit and period and what happens when a figure is missing — and the measures blocked because the stored statements lack a line.',
+  learn:     'The methodology in public: the glossary, the scoring architecture, the valuation model router, the data and its rights, and the corrections log — each a tab of this page.',
+  'learn:glossary': 'The glossary: the property terms the calculator uses, and each company measure defined once, with its formula, the statement lines it reads, its unit and period and what happens when a figure is missing — and the measures blocked because the stored statements lack a line.',
   'learn:property': 'What the property calculator needs, returns and will not assume for each purchase route — subsale, auction and new development — on residential, commercial and land: the states a missing figure reads as, the gates and the fee lines not yet checked by class.',
   'learn:models': 'How each company type is routed to a valuation model pack — bank, insurer, REIT, cyclical, growth, subscription software, holding company and the rest — with each pack’s secondary checks and its published limitations.',
-  'learn:data': 'Where each figure comes from and what may be done with it: the source hierarchy, the badge words, the property fee rulebook with each line’s rule and checked date, the NAPIC licence position, the point-in-time policy and what this build does not hold.',
-  'learn:trust': 'The corrections log — what was wrong and what changed, most recent first — the research and advisory modes, the cases you record in this browser, and how a figure is reported against the exact item.',
+  'learn:data': 'Where each figure comes from and what may be done with it: the source hierarchy, the badge words, the property fee rulebook with each line’s rule and checked date, the NAPIC licence position, the point-in-time policy and what is not held.',
+  'learn:trust': 'The corrections log — what was wrong and what changed, most recent first — the cases you record in this browser, how a figure is reported against the exact item, and the research and advisory modes.',
   plans:     'Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.',
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
-  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you monitor and what you have saved — read from this browser and the scanner’s own record.',
-  onboarding:  'Four questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in — and where you start.',
-  launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
+  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you follow and what you have saved — read from this browser and the scanner’s own record.',
+  onboarding:  'Three questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in.',
+  launcher:    'Start with a task: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
   thesis:      'What you believe about a company and what would prove you wrong, checked against the latest data.',
-  alerts:      'Your alerts, each labelled by kind: the facts that changed in the research you follow, with their source period, and your scanner setups’ recorded matches. Nothing is sent outside this browser.',
+  alerts:      'Your alerts, each labelled by kind: the conditions that hold now in the research you follow, with their source period, and your scanner setups’ recorded matches. Nothing is sent outside this browser.',
   reports:     'Every report your own work in this browser can print — company research reports, property investor reports, decision records and client proposals — each saved as PDF through your browser’s print.',
   tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
   userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
-  propertyLab: 'Move five inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
+  propertyLab: 'Move nine inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
   comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
   areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
   areaMap:     'Kuching on a map made of this site’s own files, with the NAPIC housing schemes OpenStreetMap names placed on it — positions only, each with its evidence; NAPIC’s ranges stay in the list.',
   wheel:       'A cash-secured put and covered call cycle modelled from figures you enter — no chain data, no recommended contract.',
   boundaries:  'What this product will not do, and why each of those absences is deliberate.',
-  status:      'What is built, what is gated, and what is holding it.',
+  status:      'Whether the tools work, when that was last checked and how old the data is — with the checks and the state of every capability behind it.',
   decisionRecord: 'One printable page: the figures, every input with where it came from, and everything still open.',
   researchReport: 'One company on one printable page: statements, metrics with their status, your valuation assumptions, and where every figure came from. Saved as PDF through your browser’s print.',
   workspace:   'Everything you have saved in this browser, across kinds, with the model and data version each was saved against.',
   ips:         'The Investment Policy Statement this product’s calculations carry out, and where the product departs from it.',
   about:       'What Quantum Tradeworks is and is not, and who is responsible for it.',
-  contact:     'What works today to report a wrong figure — the report form records a case in your browser — and where a contact route will be published.',
+  contact:     'What exists today to report a wrong figure — the report form records a case in your browser — and where a contact route will be published.',
   privacy:     'What this build stores, where it stores it and what leaves your device — no cookies, no accounts — and a draft PDPA 2010 notice.',
   terms:       'Draft terms for this build: a research tool, not advice, with illustrative data, no warranty and nothing for sale; governed by Malaysian law.',
 };

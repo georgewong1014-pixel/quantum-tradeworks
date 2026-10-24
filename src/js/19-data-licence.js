@@ -130,9 +130,9 @@ const SARAWAK_TRANSACTION_SOURCES = [
    source and hash). Published on the data-sources page, so the attribution
    the map carries in its corner has its full statement one link away. */
 const MAP_DATA_SOURCES = [
-  { name: 'The basemap of Greater Kuching', from: 'OpenStreetMap, as a Protomaps basemap extract (data/tiles/kuching-<date>.pmtiles)',
+  { name: 'The basemap of Greater Kuching', from: 'OpenStreetMap, as a Protomaps basemap extract',
     licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors' },
-  { name: 'Where a NAPIC scheme is placed', from: 'OpenStreetMap names — a residential area, a place or a building named as the scheme, or lanes carrying its name — matched once, on a developer’s machine',
+  { name: 'Where a NAPIC scheme is placed', from: 'OpenStreetMap names — a residential area, a place or a building named as the scheme, or lanes carrying its name — matched once, by name',
     licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors. A few hundred names and positions, each with the object it rests on.' },
   { name: 'The heights a tilted map raises', from: 'OpenStreetMap’s height tag on a building, in metres; nothing estimated',
     licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors' },

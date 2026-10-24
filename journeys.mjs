@@ -1894,7 +1894,7 @@ const JOURNEYS = [
         })()`));
         if (!(r.shown > r.bid) || r.shown !== r.model) throw new StepError(`the effective acquisition cost reads ${r.shown}; the model gives ${r.model} on a bid of ${r.bid}`);
         if (r.final !== 'false' || !/Not final\./.test(r.text)) throw new StepError(`with every check open the effective cost does not say it is not final: “${r.text.slice(0, 120)}”`);
-        if (r.market !== 620000 || r.discount === '') throw new StepError(`the market value is ${r.market}, not the median of RM600,000 and RM640,000, and the true discount reads “${r.discount}”`);
+        if (r.market !== 620000 || r.discount === '') throw new StepError(`your comparables’ median is ${r.market}, not the median of RM600,000 and RM640,000, and the true discount reads “${r.discount}”`);
         if (!r.unwritten) throw new StepError('the auction was written to the saved property before Save');
         if (!/^Save what and how you are buying to/.test(r.save)) throw new StepError(`with the auction not saved, Save says “${r.save}”`);
       });
@@ -1909,11 +1909,12 @@ const JOURNEYS = [
        never Verified. "Use it in the Scenario Lab" names it in the Lab's
        comparables, a what-if until Save; with an asking price entered the
        price gap names it with its source and its date; and answered
-       Auction, the market value is the value it implies, named with its
+       Auction, its median — "your comparables’ median" (the owner, 23 Oct
+       2026) — is the value it implies, named with its
        source and date. Nothing is written to the calculator's deal. */
     id: 'evidence', name: 'Property evidence: record a comparable, use it in a scenario',
     outcomes: ['Record a transaction price, step by step: its locality, source and date', 'Use it in the Scenario Lab: it is named in the comparables',
-      'Enter an asking price: the price gap names it with its source and date', 'Choose Auction: the market value is the value it implies'],
+      'Enter an asking price: the price gap names it with its source and date', 'Choose Auction: your comparables’ median is the value it implies'],
     async run(j, tab) {
       const SRC = 'https://example.com/journey-listing';
       const work = `labActive(LAB[labSubject]).work`;
@@ -1962,14 +1963,14 @@ const JOURNEYS = [
         const t = await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="gap"]')?.textContent || '').replace(/\\s+/g, ' ')`);
         if (!t.includes(SRC) || !/Sept? 2026/.test(t)) throw new StepError(`the price gap does not name the record with its source and date: “${t.slice(0, 220)}”`);
       });
-      await step(j, tab, 'Choose Auction: the market value is the value it implies', BUDGET.action * 2, async () => {
+      await step(j, tab, 'Choose Auction: your comparables’ median is the value it implies', BUDGET.action * 2, async () => {
         if (await tab.eval(`(() => { const b = document.getElementById('lab-q-change'); return !!b && getComputedStyle(b).visibility !== 'hidden' && !!b.getClientRects().length && b.getAttribute('aria-expanded') === 'false'; })()`))
           await tab.click(`document.getElementById('lab-q-change')`, 'Change — what you are buying and how');
         await tab.click(`document.querySelector('label[for="lab-q-how-auction"]')`, 'How are you buying? — Auction');
         await tab.expect(`!!document.getElementById('lab-au')`, 'Auction chosen, the auction risk mode is not drawn');
         const r = JSON.parse(await tab.eval(`(() => { const a = auctionModel(${work}); const card = document.querySelector('#lab-au [data-au-fig="discount"]');
           return JSON.stringify({ market: a.market, named: a.marketFrom.named.map(c => c.id), text: (card?.textContent || '').replace(/\\s+/g, ' ') }); })()`));
-        if (r.market !== 540000 || JSON.stringify(r.named) !== JSON.stringify([recId])) throw new StepError(`the market value is ${r.market} from ${JSON.stringify(r.named)}, not the RM540,000 the record implies`);
+        if (r.market !== 540000 || JSON.stringify(r.named) !== JSON.stringify([recId])) throw new StepError(`your comparables’ median is ${r.market} from ${JSON.stringify(r.named)}, not the RM540,000 the record implies`);
         if (!r.text.includes(SRC) || !/Sept? 2026/.test(r.text)) throw new StepError(`the true discount does not name the record with its source and date: “${r.text.slice(0, 220)}”`);
       });
     },
@@ -2419,9 +2420,13 @@ const JOURNEYS = [
         await tab.expect(`pmAll().length === 1 && /^m:/.test(labSubject || '')`, async () => `Save kept ${await tab.eval('pmAll().length')} properties, the Lab on ${await tab.eval('labSubject')}`);
         savedId = await tab.eval(`pmAll()[0].id`);
       });
-      await step(j, tab, 'Record an opportunity with its source and date', BUDGET.load + BUDGET.action * 4, async () => {
+      await step(j, tab, 'Record an opportunity with its source and date', BUDGET.load * 2 + BUDGET.action * 4, async () => {
+        /* Explore opens the Area screen before an explore page is visited
+           (the Day-10 pre-audit, NAV-06); the register is its tab. */
         await tab.click(`document.getElementById('pf-explore')`, 'Explore — the property flow');
-        await tab.expect(`State.view === 'opportunities' && !!document.getElementById('opp-add')`, async () => `Explore opened ${await tab.eval('State.view')}, not the opportunity register`);
+        await tab.expect(`State.view === 'areas'`, async () => `Explore opened ${await tab.eval('State.view')}, not the Area screen`);
+        await tab.click(`document.querySelector('.ptabs-list a[href$="/property/opportunities"]')`, 'Opportunities — the property tabs');
+        await tab.expect(`State.view === 'opportunities' && !!document.getElementById('opp-add')`, async () => `Opportunities opened ${await tab.eval('State.view')}, not the opportunity register`);
         const before = await snap();
         await tab.fill(`document.getElementById('opp-new-name')`, NAME, 'Project or address');
         await tab.choose(`document.getElementById('opp-new-city')`, 'kuching', 'City');
@@ -3229,12 +3234,12 @@ const JOURNEYS = [
         const path = await tab.eval(`BY_ID.get(${JSON.stringify(CO)}) ? companyPath(BY_ID.get(${JSON.stringify(CO)}).c) : null`);
         if (!path) throw new StepError(`${CO} is not among the companies loaded`);
         await tab.goto(`${path}?tab=thesis`);
-        await tab.expect(`State.view === 'research' && State.ticker === ${JSON.stringify(CO)} && !!(${byText('main button', '/^Start a thesis$/')})`, async () => `${path}?tab=thesis opened ${await tab.eval('State.view')} with no “Start a thesis”`);
+        await tab.expect(`State.view === 'research' && State.ticker === ${JSON.stringify(CO)} && !!(${byText('main button', '/^Start an investment case$/')})`, async () => `${path}?tab=thesis opened ${await tab.eval('State.view')} with no “Start an investment case”`);
       });
       const condRow = `(() => { const tr = [...document.querySelectorAll('main table.dt tbody tr')].find(r => /base-case model estimate/.test(r.cells[0]?.textContent || '')); return tr ? [...tr.cells].map(td => td.textContent.replace(/\\s+/g, ' ').trim()) : null; })()`;
       await step(j, tab, 'Start a case: it is listed, its condition checked against the latest data held', BUDGET.action * 2, async () => {
-        await tab.click(byText('main button', '/^Start a thesis$/'), 'Start a thesis');
-        await tab.expect(`State.view === 'thesis' && location.pathname === '/my/theses' && [...document.querySelectorAll('main h3.h-card')].some(h => h.textContent.trim() === ${JSON.stringify(CO)})`, `“Start a thesis” did not list a case on ${CO} under My investment cases`);
+        await tab.click(byText('main button', '/^Start an investment case$/'), 'Start an investment case');
+        await tab.expect(`State.view === 'thesis' && location.pathname === '/my/theses' && [...document.querySelectorAll('main h3.h-card')].some(h => h.textContent.trim() === ${JSON.stringify(CO)})`, `“Start an investment case” did not list a case on ${CO} under My investment cases`);
         thesisId = await tab.eval(`State.theses.find(t => t.ticker === ${JSON.stringify(CO)})?.id || null`);
         const r = await tab.eval(condRow);
         if (!r) throw new StepError('the case lists no condition to check');
@@ -3255,7 +3260,7 @@ const JOURNEYS = [
         await tab.expect(`document.querySelector('#drawer')?.dataset.open === '1' && !!document.getElementById('th-oneLine')`, 'Edit opened no editor');
         await tab.fill(`document.getElementById('th-oneLine')`, CASE, 'The one-sentence investment case');
         await tab.click(byText('#drawer button', '/^Save$/'), 'Save');
-        await tab.expect(`/^Thesis saved/.test(document.getElementById('toast')?.textContent || '') && (document.querySelector('main')?.innerText || '').includes(${JSON.stringify(CASE)})`, 'Save did not show the case on its card', 4000);
+        await tab.expect(`/^Investment case saved/.test(document.getElementById('toast')?.textContent || '') && (document.querySelector('main')?.innerText || '').includes(${JSON.stringify(CASE)})`, 'Save did not show the case on its card', 4000);
         await tab.goto('/my/theses');
         if (!(await tab.text()).includes(CASE)) throw new StepError('after a reload the case no longer reads as written');
       });
@@ -3269,7 +3274,7 @@ const JOURNEYS = [
         const it = await tab.eval(item(`t => /^${CO}\\b.* — suggested condition breached, not yet confirmed by you$/.test(t)`));
         if (!breached) { if (it) throw new StepError('My Alerts lists a breach of a condition the case shows as not breached'); return; }
         if (!it) throw new StepError(`My Alerts lists no research alert for the breached condition on ${CO}`);
-        if (it.chip !== 'Thesis condition') throw new StepError(`the breach is labelled “${it.chip}”, not as a thesis condition`);
+        if (it.chip !== 'Case condition') throw new StepError(`the breach is labelled “${it.chip}”, not as a case condition`);
         if (!/FY\d{4} reported · /.test(it.text) || !/against the tool’s suggested threshold of > 15\.0%/.test(it.text)) throw new StepError(`the breach does not give its source period and the threshold: ${it.text.slice(0, 200)}`);
       });
       await step(j, tab, 'Set a price threshold: crossed, and listed with its source once price moves are shown', BUDGET.action * 4, async () => {
@@ -3610,10 +3615,11 @@ const JOURNEYS = [
        until the reader confirms or changes each; and the research as it stood
        when the case was started, reopened from Saved work. From an empty
        workspace of the reader's own: a fresh browser is given sample cases. */
-    id: 'research-case', name: 'Investment case: started from a company, a default confirmed, reopened from Saved work',
+    id: 'research-case', name: 'Investment case: started from a company, a default confirmed, reopened from Saved work, restored from a backup',
     storage: () => ({ theses: [] }),
     outcomes: ['Start an investment case: a draft, its defaults marked suggested', 'Confirm the review date: its mark goes and the others stay',
-      'Reopen from Saved work: the research when saved, with its versions'],
+      'Reopen from Saved work: the research when saved, with its versions', 'Export everything: the file holds the case as saved',
+      'Clear this browser, restore the file twice: the case back once, as saved'],
     async run(j, tab) {
       const CO = 'AAPL-SEC', MARK = 'Suggested default — not yet confirmed by you.';
       const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your investment case.';
@@ -3680,6 +3686,64 @@ const JOURNEYS = [
         if (!/^Beside today’s: none of \d+ moved$/.test(r.summary)) throw new StepError(`beside today's research the case says “${r.summary}” — nothing has moved in this run`);
         if (r.review !== false || !r.line) throw new StepError(`after reopening, the review date is ${r.review === false ? 'confirmed' : 'not confirmed'} and the draft line is ${r.line ? 'kept' : 'gone'}`);
       });
+      /* THE SAME CASE THROUGH A BACKUP (the Day-10 report, QT-D09-01: the
+         backup journey restores a representative case, and the auditor asked
+         to see this one — its snapshot, versions and suggested marks — come
+         back). Export everything, a cleared browser, the file restored twice:
+         the case back once, byte for byte what was exported. */
+      const dir = join(tmpdir(), `qt-case-journey-${process.pid}-${Date.now()}`);
+      mkdirSync(dir, { recursive: true });
+      const CASE = `(() => { const ts = (State.theses || []).filter(x => x.id === ${JSON.stringify(id)}); const t = ts[0];
+        return { n: ts.length, t: t ? JSON.stringify({ ticker: t.ticker, suggested: t.suggested, snapshot: t.snapshot, stamp: t.stamp, conds: t.conds, review: t.review, horizon: t.horizon, conf: t.conf, oneLine: t.oneLine, risks: t.risks, catalysts: t.catalysts }) : null }; })()`;
+      let file = null, kept = null;
+      try {
+        await step(j, tab, 'Export everything: the file holds the case as saved', BUDGET.load + BUDGET.action * 3, async () => {
+          await tab.goto('/my/data');
+          kept = (await tab.eval(CASE)).t;
+          if (!kept) throw new StepError('the case is not in this browser before the export');
+          await tab.downloadInto(dir);
+          await tab.click(byText('main button', '/^Export everything$/'), 'Export everything');
+          const t0 = Date.now();
+          while (Date.now() - t0 < 10000) {
+            const got = readdirSync(dir).filter(f => /^quantum-tradeworks-\d{4}-\d\d-\d\d\.json$/.test(f));
+            if (got.length) { file = join(dir, got[0]); break; }
+            await sleep(150);
+          }
+          if (!file) throw new StepError(`“Export everything” saved no file (the folder holds ${readdirSync(dir).join(', ') || 'nothing'})`);
+          await sleep(300);
+          let doc;
+          try { doc = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { throw new StepError(`the file saved is not JSON: ${e.message}`); }
+          const inFile = (doc.data?.theses || []).filter(x => x.id === id);
+          if (inFile.length !== 1 || !inFile[0].snapshot || !inFile[0].suggested)
+            throw new StepError(`the file holds the case ${inFile.length} time(s)${inFile[0] ? `, ${inFile[0].snapshot ? 'with' : 'without'} its snapshot and ${inFile[0].suggested ? 'with' : 'without'} its suggested marks` : ''}`);
+        });
+        await step(j, tab, 'Clear this browser, restore the file twice: the case back once, as saved', BUDGET.load * 3 + BUDGET.action * 6, async () => {
+          await tab.S('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'local_storage' });
+          await tab.goto('/my/data');
+          if ((await tab.eval(CASE)).n !== 0) throw new StepError('after clearing, the case is still in this browser');
+          for (const round of [1, 2]) {
+            await tab.click(byText('main button', '/^Restore from a file$/'), 'Restore from a file');
+            await tab.expect(`!!document.querySelector('#drawerBody input[type=file]')`, '“Restore from a file” opened no file chooser', 4000);
+            await tab.chooseFile(`document.querySelector('#drawerBody input[type=file]')`, file, 'The file chooser');
+            await tab.expect(byText('#drawerBody button', '/^Restore \\d+ items?$/'), async () => `the file chosen was not read: “${(await tab.text('#drawerBody')).slice(0, 200)}”`, 6000);
+            await tab.eval('window.__journeyMark = 1');
+            await tab.click(byText('#drawerBody button', '/^Restore \\d+ items?$/'), 'Restore');
+            await tab.expect(`!window.__journeyMark && document.readyState === 'complete' && typeof State !== 'undefined' && State.view === 'userdata' && typeof realPending !== 'undefined' && !realPending`,
+              `restore ${round}: the page did not reload into Your data and settings`, 15000);
+            await sleep(300);
+            const r = await tab.eval(CASE);
+            if (r.n !== 1) throw new StepError(`after restore ${round} the case is held ${r.n} time(s), not once`);
+            if (r.t !== kept) throw new StepError(`after restore ${round} the case is not the one exported: its snapshot, versions, conditions or suggested marks changed`);
+          }
+          await tab.goto('/my/theses');
+          const s = await tab.eval(`(() => { const t = State.theses.find(x => x.id === ${JSON.stringify(id)}); const rec = t && document.getElementById('thesis-record-' + t.id);
+            return { head: rec?.querySelector('h4')?.textContent.trim() || '', want: t ? fmtSaved(t.snapshot.at) : '', review: t?.suggested?.review, horizon: t?.suggested?.horizon }; })()`);
+          if (s.head.toLowerCase() !== `research when saved, ${s.want}`.toLowerCase()) throw new StepError(`restored, the case reads “${s.head}”, not “Research when saved, ${s.want}”`);
+          if (s.review !== false || s.horizon !== true) throw new StepError(`restored, the review date is ${s.review === false ? 'confirmed' : 'not confirmed'} and the horizon ${s.horizon === true ? 'still suggested' : 'no longer suggested'} — the confirmation was not kept as it was`);
+        });
+      } finally {
+        await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
+      }
     },
   },
   {
