@@ -29,7 +29,7 @@
  * WHY THIS EXISTS
  *
  * A fetch that runs no script got the same body from every address: the
- * header, the "Research · Follow · Model · Plan" strapline and the footer's
+ * header, the "Research · Monitor · Model · Plan" strapline and the footer's
  * disclosure. Only the head differed (build.mjs, ONE HEAD PER ADDRESS). The
  * app draws each page into <div id="views"> once its script has run, and the
  * served <div id="views"> was empty — so a crawler that does not render, a

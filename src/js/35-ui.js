@@ -1143,7 +1143,7 @@ const POSITIONING = {
   title: 'Quantum Tradeworks — your financial decision workspace',
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
-  kicker: 'Research · Follow · Model · Plan',
+  kicker: 'Research · Monitor · Model · Plan',
   /* The hero's lede under the held h1 (D5): with it, 14 words. */
   lede: 'Companies, market setups and property, in one workspace.',
   /* The footer's line on every page. Business planning is "planned, not

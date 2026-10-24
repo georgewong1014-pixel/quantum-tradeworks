@@ -2655,7 +2655,7 @@ VIEWS.sarawak = () => {
   add.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     swkCands.length
       ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from our company list, which holds their name and listing code — not a price, not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
-      : 'No company has been flagged as having Sarawak operations in the instrument registry.'));
+      : 'No company has been flagged as having Sarawak operations in our company list.'));
   wrap.append(add);
 
   /* The collection itself. */

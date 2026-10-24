@@ -84,11 +84,8 @@ function learnDictionary() {
   const wrap = el('div');
   const blocked = METRICS.filter(x => x.blocked);
   const published = METRICS.filter(x => !x.blocked);
-  const terms = el('section', { class: 'card', id: 'property-terms', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'property-terms-h' });
-  terms.append(el('div', { class: 'card-hd' }, el('div', {}, [
-    el('h2', { class: 'h-card', id: 'property-terms-h' }, 'Property terms'),
-    el('p', { class: 'caption', style: 'margin-top:2px' }, 'The words the property calculator uses, in the sense it uses them. Company measures follow.'),
-  ])));
+  const terms = el('div', { class: 'card', id: 'property-terms', style: 'margin-bottom:var(--md)' });
+  terms.append(cardHead('Property terms', 'The words the property calculator uses, in the sense it uses them. Company measures follow.'));
   terms.append(el('dl', { class: 'fee-book-dl fee-book-key', 'data-property-terms': '' }, PROPERTY_TERMS.flatMap(([k, f]) => [el('dt', {}, k), el('dd', {}, f())])));
   wrap.append(terms);
   const intro = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
