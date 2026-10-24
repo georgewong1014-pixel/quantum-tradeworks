@@ -161,7 +161,7 @@ function pubVisScanner() {
     el('div', { class: 'pub-record', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('div', { class: 'pub-record-row' }, [el('i'), el('i'), el('i')]))),
     el('figcaption', { class: 'pub-vis-cap pub-vis-empty' }, [
       el('span', { class: 'pub-vis-empty-mark', 'aria-hidden': 'true' }),
-      el('span', {}, 'Matches are recorded by the worker, not by this site'),
+      el('span', {}, 'Empty until tested on prices you supply'),
     ]),
   ]);
 }
@@ -348,7 +348,7 @@ VIEWS.marketing = () => {
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A recorded match', '/app/scanner', 'bell'], ['Back to research', '/research', 'loop']]),
+      ['Where it held', '/app/scanner/backtest', 'chart'], ['Back to research', '/research', 'loop']]),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
