@@ -3077,7 +3077,10 @@ const HOME_PAGE = read(HOME);
     const tree = all(B.htmlTree(ds.body));
     const book = tree.find(n => attr(n, 'id') === 'fee-rulebook');
     const text = book ? sight(book) : '';
-    if (!/Version 1\.4\.0, checked 15 Oct 2026/.test(text)) p.push('/data-sources does not serve the fee rulebook at version 1.4.0, checked 15 Oct 2026');
+    if (!/Version 1\.5\.0, checked 15 Oct 2026/.test(text)) p.push('/data-sources does not serve the fee rulebook at version 1.5.0, checked 15 Oct 2026');
+    /* 1.5.0: the valuation fee on the value the valuer finds, the price
+       standing in until a valuation is entered. */
+    if (!/Charged on the value the valuer finds — your bank or valuer estimate once you enter one, the price until then\./.test(text)) p.push('/data-sources does not serve the valuation fee\'s base: the value the valuer finds, the price until then');
     /* 1.4.0: Budget 2027's first-home proposal is held beside the law in
        force, said to be a proposal and applied to nothing. */
     if (!/Proposed in Budget 2027 \(9 October 2026; not yet law\)[^.]*RM750,000[\s\S]*Not applied\./.test(text)) p.push('/data-sources does not serve Budget 2027\'s first-home proposal as "not yet law" and "Not applied"');
@@ -3088,7 +3091,7 @@ const HOME_PAGE = read(HOME);
     if (!book || !all(book).some(n => n.tag === 'a' && /L\.N\.%20348/.test(attr(n, 'href') || '') && /Advocates’ Remuneration \(Amendment\) Rules, 2022/.test(sight(n)))) p.push('/data-sources: the route readings do not name the gazette they were read in');
     if (!/Purchase legal fees on a purchase at auction/.test(text) || !/Purchase legal fees on a purchase from a developer/.test(text)) p.push('/data-sources: what could not be verified does not name the auction\'s and the developer\'s purchase legal fees');
   }
-  judge(p, `the property accuracy batch as served: /property and /property/lab each serve ${said['/property'] ?? 0} and ${said['/property/lab'] ?? 0} chain rows with their Illustrative badge; /data-sources serves rulebook 1.4.0 with ${said.routes ?? 0} purchase-route readings, the auction and the new development "not decided by the Rules", the gazette named`,
+  judge(p, `the property accuracy batch as served: /property and /property/lab each serve ${said['/property'] ?? 0} and ${said['/property/lab'] ?? 0} chain rows with their Illustrative badge; /data-sources serves rulebook 1.5.0, the valuation fee on the valuer's figure, with ${said.routes ?? 0} purchase-route readings, the auction and the new development "not decided by the Rules", the gazette named`,
     'the chain rows or the rulebook\'s route readings are not served');
 }
 /* ---- end property-accuracy-served ---- */
