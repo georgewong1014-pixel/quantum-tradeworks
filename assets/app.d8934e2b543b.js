@@ -35372,6 +35372,9 @@ const FEE_TABLE = {
   /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
      seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
   version: '1.5.0',
+  /* The last check of every line together (Budget 2027). A later version
+     that re-reads one line dates that line and its changelog entry, not
+     this: 1.5.0 (25 Oct 2026) re-read the valuation fee alone. */
   checkedOn: '2026-10-15',
   /* The property data's state. Each line names its own jurisdiction. */
   jurisdiction: 'Sarawak',
