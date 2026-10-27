@@ -3161,8 +3161,12 @@ function pcDefaultsWarn(d, untouched, { after = 'anything below' } = {}) {
   warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
     el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
     el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px;margin:0' },
-      `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on ${after}.`),
+      `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Replace ${untouched.length === 1 ? 'it' : 'them'} before relying on ${after}.`),
   ]));
+  /* The long explanation is folded under the one short line (the owner, 27 Oct
+     2026); its words are unchanged. */
+  warn.append(el('details', { class: 'explain' }, [el('summary', {}, 'Why these are defaults'),
+    el('p', { class: 'metaline' }, `Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted. The sample deal is not a real listing.`)]));
   if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `These defaults were written around a Kuching condominium. They are not a starting point for ${(SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || 'this location'}, and this tool holds no transacted price or rent for it.`));
   return warn;

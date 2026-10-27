@@ -285,9 +285,18 @@ function tabValuation(r) {
        is the reported figure, so a changed bridge is never mistaken for the
        filing's. */
     const hint = el('p', { class: 'a-default' });
+    /* "Default assumption" beside the discount rate and the growth rates
+       (the owner, 27 Oct 2026): the figures that move a valuation most are
+       the model's starting values until the reader changes them, and a
+       range beside them should not read as a finding. It goes when the
+       figure is the reader's own (the line above says so then). */
+    const isDefaultMark = /discount rate|growth|cost of equity|required return/i.test(a.label);
+    const mark = isDefaultMark ? el('p', { class: 'a-mark' }, el('span', { class: 'chip', 'data-default-mark': a.k,
+      title: 'The model’s starting value, until you change it' }, 'Default assumption')) : null;
     const refreshHint = () => {
       const edited = !sameInput(inputs[a.k], r.inputs[a.k]);
       row.classList.toggle('is-edited', edited);
+      if (mark) mark.hidden = edited;
       hint.hidden = !edited;
       hint.textContent = edited ? `Your figure · ${a.bridge && a.k !== 'adj' ? 'reported' : 'derived default'} ${fmtAssumption(a, r.inputs[a.k])}` : '';
     };
@@ -310,6 +319,7 @@ function tabValuation(r) {
     }
     const syncRange = () => { if (rng && Number.isFinite(inputs[a.k])) rng.value = inputs[a.k]; };
     row.append(hint);
+    if (mark) row.append(mark);
     refreshHint();
     row.append(el('p', { class: 'a-note' }, a.note));
     rail.append(row);
@@ -346,8 +356,9 @@ function tabValuation(r) {
      rather than leaving the keyboard on <body>. */
   rail.append(el('button', { class: 'btn btn-primary btn-sm', style: 'width:100%;margin-top:var(--md)', id: 'studio-save-run',
     onclick: () => { saveValuationRun(r, inputs); document.getElementById('studio-save-run')?.focus({ preventScroll: true }); } }, 'Save this valuation run'));
-  rail.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'A saved run stores the inputs and which of them you changed, the figures they produced, the statements they were computed on, and the model and data versions — so it can be replayed, and printed as a report, after the dataset moves.'));
+  rail.append(foldedNote('A saved run can be replayed and printed after the data moves.', 'What a saved run keeps',
+    'A saved run stores the inputs and which of them you changed, the figures they produced, the statements they were computed on, and the model and data versions — so it can be replayed, and printed as a report, after the dataset moves.',
+    { style: 'margin-top:8px' }));
   const reportPath = `${companyPath(c)}/report`;
   rail.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'width:100%;margin-top:var(--sm)', href: href(reportPath),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(reportPath); } },
@@ -517,8 +528,9 @@ function studioOutputs(r, inputs, redraw) {
      rate inputs (a discount rate −1.0 against +1.2, for one) — so the
      published construction misstated what the model does. */
   const shiftText = (s) => Object.entries(s).map(([k, v]) => `${k} ${withSign(v, 1, '')}`).join(', ');
-  head.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `Scenario construction is published, not hidden: the bear case applies ${shiftText(run.shift.bear)} to the base assumptions, and the bull case applies ${shiftText(run.shift.bull)}.`));
+  head.append(foldedNote('Bear and bull shift the base assumptions by published amounts.', 'How the cases are built',
+    `Scenario construction is published, not hidden: the bear case applies ${shiftText(run.shift.bear)} to the base assumptions, and the bull case applies ${shiftText(run.shift.bull)}.`,
+    { style: 'margin-top:var(--sm)' }));
   head.append(explainCalculation(r, inputs, run));
   head.append(explainConfidence(run));
   nodes.push(head);

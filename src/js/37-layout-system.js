@@ -274,6 +274,15 @@ const KIND_OF_FEE = { verified: 'derived', estimated: 'placeholder', unknown: 'p
    'placeholder', 'quote', 'unset'). A line's status and its provenance
    give it the same badge, whatever it resolves to (build --check). */
 const KIND_OF_FEE_STATUS = { verified: 'derived', placeholder: 'placeholder', quote: 'quoted', unset: 'unavailable' };
+/* A long explanation folded away (the owner, 27 Oct 2026): one short sentence
+   stays in sight beside the result, and the rest is a <details> under a short
+   summary, closed. */
+function foldedNote(short, summary, long, { cls = 'metaline', style = null } = {}) {
+  const box = el('div', { class: 'folded-note', style });
+  box.append(el('p', { class: cls }, short));
+  box.append(el('details', { class: 'explain' }, [el('summary', {}, summary), el('p', { class: cls }, long)]));
+  return box;
+}
 /* The badge. `fine`: the figure's own label, in the title before the
    word's meaning. `link`: false where the badge stands inside a link of
    its own, or on /data-sources itself. */

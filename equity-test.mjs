@@ -11106,6 +11106,56 @@ try {
     else ok(`audit verify: the calculator's report card is "${r.title}", names no plan, price or "See plans", and its button shows the report in this browser ("${r.toast}")`);
   }
   /* ---- end audit: verify ---- */
+  /* ---- clarity: working tools name no plan, and nothing reads Live (owner, 27 Oct 2026) ---- */
+  /* A company page's valuation, and the screener's export, on the Free plan
+     (the default): no plan name, no price, no "See plans", no way to /pricing;
+     the export says "Exports are not available in this beta" and stays on the
+     screener. The valuation marks its discount-rate and growth defaults. No
+     status badge anywhere reads "Live": the word is "Available". */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = { plan: State.plan };
+      State.plan = 'free'; store.write('plan', 'free');
+      const out = {};
+      navigate('/company/aapl-apple-inc?tab=valuation'); await w(700);
+      const main = document.querySelector('main') || document.getElementById('views');
+      out.text = main.innerText.replace(/\\s+/g, ' ');
+      out.toPricing = [...main.querySelectorAll('a[href]')].map(a => a.getAttribute('href')).filter(h => /\\/pricing/.test(h));
+      out.seePlans = [...main.querySelectorAll('button, a')].filter(n => /^See plans$/i.test(n.textContent.trim())).length;
+      out.notAvailable = [...main.querySelectorAll('.card h3')].some(h => h.closest('.card').querySelector('.chip')?.textContent.trim() === 'Not available in this beta');
+      out.marks = [...main.querySelectorAll('[data-default-mark]')].filter(n => n.getClientRects().length).map(n => n.getAttribute('data-default-mark') + ':' + n.textContent.trim());
+      out.labels = [...main.querySelectorAll('.assumption > label')].map(n => n.textContent.trim());
+      navigate('/discover/screener'); await w(500);
+      let said = ''; const t0 = window.toast; window.toast = (m) => { said = m; };
+      const at = location.pathname;
+      try { exportScreen(); } finally { window.toast = t0; }
+      out.exportToast = said; out.exportStayed = location.pathname === at;
+      const badges = [];
+      for (const path of ['/', '/property', '/how-it-works', '/status', '/app']) {
+        navigate(path); await w(500);
+        document.querySelectorAll('.status-badge').forEach(n => badges.push(path + ' ' + n.textContent.trim()));
+      }
+      out.badges = badges;
+      State.plan = keep.plan; store.write('plan', keep.plan);
+      navigate('/'); await w(200);
+      return out;
+    })()`);
+    const p = [];
+    const PLANISH = /RM\s?\d|All-Access|See plans|Plans are not on sale|\bFree plan\b|Equities Research makes|part of Equities Research/i;
+    if (PLANISH.test(r.text)) p.push(`the company page's valuation names a plan or a price: "${(r.text.match(PLANISH) || [''])[0]}"`);
+    if (r.toPricing.length || r.seePlans) p.push(`the company page's valuation sends to plans: ${r.seePlans} "See plans", links ${JSON.stringify(r.toPricing)}`);
+    if (!r.notAvailable) p.push('the company page\'s locked-assumptions card does not read "Not available in this beta"');
+    if (!r.marks.some(m => /^wacc:Default assumption$/.test(m)) || !r.marks.some(m => /^gt:Default assumption$/.test(m)))
+      p.push(`the company page marks no "Default assumption" beside the discount rate and the growth rate: ${JSON.stringify(r.marks)} among ${JSON.stringify(r.labels)}`);
+    if (r.exportToast !== 'Exports are not available in this beta' || !r.exportStayed) p.push(`the screener's export said "${r.exportToast}", stayed on the screener ${r.exportStayed}`);
+    const live = r.badges.filter(b => /\sLive$/i.test(b));
+    if (live.length) p.push(`a badge reads "Live": ${live.slice(0, 4).join(', ')}`);
+    if (!r.badges.some(b => /\sAvailable$/.test(b))) p.push(`no badge reads "Available" among ${r.badges.length} badges`);
+    if (p.length) fail('clarity: a working tool names no plan or price, the company page marks its default assumptions, and no badge reads "Live" (owner, 27 Oct 2026)', p);
+    else ok(`clarity: the company valuation and the screener's export name no plan, price or "See plans" ("${r.exportToast}"), the valuation marks ${r.marks.length} default assumptions, and ${r.badges.length} badges read Available, Beta, Demo or Coming soon, none Live`);
+  }
+  /* ---- end clarity ---- */
 
   /* ---- audit1: integration ---- */
   /* Two things the property owner found in files that were not theirs, fixed

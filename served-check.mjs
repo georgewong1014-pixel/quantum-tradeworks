@@ -4190,9 +4190,54 @@ const HOME_PAGE = read(HOME);
   if (!/Start a property model in the Scenario Lab<\/h3>\s*(?:<span class="pbadge"[^>]*>)?<span class="status-badge status-live"/.test(app)) p.push('/app: the property step is not "Start a property model in the Scenario Lab" followed by the product\'s Available badge');
   if (!/The Scenario Lab is beta\./.test(app)) p.push('/app: the property step does not say "The Scenario Lab is beta."');
   judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied" and no telephone-like digits, /about no mailto: and the not-published line, /contact ${SUPPORT ? 'the support address the owner supplied, and the report handed over to send' : 'no mailto: and the interim support copy'}; /property serves "${LINE}" once as the Lab's lede, under its Beta badge, the Live badge in the tab row; /app's step is "Start a property model in the Scenario Lab"; ${said.join('; ')} left`,
-    'a customer page serves a placeholder marker, or the Live/Beta labels are not said once');
+    'a customer page serves a placeholder marker, or the Available/Beta labels are not said once');
 }
 /* ---- end contact-status ---- */
+
+/* ---- clarity-served ---- */
+/* WHAT A READER IS TOLD BEFORE RELYING ON IT, AS SERVED (the owner, 27 Oct
+   2026). Held in the prerendered HTML, before any script runs:
+   - no status badge on /, /property, /how-it-works, /status or /app reads
+     "Live": the word is "Available", on the same status-live class (the
+     internal id stays `live`);
+   - /how-it-works serves "Before you rely on it" with its five items, each
+     with its link: /status, /data-sources, /my/workspace, /my/data and
+     /contact, and the block comes before "What the labels mean". */
+{
+  const p = [];
+  const got = await getAll(['/', '/property', '/how-it-works', '/status', '/app']);
+  const html = (path) => got.get(path)?.body || '';
+  const text = (h) => h.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  let badges = 0;
+  for (const path of ['/', '/property', '/how-it-works', '/status', '/app']) {
+    const h = html(path);
+    if (got.get(path)?.status !== 200) { p.push(`${path} is served ${got.get(path)?.status}`); continue; }
+    for (const m of h.matchAll(/<span class="status-badge status-(\w+)"[^>]*>([^<]*)<\/span>/g)) {
+      badges++;
+      if (/^live$/i.test(m[2].trim())) p.push(`${path}: a ${m[1]} badge reads "${m[2].trim()}"`);
+      if (m[1] === 'live' && m[2].trim() !== 'Available') p.push(`${path}: a status-live badge reads "${m[2].trim()}", not "Available"`);
+    }
+  }
+  if (!badges) p.push('no status badge is served on any of the five pages');
+  const hiw = html('/how-it-works');
+  const sec = (/<section[^>]*id="hiw-rely"[\s\S]*?<\/section>/.exec(hiw) || [''])[0];
+  if (!sec) p.push('/how-it-works serves no "Before you rely on it" block (#hiw-rely)');
+  else {
+    if (!/>Before you rely on it<\/h2>/.test(sec)) p.push('the block\'s heading is not "Before you rely on it"');
+    const items = [...sec.matchAll(/<li\b[\s\S]*?<\/li>/g)].map(m => m[0]);
+    if (items.length !== 5) p.push(`the block serves ${items.length} items, not five`);
+    const WANT = ['/status', '/data-sources', '/my/workspace', '/my/data', '/contact'];
+    WANT.forEach((href, i) => {
+      const links = [...(items[i] || '').matchAll(/<a\b[^>]*href="([^"]*)"/g)].map(m => m[1]);
+      if (links.length !== 1 || links[0] !== href) p.push(`item ${i + 1} links ${JSON.stringify(links)}, not [${href}]`);
+      if (text(items[i] || '').length < 20) p.push(`item ${i + 1} is empty: "${text(items[i] || '')}"`);
+    });
+    if (!(hiw.indexOf('id="hiw-rely"') < hiw.indexOf('id="hiw-status"') && hiw.indexOf('id="hiw-status"') > 0)) p.push('the block does not come before "What the labels mean"');
+  }
+  judge(p, `no served status badge reads "Live" (${badges} badges on /, /property, /how-it-works, /status and /app), and /how-it-works serves "Before you rely on it" with five items linking /status, /data-sources, /my/workspace, /my/data and /contact`,
+    'a served badge reads "Live", or /how-it-works does not serve "Before you rely on it" with its five links');
+}
+/* ---- end clarity-served ---- */
 
 /* ---- copy-cleanup ---- */
 /* THE COPY CLEANUP, AS SERVED (the owner's decision of 16 Oct 2026: public
