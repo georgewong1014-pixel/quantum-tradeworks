@@ -1526,7 +1526,7 @@ const HOME_PAGE = read(HOME);
   const status = (await getAll(['/status'])).get('/status').body || '';
   const listOf = (id) => new RegExp(`<ul id="${id}"[^>]*>([\\s\\S]*?)</ul>`).exec(status)?.[1];
   const items = (html) => [...(html || '').matchAll(/<li class="proof-row" data-proof-row="([^"]+)">([\s\S]*?)<\/li>/g)].map(m => ({ key: m[1], html: m[2] }));
-  const BADGE = /^<span class="status-badge status-live">Live<\/span><p class="proof-name">/;
+  const BADGE = /^<span class="status-badge status-live">Available<\/span><p class="proof-name">/;
   const head = (re) => (status.match(re) || [])[1] || null;
   const proofs = listOf('health-proofs'), rest = listOf('health-unproven');
   if (proofs == null) p.push('/status serves no list of the Live badges and the journeys that prove them (#health-proofs)');
@@ -1537,7 +1537,7 @@ const HOME_PAGE = read(HOME);
       const li = got.find(x => x.key === r.key);
       if (!li) continue;
       const w = words(li.html);
-      if (!BADGE.test(li.html)) p.push(`/status: ${r.key} is not served as Live`);
+      if (!BADGE.test(li.html)) p.push(`/status: ${r.key} is not served as Available`);
       if (!w.includes(`${r.name} · ${r.of}`)) p.push(`/status: ${r.key} does not read "${r.name} · ${r.of}": "${w.slice(0, 90)}"`);
       const jn = J.JOURNEY_NAMES?.[r.proof.journey];
       if (!jn || !w.includes(`Journey “${jn}”, outcome step “${r.proof.step}”.`)) p.push(`/status: ${r.key} does not name its journey "${jn || r.proof.journey}" and outcome step "${r.proof.step}"`);
@@ -1553,16 +1553,16 @@ const HOME_PAGE = read(HOME);
     if (got.map(x => x.key).join() !== unproven.map(r => r.key).join()) p.push(`/status lists ${got.map(x => x.key).join(', ') || 'nothing'} as not yet proven, where the registry's are ${unproven.map(r => r.key).join(', ') || 'none'}`);
     for (const r of unproven) {
       const li = got.find(x => x.key === r.key);
-      if (li && (!BADGE.test(li.html) || words(li.html) !== `Live ${r.name} · ${r.of}`)) p.push(`/status: ${r.key} is not served as "Live ${r.name} · ${r.of}": "${words(li.html).slice(0, 90)}"`);
+      if (li && (!BADGE.test(li.html) || words(li.html) !== `Available ${r.name} · ${r.of}`)) p.push(`/status: ${r.key} is not served as "Available ${r.name} · ${r.of}": "${words(li.html).slice(0, 90)}"`);
     }
   }
-  const hp = head(/>(Proven by an outcome step — \d+ of \d+)<\/h4>/), hu = head(/>(Live, and not yet proven by a journey — \d+ of \d+)<\/h4>/);
+  const hp = head(/>(Proven by an outcome step — \d+ of \d+)<\/h4>/), hu = head(/>(Available, and not yet proven by a journey — \d+ of \d+)<\/h4>/);
   /* Under the recorded journeys it reads, above the checks run in the
      reader's tab (which fill in after the page is drawn). */
   const at = (s) => status.indexOf(s);
   if (!(at('id="health-journeys"') < at('id="health-proofs"') && at('id="health-unproven"') < at('>Checked in your browser now</h3>'))) p.push('/status does not serve the Live badges between the recorded journeys and "Checked in your browser now"');
   if (hp !== `Proven by an outcome step — ${proven.length} of ${rows.length}`) p.push(`/status heads the proven badges "${hp || 'nothing'}", not "Proven by an outcome step — ${proven.length} of ${rows.length}"`);
-  if (hu !== `Live, and not yet proven by a journey — ${unproven.length} of ${rows.length}`) p.push(`/status heads the unproven badges "${hu || 'nothing'}", not "Live, and not yet proven by a journey — ${unproven.length} of ${rows.length}"`);
+  if (hu !== `Available, and not yet proven by a journey — ${unproven.length} of ${rows.length}`) p.push(`/status heads the unproven badges "${hu || 'nothing'}", not "Available, and not yet proven by a journey — ${unproven.length} of ${rows.length}"`);
   judge(p, `/status serves every Live badge beside what proves it (D15): ${proven.length} of ${rows.length} beside their journey's outcome step and its last recorded result, exactly the record's (${proven.map(r => r.name).join(', ')}); ${unproven.length} listed as not yet proven by a journey (${unproven.map(r => r.name).join(', ')})`,
     '/status does not serve each Live badge beside what proves it');
 }
@@ -1594,7 +1594,7 @@ const HOME_PAGE = read(HOME);
     else {
       said.model = words(model);
       const slot = /<span class="status-model-result" data-now="">([\s\S]*?)<\/span><\/dd>/.exec(model)?.[1];
-      if (!/^<dt>Model:<\/dt><dd><span class="status-badge status-live">Live<\/span> — /.test(model)) p.push(`/status: the model line does not read "Model: Live — …": "${said.model.slice(0, 80)}"`);
+      if (!/^<dt>Model:<\/dt><dd><span class="status-badge status-live">Available<\/span> — /.test(model)) p.push(`/status: the model line does not read "Model: Available — …": "${said.model.slice(0, 80)}"`);
       if (slot == null) p.push('/status: the model line serves no recorded result (.status-model-result)');
       else {
         if (typeof want.model !== 'string') p.push('journeysServed (journeys.mjs) draws no model line');
@@ -2376,7 +2376,7 @@ const HOME_PAGE = read(HOME);
   if (JSON.stringify(lines('pub-card-bound')) !== JSON.stringify(wantBound)) p.push(`/: the cards' limits are not one each, as stated (${JSON.stringify(lines('pub-card-bound'))})`);
   const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
   if (!scanNote || !/this site ships no prices/.test(rawText(scanNote))) p.push('/: the Scanner card\'s ⓘ does not say "this site ships no prices"');
-  const WANT = { equities: 'Beta', scanner: 'Beta', property: 'Live', business: 'Coming soon' };
+  const WANT = { equities: 'Beta', scanner: 'Beta', property: 'Available', business: 'Coming soon' };
   const badgeIn = (n) => { const b = n && all(n).find(x => has(x, 'status-badge')); return b ? sight(b) : null; };
   for (const [id, want] of Object.entries(WANT)) {
     const onHome = id === 'business' ? badgeIn(hm && all(hm).find(n => has(n, 'pub-soon'))) : badgeIn(cardOf(id));
@@ -2532,8 +2532,8 @@ const HOME_PAGE = read(HOME);
     const quals = nodes.filter(n => has(n, 'pbadge-q') && sight(n) === 'Your figures, sample to start');
     const beside = badges.filter(b => { const i = b.parent.kids.indexOf(b); return has(b.parent, 'pbadge') && b.parent.kids.slice(i + 1).some(k => has(k, 'pbadge-q') && sight(k) === 'Your figures, sample to start'); });
     said.qual.push(`${path} ${badges.length}`);
-    if (!badges.length) p.push(`${path}: serves no Property Live badge in sight`);
-    if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Live badges, ${beside.length} with "Your figures, sample to start" in sight beside them, ${quals.length} qualifiers`);
+    if (!badges.length) p.push(`${path}: serves no Property Available badge in sight`);
+    if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Available badges, ${beside.length} with "Your figures, sample to start" in sight beside them, ${quals.length} qualifiers`);
   }
   judge(p, `the homepage cleanup as served: the strip a <details> on ${said.strips} pages, the warning and "No licensed prices" in its summary, Research mode and the links in its Details; the hero ${said.hero} words with one action; three cards, each 12 words or fewer, described by qualifier and note, the Property card to /property/lab, badges Beta · Beta · Live · Coming soon on /, /how-it-works and the footer; the example path ${said.path} words, 5 and 4 links served 200, no digit or name; #views within 16kB on ${said.views} pages; one variant of each positioning string; budgets ${JSON.stringify(said.budget)}; ${said.visuals} visuals, Apple's ${said.years} columns as filed; /pricing ${said.pricing} words outside "Compare details", three cards, no button outside it; Property's qualifier beside every Live badge (${said.qual.join(', ')})`,
     'the homepage cleanup (plan 3.1–3.6, 3.8, N8, N9, D17) is not served as accepted');
@@ -3580,8 +3580,8 @@ const HOME_PAGE = read(HOME);
   const rec = await fetch(`${BASE}/health/journeys.json?fetch=${Date.now()}`, { signal: AbortSignal.timeout(30000) }).then(r => r.json()).catch(e => ({ unreadable: e.message }));
   const want = journeysServed(rec);
   const WANT = {
-    'US Options Cash Wheel': { badge: 'Live', journey: 'records', step: 'Enter a contract: the obligation, the shortfall and the payoff at expiry', data: /^Data: Data Gated — no authorised option-chain data/ },
-    'Sarawak comparables register': { badge: 'Live', journey: 'registers', step: 'Record a transaction and a rent: each listed with what it rests on', data: /^Data: Data Gated — it ships empty/ },
+    'US Options Cash Wheel': { badge: 'Available', journey: 'records', step: 'Enter a contract: the obligation, the shortfall and the payoff at expiry', data: /^Data: Data Gated — no authorised option-chain data/ },
+    'Sarawak comparables register': { badge: 'Available', journey: 'registers', step: 'Record a transaction and a rent: each listed with what it rests on', data: /^Data: Data Gated — it ships empty/ },
     'Trade-setup scanner': { badge: 'Beta', journey: 'scanner', step: 'Its replay holds the rule only at bar 66', data: /^Data: Data Gated — no price history ships with this site/ },
   };
   const status = (await getAll(['/status'])).get('/status');
@@ -4115,7 +4115,7 @@ const HOME_PAGE = read(HOME);
      (counted, not forbidden); with the address set, /privacy no longer says
      there is no contact address, and says what writing to it hands over.
      Never an address this check invents: it reads the one in LAUNCH;
-   - /property serves "Calculations on figures you enter are live; the
+   - /property serves "Calculations run on the figures you enter; the
      Scenario Lab is beta." once, as the Lab's lede under its heading and its
      Beta badge (it replaced "Move a slider and every figure below follows."),
      with the product's Live badge in the tab row; the Property product never
@@ -4162,17 +4162,17 @@ const HOME_PAGE = read(HOME);
   const marks = (path) => (html(path).match(/data-tbs=/g) || []).length;
   if (!marks('/privacy') || !marks('/terms')) p.push(`/privacy (${marks('/privacy')}) and /terms (${marks('/terms')}) keep their markers`);
   said.push(`${marks('/privacy')} markers on /privacy and ${marks('/terms')} on /terms`);
-  const LINE = 'Calculations on figures you enter are live; the Scenario Lab is beta.';
+  const LINE = 'Calculations run on the figures you enter; the Scenario Lab is beta.';
   for (const path of ['/property', '/property/lab']) {
     const h = html(path), t = pageText(h);
     const n = t.split(LINE).length - 1;
-    if (n !== 1) p.push(`${path} serves the Live/Beta line ${n} times, not once`);
+    if (n !== 1) p.push(`${path} serves the Available/Beta line ${n} times, not once`);
     if (/Move a slider and every figure below follows/.test(t)) p.push(`${path} still serves the Lab's old lede`);
     /* The Live badge is the product's, in the tab row; the Beta badge is the
        Lab's, on its heading; the line is the Lab's lede, under that heading. */
     const row = (/<nav class="ptabs[\s\S]*?<\/nav>/.exec(h) || [''])[0];
-    if (!/status-live/.test(row) || !/data-badge-of="property"/.test(row)) p.push(`${path}: Property Intelligence's Live badge is not in the tab row`);
-    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,1200}?<p class="body-lg page-lede"[^>]*>Calculations on figures you enter are live; the Scenario Lab is beta\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
+    if (!/status-live/.test(row) || !/data-badge-of="property"/.test(row)) p.push(`${path}: Property Intelligence's Available badge is not in the tab row`);
+    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,1200}?<p class="body-lg page-lede"[^>]*>Calculations run on the figures you enter; the Scenario Lab is beta\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
   }
   /* Every Beta badge on /property and /app: whose is it? */
   const OTHERS = /(Equities Research|Quantum Scanner|Research a company|Create a scanner setup)\s*$/;
@@ -4187,7 +4187,7 @@ const HOME_PAGE = read(HOME);
     if (/Property Intelligence\s*<\/span>\s*<span class="status-badge status-beta"|Property Intelligence\s*<span class="status-badge status-beta"/.test(h)) p.push(`${path}: Property Intelligence wears Beta`);
   }
   const app = html('/app');
-  if (!/Start a property model in the Scenario Lab<\/h3>\s*(?:<span class="pbadge"[^>]*>)?<span class="status-badge status-live"/.test(app)) p.push('/app: the property step is not "Start a property model in the Scenario Lab" followed by the product\'s Live badge');
+  if (!/Start a property model in the Scenario Lab<\/h3>\s*(?:<span class="pbadge"[^>]*>)?<span class="status-badge status-live"/.test(app)) p.push('/app: the property step is not "Start a property model in the Scenario Lab" followed by the product\'s Available badge');
   if (!/The Scenario Lab is beta\./.test(app)) p.push('/app: the property step does not say "The Scenario Lab is beta."');
   judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied" and no telephone-like digits, /about no mailto: and the not-published line, /contact ${SUPPORT ? 'the support address the owner supplied, and the report handed over to send' : 'no mailto: and the interim support copy'}; /property serves "${LINE}" once as the Lab's lede, under its Beta badge, the Live badge in the tab row; /app's step is "Start a property model in the Scenario Lab"; ${said.join('; ')} left`,
     'a customer page serves a placeholder marker, or the Live/Beta labels are not said once');

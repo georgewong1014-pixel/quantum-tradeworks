@@ -263,7 +263,7 @@ export function guardProblems(changed) {
             result, and every step marked OK, FAIL or gated
      lines  the inner HTML of each product landing page's line, by address:
             "Journey: <name> · PASS · <time UTC> · <sha> · details"
-     proof  proof(journey, step): the inner HTML of a Live badge's result on
+     proof  proof(journey, step): the inner HTML of an Available badge's result on
             /status (D15, plan item 2.6) — the journey's last recorded
             result and what that run made of the badge's outcome step:
             "PASS · outcome step OK · <date, time UTC> · details"
@@ -556,7 +556,7 @@ function selfTest() {
     const rp = String(JOURNEYS.find(x => x.id === 'replay')?.run || '');
     t(/tab\.key\('ArrowLeft'\)[\s\S]*holds\(FIG, 65\)[\s\S]*tab\.key\('ArrowRight'\)[\s\S]*holds\(FIG, 66\)/.test(rp) && rp.includes('figure#hiw-scan-ex'),
       'the replay journey moves the bar by the keyboard from 66 to 65 and back, holding each to its bar, on /app/scanner and on /how-it-works');
-    /* journeysServed shows it, and the result beside a Live badge. */
+    /* journeysServed shows it, and the result beside an Available badge. */
     const steps = (names, failAt = null) => names.map((name, i) => ({ name, ms: 300, status: failAt === null || i < failAt ? 'OK' : i === failAt ? 'FAIL' : null })).filter(s => s.status);
     const rec2 = { kind: RESULT_KIND, schema: 2, ranAt: '2026-10-06T03:17:44.000Z', commit: '67d0e5185f3c', journeys: [
       { ...j('compare', 'PASS'), name: JOURNEY_NAMES.compare || 'compare', steps: steps(['Open Compare', ...WANT.slice(0, 2), 'Clear the page’s selection', ...WANT.slice(2)]) },
@@ -566,7 +566,7 @@ function selfTest() {
     const cmpMarks = [...cmpRow.matchAll(/<li data-mark="ok"><span class="journey-mark">OK<\/span> ([^<]*)<\/li>/g)].map(m => m[1]);
     t(cmpMarks.length === 6 && WANT.every(n => cmpMarks.includes(n)), `journeysServed: a recorded compare journey is listed on /status, with each of its six steps marked (${cmpMarks.length})`);
     t(out.proof('compare', 'Open restores both columns') === '<span class="proof-status" data-status="PASS">PASS</span> · outcome step OK · 6 Oct 2026, 03:17 UTC · <a class="journey-line-link" href="#journey-compare">details</a>',
-      `journeysServed: a Live badge's result — the journey's status, its outcome step as recorded, the run's UTC time, and its steps on this page (${out.proof('compare', 'Open restores both columns').replace(/<[^>]*>/g, '')})`);
+      `journeysServed: an Available badge's result — the journey's status, its outcome step as recorded, the run's UTC time, and its steps on this page (${out.proof('compare', 'Open restores both columns').replace(/<[^>]*>/g, '')})`);
     t(out.proof('property', 'Change the rent: the cash flow and the yield move') === '<span class="proof-status" data-status="FAIL">FAIL</span> at “Save &lt;the&gt; property” · outcome step OK · 6 Oct 2026, 03:17 UTC · <a class="journey-line-link" href="#journey-property">details</a>'
       && /^<span class="proof-status" data-status="FAIL">FAIL<\/span> at “Save &lt;the&gt; property” · outcome step FAIL · /.test(out.proof('property', 'Save <the> property'))
       && / · outcome step not reached · /.test(out.proof('property', 'It is listed with the saved properties')),

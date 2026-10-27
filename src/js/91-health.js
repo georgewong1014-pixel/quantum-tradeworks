@@ -585,9 +585,9 @@ function proofSection() {
      the checks run in this tab — which fill in after the page is drawn, and
      would move it. */
   const card = el('div', { class: 'proof-block', id: 'proof' });
-  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'What proves each Live badge'));
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'What proves each Available badge'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
-    'A Live badge is proven by an outcome step in a journey on the live site: an action, and the result it must produce, checked. A journey that only opens a tool’s page does not count. Each badge below is beside its journey’s last recorded result, as listed above.'));
+    'An Available badge is proven by an outcome step in a journey on the live site: an action, and the result it must produce, checked. A journey that only opens a tool’s page does not count. Each badge below is beside its journey’s last recorded result, as listed above.'));
   card.append(el('h4', { class: 'proof-h' }, `Proven by an outcome step — ${proven.length} of ${rows.length}`));
   card.append(el('ul', { id: 'health-proofs', class: 'proof-list' }, proven.map(r => el('li', { class: 'proof-row', 'data-proof-row': r.key }, [
     badge(),
@@ -597,11 +597,11 @@ function proofSection() {
       el('p', { class: 'proof-last' }, [el('span', { class: 'proof-last-label' }, 'Last result: '), proofResultNode(r.proof.journey, r.proof.step)]),
     ]),
   ]))));
-  card.append(el('h4', { class: 'proof-h' }, `Live, and ${PROOF_UNPROVEN} — ${unproven.length} of ${rows.length}`));
+  card.append(el('h4', { class: 'proof-h' }, `Available, and ${PROOF_UNPROVEN} — ${unproven.length} of ${rows.length}`));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     unproven.length
-      ? 'No journey yet does what each of these tools is for and checks the result. Each keeps its Live badge while its journey is written; until then nothing here shows that it works on the live site.'
-      : 'None: every Live badge is proven by an outcome step.'));
+      ? 'No journey yet does what each of these tools is for and checks the result. Each keeps its Available badge while its journey is written; until then nothing here shows that it works on the live site.'
+      : 'None: every Available badge is proven by an outcome step.'));
   card.append(el('ul', { id: 'health-unproven', class: 'proof-list' }, unproven.map(r => el('li', { class: 'proof-row', 'data-proof-row': r.key }, [
     badge(),
     el('p', { class: 'proof-name' }, [r.name, el('span', { class: 'proof-of' }, ` · ${r.of}`)]),
@@ -682,7 +682,7 @@ function statusPropertySection() {
   box.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h2', { class: 'h-card', id: 'status-property-h' }, p ? p.name : 'Property Intelligence'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
-      'Its Live badge is the model’s: every figure is worked out from what you enter. The market data is a separate matter.'),
+      'Its Available badge is the model’s: every figure is worked out from what you enter. The market data is a separate matter.'),
   ])));
   box.append(el('dl', { class: 'status-split' }, [
     el('div', { class: 'status-split-row', 'data-split': 'model' }, [

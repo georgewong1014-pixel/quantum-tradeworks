@@ -428,7 +428,10 @@ const PRODUCTS = [
     question: 'What will happen to my company’s cash flow?', action: null, actionPath: null,
     status: 'soon', statusNote: 'Not built yet — nothing to open.' },
 ];
-const PRODUCT_STATUS = { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
+/* The internal id stays `live` (records, storage and data attributes); the word is
+   "Available" (owner, 27 Oct 2026): "Live" read as live market data. It means the
+   tool works now, on data you enter. */
+const PRODUCT_STATUS = { live: 'Available', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
 /* A product that is not built never appears in the app's navigation. */
 const SHOW_UNBUILT = false;
 /* "Print & share" (called "Reports" until the owner's 16 Oct 2026 decision, D11) sits in My Workspace, after Saved Models, now that the list of
@@ -1302,7 +1305,7 @@ const ROUTES = [
 const META = {
   marketing: POSITIONING.description,
   propertyInvesting: 'Work out a Sarawak property purchase on your own figures: the cash required, with stamp duty and legal fees from a cited fee rulebook, the monthly cash flow, and up to three scenarios side by side. Not a valuation, not advice.',
-  howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
+  howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Available, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between an illustrative company’s sample price and its model estimate — each company labelled filed or illustrative, with nothing recommended.',
   /* ONE DESCRIPTION A PAGE, TRUE TO IT (the claims audit of 11 Oct 2026,
      rank 3: F-11, R-17–R-19). The screener's said "Screen Bursa Malaysia
@@ -2042,7 +2045,7 @@ function productRows() {
 }
 /* Under the product rows: where every badge's note is printed. */
 const productsLegendLink = () => el('p', { class: 'pp-foot' },
-  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Live, Beta and Coming soon mean'));
+  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Available, Beta and Coming soon mean'));
 /* Drawn twice — the menu and the phone sheet — so each copy's labels carry
    their own ids. */
 function resourceLists(prefix) {
