@@ -3161,8 +3161,12 @@ function pcDefaultsWarn(d, untouched, { after = 'anything below' } = {}) {
   warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
     el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
     el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px;margin:0' },
-      `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on ${after}.`),
+      `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Replace ${untouched.length === 1 ? 'it' : 'them'} before relying on ${after}.`),
   ]));
+  /* The long explanation is folded under the one short line (the owner, 27 Oct
+     2026); its words are unchanged. */
+  warn.append(el('details', { class: 'explain' }, [el('summary', {}, 'Why these are defaults'),
+    el('p', { class: 'metaline' }, `Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted. The sample deal is not a real listing.`)]));
   if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `These defaults were written around a Kuching condominium. They are not a starting point for ${(SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || 'this location'}, and this tool holds no transacted price or rent for it.`));
   return warn;
@@ -5032,17 +5036,24 @@ VIEWS.property = () => {
        Oct 2026): the Lab's Yield view shows it free, and Pricing's "What it
        adds" no longer lists it either (model-test PP9 holds the two lists
        to the same things). */
-    const offer = upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
+    /* A PLAIN CARD, NO PLAN, NO PRICE (the owner, 27 Oct 2026). Nothing is on
+       sale, and a working tool names no plan, shows no price and sends no one
+       to /pricing: it was "Full investor report — proposed at RM49" with a plan
+       chip and "See plans". The report works in this browser now, so the card
+       says what it holds and offers to show it; the proposed price stays on
+       /pricing, marked not on sale. */
+    const offer = el('div', { class: 'card ls-section' });
+    offer.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:6px' }, el('h3', { class: 'h-card' }, 'Investor report')));
+    offer.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-bottom:var(--sm)' },
       m.proj.custom
-        ? `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
-        /* Proposed per report. The line also offered it "included twice
-           monthly on All-Access", a tier that is not launched and must not
-           appear purchasable; it returns when the tier does. */
+        ? `Holds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison and the risk flags, all worked out from the figures you entered. No comparable transactions are held for ${m.proj.area}.`
         /* No "comparable transactions … for this project" (the Day-10
            pre-audit, OP-04): the only transactions it holds are the sample
-           project's synthetic quarters, said as what they are. Pricing's
-           "What it adds" drops them with it (OP-05; model-test PP9). */
-        : `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags, beside the sample project’s synthetic transactions. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`);
+           project's synthetic quarters, said as what they are. Debt-service
+           cover and cash-on-cash are not listed: the Scenario Lab shows them
+           free (plan items 1.4 and 4.2), and the lists on /pricing agree
+           (model-test PP9). */
+        : 'Holds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison and the risk flags, beside the sample project’s synthetic transactions.'));
     /* The Share / Export row's "Full investor report" goes here (propertyShareRow). */
     offer.id = 'property-report-offer';
     reportCards.push(offer);
@@ -5063,11 +5074,9 @@ VIEWS.property = () => {
       store.write('propertyReportsBought', State.propertyReportsBought);
       /* The offer is replaced by the report, and focus went to <body> with
          the button; it goes to the report's first heading. */
-      toast('Previewing the full report in this browser — nothing is on sale, and nothing was charged'); render(); focusAfterRedraw('#property-report-full h3');
-    } }, 'Preview this report in this browser'));
-    /* No second "See plans" here: the offer above carries the page's one
-       (upsell, 05-plans.js), beside its line that nothing is on sale
-       (plan item 6.1(a), the owner's 16 Oct 2026 decision D11). */
+      toast('Showing the investor report in this browser'); render(); focusAfterRedraw('#property-report-full h3');
+    } }, 'View and print it in this browser'));
+    /* No "See plans" anywhere in this section (the owner, 27 Oct 2026). */
     reportCards.push(el('div', {}, buy));
   } else {
     /* ---------- exits and the alternative ---------- */

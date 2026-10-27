@@ -230,22 +230,20 @@ function setPlan(id) {
     focusAfterRedraw(() => $$('#views .card h3').find(h => h.textContent.trim() === PLANS[id].name));
 }
 
-/* An upgrade prompt that names the limit rather than hiding behind a paywall. */
-function upsell(title, detail) {
+/* A view this beta does not have. It names no plan, shows no price and sends
+   no one to /pricing (the owner, 27 Oct 2026): nothing is on sale, and a
+   working tool is not where a proposed product is offered. It reads "Not
+   available in this beta" and then one line of what the view would add (`tag`
+   says something else where the card is a limit, not a missing view). The
+   plans, their limits and setPlan are unchanged; /pricing keeps the proposed
+   prices, marked not on sale. */
+function upsell(title, detail, tag = 'Not available in this beta') {
   const box = el('div', { class: 'card ls-section', style: 'border-left:3px solid var(--bronze)' });
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:6px' }, [
-    el('span', { class: 'chip chip-bronze' }, planOf().name),
+    el('span', { class: 'chip chip-bronze' }, tag),
     el('h3', { class: 'h-card' }, title),
   ]));
-  box.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-bottom:var(--sm)' }, detail));
-  box.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
-    /* Outline: a plan prompt is never the page's primary action — on the
-       property calculator it was the only filled button, at the page's end. */
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'),
-    /* Said as the pricing page says it: nothing is on sale, not merely
-       unpaid in a prototype. */
-    el('span', { class: 'metaline' }, 'Plans are not on sale yet — nothing can be bought.'),
-  ]));
+  box.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' }, detail));
   return box;
 }
 

@@ -1153,7 +1153,7 @@ for (const route of ROUTES) {
     await load(live + path);
     const r = await ev(`({ links: [...document.querySelectorAll('a[href], [data-tool-path]')].map(a => [a.tagName, a.getAttribute('data-tool-path') || new URL(a.href).pathname, a.textContent.trim().replace(/\\s+/g, ' ').slice(0, 40)])
         .filter(([, at]) => ${SCAN_OFF}.test(at)),
-      chips: [...document.querySelectorAll('.chip')].map(n => n.textContent.trim()).filter(t => /^(Live|Beta|Demo|Coming soon)$/.test(t)) })`);
+      chips: [...document.querySelectorAll('.chip')].map(n => n.textContent.trim()).filter(t => /^(Available|Live|Beta|Demo|Coming soon)$/.test(t)) })`);
     r.links.forEach(([tag, at, t]) => p.push(`production ${path}: a ${tag.toLowerCase()} to ${at} "${t}"`));
     r.chips.forEach(t => p.push(`production ${path}: a chip reads "${t}", a status written by hand`));
   }
@@ -1209,7 +1209,7 @@ for (const route of ROUTES) {
   const ws6 = await ev(`(() => { const s = toolState('saved'); const b = document.querySelector('#views .ws-limits .status-badge');
     return { want: [s.label, s.note], got: b ? [b.textContent.trim(), b.title] : null,
       chips: [...document.querySelectorAll('#views .ws-limits .chip')].map(n => n.textContent.trim()) }; })()`);
-  if (JSON.stringify(ws6.got) !== JSON.stringify(ws6.want) || ws6.chips.some(t => /^(Live|Beta|Demo|Coming soon)$/.test(t)))
+  if (JSON.stringify(ws6.got) !== JSON.stringify(ws6.want) || ws6.chips.some(t => /^(Available|Live|Beta|Demo|Coming soon)$/.test(t)))
     p.push(`Saved Models' status: badge ${JSON.stringify(ws6.got)}, chips ${JSON.stringify(ws6.chips)} — want the registry's ${JSON.stringify(ws6.want[0])}`);
 
   /* 7. "Continue" is on the newest thing, not the first one made: a list
@@ -1618,6 +1618,18 @@ for (const route of ROUTES) {
     /* And /research draws none, hidden or not (N7). */
     await load(BASE + '/research');
     if (await ev(`!!document.querySelector('#views .start-here')`)) p.push('/research draws a Start here panel above its search (N7)');
+    /* With none hidden, /my/data names where each panel shows, and each
+       page it names shows that product's panel (QT-D14-01): it said each
+       showed "at the top of its product" while three landings draw none. */
+    await load(BASE + '/my/data');
+    const where = await ev(`(() => { const c = document.getElementById('start-here-settings'); return { said: c ? c.innerText.replace(/\\s+/g, ' ') : '', links: c ? [...c.querySelectorAll('a[data-start-here-seen]')].map(a => [a.dataset.startHereSeen, a.getAttribute('href')]) : [] }; })()`);
+    if (/top of its product until/.test(where.said) || !/None is hidden/.test(where.said) || !/Scenario Lab/.test(where.said)) p.push(`/my/data, none hidden, says "${where.said.slice(0, 200)}"`);
+    if (JSON.stringify(where.links.map(x => x[0])) !== '["equities","scanner","property"]') p.push(`/my/data names the panels' pages ${JSON.stringify(where.links)}`);
+    for (const [pid, href] of where.links) {
+      await load(BASE + href);
+      const shown = await ev(`document.querySelector('#views .start-here')?.dataset.product || null`);
+      if (shown !== pid) p.push(`/my/data sends ${pid}'s panel to ${href}, which shows ${JSON.stringify(shown)}`);
+    }
   }
 
   /* Every workspace page, emptied: what to do next, and one action. On the

@@ -247,7 +247,7 @@ function tabValuation(r) {
   const rail = el('div', { class: 'card rail-sticky' });
   rail.append(cardHead('Assumptions',
     editable ? 'Every input is yours to change. Nothing is silently substituted if you clear a value.'
-             : 'Every assumption behind the range is shown. Editing them is part of Equities Research — the numbers are not hidden, only the controls.',
+             : 'Every assumption behind the range is shown. Editing them is not available in this beta — the numbers are not hidden, only the controls.',
     editable ? el('button', { class: 'btn btn-quiet btn-sm', id: 'studio-reset', onclick: () => { State.valuation[c.id] = { ...r.inputs }; persistValuation(r, true); renderKeepFocus(); toast('Reset to derived defaults'); } }, 'Reset')
              : el('span', { class: 'chip chip-bronze' }, 'Read-only'), { kind: kindFor(c, 'modelled'), fine: 'Assumptions you can change' }));
 
@@ -285,9 +285,18 @@ function tabValuation(r) {
        is the reported figure, so a changed bridge is never mistaken for the
        filing's. */
     const hint = el('p', { class: 'a-default' });
+    /* "Default assumption" beside the discount rate and the growth rates
+       (the owner, 27 Oct 2026): the figures that move a valuation most are
+       the model's starting values until the reader changes them, and a
+       range beside them should not read as a finding. It goes when the
+       figure is the reader's own (the line above says so then). */
+    const isDefaultMark = /discount rate|growth|cost of equity|required return/i.test(a.label);
+    const mark = isDefaultMark ? el('p', { class: 'a-mark' }, el('span', { class: 'chip', 'data-default-mark': a.k,
+      title: 'The model’s starting value, until you change it' }, 'Default assumption')) : null;
     const refreshHint = () => {
       const edited = !sameInput(inputs[a.k], r.inputs[a.k]);
       row.classList.toggle('is-edited', edited);
+      if (mark) mark.hidden = edited;
       hint.hidden = !edited;
       hint.textContent = edited ? `Your figure · ${a.bridge && a.k !== 'adj' ? 'reported' : 'derived default'} ${fmtAssumption(a, r.inputs[a.k])}` : '';
     };
@@ -310,12 +319,13 @@ function tabValuation(r) {
     }
     const syncRange = () => { if (rng && Number.isFinite(inputs[a.k])) rng.value = inputs[a.k]; };
     row.append(hint);
+    if (mark) row.append(mark);
     refreshHint();
     row.append(el('p', { class: 'a-note' }, a.note));
     rail.append(row);
   });
   if (!editable) rail.append(el('div', { style: 'margin-top:var(--md)' },
-    upsell('Change these assumptions', 'Equities Research makes every input above editable, and recomputes the range, the sensitivity grid and the driver ranking live as you change them.')));
+    upsell('Change these assumptions', 'Every input above would be editable here, and the range, the sensitivity grid and the driver ranking would recompute as you change them.')));
 
   /* fixed inputs shown for transparency */
   const fixed = el('div', { class: 'sunk', style: 'margin-top:var(--md)' });
@@ -346,8 +356,9 @@ function tabValuation(r) {
      rather than leaving the keyboard on <body>. */
   rail.append(el('button', { class: 'btn btn-primary btn-sm', style: 'width:100%;margin-top:var(--md)', id: 'studio-save-run',
     onclick: () => { saveValuationRun(r, inputs); document.getElementById('studio-save-run')?.focus({ preventScroll: true }); } }, 'Save this valuation run'));
-  rail.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'A saved run stores the inputs and which of them you changed, the figures they produced, the statements they were computed on, and the model and data versions — so it can be replayed, and printed as a report, after the dataset moves.'));
+  rail.append(foldedNote('A saved run can be replayed and printed after the data moves.', 'What a saved run keeps',
+    'A saved run stores the inputs and which of them you changed, the figures they produced, the statements they were computed on, and the model and data versions — so it can be replayed, and printed as a report, after the dataset moves.',
+    { style: 'margin-top:8px' }));
   const reportPath = `${companyPath(c)}/report`;
   rail.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'width:100%;margin-top:var(--sm)', href: href(reportPath),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(reportPath); } },
@@ -517,8 +528,9 @@ function studioOutputs(r, inputs, redraw) {
      rate inputs (a discount rate −1.0 against +1.2, for one) — so the
      published construction misstated what the model does. */
   const shiftText = (s) => Object.entries(s).map(([k, v]) => `${k} ${withSign(v, 1, '')}`).join(', ');
-  head.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `Scenario construction is published, not hidden: the bear case applies ${shiftText(run.shift.bear)} to the base assumptions, and the bull case applies ${shiftText(run.shift.bull)}.`));
+  head.append(foldedNote('Bear and bull shift the base assumptions by published amounts.', 'How the cases are built',
+    `Scenario construction is published, not hidden: the bear case applies ${shiftText(run.shift.bear)} to the base assumptions, and the bull case applies ${shiftText(run.shift.bull)}.`,
+    { style: 'margin-top:var(--sm)' }));
   head.append(explainCalculation(r, inputs, run));
   head.append(explainConfidence(run));
   nodes.push(head);
@@ -3211,13 +3223,12 @@ VIEWS.portfolio = () => {
   const xa = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   if (!lim('crossAsset')) {
     xa.append(cardHead('Cross-asset net worth', 'Equities and property in one place, with allocation, combined cash flow and leverage.'));
-    /* All-Access is not on sale (PLANS.all.launched is false). The offer read
-       "All-Access adds the property portfolio to this view" above "See
-       plans", as if the tier could be bought there. It says what the tier
-       would add, and that it can only be previewed. */
-    xa.append(upsell('Combine shares and property', PLANS.all.launched === false
-      ? 'All-Access would add the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It has not launched and cannot be bought; the plans page can preview it in this browser.'
-      : 'All-Access adds the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It is the reason the two products exist in the same application.'));
+    /* No plan name (the owner, 27 Oct 2026): the offer read "All-Access would
+       add the property portfolio to this view … the plans page can preview it".
+       It says which view is missing and what it would show, in a card that
+       reads "Not available in this beta" (upsell, 05-plans.js). */
+    xa.append(upsell('Combine shares and property',
+      'This view would add the property portfolio: one allocation, one cash-flow line and one leverage figure across both asset classes.'));
   } else {
     const dm = dealModel(State.deal);
     /* The carrying value is the price. Back-computing it from the exit value

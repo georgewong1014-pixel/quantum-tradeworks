@@ -730,6 +730,26 @@ function hiwStatus(P) {
   return s;
 }
 
+/* BEFORE YOU RELY ON IT (the owner, 27 Oct 2026): one place near the top that
+   says what is available and what is beta, where the data stops, that saved
+   work stays in this browser, how to back it up and where to report an error.
+   Five one-line items, each with its link; the pages they point to say the
+   rest. Served in the prerender like the rest of the page. */
+const HIW_RELY = [
+  ['What is available now, and what is still beta.', '/status', 'Tool status'],
+  ['No licensed market prices. The Malaysian company set is illustrative, and property figures start from a sample.', '/data-sources', 'Data limits'],
+  ['Saved work stays in this browser only: no account, no sync.', '/my/workspace', 'Your saved work'],
+  ['Back up and restore your work before you clear this browser.', '/my/data', 'Back up and restore'],
+  ['A wrong figure, or a question? Say so.', '/contact', 'Report an error or contact support'],
+];
+function hiwRely() {
+  const s = el('section', { class: 'hiw-status hiw-rely', id: 'hiw-rely', 'aria-labelledby': 'hiw-rely-h' });
+  s.append(el('h2', { class: 'hiw-status-h', id: 'hiw-rely-h' }, 'Before you rely on it'));
+  s.append(el('ul', { class: 'hiw-rely-list' }, HIW_RELY.map(([say, path, label]) =>
+    el('li', { class: 'hiw-rely-item' }, [el('span', { class: 'hiw-rely-t' }, say), ' ', pubLink(path, { class: 'pub-textlink' }, label)]))));
+  return s;
+}
+
 VIEWS.howItWorks = () => {
   const P = PRODUCTS;
   const wrap = el('div', { class: 'pub hiw' });
@@ -753,6 +773,7 @@ VIEWS.howItWorks = () => {
   hd.append(el('nav', { class: 'hiw-toc', 'aria-label': 'On this page' }, toc));
   wrap.append(hd);
 
+  wrap.append(hiwRely());
   wrap.append(hiwStatus(P));
   const list = el('div', { class: 'hiw-products' });
   P.forEach(p => list.append(hiwProduct(p)));

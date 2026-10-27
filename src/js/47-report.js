@@ -86,7 +86,7 @@ VIEWS.researchReport = () => {
   if (!noteReportRead(live.c.id)) {
     wrap.append(reportRefusedHead(live.c));
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
-      `The Free plan covers ${lim('reportsPerMonth')} distinct companies a calendar month, and a printable report of one you have already opened costs nothing more.`));
+      `This beta opens ${lim('reportsPerMonth')} distinct companies a calendar month, and a printable report of one you have already opened costs nothing more.`, 'Monthly limit reached'));
     return wrap;
   }
 

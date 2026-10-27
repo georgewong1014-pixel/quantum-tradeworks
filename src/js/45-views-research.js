@@ -1049,7 +1049,7 @@ VIEWS.research = () => {
   if (!allowed) {
     wrap.append(reportRefusedHead(c));
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
-      `The Free plan covers ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''} Previewing Equities Research lifts it.`));
+      `This beta opens ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''}`, 'Monthly limit reached'));
     const back = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
     back.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }) }, 'Back to the screener'));
     State.reportLog.ids.slice(0, 5).forEach(id => {
@@ -2229,7 +2229,7 @@ function statementsCsv(r) {
 function exportStatements(r) {
   const { c } = r;
   if (c.personal) { toast('Not exported: these statements are personal research and not redistributable. The file you loaded them from is already yours.'); return; }
-  if (!lim('exports')) { toast('Exports are part of Equities Research'); go('plans'); return; }
+  if (!lim('exports')) { toast('Exports are not available in this beta'); return; }
   const blob = new Blob([statementsCsv(r)], { type: 'text/csv' });
   const a = el('a', { href: URL.createObjectURL(blob), download: `${slug(c.tk)}-statements.csv` });
   document.body.append(a); a.click(); a.remove();
@@ -2267,7 +2267,7 @@ function statementTable(r) {
      pressing it. */
   stmt.append(el('p', { class: 'metaline stmt-note', id: 'stmt-csv-note' },
     c.personal ? 'CSV is not offered here: these statements are personal research and not redistributable.'
-    : !lim('exports') ? 'CSV export is part of Equities Research; on the Free plan the button opens Plans instead.'
+    : !lim('exports') ? 'CSV export is not available in this beta.'
     : c.real ? 'CSV: every line and year at full precision, with unit, currency, source and the XBRL concept for each cell.'
     : 'CSV: every line and year at full precision, with unit, currency and source — every figure labelled illustrative.'));
 

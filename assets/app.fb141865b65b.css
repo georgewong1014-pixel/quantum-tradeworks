@@ -1653,6 +1653,7 @@ details > summary::marker { content: ''; }
 .assumption.is-edited { box-shadow: inset 2px 0 0 var(--bronze); padding-left: 10px; margin-left: -10px; }
 .assumption .a-default { grid-column: 1 / -1; font-size: var(--text-label); color: var(--bronze); margin-top: -4px;
   font-variant-numeric: tabular-nums; }
+.assumption .a-mark { grid-column: 1 / -1; margin: -4px 0 0; }
 .a-whose { margin: 0 0 var(--sm); }
 .a-whose .chip { white-space: normal; height: auto; min-height: 24px; line-height: 1.35; padding-top: 3px; padding-bottom: 3px; }
 
@@ -3443,6 +3444,11 @@ th .kind-th { vertical-align: middle; }
 @media (min-width: 1100px) { .hiw-status-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .hiw-status-item dt { margin-bottom: var(--xs); }
 .hiw-status-item dd { margin: 0; }
+/* Before you rely on it: five one-line items, each ending in its link. */
+.hiw-rely-list { list-style: none; margin: var(--sm) 0 0; padding: 0; display: grid; gap: 0; }
+:root .hiw .hiw-rely-item { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--sm); font-size: var(--text-body); line-height: 1.5; color: var(--ink); margin: 0; padding: 6px 0; }
+.hiw-rely-item + .hiw-rely-item { border-top: 1px solid var(--grid); }
+.hiw-rely-t { max-width: 64ch; }
 .hiw-status-m { display: block; font-size: var(--text-body); line-height: 1.5; color: var(--ink); }
 .hiw-status-who { display: block; font-size: var(--text-label); color: var(--ink-3); margin-top: 4px; }
 

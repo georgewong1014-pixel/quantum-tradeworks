@@ -1534,8 +1534,8 @@ function renderScreener() {
   railHd.append(el('div', { class: 'segmented', role: 'group', 'aria-label': 'Thresholds as', style: 'margin-top:10px;width:100%' }, [
     el('button', { style: 'flex:1', 'aria-pressed': sc.mode === 'abs' ? 'true' : 'false', onclick: () => setMode('abs') }, 'Absolute'),
     el('button', { style: 'flex:1', 'aria-pressed': sc.mode === 'pct' ? 'true' : 'false',
-      title: lim('percentileMode') ? null : 'Peer-percentile screening is part of Equities Research',
-      onclick: () => { if (!lim('percentileMode')) { toast('Peer-percentile screening is part of Equities Research'); go('plans'); return; } setMode('pct'); } }, 'Peer percentile'),
+      title: lim('percentileMode') ? null : 'Peer-percentile screening is not available in this beta',
+      onclick: () => { if (!lim('percentileMode')) { toast('Peer-percentile screening is not available in this beta'); return; } setMode('pct'); } }, 'Peer percentile'),
   ]));
   railHd.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     sc.mode === 'abs' ? 'Thresholds are raw metric values. Switching mode clears them.' : 'Thresholds are percentile ranks within the same market cohort. Switching mode clears them.'));
@@ -3045,7 +3045,7 @@ function screenDiff(saved) {
 
 function saveScreen() {
   if (State.savedScreens.length >= lim('savedScreens')) {
-    toast(`The ${planOf().name} plan saves ${lim('savedScreens')} screen${lim('savedScreens') === 1 ? '' : 's'}`); go('plans'); return;
+    toast(`This beta saves ${lim('savedScreens')} screen${lim('savedScreens') === 1 ? '' : 's'}`); return;
   }
   const name = prompt('Name this screen', `Screen ${State.savedScreens.length + 1}`);
   if (!name) return;
@@ -3156,7 +3156,7 @@ function openSavedScreen(idx) {
 }
 
 function exportScreen() {
-  if (!lim('exports')) { toast('Exports are part of Equities Research'); go('plans'); return; }
+  if (!lim('exports')) { toast('Exports are not available in this beta'); return; }
   const sc = State.screen;
   /* In the order on screen, with money as the table shows it and every column
      carrying its unit. The file used to come out in universe order, print
