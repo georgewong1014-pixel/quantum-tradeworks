@@ -2712,7 +2712,7 @@ try {
     await evaluate(`(() => { window.__T.f5 = { deal: JSON.parse(JSON.stringify(State.deal)), bought: localStorage.getItem('vl.propertyReportsBought'), before: localStorage.getItem('vl.dealBeforeLink') };
       State.propertyReportsBought = []; store.write('propertyReportsBought', []); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     await sleep(600);
-    const unlocked = await pressLabelled('Preview this report');
+    const unlocked = await pressLabelled('View and print it in this browser');
     await evaluate(`(() => { store.write('dealBeforeLink', { ...State.deal, price: 500000 }); render(); return true; })()`);
     await sleep(300);
     const restored = await pressLabelled('Restore my previous deal');
@@ -4025,9 +4025,9 @@ try {
       await step('D11', async () => {
         /* D11 — THE CALCULATOR'S LAST SECTION IS "DECIDE" (plan item 6.1(a); the
            owner's 16 Oct 2026 decision). Its address #report is kept: it lands
-           on the section. The section holds one "See plans" and one
-           "Preview this report in this browser" (the offer drew a second
-           "See plans" beside its own), and a quiet Share / Export row with the
+           on the section. The section holds no "See plans" (27 Oct 2026, the owner:
+           it held one beside the offer) and one "View and print it in this
+           browser", and a quiet Share / Export row with the
            three actions it already had — the client proposal, the investor
            report and the decision record — and nothing else. Fails on
            3989f389: the section is "Report" and holds two "See plans". */
@@ -4047,7 +4047,7 @@ try {
             index: [...document.querySelectorAll('.pc-index .pc-index-link')].map(a => txt(a)),
             current: txt(document.querySelector('.pc-index-link[aria-current]')),
             plans: parts('button, a').filter(n => txt(n) === 'See plans').length,
-            previews: parts('button, a').filter(n => /^Preview .*in this browser$/.test(txt(n))).length,
+            previews: parts('button, a').filter(n => /^View and print it in this browser$/.test(txt(n))).length,
             row: row ? { head: txt(row.querySelector('.pc-share-hd')), acts: [...row.querySelectorAll('a, button')].map(n => ({ id: n.id, t: txt(n), href: n.getAttribute('href') })), inSec: sec.contains(row), primary: row.querySelectorAll('.btn-primary').length } : null,
             next: txt(document.getElementById('pc-next-scenarios')),
           };
@@ -4057,8 +4057,8 @@ try {
         if (r.view !== 'full') p.push(`#report did not open the full model: ${r.view}`);
         if (JSON.stringify(r.index) !== JSON.stringify(['Acquisition', 'Financing', 'Rental & expenses', 'Scenarios', 'Decide']) || r.current !== 'Decide') p.push(`the section index reads ${JSON.stringify(r.index)}, current "${r.current}"`);
         if (r.next !== 'Next: Decide →') p.push(`the Scenarios section's way on reads "${r.next}", not "Next: Decide →"`);
-        if (r.plans !== 1) p.push(`the Decide section holds ${r.plans} "See plans", not one`);
-        if (r.previews !== 1) p.push(`the Decide section holds ${r.previews} "Preview … in this browser" buttons, not one`);
+        if (r.plans !== 0) p.push(`the Decide section holds ${r.plans} "See plans", not none (owner, 27 Oct 2026)`);
+        if (r.previews !== 1) p.push(`the Decide section holds ${r.previews} "View and print it in this browser" buttons, not one`);
         if (!r.row) p.push('the Decide section has no Share / Export row (#pc-share)');
         else {
           if (r.row.head !== 'Share / Export') p.push(`the row's heading reads "${r.row.head}"`);
@@ -4067,8 +4067,8 @@ try {
           const first = names[0] === 'Client proposal' || names[0] === 'Save this property first';
           if (!first || names[1] !== 'Full investor report' || names[2] !== 'Decision record' || names.length !== 3) p.push(`the row's actions read ${JSON.stringify(names)}, not the client proposal (or its save-first), the investor report and the decision record`);
         }
-        if (p.length) fail('D11 property-model: the calculator\'s last section is "Decide", #report lands on it, with one "See plans", one preview button and a quiet Share / Export row', p);
-        else ok('D11 property-model: /property/calculator#report opens the full model at "Decide" (index, "Next: Decide →" and heading agree); the section holds one "See plans", one "Preview … in this browser" button and a quiet Share / Export row of the client proposal, the investor report and the decision record');
+        if (p.length) fail('D11 property-model: the calculator\'s last section is "Decide", #report lands on it, with no "See plans", one "View and print it" button and a quiet Share / Export row', p);
+        else ok('D11 property-model: /property/calculator#report opens the full model at "Decide" (index, "Next: Decide →" and heading agree); the section holds no "See plans", one "View and print it in this browser" button and a quiet Share / Export row of the client proposal, the investor report and the decision record');
       });
     } finally {
       await evaluate(`(() => { const k = ${kept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`);
@@ -4735,7 +4735,7 @@ try {
             /* The calculator's offer of the report, on the same locked deal:
                it may not offer what the Lab already shows free. */
             navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(500);
-            locked.offer = txt([...document.querySelectorAll('#views p')].find(p => /^Adds /.test(txt(p)) && /Full investor report — proposed/.test(txt(p.parentElement))));
+            locked.offer = txt([...document.querySelectorAll('#views p')].find(p => /^Holds /.test(txt(p)) && /^Investor report/.test(txt(p.parentElement))));
             /* And Pricing's "What it adds" for the same report (the Lab's phase
                2, 16 Oct 2026): the two lists name the same things, and
                neither names what the Lab shows free. */

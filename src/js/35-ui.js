@@ -928,9 +928,11 @@ const APP_NAV_WORKSPACE = [
   { id: 'workspace',  label: 'Saved work', icon: 'folder', path: '/my/workspace' },
   ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Print & share', icon: 'doc', path: '/my/reports' }] : []),
 ];
+/* No "Plans" item in the workspace navigation (the owner, 27 Oct 2026): nothing
+   is on sale, and the tools do not send anyone to /pricing. "Pricing" stays in
+   the header and the footer (29 Sep 2026), and /pricing stays as it was. */
 const APP_NAV_FOOT = [
   { id: 'userdata', label: 'Your data & settings', icon: 'database', path: '/my/data' },
-  { id: 'plans',    label: 'Plans',                icon: 'tag',      path: '/pricing' },
 ];
 const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', business: 'briefcase' };
 

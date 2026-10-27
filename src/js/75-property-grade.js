@@ -5032,17 +5032,24 @@ VIEWS.property = () => {
        Oct 2026): the Lab's Yield view shows it free, and Pricing's "What it
        adds" no longer lists it either (model-test PP9 holds the two lists
        to the same things). */
-    const offer = upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
+    /* A PLAIN CARD, NO PLAN, NO PRICE (the owner, 27 Oct 2026). Nothing is on
+       sale, and a working tool names no plan, shows no price and sends no one
+       to /pricing: it was "Full investor report — proposed at RM49" with a plan
+       chip and "See plans". The report works in this browser now, so the card
+       says what it holds and offers to show it; the proposed price stays on
+       /pricing, marked not on sale. */
+    const offer = el('div', { class: 'card ls-section' });
+    offer.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:6px' }, el('h3', { class: 'h-card' }, 'Investor report')));
+    offer.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-bottom:var(--sm)' },
       m.proj.custom
-        ? `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
-        /* Proposed per report. The line also offered it "included twice
-           monthly on All-Access", a tier that is not launched and must not
-           appear purchasable; it returns when the tier does. */
+        ? `Holds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison and the risk flags, all worked out from the figures you entered. No comparable transactions are held for ${m.proj.area}.`
         /* No "comparable transactions … for this project" (the Day-10
            pre-audit, OP-04): the only transactions it holds are the sample
-           project's synthetic quarters, said as what they are. Pricing's
-           "What it adds" drops them with it (OP-05; model-test PP9). */
-        : `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags, beside the sample project’s synthetic transactions. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`);
+           project's synthetic quarters, said as what they are. Debt-service
+           cover and cash-on-cash are not listed: the Scenario Lab shows them
+           free (plan items 1.4 and 4.2), and the lists on /pricing agree
+           (model-test PP9). */
+        : 'Holds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison and the risk flags, beside the sample project’s synthetic transactions.'));
     /* The Share / Export row's "Full investor report" goes here (propertyShareRow). */
     offer.id = 'property-report-offer';
     reportCards.push(offer);
@@ -5063,11 +5070,9 @@ VIEWS.property = () => {
       store.write('propertyReportsBought', State.propertyReportsBought);
       /* The offer is replaced by the report, and focus went to <body> with
          the button; it goes to the report's first heading. */
-      toast('Previewing the full report in this browser — nothing is on sale, and nothing was charged'); render(); focusAfterRedraw('#property-report-full h3');
-    } }, 'Preview this report in this browser'));
-    /* No second "See plans" here: the offer above carries the page's one
-       (upsell, 05-plans.js), beside its line that nothing is on sale
-       (plan item 6.1(a), the owner's 16 Oct 2026 decision D11). */
+      toast('Showing the investor report in this browser'); render(); focusAfterRedraw('#property-report-full h3');
+    } }, 'View and print it in this browser'));
+    /* No "See plans" anywhere in this section (the owner, 27 Oct 2026). */
     reportCards.push(el('div', {}, buy));
   } else {
     /* ---------- exits and the alternative ---------- */

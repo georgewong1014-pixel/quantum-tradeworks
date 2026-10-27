@@ -247,7 +247,7 @@ function tabValuation(r) {
   const rail = el('div', { class: 'card rail-sticky' });
   rail.append(cardHead('Assumptions',
     editable ? 'Every input is yours to change. Nothing is silently substituted if you clear a value.'
-             : 'Every assumption behind the range is shown. Editing them is part of Equities Research — the numbers are not hidden, only the controls.',
+             : 'Every assumption behind the range is shown. Editing them is not available in this beta — the numbers are not hidden, only the controls.',
     editable ? el('button', { class: 'btn btn-quiet btn-sm', id: 'studio-reset', onclick: () => { State.valuation[c.id] = { ...r.inputs }; persistValuation(r, true); renderKeepFocus(); toast('Reset to derived defaults'); } }, 'Reset')
              : el('span', { class: 'chip chip-bronze' }, 'Read-only'), { kind: kindFor(c, 'modelled'), fine: 'Assumptions you can change' }));
 
@@ -315,7 +315,7 @@ function tabValuation(r) {
     rail.append(row);
   });
   if (!editable) rail.append(el('div', { style: 'margin-top:var(--md)' },
-    upsell('Change these assumptions', 'Equities Research makes every input above editable, and recomputes the range, the sensitivity grid and the driver ranking live as you change them.')));
+    upsell('Change these assumptions', 'Every input above would be editable here, and the range, the sensitivity grid and the driver ranking would recompute as you change them.')));
 
   /* fixed inputs shown for transparency */
   const fixed = el('div', { class: 'sunk', style: 'margin-top:var(--md)' });
@@ -3211,13 +3211,12 @@ VIEWS.portfolio = () => {
   const xa = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   if (!lim('crossAsset')) {
     xa.append(cardHead('Cross-asset net worth', 'Equities and property in one place, with allocation, combined cash flow and leverage.'));
-    /* All-Access is not on sale (PLANS.all.launched is false). The offer read
-       "All-Access adds the property portfolio to this view" above "See
-       plans", as if the tier could be bought there. It says what the tier
-       would add, and that it can only be previewed. */
-    xa.append(upsell('Combine shares and property', PLANS.all.launched === false
-      ? 'All-Access would add the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It has not launched and cannot be bought; the plans page can preview it in this browser.'
-      : 'All-Access adds the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It is the reason the two products exist in the same application.'));
+    /* No plan name (the owner, 27 Oct 2026): the offer read "All-Access would
+       add the property portfolio to this view … the plans page can preview it".
+       It says which view is missing and what it would show, in a card that
+       reads "Not available in this beta" (upsell, 05-plans.js). */
+    xa.append(upsell('Combine shares and property',
+      'This view would add the property portfolio: one allocation, one cash-flow line and one leverage figure across both asset classes.'));
   } else {
     const dm = dealModel(State.deal);
     /* The carrying value is the price. Back-computing it from the exit value

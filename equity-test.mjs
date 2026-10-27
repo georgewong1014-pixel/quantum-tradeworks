@@ -1914,7 +1914,7 @@ try {
     }
     if (!r.MAYBANK.illus) p.push('the illustrative CSV does not say synthetic');
     if (!/not redistributable/.test(r.personal)) p.push(`personal-lane export: "${r.personal}"`);
-    if (r.exports ? !/every line and year/.test(r.note) : !/Equities Research/.test(r.note)) p.push(`CSV note on plan exports=${r.exports}: "${r.note}"`);
+    if (r.exports ? !/every line and year/.test(r.note) : !/not available in this beta/.test(r.note)) p.push(`CSV note on plan exports=${r.exports}: "${r.note}"`);
     if (p.length) fail('the statements CSV round-trips the table', p);
     else ok(`the statements CSV round-trips every cell of MSFT-SEC (${r['MSFT-SEC'].rows}), ABT-SEC and MAYBANK with its concept, refuses personal-lane statements, and states the plan rule`);
   }
@@ -3475,7 +3475,7 @@ try {
     })()`);
     const p = [];
     /* Release B: Print & share (Reports until D11) follows Saved Models once its page exists (SHOW_REPORTS). */
-    if (r.labels.join() !== `My Dashboard,Watchlists,My Alerts,Saved work,${r.reports ? 'Print & share,' : ''}Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans`) p.push(`sidebar ${r.labels.join(', ')}`);
+    if (r.labels.join() !== `My Dashboard,Watchlists,My Alerts,Saved work,${r.reports ? 'Print & share,' : ''}Equities Research,Quantum Scanner,Property Intelligence,Your data & settings`) p.push(`sidebar ${r.labels.join(', ')}`);
     if (r.my.length) p.push(`My workspace's header carries a scanner tab (${r.my.join(', ')})`);
     for (const [k, v] of Object.entries(r.cur)) if (v !== 'Quantum Scanner') p.push(`${k} marks ${v}`);
     if (r.trading !== 'Trading Index') p.push(`the Trading Index page's scanner strip marks ${r.trading}`);
@@ -7410,7 +7410,7 @@ try {
     if (!/proposed/i.test(r.text) || !/cannot be bought/.test(r.text)) p.push('the card does not say its price is proposed and cannot be paid');
     if (r.plan !== 'all' || /^Switched to/.test(r.toast) || !/Previewing/.test(r.toast)) p.push(`after the press: plan ${r.plan}, toast "${r.toast}"`);
     if (r.after !== 'Previewing All-Access in this browser') p.push(`after the press the button reads "${r.after}"`);
-    if (/All-Access adds/.test(r.offer) || !/not launched and cannot be bought/.test(r.offer)) p.push(`portfolio offer: ${r.offer.slice(0, 160)}`);
+    if (/All-Access|\bplans?\b|cannot be bought/i.test(r.offer) || !/Not available in this beta/.test(r.offer)) p.push(`portfolio offer: ${r.offer.slice(0, 160)}`);
     if (p.length) fail('misc: the unlaunched All-Access tier is offered as a plan that can be switched to or bought', p);
     else ok('misc: All-Access reads "Not on sale", its price as proposed, its button as a preview in this browser, and the portfolio offer as a tier that has not launched');
   }
@@ -11071,12 +11071,13 @@ try {
       State.propertyReportsBought = []; store.write('propertyReportsBought', []);
       navigate('/property/calculator?view=full'); await w(400);
       const main = document.querySelector('main');
-      const card = [...main.querySelectorAll('.card')].find(c => /^Full investor report/.test(c.querySelector('h3')?.textContent.trim() || ''));
+      const card = [...main.querySelectorAll('.card')].find(c => /^Investor report$/.test(c.querySelector('h3')?.textContent.trim() || ''));
       const around = card ? [card, card.nextElementSibling].filter(Boolean) : [];
       const out = { found: !!card, title: card?.querySelector('h3')?.textContent.trim() || '',
         text: around.map(n => n.innerText).join(' / ').replace(/\\s+/g, ' '),
-        controls: around.flatMap(n => [...n.querySelectorAll('button, a[href]')]).map(b => b.textContent.trim().replace(/\\s+/g, ' ')) };
-      const b = around.flatMap(n => [...n.querySelectorAll('button')]).find(x => /^Preview this report/.test(x.textContent.trim()));
+        controls: around.flatMap(n => [...n.querySelectorAll('button, a[href]')]).map(b => b.textContent.trim().replace(/\\s+/g, ' ')),
+        links: around.flatMap(n => [...n.querySelectorAll('a[href]')]).map(a => a.getAttribute('href')) };
+      const b = around.flatMap(n => [...n.querySelectorAll('button')]).find(x => /^View and print it in this browser$/.test(x.textContent.trim()));
       out.pressed = !!b;
       b?.click(); await w(300);
       out.toast = document.getElementById('toast')?.textContent || '';
@@ -11091,16 +11092,18 @@ try {
     const p = [];
     if (!r.found) p.push('no full-report offer on /property/calculator on the Free plan');
     else {
-      if (!/proposed/i.test(r.title)) p.push(`the offer's title reads "${r.title}"`);
-      if (!/not on sale/i.test(r.text)) p.push('the offer does not say the report is not on sale');
-      const said = r.text.replace(/nothing can be bought/gi, '');
+      /* The owner, 27 Oct 2026: a working tool names no plan, shows no price and sends no one to /pricing. */
+      const PLANISH = /RM\s?\d|\bplans?\b|All-Access|Equities Research|proposed|not on sale|pricing/i;
+      if (PLANISH.test(r.text)) p.push(`the Investor report card names a plan or a price: "${r.text.slice(0, 200)}"`);
+      if (r.controls.some(t => /see plans/i.test(t)) || r.links.some(h => /\/pricing/.test(h))) p.push(`the Investor report card sends to plans: ${JSON.stringify(r.controls)} ${JSON.stringify(r.links)}`);
+      const said = r.text;
       if (SALE.test(said)) p.push(`the offer reads as a sale: "…${said.slice(Math.max(0, said.search(SALE) - 60), said.search(SALE) + 40)}…"`);
       r.controls.filter(t => SALE.test(t)).forEach(t => p.push(`a control reads as a purchase: "${t}"`));
-      if (!r.pressed) p.push(`no "Preview this report in this browser" button among ${JSON.stringify(r.controls)}`);
+      if (!r.pressed) p.push(`no "View and print it in this browser" button among ${JSON.stringify(r.controls)}`);
       else if (!r.previewed || !r.report || !/^Previewing/.test(r.toast) || /unlocked/i.test(r.toast)) p.push(`after the preview: ${r.previewed} previewed, report ${r.report}, toast "${r.toast}"`);
     }
-    if (p.length) fail('audit verify: the calculator\'s full-report offer reads as /pricing does — proposed, not on sale, previewed in this browser', p);
-    else ok(`audit verify: the calculator's full-report offer is "${r.title}", says it is not on sale, and its button previews the report in this browser ("${r.toast}")`);
+    if (p.length) fail('audit verify: the calculator\'s Investor report card names no plan or price, sends to no plans page and shows the report in this browser (owner, 27 Oct 2026)', p);
+    else ok(`audit verify: the calculator's report card is "${r.title}", names no plan, price or "See plans", and its button shows the report in this browser ("${r.toast}")`);
   }
   /* ---- end audit: verify ---- */
 

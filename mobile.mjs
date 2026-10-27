@@ -5736,7 +5736,8 @@ for (const w of [360, 390]) {
    wide), both before the property is saved and after:
      - the index's last chip reads "Decide" and the section is the one on
        screen when it is chosen;
-     - the section holds one "See plans" and one "Preview … in this browser";
+     - the section holds no "See plans" (the owner, 27 Oct 2026) and one
+       "View and print it in this browser";
      - the Share / Export row is whole inside the screen, its controls three
        and quiet (no btn-primary), and on a phone each is a 44px target;
      - the page does not run sideways. */
@@ -5783,7 +5784,7 @@ for (const w of [360, 390]) {
           const acts = row ? [...row.querySelectorAll('a.btn, button.btn')].map(box) : [];
           const bt = [...sec.querySelectorAll('button, a')].filter(n => n.getClientRects().length);
           return { vw, scrollW: document.documentElement.scrollWidth, chips, on, shown: !!row && !!row.getClientRects().length, rowBox: row ? box(row) : null, acts,
-            plans: bt.filter(n => txt(n) === 'See plans').map(box), previews: bt.filter(n => /^Preview .*in this browser$/.test(txt(n))).map(box),
+            plans: bt.filter(n => txt(n) === 'See plans').map(box), previews: bt.filter(n => /^View and print it in this browser$/.test(txt(n))).map(box),
             face: row ? getComputedStyle(row.querySelector('.btn')).fontFamily : '' };
         })()`);
         said.push(at);
@@ -5800,8 +5801,8 @@ for (const w of [360, 390]) {
           if (a.l < -0.5 || a.r > r.vw + 0.5) fails.push(`${at}: "${a.t}" runs ${a.l}–${a.r}px in a ${r.vw}px screen`);
           if (w < 640 && (a.w < 43.5 || a.h < 43.5)) fails.push(`${at}: "${a.t}" is ${a.w}×${a.h}px, under the 44px target`);
         });
-        if (r.plans.length !== 1) fails.push(`${at}: ${r.plans.length} "See plans" in the section, not one`);
-        if (r.previews.length !== 1) fails.push(`${at}: ${r.previews.length} "Preview … in this browser" buttons in the section, not one`);
+        if (r.plans.length !== 0) fails.push(`${at}: ${r.plans.length} "See plans" in the section, not none`);
+        if (r.previews.length !== 1) fails.push(`${at}: ${r.previews.length} "View and print it in this browser" buttons in the section, not one`);
         if (w < 640) [...r.plans, ...r.previews].forEach(a => { if (a.w < 43.5 || a.h < 43.5) fails.push(`${at}: "${a.t}" is ${a.w}×${a.h}px, under the 44px target`); });
       }
     }
@@ -5813,7 +5814,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL d11-decide — the calculator's Decide section on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   d11-decide: the calculator's last section reads "Decide" at 360, 390, 430, 768 and 1440, in the page's font and in Verdana, unsaved and saved (${said.length} frames) — one "See plans" and one "Preview … in this browser" button, a quiet Share / Export row of three controls whole inside the screen (44px targets under 640px), and no sideways page`);
+  else console.log(`ok   d11-decide: the calculator's last section reads "Decide" at 360, 390, 430, 768 and 1440, in the page's font and in Verdana, unsaved and saved (${said.length} frames) — no "See plans" and one "View and print it in this browser" button, a quiet Share / Export row of three controls whole inside the screen (44px targets under 640px), and no sideways page`);
 }
 /* ---- end d11-decide ---- */
 
