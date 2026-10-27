@@ -533,6 +533,16 @@ function selfTest() {
     }
     const twice = RUNS.filter(r => (cmds.match(new RegExp(`node checks-record\\.mjs run ${r} -- `, 'g')) || []).length !== 1);
     t(!twice.length, `checks.yml: each recorded suite runs once${twice.length ? ` — not ${twice.join(', ')}` : ''}`);
+    /* The release gate (QT-D13-01): Deployment Checks is set to it, so it
+       must run whatever happened before it, need every other job, and pass
+       only when each of them succeeded — a skip is not a pass. */
+    const gate = jobs.gate || '';
+    const gateNeeds = (/^ {4}needs: \[([^\]]*)\]$/m.exec(gate)?.[1] || '').split(',').map(s => s.trim()).filter(Boolean);
+    const others = Object.keys(jobs).filter(k => k !== 'gate');
+    const unneeded = others.filter(k => !gateNeeds.includes(k));
+    const checked = others.filter(k => new RegExp(`needs\\.${k}\\.result`).test(gate) && new RegExp(`\\[ "\\$${k.toUpperCase()}" = success \\]`).test(gate));
+    t(/^ {4}if: always\(\)$/m.test(gate) && !unneeded.length && checked.length === others.length,
+      `checks.yml "release gate": runs whatever happened (always()), needs every other job and passes only when each succeeded (${checked.length} of ${others.length} checked${unneeded.length ? `; not needed: ${unneeded.join(', ')}` : ''})`);
   }
   if (existsSync(jf)) {
     const y = readFileSync(jf, 'utf8').replace(/\r\n/g, '\n');

@@ -77,9 +77,10 @@ on:
   workflow_dispatch:
 
 # THE GATE BEFORE THIS ONE. With Vercel's Deployment Checks on (Project →
-# Settings → Build and Deployment → Deployment Checks: GitHub, the three jobs
-# of checks.yml — "parses, and matches its source", "every route renders" and
-# "every tool works from start to finish"), Vercel holds each production
+# Settings → Build and Deployment → Deployment Checks: GitHub, checks.yml's
+# "release gate — every required job passed", which fails unless its three
+# jobs "parses, and matches its source", "every route renders" and "every
+# tool works from start to finish" each succeeded), Vercel holds each production
 # deployment until those pass on its commit, and only then serves it: the
 # journeys in checks.yml run against that commit's own files first, so a
 # commit whose journeys fail never goes live. This workflow is what follows

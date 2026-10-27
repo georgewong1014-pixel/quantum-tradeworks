@@ -415,9 +415,9 @@ jobs:
   # production deployment until these jobs pass, a failure anywhere in the
   # browser job said nothing about the journeys. Here they run beside it,
   # after the static job, on a runner of their own (about five minutes).
-  # The job names are what Deployment Checks is set to — keep them as they
-  # are: "parses, and matches its source", "every route renders" and
-  # "every tool works from start to finish".
+  # Deployment Checks is set to the release gate below, which names these
+  # jobs by key; their names are what checks-record.mjs and /status read —
+  # keep them as they are.
   journeys:
     name: every tool works from start to finish
     needs: static
@@ -462,3 +462,29 @@ jobs:
       # match.
       - name: every tool works from start to finish
         run: node journeys.mjs http://localhost:8123
+
+  # THE RELEASE GATE (QT-D13-01, 27 Oct 2026). Vercel's Deployment Checks
+  # promotes a production deployment once the checks it is set to pass. The
+  # three jobs above were those checks, but when "parses, and matches its
+  # source" fails the other two are skipped, not failed, and a skipped check
+  # is not a failed one. This job runs whatever happened (always()) and fails
+  # unless every job above succeeded: a failure, a skip or a cancellation is
+  # not a pass. Deployment Checks is set to this one job. A job added above
+  # must be added to `needs` here (checks-record.mjs --self-test refuses it
+  # otherwise).
+  gate:
+    name: release gate — every required job passed
+    needs: [static, runtime, journeys]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: static, runtime and journeys each succeeded
+        env:
+          STATIC: ${{ needs.static.result }}
+          RUNTIME: ${{ needs.runtime.result }}
+          JOURNEYS: ${{ needs.journeys.result }}
+        run: |
+          echo "parses, and matches its source: $STATIC"
+          echo "every route renders: $RUNTIME"
+          echo "every tool works from start to finish: $JOURNEYS"
+          [ "$STATIC" = success ] && [ "$RUNTIME" = success ] && [ "$JOURNEYS" = success ]
