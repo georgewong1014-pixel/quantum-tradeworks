@@ -5793,7 +5793,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 :root .ls-page { max-width: var(--ls-workspace-max); }
 :root .ls-view .page-hd h1 { font-size: var(--ls-title); line-height: 1.15; }
 :root .ls-view :is(.page-lede, .body-lg) { font-size: var(--ls-body); line-height: 1.5; }
-:root .ls-view :is(.body, .btn, .input, .select, .input-inline, .select-sm, .field > label, table.dt, table.dt tbody th, .segmented button, .segmented a) { font-size: var(--ls-support); }
+:root .ls-view :is(.body, .btn, .input, .select, .input-inline, .select-sm, .field > label, table.dt, table.dt tbody th, .segmented button, .segmented a, details.explain > summary) { font-size: var(--ls-support); }
 :root .ls-view :is(.eyebrow, .caption, .metaline, .chip, .stat-label, .stat-sub, .stat-delta, table.dt thead th, .btn-sm, .status-badge) { font-size: var(--ls-meta); }
 :root .ls-view .h-card { font-size: var(--ls-body); }
 :root .ls-view .h-section { font-size: var(--ls-section); }

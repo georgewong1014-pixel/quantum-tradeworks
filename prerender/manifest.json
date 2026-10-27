@@ -35,7 +35,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ab3a0618f9ea6b50",
+      "digest": "63b2f2b80db16ab4",
       "changed": "2026-10-27"
     },
     "pages/about.html": {
@@ -209,7 +209,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3926fee233e6c282",
+      "digest": "a0fe56a0b0d80e23",
       "changed": "2026-10-27"
     },
     "pages/app/equities.html": {
@@ -4155,7 +4155,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e1d2f9eb8cfe1b67",
+      "digest": "cf4b9004d35bcf78",
       "changed": "2026-10-27"
     },
     "pages/decision-record.html": {
@@ -4329,7 +4329,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9d04c568345f282b",
+      "digest": "47a12f1cc733b2b5",
       "changed": "2026-10-27"
     },
     "pages/learn.html": {
@@ -4586,7 +4586,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ccc8f9882fb14ae2",
+      "digest": "3f932cc01c80e417",
       "changed": "2026-10-27"
     },
     "pages/my/portfolio.html": {
@@ -4604,7 +4604,7 @@
         ]
       },
       "inert": {
-        "buttons": 21,
+        "buttons": 20,
         "fields": 4,
         "choices": 0,
         "roles": 0,
@@ -4615,7 +4615,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ab69053605eb5c12",
+      "digest": "76af301d244a6387",
       "changed": "2026-10-27"
     },
     "pages/my/reports.html": {
@@ -4833,9 +4833,7 @@
           5
         ],
         "resources": null,
-        "appnav": [
-          9
-        ]
+        "appnav": []
       },
       "inert": {
         "buttons": 2,
@@ -4934,7 +4932,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "405208a2cb3c99a7",
+      "digest": "469663b390a78cc8",
       "changed": "2026-10-27"
     },
     "pages/property/areas.html": {
@@ -4963,7 +4961,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "ad6530c8622b5914",
+      "digest": "64c7e11badc8fef0",
       "changed": "2026-10-27"
     },
     "pages/property/areas/map.html": {
@@ -4992,7 +4990,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "40411dbf2420b1c9",
+      "digest": "e176836de2f2d0ea",
       "changed": "2026-10-27"
     },
     "pages/property/calculator.html": {
@@ -5021,7 +5019,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d6b9147bb89faad4",
+      "digest": "64eaeab90c201e44",
       "changed": "2026-10-27"
     },
     "pages/property/comparables.html": {
@@ -5050,7 +5048,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3f8ed2e139aa8d2a",
+      "digest": "54e217883960523b",
       "changed": "2026-10-27"
     },
     "pages/property/lab.html": {
@@ -5079,7 +5077,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "405208a2cb3c99a7",
+      "digest": "469663b390a78cc8",
       "changed": "2026-10-27"
     },
     "pages/property/models.html": {
@@ -5108,7 +5106,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "70787921fe40eee3",
+      "digest": "c071c5d35c3673d8",
       "changed": "2026-10-27"
     },
     "pages/property/opportunities.html": {
@@ -5137,7 +5135,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "aea7f4ce59222b7a",
+      "digest": "13ef3640c91311de",
       "changed": "2026-10-27"
     },
     "pages/research.html": {
@@ -5282,7 +5280,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "aeddeb71291fe317",
+      "digest": "c4315b93128029a1",
       "changed": "2026-10-27"
     },
     "pages/terms.html": {
