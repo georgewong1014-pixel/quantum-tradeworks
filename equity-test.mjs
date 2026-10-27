@@ -7001,6 +7001,9 @@ try {
         navigate(p); await w(200);
         const o = out[k] = {};
         o.save = await press(document.getElementById('wb-' + k + '-save') || btn('Save')) && at();
+        /* An unsaved property is named in the page first (pmNameForm): the form takes the
+           keyboard, and the Save inside it hands it back to the button. */
+        if (k === 'property') { o.form = at(); document.getElementById('pm-name-input')?.form.requestSubmit(); await w(300); o.save = at(); }
         o.dup = await press(document.getElementById('wb-' + k + '-dup') || btn('Duplicate latest')) && at();
         const sel = document.getElementById('wb-' + k + '-resume') || document.querySelector('#views select[aria-label^="Resume a saved"]');
         if (sel) { sel.focus(); sel.value = sel.options[1]?.value || ''; sel.dispatchEvent(new Event('change', { bubbles: true })); await w(200); o.resume = at(); }
@@ -7009,6 +7012,7 @@ try {
       return out;
     })()`);
     const p = [];
+    if (!/^INPUT#pm-name-input\b/.test(r.property?.form || '')) p.push(`property save, unsaved: the name form's input does not hold the keyboard (${r.property?.form})`);
     for (const k of ['trading', 'wheel', 'property']) for (const [what, want] of [['save', 'save'], ['dup', 'dup'], ['resume', 'resume'], ['reset', 'reset']])
       if (!new RegExp(`^(BUTTON|SELECT)#wb-${k}-${want}\\b`).test(r[k]?.[what] || '')) p.push(`${k} ${what}: ${r[k]?.[what]}`);
     if (p.length) fail('bugfix4 shell: the work bar\'s Save, Resume, Duplicate latest and Reset keep focus on the control pressed', p);
