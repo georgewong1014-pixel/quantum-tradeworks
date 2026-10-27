@@ -3442,6 +3442,12 @@ th .kind-th { vertical-align: middle; }
 @media (min-width: 1100px) { .hiw-status-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .hiw-status-item dt { margin-bottom: var(--xs); }
 .hiw-status-item dd { margin: 0; }
+/* Before you rely on it: five one-line items, each ending in its link. */
+.hiw-rely { margin-bottom: var(--lg); }
+.hiw-rely-list { list-style: none; margin: var(--md) 0 0; padding: 0; display: grid; gap: var(--sm); }
+.hiw-rely-item { font-size: var(--text-body); line-height: 1.5; color: var(--ink); max-width: 72ch; }
+.hiw-rely-item .pub-textlink { white-space: nowrap; }
+@media (max-width: 599px) { .hiw-rely-item .pub-textlink { white-space: normal; } }
 .hiw-status-m { display: block; font-size: var(--text-body); line-height: 1.5; color: var(--ink); }
 .hiw-status-who { display: block; font-size: var(--text-label); color: var(--ink-3); margin-top: 4px; }
 
