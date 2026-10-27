@@ -1027,7 +1027,7 @@ function openReportError() {
 
   body.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
     if (!state.description.trim() && !state.expectedValue.trim()) {
-      toast('Say what looks wrong, or what it should be, before recording the case');
+      toast('Say what looks wrong, or what it should be, before saving the case');
       return;
     }
     const k = coverage();
@@ -1057,7 +1057,7 @@ function openReportError() {
     render();
     const back = opener?.isConnected ? opener : opener?.id ? document.getElementById(opener.id) : null;
     if (back && back !== document.body) back.focus({ preventScroll: true });
-    openDrawer(`Case ${c.id} recorded`, (() => {
+    openDrawer(`Case ${c.id} saved here, not sent`, (() => {
       const w = el('div');
       const addr = supportEmail();
       /* With a support address (LAUNCH.contactEmail), the report is the visitor's
@@ -1083,7 +1083,7 @@ function openReportError() {
       ]));
       return w;
     })());
-  } }, 'Record this case'));
+  } }, 'Save this case here'));
   openDrawer('Report a data error', body);
 }
 

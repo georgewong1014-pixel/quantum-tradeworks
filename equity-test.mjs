@@ -1538,7 +1538,7 @@ try {
         openReportError(); await wait(50);
         const d = document.getElementById('err-description');
         d.value = text; d.dispatchEvent(new Event('input'));
-        [...document.querySelectorAll('#drawer button')].find(b => b.textContent === 'Record this case').click();
+        [...document.querySelectorAll('#drawer button')].find(b => b.textContent === 'Save this case here').click();
       };
       await record('one');
       await wait(450);
@@ -1555,7 +1555,7 @@ try {
       return { shown, ids, raised, id };
     })()`);
     const p = [];
-    if (r.shown.hidden || !/recorded/.test(r.shown.title) || !r.shown.link) p.push(`the confirmation drawer: ${JSON.stringify(r.shown)}`);
+    if (r.shown.hidden || !/^Case \S+ saved here, not sent$/.test(r.shown.title) || !r.shown.link) p.push(`the confirmation drawer: ${JSON.stringify(r.shown)}`);
     if (new Set(r.ids).size !== r.ids.length || r.ids.length !== 2) p.push(`ids after a delete: ${JSON.stringify(r.ids)}`);
     const stamp = r.id.slice(3, 11);
     if (!/ UTC[+−]\d\d:\d\d$/.test(r.raised) || r.raised.slice(0, 10).replace(/-/g, '') !== stamp) p.push(`raised "${r.raised}" against id ${r.id}`);
@@ -6790,7 +6790,7 @@ try {
         await press(btn('Open the error form'), 400);
         const d = document.getElementById('err-description');
         d.value = what; d.dispatchEvent(new Event('input', { bubbles: true }));
-        await press(btn('Record this case'), 400);
+        await press(btn('Save this case here'), 400);
         closeDrawer(); await w(450);
         return at();
       };
@@ -7040,7 +7040,7 @@ try {
       await press(btn('Open the error form'), 400);
       const d = document.getElementById('err-description');
       d.value = 'bf4 case'; d.dispatchEvent(new Event('input', { bubbles: true }));
-      await press(btn('Record this case'), 400);
+      await press(btn('Save this case here'), 400);
       closeDrawer(); await w(450);
       await press(document.getElementById('case-open-0'), 400);
       render(); await w(50);
@@ -10785,7 +10785,7 @@ try {
       const record = async () => {
         openReportError(); await w(200);
         const d = document.getElementById('err-description'); d.value = 'the figure is wrong'; d.dispatchEvent(new Event('input'));
-        [...document.querySelectorAll('#drawer button')].find(b => b.textContent.trim() === 'Record this case').click(); await w(400);
+        [...document.querySelectorAll('#drawer button')].find(b => b.textContent.trim() === 'Save this case here').click(); await w(400);
         const dr = document.getElementById('drawer');
         const o = { text: dr.innerText, buttons: [...dr.querySelectorAll('button')].map(b => b.textContent.trim()),
           mailto: dr.querySelector('a[data-support-mailto]')?.getAttribute('href') || null,
