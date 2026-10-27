@@ -2241,14 +2241,14 @@ for (const w of [360, 390]) {
     const path = await ev(`(async () => {
       const w = (ms) => new Promise(r => setTimeout(r, ms));
       Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
-      window.__pq = []; window.prompt = (m, d) => (window.__pq.length ? window.__pq.shift() : d); window.confirm = () => true;
+      window.prompt = () => null; window.confirm = () => true;
       newPropertyDeal({ show: false });
       Object.assign(State.deal, { price: 538000, rent: 2250, bankValuation: 520000 }); ['price', 'rent', 'bankValuation'].forEach(k => markTouched(State.deal, k)); saveDeal();
       const rec = saveActiveProperty({ name: 'A long property name for the phone check — Stutong Heights, block C' });
       for (const [name, set] of [['A 20% deposit instead of 10%, with the valuation at the purchase price', { downPct: 20, bankValuation: 538000 }],
         ['Rent at RM2,550 with the furnished unit', { rent: 2550 }], ['Rate up by about one percentage point', { ratePct: 5.2 }]]) {
         openPropertyModel(rec.id, { show: false });
-        Object.assign(State.deal, set); Object.keys(set).forEach(k => markTouched(State.deal, k)); saveDeal(); window.__pq = [name]; saveAsScenario();
+        Object.assign(State.deal, set); Object.keys(set).forEach(k => markTouched(State.deal, k)); saveDeal(); saveAsScenario({ name });
       }
       openPropertyModel(rec.id, { show: false });
       const cv = document.createElement('canvas'); cv.width = 600; cv.height = 150; const g = cv.getContext('2d'); g.fillStyle = '#1f5c4a'; g.fillRect(0, 0, 600, 150);

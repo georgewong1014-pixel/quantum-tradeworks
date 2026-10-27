@@ -2901,7 +2901,7 @@ function propertyBarActions() {
     } },
     { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, disabled: !can,
       aria: !can ? 'Saved in this browser' : st.kind === 'model' && st.sc ? 'Save this scenario' : 'Save this property',
-      said: 'Saved in this browser — change a figure to save it again.', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } },
+      said: 'Saved in this browser — change a figure to save it again.', onclick: () => pmSaveProperty({ key: 'bar-save', returnId: 'ls-act-save', focus: ['#ls-act-save', '#pm-status'] }) },
   ];
 }
 

@@ -2513,7 +2513,7 @@ for (const route of ROUTES) {
       navigate('/property/calculator'); await w(500);
       const card = () => document.getElementById('cp-next');
       out.unsaved = { has: !!card(), acts: card() ? [...card().querySelectorAll('a, button')].map(x => ({ id: x.id, t: txt(x) })) : [], said: txt(card()) };
-      await click('#cp-next-save');
+      await click('#cp-next-save'); document.getElementById('pm-name-input')?.form.requestSubmit(); await w(450);
       out.afterSave = { modelId: State.deal.modelId, acts: card() ? [...card().querySelectorAll('a, button')].map(x => ({ id: x.id, t: txt(x), href: x.getAttribute('href') })) : [], focus: document.activeElement?.id || null };
       const id = State.deal.modelId, want = cpPath(id);
       out.want = want;
