@@ -847,22 +847,20 @@ function setPlan(id) {
     focusAfterRedraw(() => $$('#views .card h3').find(h => h.textContent.trim() === PLANS[id].name));
 }
 
-/* An upgrade prompt that names the limit rather than hiding behind a paywall. */
-function upsell(title, detail) {
+/* A view this beta does not have. It names no plan, shows no price and sends
+   no one to /pricing (the owner, 27 Oct 2026): nothing is on sale, and a
+   working tool is not where a proposed product is offered. It reads "Not
+   available in this beta" and then one line of what the view would add (`tag`
+   says something else where the card is a limit, not a missing view). The
+   plans, their limits and setPlan are unchanged; /pricing keeps the proposed
+   prices, marked not on sale. */
+function upsell(title, detail, tag = 'Not available in this beta') {
   const box = el('div', { class: 'card ls-section', style: 'border-left:3px solid var(--bronze)' });
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:6px' }, [
-    el('span', { class: 'chip chip-bronze' }, planOf().name),
+    el('span', { class: 'chip chip-bronze' }, tag),
     el('h3', { class: 'h-card' }, title),
   ]));
-  box.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-bottom:var(--sm)' }, detail));
-  box.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
-    /* Outline: a plan prompt is never the page's primary action — on the
-       property calculator it was the only filled button, at the page's end. */
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'),
-    /* Said as the pricing page says it: nothing is on sale, not merely
-       unpaid in a prototype. */
-    el('span', { class: 'metaline' }, 'Plans are not on sale yet — nothing can be bought.'),
-  ]));
+  box.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' }, detail));
   return box;
 }
 
@@ -12664,7 +12662,10 @@ const PRODUCTS = [
     question: 'What will happen to my company’s cash flow?', action: null, actionPath: null,
     status: 'soon', statusNote: 'Not built yet — nothing to open.' },
 ];
-const PRODUCT_STATUS = { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
+/* The internal id stays `live` (records, storage and data attributes); the word is
+   "Available" (owner, 27 Oct 2026): "Live" read as live market data. It means the
+   tool works now, on data you enter. */
+const PRODUCT_STATUS = { live: 'Available', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
 /* A product that is not built never appears in the app's navigation. */
 const SHOW_UNBUILT = false;
 /* "Print & share" (called "Reports" until the owner's 16 Oct 2026 decision, D11) sits in My Workspace, after Saved Models, now that the list of
@@ -13161,9 +13162,11 @@ const APP_NAV_WORKSPACE = [
   { id: 'workspace',  label: 'Saved work', icon: 'folder', path: '/my/workspace' },
   ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Print & share', icon: 'doc', path: '/my/reports' }] : []),
 ];
+/* No "Plans" item in the workspace navigation (the owner, 27 Oct 2026): nothing
+   is on sale, and the tools do not send anyone to /pricing. "Pricing" stays in
+   the header and the footer (29 Sep 2026), and /pricing stays as it was. */
 const APP_NAV_FOOT = [
   { id: 'userdata', label: 'Your data & settings', icon: 'database', path: '/my/data' },
-  { id: 'plans',    label: 'Plans',                icon: 'tag',      path: '/pricing' },
 ];
 const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', business: 'briefcase' };
 
@@ -13538,7 +13541,7 @@ const ROUTES = [
 const META = {
   marketing: POSITIONING.description,
   propertyInvesting: 'Work out a Sarawak property purchase on your own figures: the cash required, with stamp duty and legal fees from a cited fee rulebook, the monthly cash flow, and up to three scenarios side by side. Not a valuation, not advice.',
-  howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
+  howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Available, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between an illustrative company’s sample price and its model estimate — each company labelled filed or illustrative, with nothing recommended.',
   /* ONE DESCRIPTION A PAGE, TRUE TO IT (the claims audit of 11 Oct 2026,
      rank 3: F-11, R-17–R-19). The screener's said "Screen Bursa Malaysia
@@ -14278,7 +14281,7 @@ function productRows() {
 }
 /* Under the product rows: where every badge's note is printed. */
 const productsLegendLink = () => el('p', { class: 'pp-foot' },
-  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Live, Beta and Coming soon mean'));
+  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Available, Beta and Coming soon mean'));
 /* Drawn twice — the menu and the phone sheet — so each copy's labels carry
    their own ids. */
 function resourceLists(prefix) {
@@ -16787,6 +16790,15 @@ const KIND_OF_FEE = { verified: 'derived', estimated: 'placeholder', unknown: 'p
    'placeholder', 'quote', 'unset'). A line's status and its provenance
    give it the same badge, whatever it resolves to (build --check). */
 const KIND_OF_FEE_STATUS = { verified: 'derived', placeholder: 'placeholder', quote: 'quoted', unset: 'unavailable' };
+/* A long explanation folded away (the owner, 27 Oct 2026): one short sentence
+   stays in sight beside the result, and the rest is a <details> under a short
+   summary, closed. */
+function foldedNote(short, summary, long, { cls = 'metaline', style = null } = {}) {
+  const box = el('div', { class: 'folded-note', style });
+  box.append(el('p', { class: cls }, short));
+  box.append(el('details', { class: 'explain' }, [el('summary', {}, summary), el('p', { class: cls }, long)]));
+  return box;
+}
 /* The badge. `fine`: the figure's own label, in the title before the
    word's meaning. `link`: false where the badge stands inside a link of
    its own, or on /data-sources itself. */
@@ -18364,8 +18376,8 @@ function renderScreener() {
   railHd.append(el('div', { class: 'segmented', role: 'group', 'aria-label': 'Thresholds as', style: 'margin-top:10px;width:100%' }, [
     el('button', { style: 'flex:1', 'aria-pressed': sc.mode === 'abs' ? 'true' : 'false', onclick: () => setMode('abs') }, 'Absolute'),
     el('button', { style: 'flex:1', 'aria-pressed': sc.mode === 'pct' ? 'true' : 'false',
-      title: lim('percentileMode') ? null : 'Peer-percentile screening is part of Equities Research',
-      onclick: () => { if (!lim('percentileMode')) { toast('Peer-percentile screening is part of Equities Research'); go('plans'); return; } setMode('pct'); } }, 'Peer percentile'),
+      title: lim('percentileMode') ? null : 'Peer-percentile screening is not available in this beta',
+      onclick: () => { if (!lim('percentileMode')) { toast('Peer-percentile screening is not available in this beta'); return; } setMode('pct'); } }, 'Peer percentile'),
   ]));
   railHd.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     sc.mode === 'abs' ? 'Thresholds are raw metric values. Switching mode clears them.' : 'Thresholds are percentile ranks within the same market cohort. Switching mode clears them.'));
@@ -19875,7 +19887,7 @@ function screenDiff(saved) {
 
 function saveScreen() {
   if (State.savedScreens.length >= lim('savedScreens')) {
-    toast(`The ${planOf().name} plan saves ${lim('savedScreens')} screen${lim('savedScreens') === 1 ? '' : 's'}`); go('plans'); return;
+    toast(`This beta saves ${lim('savedScreens')} screen${lim('savedScreens') === 1 ? '' : 's'}`); return;
   }
   const name = prompt('Name this screen', `Screen ${State.savedScreens.length + 1}`);
   if (!name) return;
@@ -19986,7 +19998,7 @@ function openSavedScreen(idx) {
 }
 
 function exportScreen() {
-  if (!lim('exports')) { toast('Exports are part of Equities Research'); go('plans'); return; }
+  if (!lim('exports')) { toast('Exports are not available in this beta'); return; }
   const sc = State.screen;
   /* In the order on screen, with money as the table shows it and every column
      carrying its unit. The file used to come out in universe order, print
@@ -21843,7 +21855,7 @@ VIEWS.research = () => {
   if (!allowed) {
     wrap.append(reportRefusedHead(c));
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
-      `The Free plan covers ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''} Previewing Equities Research lifts it.`));
+      `This beta opens ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''}`, 'Monthly limit reached'));
     const back = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
     back.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }) }, 'Back to the screener'));
     State.reportLog.ids.slice(0, 5).forEach(id => {
@@ -23023,7 +23035,7 @@ function statementsCsv(r) {
 function exportStatements(r) {
   const { c } = r;
   if (c.personal) { toast('Not exported: these statements are personal research and not redistributable. The file you loaded them from is already yours.'); return; }
-  if (!lim('exports')) { toast('Exports are part of Equities Research'); go('plans'); return; }
+  if (!lim('exports')) { toast('Exports are not available in this beta'); return; }
   const blob = new Blob([statementsCsv(r)], { type: 'text/csv' });
   const a = el('a', { href: URL.createObjectURL(blob), download: `${slug(c.tk)}-statements.csv` });
   document.body.append(a); a.click(); a.remove();
@@ -23061,7 +23073,7 @@ function statementTable(r) {
      pressing it. */
   stmt.append(el('p', { class: 'metaline stmt-note', id: 'stmt-csv-note' },
     c.personal ? 'CSV is not offered here: these statements are personal research and not redistributable.'
-    : !lim('exports') ? 'CSV export is part of Equities Research; on the Free plan the button opens Plans instead.'
+    : !lim('exports') ? 'CSV export is not available in this beta.'
     : c.real ? 'CSV: every line and year at full precision, with unit, currency, source and the XBRL concept for each cell.'
     : 'CSV: every line and year at full precision, with unit, currency and source — every figure labelled illustrative.'));
 
@@ -23795,7 +23807,7 @@ VIEWS.researchReport = () => {
   if (!noteReportRead(live.c.id)) {
     wrap.append(reportRefusedHead(live.c));
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
-      `The Free plan covers ${lim('reportsPerMonth')} distinct companies a calendar month, and a printable report of one you have already opened costs nothing more.`));
+      `This beta opens ${lim('reportsPerMonth')} distinct companies a calendar month, and a printable report of one you have already opened costs nothing more.`, 'Monthly limit reached'));
     return wrap;
   }
 
@@ -24345,7 +24357,7 @@ function tabValuation(r) {
   const rail = el('div', { class: 'card rail-sticky' });
   rail.append(cardHead('Assumptions',
     editable ? 'Every input is yours to change. Nothing is silently substituted if you clear a value.'
-             : 'Every assumption behind the range is shown. Editing them is part of Equities Research — the numbers are not hidden, only the controls.',
+             : 'Every assumption behind the range is shown. Editing them is not available in this beta — the numbers are not hidden, only the controls.',
     editable ? el('button', { class: 'btn btn-quiet btn-sm', id: 'studio-reset', onclick: () => { State.valuation[c.id] = { ...r.inputs }; persistValuation(r, true); renderKeepFocus(); toast('Reset to derived defaults'); } }, 'Reset')
              : el('span', { class: 'chip chip-bronze' }, 'Read-only'), { kind: kindFor(c, 'modelled'), fine: 'Assumptions you can change' }));
 
@@ -24383,9 +24395,18 @@ function tabValuation(r) {
        is the reported figure, so a changed bridge is never mistaken for the
        filing's. */
     const hint = el('p', { class: 'a-default' });
+    /* "Default assumption" beside the discount rate and the growth rates
+       (the owner, 27 Oct 2026): the figures that move a valuation most are
+       the model's starting values until the reader changes them, and a
+       range beside them should not read as a finding. It goes when the
+       figure is the reader's own (the line above says so then). */
+    const isDefaultMark = /discount rate|growth|cost of equity|required return/i.test(a.label);
+    const mark = isDefaultMark ? el('p', { class: 'a-mark' }, el('span', { class: 'chip', 'data-default-mark': a.k,
+      title: 'The model’s starting value, until you change it' }, 'Default assumption')) : null;
     const refreshHint = () => {
       const edited = !sameInput(inputs[a.k], r.inputs[a.k]);
       row.classList.toggle('is-edited', edited);
+      if (mark) mark.hidden = edited;
       hint.hidden = !edited;
       hint.textContent = edited ? `Your figure · ${a.bridge && a.k !== 'adj' ? 'reported' : 'derived default'} ${fmtAssumption(a, r.inputs[a.k])}` : '';
     };
@@ -24408,12 +24429,13 @@ function tabValuation(r) {
     }
     const syncRange = () => { if (rng && Number.isFinite(inputs[a.k])) rng.value = inputs[a.k]; };
     row.append(hint);
+    if (mark) row.append(mark);
     refreshHint();
     row.append(el('p', { class: 'a-note' }, a.note));
     rail.append(row);
   });
   if (!editable) rail.append(el('div', { style: 'margin-top:var(--md)' },
-    upsell('Change these assumptions', 'Equities Research makes every input above editable, and recomputes the range, the sensitivity grid and the driver ranking live as you change them.')));
+    upsell('Change these assumptions', 'Every input above would be editable here, and the range, the sensitivity grid and the driver ranking would recompute as you change them.')));
 
   /* fixed inputs shown for transparency */
   const fixed = el('div', { class: 'sunk', style: 'margin-top:var(--md)' });
@@ -24444,8 +24466,9 @@ function tabValuation(r) {
      rather than leaving the keyboard on <body>. */
   rail.append(el('button', { class: 'btn btn-primary btn-sm', style: 'width:100%;margin-top:var(--md)', id: 'studio-save-run',
     onclick: () => { saveValuationRun(r, inputs); document.getElementById('studio-save-run')?.focus({ preventScroll: true }); } }, 'Save this valuation run'));
-  rail.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'A saved run stores the inputs and which of them you changed, the figures they produced, the statements they were computed on, and the model and data versions — so it can be replayed, and printed as a report, after the dataset moves.'));
+  rail.append(foldedNote('A saved run can be replayed and printed after the data moves.', 'What a saved run keeps',
+    'A saved run stores the inputs and which of them you changed, the figures they produced, the statements they were computed on, and the model and data versions — so it can be replayed, and printed as a report, after the dataset moves.',
+    { style: 'margin-top:8px' }));
   const reportPath = `${companyPath(c)}/report`;
   rail.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'width:100%;margin-top:var(--sm)', href: href(reportPath),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(reportPath); } },
@@ -24615,8 +24638,9 @@ function studioOutputs(r, inputs, redraw) {
      rate inputs (a discount rate −1.0 against +1.2, for one) — so the
      published construction misstated what the model does. */
   const shiftText = (s) => Object.entries(s).map(([k, v]) => `${k} ${withSign(v, 1, '')}`).join(', ');
-  head.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `Scenario construction is published, not hidden: the bear case applies ${shiftText(run.shift.bear)} to the base assumptions, and the bull case applies ${shiftText(run.shift.bull)}.`));
+  head.append(foldedNote('Bear and bull shift the base assumptions by published amounts.', 'How the cases are built',
+    `Scenario construction is published, not hidden: the bear case applies ${shiftText(run.shift.bear)} to the base assumptions, and the bull case applies ${shiftText(run.shift.bull)}.`,
+    { style: 'margin-top:var(--sm)' }));
   head.append(explainCalculation(r, inputs, run));
   head.append(explainConfidence(run));
   nodes.push(head);
@@ -27309,13 +27333,12 @@ VIEWS.portfolio = () => {
   const xa = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   if (!lim('crossAsset')) {
     xa.append(cardHead('Cross-asset net worth', 'Equities and property in one place, with allocation, combined cash flow and leverage.'));
-    /* All-Access is not on sale (PLANS.all.launched is false). The offer read
-       "All-Access adds the property portfolio to this view" above "See
-       plans", as if the tier could be bought there. It says what the tier
-       would add, and that it can only be previewed. */
-    xa.append(upsell('Combine shares and property', PLANS.all.launched === false
-      ? 'All-Access would add the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It has not launched and cannot be bought; the plans page can preview it in this browser.'
-      : 'All-Access adds the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It is the reason the two products exist in the same application.'));
+    /* No plan name (the owner, 27 Oct 2026): the offer read "All-Access would
+       add the property portfolio to this view … the plans page can preview it".
+       It says which view is missing and what it would show, in a card that
+       reads "Not available in this beta" (upsell, 05-plans.js). */
+    xa.append(upsell('Combine shares and property',
+      'This view would add the property portfolio: one allocation, one cash-flow line and one leverage figure across both asset classes.'));
   } else {
     const dm = dealModel(State.deal);
     /* The carrying value is the price. Back-computing it from the exit value
@@ -28511,6 +28534,26 @@ function hiwStatus(P) {
   return s;
 }
 
+/* BEFORE YOU RELY ON IT (the owner, 27 Oct 2026): one place near the top that
+   says what is available and what is beta, where the data stops, that saved
+   work stays in this browser, how to back it up and where to report an error.
+   Five one-line items, each with its link; the pages they point to say the
+   rest. Served in the prerender like the rest of the page. */
+const HIW_RELY = [
+  ['What is available now, and what is still beta.', '/status', 'Tool status'],
+  ['No licensed market prices. The Malaysian company set is illustrative, and property figures start from a sample.', '/data-sources', 'Data limits'],
+  ['Saved work stays in this browser only: no account, no sync.', '/my/workspace', 'Your saved work'],
+  ['Back up and restore your work before you clear this browser.', '/my/data', 'Back up and restore'],
+  ['A wrong figure, or a question? Say so.', '/contact', 'Report an error or contact support'],
+];
+function hiwRely() {
+  const s = el('section', { class: 'hiw-status hiw-rely', id: 'hiw-rely', 'aria-labelledby': 'hiw-rely-h' });
+  s.append(el('h2', { class: 'hiw-status-h', id: 'hiw-rely-h' }, 'Before you rely on it'));
+  s.append(el('ul', { class: 'hiw-rely-list' }, HIW_RELY.map(([say, path, label]) =>
+    el('li', { class: 'hiw-rely-item' }, [el('span', { class: 'hiw-rely-t' }, say), ' ', pubLink(path, { class: 'pub-textlink' }, label)]))));
+  return s;
+}
+
 VIEWS.howItWorks = () => {
   const P = PRODUCTS;
   const wrap = el('div', { class: 'pub hiw' });
@@ -28534,6 +28577,7 @@ VIEWS.howItWorks = () => {
   hd.append(el('nav', { class: 'hiw-toc', 'aria-label': 'On this page' }, toc));
   wrap.append(hd);
 
+  wrap.append(hiwRely());
   wrap.append(hiwStatus(P));
   const list = el('div', { class: 'hiw-products' });
   P.forEach(p => list.append(hiwProduct(p)));
@@ -33120,7 +33164,7 @@ function openReportError() {
 
   body.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
     if (!state.description.trim() && !state.expectedValue.trim()) {
-      toast('Say what looks wrong, or what it should be, before recording the case');
+      toast('Say what looks wrong, or what it should be, before saving the case');
       return;
     }
     const k = coverage();
@@ -33150,7 +33194,7 @@ function openReportError() {
     render();
     const back = opener?.isConnected ? opener : opener?.id ? document.getElementById(opener.id) : null;
     if (back && back !== document.body) back.focus({ preventScroll: true });
-    openDrawer(`Case ${c.id} recorded`, (() => {
+    openDrawer(`Case ${c.id} saved here, not sent`, (() => {
       const w = el('div');
       const addr = supportEmail();
       /* With a support address (LAUNCH.contactEmail), the report is the visitor's
@@ -33176,7 +33220,7 @@ function openReportError() {
       ]));
       return w;
     })());
-  } }, 'Record this case'));
+  } }, 'Save this case here'));
   openDrawer('Report a data error', body);
 }
 
@@ -44265,8 +44309,12 @@ function pcDefaultsWarn(d, untouched, { after = 'anything below' } = {}) {
   warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
     el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
     el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px;margin:0' },
-      `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on ${after}.`),
+      `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Replace ${untouched.length === 1 ? 'it' : 'them'} before relying on ${after}.`),
   ]));
+  /* The long explanation is folded under the one short line (the owner, 27 Oct
+     2026); its words are unchanged. */
+  warn.append(el('details', { class: 'explain' }, [el('summary', {}, 'Why these are defaults'),
+    el('p', { class: 'metaline' }, `Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted. The sample deal is not a real listing.`)]));
   if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `These defaults were written around a Kuching condominium. They are not a starting point for ${(SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || 'this location'}, and this tool holds no transacted price or rent for it.`));
   return warn;
@@ -46136,17 +46184,24 @@ VIEWS.property = () => {
        Oct 2026): the Lab's Yield view shows it free, and Pricing's "What it
        adds" no longer lists it either (model-test PP9 holds the two lists
        to the same things). */
-    const offer = upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
+    /* A PLAIN CARD, NO PLAN, NO PRICE (the owner, 27 Oct 2026). Nothing is on
+       sale, and a working tool names no plan, shows no price and sends no one
+       to /pricing: it was "Full investor report — proposed at RM49" with a plan
+       chip and "See plans". The report works in this browser now, so the card
+       says what it holds and offers to show it; the proposed price stays on
+       /pricing, marked not on sale. */
+    const offer = el('div', { class: 'card ls-section' });
+    offer.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:6px' }, el('h3', { class: 'h-card' }, 'Investor report')));
+    offer.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-bottom:var(--sm)' },
       m.proj.custom
-        ? `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
-        /* Proposed per report. The line also offered it "included twice
-           monthly on All-Access", a tier that is not launched and must not
-           appear purchasable; it returns when the tier does. */
+        ? `Holds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison and the risk flags, all worked out from the figures you entered. No comparable transactions are held for ${m.proj.area}.`
         /* No "comparable transactions … for this project" (the Day-10
            pre-audit, OP-04): the only transactions it holds are the sample
-           project's synthetic quarters, said as what they are. Pricing's
-           "What it adds" drops them with it (OP-05; model-test PP9). */
-        : `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags, beside the sample project’s synthetic transactions. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`);
+           project's synthetic quarters, said as what they are. Debt-service
+           cover and cash-on-cash are not listed: the Scenario Lab shows them
+           free (plan items 1.4 and 4.2), and the lists on /pricing agree
+           (model-test PP9). */
+        : 'Holds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison and the risk flags, beside the sample project’s synthetic transactions.'));
     /* The Share / Export row's "Full investor report" goes here (propertyShareRow). */
     offer.id = 'property-report-offer';
     reportCards.push(offer);
@@ -46167,11 +46222,9 @@ VIEWS.property = () => {
       store.write('propertyReportsBought', State.propertyReportsBought);
       /* The offer is replaced by the report, and focus went to <body> with
          the button; it goes to the report's first heading. */
-      toast('Previewing the full report in this browser — nothing is on sale, and nothing was charged'); render(); focusAfterRedraw('#property-report-full h3');
-    } }, 'Preview this report in this browser'));
-    /* No second "See plans" here: the offer above carries the page's one
-       (upsell, 05-plans.js), beside its line that nothing is on sale
-       (plan item 6.1(a), the owner's 16 Oct 2026 decision D11). */
+      toast('Showing the investor report in this browser'); render(); focusAfterRedraw('#property-report-full h3');
+    } }, 'View and print it in this browser'));
+    /* No "See plans" anywhere in this section (the owner, 27 Oct 2026). */
     reportCards.push(el('div', {}, buy));
   } else {
     /* ---------- exits and the alternative ---------- */
@@ -53513,7 +53566,7 @@ VIEWS.propertyLab = () => {
      itself before it showed anything): where the figures come from — the
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: 'Calculations on figures you enter are live; the Scenario Lab is beta.' }));
+    lede: 'Calculations run on the figures you enter; the Scenario Lab is beta.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the
@@ -65205,9 +65258,9 @@ function proofSection() {
      the checks run in this tab — which fill in after the page is drawn, and
      would move it. */
   const card = el('div', { class: 'proof-block', id: 'proof' });
-  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'What proves each Live badge'));
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'What proves each Available badge'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
-    'A Live badge is proven by an outcome step in a journey on the live site: an action, and the result it must produce, checked. A journey that only opens a tool’s page does not count. Each badge below is beside its journey’s last recorded result, as listed above.'));
+    'An Available badge is proven by an outcome step in a journey on the live site: an action, and the result it must produce, checked. A journey that only opens a tool’s page does not count. Each badge below is beside its journey’s last recorded result, as listed above.'));
   card.append(el('h4', { class: 'proof-h' }, `Proven by an outcome step — ${proven.length} of ${rows.length}`));
   card.append(el('ul', { id: 'health-proofs', class: 'proof-list' }, proven.map(r => el('li', { class: 'proof-row', 'data-proof-row': r.key }, [
     badge(),
@@ -65217,11 +65270,11 @@ function proofSection() {
       el('p', { class: 'proof-last' }, [el('span', { class: 'proof-last-label' }, 'Last result: '), proofResultNode(r.proof.journey, r.proof.step)]),
     ]),
   ]))));
-  card.append(el('h4', { class: 'proof-h' }, `Live, and ${PROOF_UNPROVEN} — ${unproven.length} of ${rows.length}`));
+  card.append(el('h4', { class: 'proof-h' }, `Available, and ${PROOF_UNPROVEN} — ${unproven.length} of ${rows.length}`));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     unproven.length
-      ? 'No journey yet does what each of these tools is for and checks the result. Each keeps its Live badge while its journey is written; until then nothing here shows that it works on the live site.'
-      : 'None: every Live badge is proven by an outcome step.'));
+      ? 'No journey yet does what each of these tools is for and checks the result. Each keeps its Available badge while its journey is written; until then nothing here shows that it works on the live site.'
+      : 'None: every Available badge is proven by an outcome step.'));
   card.append(el('ul', { id: 'health-unproven', class: 'proof-list' }, unproven.map(r => el('li', { class: 'proof-row', 'data-proof-row': r.key }, [
     badge(),
     el('p', { class: 'proof-name' }, [r.name, el('span', { class: 'proof-of' }, ` · ${r.of}`)]),
@@ -65302,7 +65355,7 @@ function statusPropertySection() {
   box.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h2', { class: 'h-card', id: 'status-property-h' }, p ? p.name : 'Property Intelligence'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
-      'Its Live badge is the model’s: every figure is worked out from what you enter. The market data is a separate matter.'),
+      'Its Available badge is the model’s: every figure is worked out from what you enter. The market data is a separate matter.'),
   ])));
   box.append(el('dl', { class: 'status-split' }, [
     el('div', { class: 'status-split-row', 'data-split': 'model' }, [
