@@ -171,7 +171,7 @@ function searchPageIndex() {
     add({ label: t.label, in: p ? p.name : 'My workspace', note: t.statusNote, path: t.path,
       icon: p ? PRODUCT_ICON[p.id] || 'grid' : SEARCH_WORKSPACE_ICON[t.id] || 'folder', product: null, tool: t, aka: [t.action?.label].filter(Boolean) });
   });
-  [{ label: 'Home', path: '/', icon: 'grid' }, { label: 'How it works', path: '/how-it-works', icon: 'info' }, { label: 'Pricing', path: '/pricing', icon: 'tag' },
+  [{ label: 'Home', path: '/', icon: 'grid' }, { label: 'How it works', path: '/how-it-works', icon: 'info' }, { label: 'Plans', path: '/pricing', icon: 'tag' },
     ...RESOURCES.map(r => ({ label: r.label, path: r.path, icon: r.group === 'method' ? 'book' : 'doc', in: 'Resources' }))].forEach(r => {
     if (byPath.has(r.path) || !searchOpens(r.path)) return;
     add({ label: r.label, in: r.in || 'Page', note: metaOf(matchRoute(r.path), ''), path: r.path, icon: r.icon, product: null, tool: null, aka: [] });

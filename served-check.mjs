@@ -2294,9 +2294,10 @@ const HOME_PAGE = read(HOME);
         served data/us.json, in US$; no baseCcy among /'s served reads; no
         digit in the Scanner card but the 50; no "matched", "approaching" or
         "watching" on /;
-   N8   /pricing: its h1 and "Nothing on this page can be bought." first,
-        three cards of 20 words or fewer besides name and price, each saying
-        "Not on sale" or "Nothing to buy", no link, button or .btn in a card,
+   N8   /pricing: its h1 and "Paid plans are not on sale and have no prices
+        yet" first, no RM figure anywhere on the page (the owner, 27 Oct 2026),
+        three cards of 20 words or fewer besides name, each saying
+        "Not on sale" or "Free now", no link, button or .btn in a card,
         no btn-primary in main, buttons only in the closed "Compare
         details", 300 words or fewer outside it, the coverage line once, and
         "not on sale" beside every link to /pricing in a page's main;
@@ -2486,17 +2487,20 @@ const HOME_PAGE = read(HOME);
   const pr = got.get('/pricing')?.body || '';
   const pm = mainOf(pr);
   const pmText = pm ? sight(pm) : '';
-  const h1At = pmText.indexOf('Proposed plans — not on sale yet'), buyAt = pmText.indexOf('Nothing on this page can be bought.');
+  const h1At = pmText.indexOf('What is free now, and what paid plans would add'), buyAt = pmText.indexOf('Paid plans are not on sale and have no prices yet');
   const pcards = pm ? all(pm).filter(n => n.tag === 'article' && has(n, 'plan-concept')) : [];
   const firstCard = pcards[0] ? pmText.indexOf(sight(pcards[0]).slice(0, 12)) : -1;
-  if (h1At < 0 || buyAt < 0 || (firstCard >= 0 && (h1At > firstCard || buyAt > firstCard))) p.push('/pricing: the h1 and "Nothing on this page can be bought." do not both come before the cards');
-  if (!pmText.includes('No payment is processed anywhere in this build')) p.push('/pricing: "No payment is processed anywhere in this build" is gone');
+  if (h1At < 0 || buyAt < 0 || (firstCard >= 0 && (h1At > firstCard || buyAt > firstCard))) p.push('/pricing: the h1 and "Paid plans are not on sale and have no prices yet" do not both come before the cards');
+  if (!pmText.includes('No payment is taken anywhere in this build')) p.push('/pricing: "No payment is taken anywhere in this build" is gone');
+  /* No price figure on the served page (the owner, 27 Oct 2026): prices appear only for a product that can be bought. */
+  if (/RM\s?\d/.test(pageText(pr))) p.push(`/pricing: the served page shows a price figure: "${(/.{0,30}RM\s?\d.{0,30}/.exec(pageText(pr)) || [''])[0]}"`);
+  if (/proposed price/i.test(pageText(pr))) p.push('/pricing: the served page says "proposed price"');
   if (pcards.length !== 3) p.push(`/pricing: ${pcards.length} concept cards, not three`);
   for (const c of pcards) {
     const name = sight(all(c).find(n => n.tag === 'h3') || { kids: [] });
-    const w = wordsIn(sight(c, n => n.tag === 'h3' || has(n, 'plan-concept-price'))).length;
-    if (w > 20) p.push(`/pricing: the ${name} card is ${w} words besides its name and price, more than 20`);
-    if (!/Not on sale|Nothing to buy/.test(sight(c))) p.push(`/pricing: the ${name} card says neither "Not on sale" nor "Nothing to buy"`);
+    const w = wordsIn(sight(c, n => n.tag === 'h3')).length;
+    if (w > 20) p.push(`/pricing: the ${name} card is ${w} words besides its name, more than 20`);
+    if (!/Not on sale|Free now/.test(sight(c))) p.push(`/pricing: the ${name} card says neither "Not on sale" nor "Free now"`);
     if (all(c).some(n => n.tag === 'a' || n.tag === 'button' || attr(n, 'data-inert') === 'button' || has(n, 'btn'))) p.push(`/pricing: the ${name} card holds a link or a button`);
   }
   const det = pm && all(pm).find(n => n.tag === 'details' && attr(n, 'id') === 'plan-compare');

@@ -1315,8 +1315,8 @@ for (const w of [360, 390]) {
    card's line: it must wrap inside its card, never push the page sideways
    or run past the card's edge. The draft line on Terms and Privacy is the
    first thing under the heading and must be on the first screen of a phone;
-   each plan's preview button is a 44px target; and the pricing lede — no
-   payment provider, no refund policy — is shown whole, not clamped to two
+   each plan's preview button is a 44px target; and the plans lede — no
+   price, no purchase — is shown whole, not clamped to two
    lines as a page's standfirst is on a phone. Measured at 360, 390 and 768
    in light and dark. */
 {
@@ -1359,7 +1359,7 @@ for (const w of [360, 390]) {
           if ((p === '/about' || p === '/contact') && v.marks) fails.push(`${at}: ${v.marks} "To be supplied" marker(s) on a customer page`);
           if ((p === '/privacy' || p === '/terms') && (v.draftTop == null || v.draftTop > 844 - 60)) fails.push(`${at}: the draft line is at ${v.draftTop}px, not on the first screen`);
           if (v.ctas) fails.push(`${at}: ${v.ctas} plan button(s) under 44px`);
-          if (p === '/pricing' && !(v.clipped <= 1)) fails.push(`${at}: the lede that says nothing can be bought is clipped by ${v.clipped}px`);
+          if (p === '/pricing' && !(v.clipped <= 1)) fails.push(`${at}: the lede that says paid plans are not on sale is clipped by ${v.clipped}px`);
         }
       }
     }

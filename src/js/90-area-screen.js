@@ -1405,9 +1405,10 @@ VIEWS.boundaries = () => {
   wrap.append(notMonetisedCard());
 
   const back = el('div', { class: 'card' });
-  back.append(cardHead('Prices', 'What the product would cost, on its own page — proposed, and not on sale yet.'));
+  /* No price is promised here (the owner, 27 Oct 2026): the plans page shows no price while nothing can be bought. */
+  back.append(cardHead('Plans', 'What is free now and what paid plans would add, on its own page — not on sale.'));
   back.append(el('a', { class: 'btn btn-primary', href: href('/pricing'),
-    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/pricing'); } }, 'See plans and prices'));
+    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/pricing'); } }, 'See plans'));
   wrap.append(back);
   return wrap;
 };
@@ -1503,27 +1504,37 @@ function scopeCard() {
    marked not launched, the per-report table with its RM89 line as it
    reads today, the coverage and price-data lines once each, and the
    preview controls. Pricing stays in the header. */
+
+/* NO PRICE IS SHOWN HERE ANY MORE (the owner, 27 Oct 2026). Prices appear
+   only for a product that can actually be bought through a priced purchase
+   flow, and nothing can be. So this page shows the boundary alone — what is
+   free now and what each paid plan would add — with no figure and no wording
+   that reads as a purchase. PLANS.priceMo / priceYr / founding and
+   PROPERTY_REPORT_PRICE stay in 05-plans.js for a launch and are rendered
+   nowhere public; the line above about the RM89 and the prices is the
+   history of what this page was. The nav says "Plans" for the same reason;
+   the path is still /pricing. */
 let plansCompareOpen = false;
 const PLAN_CARDS = [
-  { id: 'free', name: () => PLANS.free.name, price: 'RM0', per: null, mark: 'Nothing to buy',
+  { id: 'free', name: () => PLANS.free.name, mark: 'Free now',
     line: 'Research a few companies, keep one list and one portfolio, and model a property by hand.' },
-  { id: 'pro', name: () => PLANS.pro.name, price: `RM${PLANS.pro.priceMo}`, per: '/month, proposed', mark: 'Not on sale',
+  { id: 'pro', name: () => PLANS.pro.name, mark: 'Not on sale',
     line: 'Every company here, editable valuation assumptions, the full screener, comparison, alerts and exports.' },
-  { id: 'report', name: () => 'Property reports', price: `from RM${PROPERTY_REPORT_PRICE.basic}`, per: 'per report, proposed', mark: 'Not on sale',
+  { id: 'report', name: () => 'Property reports', mark: 'Not on sale',
     line: 'A fee per report, not a subscription: from a saved analysis to a full investor report.' },
 ];
 VIEWS.plans = () => {
   const wrap = el('div', { class: 'plans-page' });
-  /* NOT ON SALE, SAID FIRST (launch audit, 29 Sep 2026), word for word. */
+  /* NOT ON SALE, SAID FIRST (launch audit, 29 Sep 2026); worded again with no price (the owner, 27 Oct 2026). */
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Plans'),
-    el('h1', {}, 'Proposed plans — not on sale yet'),
+    el('h1', {}, 'What is free now, and what paid plans would add'),
     el('p', { class: 'body-lg plan-lede', style: 'margin-top:8px' },
-      'Nothing on this page can be bought. These are the prices proposed for a launch, shown so you can see what is planned and what each plan would include. There is no checkout and no payment provider, nothing is charged, and so there is no refund policy yet — there is nothing to refund.'),
+      'Everything you can use here is free during the beta. Paid plans are not on sale and have no prices yet; a plan will show its price when it can be bought.'),
   ])));
   wrap.append(el('div', { class: 'plan-nopay' }, [
     el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
-    el('p', { class: 'body' }, 'No payment is processed anywhere in this build: no checkout, no card capture, no trial clock, no renewal.'),
+    el('p', { class: 'body' }, 'No payment is taken anywhere in this build.'),
   ]));
 
   /* The three concepts. Equity research is proposed as a subscription, used
@@ -1536,8 +1547,6 @@ VIEWS.plans = () => {
         el('h3', { class: 'h-card', id: `plan-${pc.id}-h` }, pc.name()),
         el('span', { class: `chip ${pc.id === 'free' ? '' : 'chip-bronze'}` }, pc.mark),
       ]),
-      el('p', { class: 'plan-concept-price' }, [el('span', { class: pc.id === 'free' ? 'plan-price' : 'plan-price plan-price-proposed' }, pc.price),
-        pc.per ? el('span', { class: 'metaline' }, ` ${pc.per}`) : null]),
       el('p', { class: 'plan-concept-line' }, pc.line),
       on ? el('p', { class: 'plan-concept-on' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 14) }), pc.id === 'free' ? 'Current' : 'Previewing']) : null,
     ]);
@@ -1552,10 +1561,9 @@ VIEWS.plans = () => {
   body.append(el('p', { class: 'caption' }, 'Equity research is proposed as a subscription because it is used every week. Property research is episodic — most people buy a home every several years, not every month — so it is proposed as a fee per report.'));
   const PL = Object.values(PLANS);
   const head = (pl) => {
-    const paid = !!pl.priceMo, launched = pl.launched !== false;
+    const paid = !!pl.priceMo;
     return el('th', { scope: 'col' }, [el('span', { class: 'plan-col-name' }, pl.name),
-      el('span', { class: 'plan-col-price' }, paid ? `RM${pl.priceMo}/month, proposed${launched ? '' : ' — not launched'}` : 'RM0'),
-      paid && pl.priceYr ? el('span', { class: 'plan-col-yr' }, `RM${pl.priceYr} a year${pl.founding ? `; RM${pl.founding} founding, first ${pl.foundingSeats}` : ''}`) : null]);
+      paid ? el('span', { class: 'plan-col-price' }, 'Not on sale') : null]);
   };
   const rows = [
     ['Company reports', pl => pl.limits.reportsPerMonth === Infinity ? 'Unlimited' : `${pl.limits.reportsPerMonth} a month — not applied while the beta is free`],
@@ -1591,20 +1599,19 @@ VIEWS.plans = () => {
   body.append(el('p', { class: 'metaline' }, 'Price data is not available on any plan — no market-data licence is in place. The last row says what each plan would carry once one is.'));
   body.append(el('p', { class: 'metaline' }, `All-Access has not launched and cannot be bought: ${PLANS.all.blurb}`));
 
-  /* The per-report prices, the RM89 line as it reads today (D11(d)). Headed
+  /* The per-report table, with no price column (the owner, 27 Oct 2026; it was the per-report prices, the RM89 line, D11(d)). Headed
      by what the cards above call them, "Property reports" — "Property Deal
      Check" named a product nowhere else sold (the Day-10 pre-audit, CL-09). */
-  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property reports — proposed prices per report'));
-  body.append(el('p', { class: 'caption' }, 'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
+  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property reports — what each would include'));
   const ptw = el('div', { class: 'tablewrap' });
   const pt = el('table', { class: 'dt dt-stack' });
-  pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds', 'Today'].map((h, i) => el('th', { style: i >= 2 ? 'text-align:left' : null }, h)))));
+  pt.append(el('thead', {}, el('tr', {}, ['Report', 'What it adds', 'Today'].map((h, i) => el('th', { style: i >= 1 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
-    ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.', 'Available now, free: save a property in the Scenario Lab or the calculator.'],
-    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'Net operating income, ten-year scenarios, exit costs and the equity comparison, on your figures.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
-    ['Verified project report', `RM${PROPERTY_REPORT_PRICE.verified}`, 'The full report against a verified project dataset rather than user-entered figures.', 'Not available: it needs a verified project dataset, and none is held.'],
+    ['Saved analysis', 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.', 'Available now, free: save a property in the Scenario Lab or the calculator.'],
+    ['Full investor report', 'Net operating income, ten-year scenarios, exit costs and the equity comparison, on your figures.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
+    ['Verified project report', 'The full report against a verified project dataset rather than user-entered figures.', 'Not available: it needs a verified project dataset, and none is held.'],
   ].map(r2 => el('tr', {}, r2.map((cell, i) =>
-    el('td', { class: i === 0 ? 'ident' : '', style: i >= 2 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));
+    el('td', { class: i === 0 ? 'ident' : '', style: i >= 1 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));
   ptw.append(pt);
   body.append(ptw);
 

@@ -7415,12 +7415,12 @@ try {
     if (r.launched !== false) p.push('PLANS.all is launched now — this check describes a tier that is not');
     if (/^Switch to/.test(r.btn || '') || r.primary || !/Preview/.test(r.btn || '')) p.push(`button "${r.btn}"${r.primary ? ' (primary)' : ''}`);
     if (!r.chips.includes('Not on sale') || r.chips.includes('Phase 2')) p.push(`chips ${JSON.stringify(r.chips)}`);
-    if (!/proposed/i.test(r.text) || !/cannot be bought/.test(r.text)) p.push('the card does not say its price is proposed and cannot be paid');
+    if (!/proposed/i.test(r.text) || !/cannot be bought/.test(r.text)) p.push('the details do not say the plans are proposed and cannot be bought');
     if (r.plan !== 'all' || /^Switched to/.test(r.toast) || !/Previewing/.test(r.toast)) p.push(`after the press: plan ${r.plan}, toast "${r.toast}"`);
     if (r.after !== 'Previewing All-Access in this browser') p.push(`after the press the button reads "${r.after}"`);
     if (/All-Access|\bplans?\b|cannot be bought/i.test(r.offer) || !/Not available in this beta/.test(r.offer)) p.push(`portfolio offer: ${r.offer.slice(0, 160)}`);
     if (p.length) fail('misc: the unlaunched All-Access tier is offered as a plan that can be switched to or bought', p);
-    else ok('misc: All-Access reads "Not on sale", its price as proposed, its button as a preview in this browser, and the portfolio offer as a tier that has not launched');
+    else ok('misc: All-Access reads "Not on sale", the plans as proposed, its button as a preview in this browser, and the portfolio offer as a tier that has not launched');
   }
   /* ---- end bugfix4: misc ---- */
 
@@ -10745,22 +10745,26 @@ try {
       out.planBack = State.plan; out.toastFree = document.getElementById('toast')?.textContent || '';
       out.header = [...document.querySelectorAll('#pubnav a, #pubSheet a')].some(a => (a.dataset.path || a.getAttribute('href')) === '/pricing');
       out.meta = document.querySelector('meta[name=description]')?.content || '';
+      out.navLabels = [...document.querySelectorAll('#pubnav a, #pubSheet a')].filter(a => (a.dataset.path || a.getAttribute('href')) === '/pricing').map(a => a.textContent.trim());
+      out.freeMark = [...main().querySelectorAll('.plan-free .chip')].some(c => c.textContent.trim() === 'Free now');
       State.plan = keep; store.write('plan', keep);
       return out;
     })()`);
     const sitemap = await (await fetch(`${BASE}/sitemap.xml`)).text();
     const BUY = /\b(subscribe|buy|upgrade|get started|checkout|check out|purchase|order now|add to cart|switch to|start (your )?(free )?trial)\b/i;
     const p = [];
-    if (!/not on sale/i.test(r.h1)) p.push(`the heading reads "${r.h1}"`);
-    for (const [re, what] of [[/nothing on this page can be bought/i, 'nothing can be bought'], [/no payment provider/i, 'there is no payment provider'],
-      [/no refund policy/i, 'no refund policy is needed'], [/proposed/i, 'the prices are proposed']])
+    /* The page shows the free/paid boundary and no price (the owner, 27 Oct 2026). */
+    if (!/what is free now/i.test(r.h1) || !/paid plans would add/i.test(r.h1)) p.push(`the heading reads "${r.h1}"`);
+    for (const [re, what] of [[/free during the beta/i, 'everything here is free during the beta'], [/not on sale/i, 'paid plans are not on sale'],
+      [/no prices yet/i, 'paid plans have no prices yet']])
       if (!re.test(r.lead)) p.push(`the lead does not say ${what}: "${r.lead.slice(0, 160)}"`);
+    if (/RM\s?\d|proposed price/i.test(r.lead + ' ' + r.cards.map(c => c.text).join(' '))) p.push('a price figure or "proposed price" in the lead or a plan card');
     [...new Set([...r.controls, ...r.controlsAfter])].filter(t => BUY.test(t)).forEach(t => p.push(`a control reads as a purchase: "${t}"`));
     const paid = r.cards.filter(c => c.name !== r.free);
     if (r.cards.length !== 3 || paid.length !== 2) p.push(`${r.cards.length} plan cards`);
     for (const c of paid) {
       if (!c.chips.includes('Not on sale')) p.push(`${c.name}: chips ${JSON.stringify(c.chips)}`);
-      if (!/proposed/i.test(c.text)) p.push(`${c.name}: its price is not said to be proposed`);
+      if (/RM\s?\d/.test(c.text)) p.push(`${c.name}: its card shows a price: "${c.text}"`);
       if (c.cta !== '(per report)' && !/^Preview .+ in this browser — nothing is charged$/.test(c.cta || '')) p.push(`${c.name}: its preview reads "${c.cta}"`);
     }
     if ([...r.cards, ...r.cardsAfter].some(c => c.primary)) p.push('a plan button is drawn as the page\'s primary action');
@@ -10768,11 +10772,14 @@ try {
     const back = r.cardsAfter.find(c => c.name === r.free)?.cta || '';
     if (!/in this browser/.test(back)) p.push(`with a paid plan previewed, Free's button reads "${back}"`);
     if (r.planBack !== 'free' || /Switched to/.test(r.toastFree)) p.push(`back to Free: plan ${r.planBack}, toast "${r.toastFree}"`);
-    if (!r.header) p.push('the header has no Pricing link');
+    if (!r.header) p.push('the header has no link to the plans page');
+    if (!r.navLabels.length || r.navLabels.some(t => t !== 'Plans')) p.push(`the header and sheet links to /pricing read ${JSON.stringify(r.navLabels)}, not "Plans"`);
+    if (/prices/i.test(r.meta)) p.push(`the page's description says "prices": "${r.meta}"`);
+    if (!r.freeMark) p.push('the Free card is not marked "Free now"');
     if (!/<loc>[^<]*\/pricing<\/loc>/.test(sitemap)) p.push('sitemap.xml does not list /pricing');
     if (!/not on sale/i.test(r.meta)) p.push(`the page's description reads "${r.meta}"`);
     if (p.length) fail('audit content C1: /pricing says the plans are not on sale and no control on it reads as a purchase', p);
-    else ok(`audit content C1: /pricing reads "${r.h1}", its lead says nothing can be bought, no payment provider exists and no refund policy is needed; each paid plan is marked not on sale at a proposed price, its button previews it in this browser, and it stays in the header and the sitemap`);
+    else ok(`audit content C1: /pricing reads "${r.h1}", its lead says everything is free during the beta and paid plans are not on sale and have no prices yet; each paid plan is marked not on sale with no price, its button previews it in this browser, and it stays in the header (as "Plans") and the sitemap`);
   }
   /* THE SUPPORT ROUTE (Day-10 F3; the owner's decisions of 23 Oct 2026).
      Support is an address the owner monitors, and the owner supplied it:

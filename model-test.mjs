@@ -4740,7 +4740,7 @@ try {
                neither names what the Lab shows free. */
             navigate('/pricing'); await w(500);
             const prow = [...document.querySelectorAll('#views tr')].find(tr => /^Full investor report/.test(txt(tr)));
-            locked.pricing = prow ? txt(prow.querySelectorAll('td')[2]) : null;
+            locked.pricing = prow ? txt(prow.querySelectorAll('td')[1]) : null;
             State.propertyReportsBought = [...State.propertyReportsBought, pid];
             const open = await look();
             return { locked, open };

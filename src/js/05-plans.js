@@ -50,7 +50,8 @@ const PLANS = {
 };
 const PROPERTY_REPORT_PRICE = { basic:19, full:49, verified:89 };
 
-/* PLANS and PROPERTY_REPORT_PRICE are the pricing surface: the plans page
+/* These figures are kept for a launch and rendered nowhere public until a plan is on sale (the owner, 27 Oct 2026).
+   PLANS and PROPERTY_REPORT_PRICE are the pricing surface: the plans page
    and every offer read them. A second table, PRICING, held the same prices
    as sales lines — "Limited to 500 members. Renews at RM299 a year." — and
    nothing read it; with no plan on sale (launch audit, 29 Sep 2026) a

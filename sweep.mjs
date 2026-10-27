@@ -2056,7 +2056,7 @@ for (const route of ROUTES) {
     if (!may || !may.rows.some(r => /^Investment case/.test(r.kind) && r.chips.includes('sample'))) b3.push(`"maybank" does not list the sample investment case, labelled a sample, under Your saved work: ${JSON.stringify(may?.rows || null)}`);
 
     /* The public pages, by name, as links to their own address. */
-    for (const [label, path] of [['How it works', '/how-it-works'], ['Pricing', '/pricing'], ['Methodology', '/methodology'], ['Data sources', '/data-sources'], ['Glossary', '/learn/glossary']]) {
+    for (const [label, path] of [['How it works', '/how-it-works'], ['Plans', '/pricing'], ['Methodology', '/methodology'], ['Data sources', '/data-sources'], ['Glossary', '/learn/glossary']]) {
       const pg = group(await ev(LISTED(label)), 'pages');
       const r = pg?.rows.find(x => x.name === label);
       if (!pg) b3.push(`"${label}" lists no "Pages and tools" group`);
@@ -2195,7 +2195,7 @@ for (const route of ROUTES) {
     await ev(`(() => { openSearch(); return true; })()`); await sleep(300);
     const after = await ev(shown);
     const names = (after?.rows || []).map(r => r.name);
-    const want = ['MSFT', 'QT recent list', 'Screener', 'Pricing', 'AAPL'];
+    const want = ['MSFT', 'QT recent list', 'Screener', 'Plans', 'AAPL'];
     if (!after || want.some((n, i) => !(names[i] || '').startsWith(n))) b4.push(`Recent lists ${JSON.stringify(names.slice(0, 7))}, not ${JSON.stringify(want)} newest first`);
     if (names.includes('How it works')) b4.push('Recent lists How it works, the page on screen');
     const badWhen = (after?.rows || []).slice(0, 5).filter(r => !r.when || !Number.isFinite(Date.parse(r.when)) || r.said !== 'just now');
@@ -2330,7 +2330,7 @@ for (const route of ROUTES) {
 
     /* Reached in-app while the filings load, a company page's head names no
        company and is not the page before's (Apple's on Maybank's address,
-       Pricing's on Apple's); once they are in, it is the company's own. */
+       Plans' on Apple's); once they are in, it is the company's own. */
     await load(BASE + '/company/aapl-apple-inc');
     const d2 = await ev(`(async () => {
       const read = () => ({ title: document.title, canon: new URL(document.querySelector('link[rel=canonical]').href).pathname });
@@ -2345,7 +2345,7 @@ for (const route of ROUTES) {
       try { navigate('/company/aapl-apple-inc'); await new Promise(r => setTimeout(r, 300)); const during = read();
         realPending = false; navigate('/company/aapl-apple-inc'); await new Promise(r => setTimeout(r, 400)); return { during, after: read() }; }
       finally { realPending = false; } })()`);
-    if (/Pricing/.test(d2b.during.title) || d2b.during.canon !== '/company/aapl-apple-inc' || !/AAPL — Apple Inc/.test(d2b.after.title)) q.push(`Pricing → Apple while the filings load, then loaded: ${JSON.stringify(d2b)}`);
+    if (/Plans/.test(d2b.during.title) || d2b.during.canon !== '/company/aapl-apple-inc' || !/AAPL — Apple Inc/.test(d2b.after.title)) q.push(`Plans → Apple while the filings load, then loaded: ${JSON.stringify(d2b)}`);
 
     /* Any other name for a company ends at its own address, tab and query
        kept — the one the server sends the company's own head for. */
@@ -2989,6 +2989,50 @@ for (const route of ROUTES) {
   else console.log(`ok   deep links: ${Object.keys(WANT).length} /my/ pages entered directly and reloaded, each its own page and h1; the workspace's Print & share tab, Back and Forward each the page its address names; /company/AAPL-SEC?tab=financials arrives at /company/aapl-apple-inc?tab=financials on its Financials tab, and Back returns to the page before it; no error`);
 }
 /* ---- end deep-links ---- */
+/* ---- plans-boundary ---- */
+/* /PRICING SHOWS THE FREE/PAID BOUNDARY AND NO PRICE (owner, 27 Oct 2026).
+   Prices appear only for a product that can be bought through a priced
+   purchase flow, and nothing can be. In the browser, on /pricing: the text of
+   #views (the closed "Compare details" included, which is read as text, not
+   as what is in sight) holds no "RM" followed by a digit and no "proposed
+   price"; it holds "Free now" and "Not on sale"; and the comparison still has
+   its rows ("Editable valuation assumptions" among them) and the per-report
+   table its three reports. Fails before the change: the cards carried
+   RM0, RM29 and "from RM19", the table a "Proposed price" column. */
+{
+  const p = [];
+  const ev = async (expression) => (await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId)).result?.result?.value;
+  await send('Page.navigate', { url: BASE + '/pricing' }, sessionId);
+  let r = null;
+  for (let i = 0; i < 100 && !r; i++) {
+    await sleep(150);
+    r = await ev(`(() => {
+      if (typeof State === 'undefined' || State.view !== 'plans' || typeof realPending === 'undefined' || realPending) return null;
+      const v = document.getElementById('views'); if (!v || !v.querySelector('.plan-card')) return null;
+      const t = v.textContent.replace(/\\s+/g, ' ');
+      return { text: t, h1: v.querySelector('h1')?.textContent.trim() || '',
+        cards: [...v.querySelectorAll('.plan-card')].map(c => c.textContent.replace(/\\s+/g, ' ').trim()),
+        rows: [...v.querySelectorAll('table.plan-table tbody tr th')].map(x => x.textContent.trim()),
+        reports: [...v.querySelectorAll('table.dt-stack tbody tr')].length,
+        reportHead: [...v.querySelectorAll('table.dt-stack thead th')].map(x => x.textContent.trim()),
+        nav: [...document.querySelectorAll('#pubnav a, #pubSheet a')].filter(a => (a.dataset.path || a.getAttribute('href')) === '/pricing').map(a => a.textContent.trim()) };
+    })()`);
+  }
+  if (!r) p.push('/pricing did not draw its plan cards');
+  else {
+    const m = /.{0,30}RM\s?\d.{0,30}/.exec(r.text);
+    if (m) p.push(`/pricing shows a price figure: "${m[0]}"`);
+    if (/proposed price/i.test(r.text)) p.push('/pricing says "proposed price"');
+    if (!/Free now/.test(r.text) || !/Not on sale/.test(r.text)) p.push('/pricing lacks "Free now" or "Not on sale"');
+    if (r.cards.length !== 3 || !/Free now/.test(r.cards[0]) || r.cards.slice(1).some(c => !/Not on sale/.test(c))) p.push(`the plan cards: ${JSON.stringify(r.cards).slice(0, 300)}`);
+    if (!r.rows.includes('Editable valuation assumptions') || r.rows.length < 10) p.push(`the comparison has ${r.rows.length} rows: ${r.rows.join(' | ')}`);
+    if (r.reports !== 3 || r.reportHead.join('|') !== 'Report|What it adds|Today') p.push(`the per-report table: ${r.reports} rows, head ${JSON.stringify(r.reportHead)}`);
+    if (!r.nav.length || r.nav.some(t => t !== 'Plans')) p.push(`the links to /pricing read ${JSON.stringify(r.nav)}, not "Plans"`);
+  }
+  if (p.length) { bad++; console.log(`FAIL plans boundary: /pricing is not the free/paid boundary alone (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   plans boundary: /pricing, in the page's text with the closed details, holds no RM figure and no "proposed price", says "Free now" and "Not on sale", keeps its ${r.rows.length} comparison rows and three reports, and its links read "Plans"`);
+}
+/* ---- end plans-boundary ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

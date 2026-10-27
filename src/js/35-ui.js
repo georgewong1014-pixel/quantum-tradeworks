@@ -929,7 +929,7 @@ const APP_NAV_WORKSPACE = [
   ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Print & share', icon: 'doc', path: '/my/reports' }] : []),
 ];
 /* No "Plans" item in the workspace navigation (the owner, 27 Oct 2026): nothing
-   is on sale, and the tools do not send anyone to /pricing. "Pricing" stays in
+   is on sale, and the tools do not send anyone to /pricing. "Plans" (it read "Pricing" until 27 Oct 2026) stays in
    the header and the footer (29 Sep 2026), and /pricing stays as it was. */
 const APP_NAV_FOOT = [
   { id: 'userdata', label: 'Your data & settings', icon: 'database', path: '/my/data' },
@@ -1297,7 +1297,7 @@ const ROUTES = [
   { path: '/decision-record',     view: 'decisionRecord', title: 'Decision record' },
   { path: '/methodology/ips',     view: 'ips',       title: 'Investment Policy Statement' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
-  { path: '/pricing',             view: 'plans',     title: 'Pricing' },
+  { path: '/pricing',             view: 'plans',     title: 'Plans' },
   { path: '/about',               view: 'about',     title: 'About' },
   { path: '/contact',             view: 'contact',   title: 'Contact' },
   { path: '/privacy',             view: 'privacy',   title: 'Privacy' },
@@ -1342,7 +1342,7 @@ const META = {
   'learn:models': 'How each company type is routed to a valuation model pack — bank, insurer, REIT, cyclical, growth, subscription software, holding company and the rest — with each pack’s secondary checks and its published limitations.',
   'learn:data': 'Where each figure comes from and what may be done with it: the source hierarchy, the badge words, the property fee rulebook with each line’s rule and checked date, the NAPIC licence position, the point-in-time policy and what is not held.',
   'learn:trust': 'The corrections log — what was wrong and what changed, most recent first — the cases you record in this browser, how a figure is reported against the exact item, and the research and advisory modes.',
-  plans:     'Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.',
+  plans:     'What is free in Quantum Tradeworks now, and what proposed paid plans would add — not on sale: nothing can be bought and no payment is taken.',
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
@@ -2115,7 +2115,7 @@ const NAV_MARKUP = {
   pubnav: () => el('ul', { class: 'pubnav-list' }, [
     pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows()), productsLegendLink()], 'pubpanel-products'),
     el('li', {}, shellLink('/how-it-works', { class: 'publink', 'data-pub': 'howItWorks' }, 'How it works')),
-    el('li', {}, shellLink('/pricing', { class: 'publink', 'data-pub': 'plans' }, 'Pricing')),
+    el('li', {}, shellLink('/pricing', { class: 'publink', 'data-pub': 'plans' }, 'Plans')),
     pubMenu('menuResources', 'Resources', resourceLists('menu'), 'pubpanel-resources'),
   ]),
   /* The sidebar: My Workspace, Products, then the reader's data and plans. */
@@ -2298,7 +2298,7 @@ function buildShell() {
       productsLegendLink(),
       el('ul', { class: 'sheet-links' }, [
         el('li', {}, shellLink('/how-it-works', { class: 'sheet-link', 'data-pub': 'howItWorks' }, 'How it works')),
-        el('li', {}, shellLink('/pricing', { class: 'sheet-link', 'data-pub': 'plans' }, 'Pricing')),
+        el('li', {}, shellLink('/pricing', { class: 'sheet-link', 'data-pub': 'plans' }, 'Plans')),
       ]),
       el('div', { class: 'sheet-resources' }, resourceLists('sheet')),
       el('button', { type: 'button', class: 'sheet-link sheet-theme', 'data-theme-toggle': '', 'aria-label': 'Switch colour theme' }, [
