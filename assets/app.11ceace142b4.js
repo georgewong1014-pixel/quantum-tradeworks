@@ -38145,7 +38145,88 @@ function newPropertyDeal({ show = true } = {}) {
   toast(`A new property, from the sample deal — replace its figures with yours, then save it.${pmKeptNote(kept)}`);
 }
 
-/* SAVE THIS PROPERTY. Unsaved: it becomes a property, named by the reader.
+/* THE NAME, ASKED FOR IN THE PAGE — not the browser's native prompt. A native prompt is
+   suppressed by some in-app browsers (it returns null, and the save is
+   silently cancelled), drawn over the page on a phone, and announced out of
+   place by a screen reader. The form is the Scenario Lab's (labNameForm,
+   82-property-lab.js): a label, the name selected in a text box, Save (or
+   Rename) and Cancel; Enter saves, Escape cancels. It opens under the
+   control that was pressed (pmNameForm(key), appended by that control's
+   owner), and one is open at a time. What is typed is held here, not in the
+   box, so a redraw does not lose it. */
+let PM_NAME = null;
+function pmNameAsk(spec) {
+  PM_NAME = { value: '', submit: 'Save', focus: null, ...spec, page: pageOnScreen() };
+  render();
+  const f = document.getElementById('pm-name-input');
+  if (f) { f.focus(); f.select?.(); }
+}
+/* The form closed: after a save, focus goes where that call site sent it
+   before; after Cancel (or a save the browser refused), back to the button
+   that opened the form. */
+function pmNameDone(n, ok) {
+  PM_NAME = null;
+  render();
+  focusAfterRedraw(...(ok && n.focus ? n.focus : []), `#${n.returnId}`);
+}
+function pmNameForm(key) {
+  const n = PM_NAME;
+  if (!n || n.key !== key) return null;
+  /* Left behind by a page the reader has since gone from. */
+  if (n.page !== pageOnScreen()) { PM_NAME = null; return null; }
+  const input = el('input', { type: 'text', class: 'input', id: 'pm-name-input', maxlength: '80', value: n.value, autocomplete: 'off',
+    oninput: (e) => { n.value = e.target.value; } });
+  return el('form', { class: 'lab-name-form pm-name-form', onsubmit: (e) => {
+    e.preventDefault();
+    pmNameDone(n, n.save(n.value));
+  }, onkeydown: (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault(); e.stopPropagation();
+    pmNameDone(n, false);
+  } }, [
+    el('label', { for: 'pm-name-input', class: 'lab-name-label' }, n.label), input,
+    el('div', { class: 'lab-name-acts' }, [
+      el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: 'pm-name-save' }, n.submit),
+      el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: 'pm-name-cancel', onclick: () => pmNameDone(n, false) }, 'Cancel'),
+    ]),
+  ]);
+}
+/* The open form appended to `parent`, if it is one of `keys`'. */
+function pmNameInto(parent, ...keys) {
+  for (const k of keys) { const f = pmNameForm(k); if (f) { parent.append(f); return; } }
+}
+/* The buttons' own saves. A property already saved is updated at once, as
+   before; an unsaved deal is named in the page first. `focus`: where focus
+   goes after a save. */
+function pmSaveProperty({ key, returnId, focus = [`#${returnId}`] }) {
+  if (propertyStatus(State.deal).kind === 'model') {
+    if (saveActiveProperty()) { render(); focusAfterRedraw(...focus, `#${returnId}`); }
+    return;
+  }
+  pmNameAsk({ key, returnId, focus, label: 'Name this property', value: pmNameOf(State.deal),
+    save: (name) => !!saveActiveProperty({ name }) });
+}
+function pmSaveScenario({ key, returnId, focus = [`#${returnId}`] }) {
+  const draft = pmScenarioDraft();
+  if (!draft) return;
+  pmNameAsk({ key, returnId, focus, label: `Name this scenario of “${draft.rec.name}”`, value: draft.suggested,
+    save: (name) => !!saveAsScenario({ name }) });
+}
+/* A rename: an empty name changes nothing, as before. */
+function pmRenameAsk({ key, returnId, label, value, rename, done }) {
+  pmNameAsk({ key, returnId, label, value, submit: 'Rename', focus: [`#${returnId}`],
+    save: (name) => {
+      if (!String(name).trim()) return false;
+      const refused = store.failed;
+      rename(name);
+      toast(store.failed !== refused ? STORE_REFUSED : done);
+      return true;
+    } });
+}
+
+/* SAVE THIS PROPERTY. Unsaved: it becomes a property, named by the reader
+   (in the page: pmSaveProperty; saveActiveProperty({ name }) saves with the
+   name given, and no screen).
    A saved property: its inputs are replaced by what is on the calculator —
    or, with a scenario open, the scenario's changes are. Confirmed only if
    the browser kept it (store.failed, 00-core.js). */
@@ -38157,9 +38238,11 @@ function saveActiveProperty({ name = null } = {}) {
   const list = loadWork();
   if (st.kind !== 'model') {
     const suggested = pmNameOf(d);
-    const typed = name ?? prompt('Name this property', suggested);
-    if (typed === null) return null;
-    const rec = pmNewRecord(d, typed.trim() || suggested, at);
+    /* Named by the caller: the buttons ask in the page first (pmSaveProperty)
+       and the Lab in its own field. With no name given the suggested one is
+       used — never the native prompt, which an in-app browser may suppress, and the
+       save lost without a word. */
+    const rec = pmNewRecord(d, String(name ?? '').trim() || suggested, at);
     if (!persistWork([rec, ...list]) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
     d.modelId = rec.id; d.scenarioId = null;
     saveDeal();
@@ -38203,7 +38286,7 @@ function pmWriteScenario(recId, scId, overrides) {
    inputs changed. Only for a saved property, and only when something differs
    from it — a scenario identical to its property is the property twice. */
 let PM_SC_SEQ = 0;
-function saveAsScenario() {
+function pmScenarioDraft() {
   const d = State.deal;
   const st = propertyStatus(d);
   if (st.kind !== 'model') { toast('Save this property first — a scenario is a variation of a saved property'); return null; }
@@ -38218,9 +38301,15 @@ function saveAsScenario() {
      72-property-proposal.js): a name accepted as offered heads the
      scenario's column on a proposal handed to a client. */
   const suggested = cpScenarioName(overrides, pmInputsOf(rec)) || `Scenario ${rec.scenarios.length + 1}`;
-  const typed = prompt(`Name this scenario of “${rec.name}”`, suggested);
-  if (typed === null) return null;
-  const sc = pmAddScenario(rec.id, overrides, typed.trim() || suggested);
+  return { d, rec, overrides, suggested };
+}
+function saveAsScenario({ name = null } = {}) {
+  const draft = pmScenarioDraft();
+  if (!draft) return null;
+  const { d, rec, overrides, suggested } = draft;
+  /* Named by the caller (pmSaveScenario asks in the page); none given, the
+     suggested name — never the native prompt. */
+  const sc = pmAddScenario(rec.id, overrides, String(name ?? '').trim() || suggested);
   if (!sc) { toast(STORE_REFUSED); return null; }
   d.scenarioId = sc.id;
   saveDeal();
@@ -38423,7 +38512,7 @@ function propertyModelBar(d = State.deal) {
      and leaves the property as saved (saveActiveProperty), under a button
      that read "Save this property". */
   const primary = st.kind !== 'model' || st.dirty
-    ? el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } },
+    ? el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => pmSaveProperty({ key: 'bar-save', returnId: 'wb-property-save' }) },
       st.kind === 'model' && st.sc ? 'Save this scenario' : 'Save this property')
     : el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => goToPropertySection('scenarios', { focus: '#pm-sc-title' }) }, 'Compare scenarios');
   acts.append(primary);
@@ -38431,7 +38520,8 @@ function propertyModelBar(d = State.deal) {
     /* Offered for changes not saved: an open scenario with none is already
        saved, and saving it again as a scenario made its twin. */
     if (pmCanSaveScenario(d, st)) acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-scenario',
-      onclick: () => { if (saveAsScenario()) renderKeepFocus(); } }, st.sc ? 'Save as a new scenario' : 'Save as a scenario'));
+      onclick: () => pmSaveScenario({ key: 'bar-scenario', returnId: 'wb-property-scenario', focus: ['#wb-property-scenario', '#pm-status'] }) },
+      st.sc ? 'Save as a new scenario' : 'Save as a scenario'));
     if (st.sc) acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-base',
       onclick: () => { openPropertyModel(st.rec.id, { show: false }); renderKeepFocus(); focusAfterRedraw('#wb-property-base', '#pm-status'); } }, 'Back to the property'));
     if (st.dirty) acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-discard',
@@ -38465,6 +38555,8 @@ function propertyModelBar(d = State.deal) {
      saved to back up. */
   if (pmAll().length) acts.append(el('span', { class: 'pm-links' }, [link('/my/data', 'Back up everything', 'wb-property-backup')]));
   bar.append(acts);
+  /* The name form for Save / Save as a scenario here, or for the phone dock's Save this. */
+  pmNameInto(bar, 'bar-save', 'bar-scenario');
   return bar;
 }
 
@@ -38821,7 +38913,8 @@ function propertyScenariosPanel(d = State.deal) {
   if (st.kind !== 'model') {
     card.append(el('p', { class: 'body' }, 'Scenarios belong to a saved property. Save this property, change a figure — the rent, the rate, the deposit — and save the change as a scenario to compare it with the property as saved.'));
     card.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', id: 'pm-sc-save-first',
-      onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#pm-sc-title'); } } }, 'Save this property first'));
+      onclick: () => pmSaveProperty({ key: 'sc-first', returnId: 'pm-sc-save-first', focus: ['#pm-sc-title'] }) }, 'Save this property first'));
+    pmNameInto(card, 'sc-first');
     return card;
   }
   const rec = st.rec;
@@ -38854,13 +38947,8 @@ function propertyScenariosPanel(d = State.deal) {
       acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: `pm-sc-open-${c.id}`, 'aria-label': `Open the scenario ${c.name} to edit`,
         onclick: () => { openPropertyModel(rec.id, { scenarioId: c.id, show: false }); render(); window.scrollTo({ top: 0, behavior: 'instant' }); focusAfterRedraw('#pm-status'); } }, 'Open to edit'));
       acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: `pm-sc-ren-${c.id}`, 'aria-label': `Rename the scenario ${c.name}`,
-        onclick: () => {
-          const name = prompt('Rename this scenario', c.name);
-          if (name === null || !name.trim()) return;
-          const refused = store.failed;
-          renameScenario(rec.id, c.id, name); renderKeepFocus();
-          toast(store.failed !== refused ? STORE_REFUSED : 'Renamed');
-        } }, 'Rename'));
+        onclick: () => pmRenameAsk({ key: `sc-ren-${c.id}`, returnId: `pm-sc-ren-${c.id}`, label: 'Rename this scenario', value: c.name,
+          rename: (name) => renameScenario(rec.id, c.id, name), done: 'Renamed' }) }, 'Rename'));
       acts.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Delete the scenario ${c.name}`,
         onclick: () => {
           if (!confirm(`Delete the scenario “${c.name}”? This browser holds the only copy.`)) return;
@@ -38874,16 +38962,18 @@ function propertyScenariosPanel(d = State.deal) {
         onclick: () => { openPropertyModel(rec.id, { show: false }); render(); window.scrollTo({ top: 0, behavior: 'instant' }); focusAfterRedraw('#pm-status'); } }, 'Open to edit'));
     }
     row.append(acts);
+    if (c.sc) pmNameInto(row, `sc-ren-${c.id}`);
     list.append(row);
   });
   card.append(list);
 
   const add = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' });
   if (pmCanSaveScenario(d, st)) add.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'pm-sc-save',
-    onclick: () => { if (saveAsScenario()) { renderKeepFocus(); focusAfterRedraw('#pm-sc-save', '#pm-sc-title'); } } },
+    onclick: () => pmSaveScenario({ key: 'sc-save', returnId: 'pm-sc-save', focus: ['#pm-sc-save', '#pm-sc-title'] }) },
     'Save what is on the calculator as a scenario'));
   else add.append(el('p', { class: 'metaline' }, 'To add a scenario, change an input in any section above — the rent, the rate, the deposit — and save the change here or from the bar at the top.'));
   card.append(add);
+  pmNameInto(card, 'sc-save');
 
   const shown = cols.filter(c => chosen.includes(c.id));
   if (shown.length < 2) {
@@ -38973,10 +39063,11 @@ VIEWS.propertyModels = () => {
         el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Monthly position'), el('span', { class: `num${f.neg ? ' neg' : ''}` }, f.monthly)]),
         el('div', { class: 'pm-acts-row' }, x.kind === 'current'
           ? [el('button', { class: 'btn btn-ghost btn-sm', id: 'pm-loose-open', onclick: () => navigate('/property/calculator') }, 'Continue'),
-             el('button', { class: 'btn btn-quiet btn-sm', id: 'pm-loose-save', onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#pm-list-hd'); } } }, 'Save it')]
+             el('button', { class: 'btn btn-quiet btn-sm', id: 'pm-loose-save', onclick: () => pmSaveProperty({ key: 'loose-save', returnId: 'pm-loose-save', focus: ['#pm-list-hd'] }) }, 'Save it')]
           : [el('button', { class: 'btn btn-ghost btn-sm', id: 'pm-kept-restore', onclick: () => {
               if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); navigate('/property/calculator'); }
             } }, 'Restore it')]),
+        x.kind === 'current' ? pmNameForm('loose-save') : null,
       ]));
     });
     lc.append(ul);
@@ -39014,11 +39105,8 @@ VIEWS.propertyModels = () => {
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: `pm-dup-${rec.id}`, 'aria-label': `Duplicate ${rec.name}`,
       onclick: () => kept(() => duplicatePropertyModel(rec.id), 'Duplicated', () => focusAfterRedraw(`#pm-dup-${rec.id}`)) }, 'Duplicate'));
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: `pm-ren-${rec.id}`, 'aria-label': `Rename ${rec.name}`,
-      onclick: () => {
-        const name = prompt('Rename this property', rec.name);
-        if (name === null || !name.trim()) return;
-        kept(() => renamePropertyModel(rec.id, name), 'Renamed', () => focusAfterRedraw(`#pm-ren-${rec.id}`));
-      } }, 'Rename'));
+      onclick: () => pmRenameAsk({ key: `ren-${rec.id}`, returnId: `pm-ren-${rec.id}`, label: 'Rename this property', value: rec.name,
+        rename: (name) => renamePropertyModel(rec.id, name), done: 'Renamed' }) }, 'Rename'));
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Delete ${rec.name}`,
       onclick: () => {
         if (!confirm(`Delete “${rec.name}”${nSc ? ` and its ${nSc} scenario${nSc === 1 ? '' : 's'}` : ''}? This browser holds the only copy.${onCalc ? ' It stays on the calculator as an unsaved deal.' : ''}`)) return;
@@ -39051,6 +39139,7 @@ VIEWS.propertyModels = () => {
       el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Monthly position'), el('span', { class: `num${f.neg ? ' neg' : ''}` }, f.monthly)]),
       el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Updated'), el('span', {}, pmWhen(pmUpdated(rec)))]),
       acts,
+      pmNameForm(`ren-${rec.id}`),
     ]));
   });
   /* The sample, always offered and always called one. */
@@ -39379,8 +39468,9 @@ function propertyProposalNext(d = State.deal) {
   if (st.kind !== 'model') {
     item.append(
       el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'cp-next-save',
-        onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#cp-next-open', '#cp-next'); } } }, 'Save this property first'),
+        onclick: () => pmSaveProperty({ key: 'cp-first', returnId: 'cp-next-save', focus: ['#cp-next-open', '#cp-next'] }) }, 'Save this property first'),
       el('span', { class: 'metaline' }, 'A client proposal is made from a saved property.'));
+    pmNameInto(item, 'cp-first');
     return item;
   }
   item.append(
@@ -43993,7 +44083,7 @@ function propertyBarActions() {
     } },
     { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, disabled: !can,
       aria: !can ? 'Saved in this browser' : st.kind === 'model' && st.sc ? 'Save this scenario' : 'Save this property',
-      said: 'Saved in this browser — change a figure to save it again.', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } },
+      said: 'Saved in this browser — change a figure to save it again.', onclick: () => pmSaveProperty({ key: 'bar-save', returnId: 'ls-act-save', focus: ['#ls-act-save', '#pm-status'] }) },
   ];
 }
 

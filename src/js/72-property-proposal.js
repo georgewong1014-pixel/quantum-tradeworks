@@ -306,8 +306,9 @@ function propertyProposalNext(d = State.deal) {
   if (st.kind !== 'model') {
     item.append(
       el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'cp-next-save',
-        onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#cp-next-open', '#cp-next'); } } }, 'Save this property first'),
+        onclick: () => pmSaveProperty({ key: 'cp-first', returnId: 'cp-next-save', focus: ['#cp-next-open', '#cp-next'] }) }, 'Save this property first'),
       el('span', { class: 'metaline' }, 'A client proposal is made from a saved property.'));
+    pmNameInto(item, 'cp-first');
     return item;
   }
   item.append(

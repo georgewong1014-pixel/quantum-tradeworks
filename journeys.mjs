@@ -1132,6 +1132,21 @@ const figureValue = (tab, label) => tab.eval(`(${FIGURE})(${JSON.stringify([labe
 
 /* ─── THE JOURNEYS ────────────────────────────────────────────────────────── */
 const visible = (sel) => `[...document.querySelectorAll(${JSON.stringify(sel)})].find(n => n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden')`;
+/* A property or scenario is named in the page (the calculator's name form,
+   71-property-models.js), never by a native prompt: some in-app browsers
+   suppress that, and the save is silently cancelled. The journey presses
+   the button, types into the form's input and presses Save — and fails if a
+   native dialog opened on the way, which the dialog handler above would
+   otherwise have answered for it. */
+async function saveByNameForm(tab, buttonJs, buttonWhat, name) {
+  const before = tab.dialogs;
+  await tab.click(buttonJs, buttonWhat);
+  await tab.expect(`document.activeElement?.id === 'pm-name-input'`, `pressing ${buttonWhat} opened no name form with its input focused`, 4000);
+  await tab.fill(`document.getElementById('pm-name-input')`, name, 'The name, in the page');
+  await tab.click(`document.getElementById('pm-name-save')`, 'Save, in the name form');
+  await sleep(300);
+  if (tab.dialogs !== before) throw new StepError(`pressing ${buttonWhat} opened a native dialog; the name must be asked for in the page`);
+}
 const byText = (sel, re) => `[...document.querySelectorAll(${JSON.stringify(sel)})].find(n => n.getClientRects().length && ${re}.test(n.textContent.trim()))`;
 
 /* THE SCANNER EXAMPLE'S BARS (the replay journey; the 9 Oct audit, item
@@ -1504,13 +1519,8 @@ const JOURNEYS = [
         if (now.monthly?.value === first.monthly.value) throw new StepError(`the monthly cash flow stayed ${first.monthly.value} when the loan shrank`);
       });
       const name = `Journey check ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
-      tab.prompt = name;
-      let prompted = 0;
       await step(j, tab, 'Save the property', BUDGET.action, async () => {
-        const before = tab.dialogs;
-        await tab.click(byText('main button', '/^Save this (property|deal)$/'), 'Save this property');
-        await sleep(400);
-        prompted = tab.dialogs - before;
+        await saveByNameForm(tab, byText('main button', '/^Save this (property|deal)$/'), 'Save this property', name);
         await tab.expect(`/Saved/.test(document.getElementById('toast')?.textContent || '')`, 'pressing Save said nothing was saved', 4000);
       });
       await step(j, tab, 'It is listed with the saved properties', BUDGET.load, async () => {
@@ -1529,9 +1539,8 @@ const JOURNEYS = [
            writes it), which the sample deal (RM572,000) and no page heading
            carries — the word "Property" is on every property page, saved
            deal or none, so it proved nothing. */
-        const want = prompted ? name : null;
-        await tab.expect(want ? `(document.querySelector('main')?.innerText || '').includes(${JSON.stringify(want)})` : `/(?<![\\d.,])600(,000(?![\\d,])|(\\.0+)?k\\b)/i.test(document.querySelector('main')?.innerText || '')`,
-          `the saved property${want ? ` “${want}”` : ' (asked for no name; looked for by its price, RM600,000)'} is not listed on ${models ? 'My properties' : 'Saved Models'}`);
+        await tab.expect(`(document.querySelector('main')?.innerText || '').includes(${JSON.stringify(name)})`,
+          `the saved property “${name}” is not listed on ${models ? 'My properties' : 'Saved Models'}`);
       });
       /* The owner's paywall rule (3 Oct 2026): the sale's costs, its net
          proceeds and the total profit are the full report's. A fresh
@@ -1540,7 +1549,7 @@ const JOURNEYS = [
          is — and none of the nine others. The proposal printed all ten to
          anyone from ee173ce (plan item 1.4). */
       await step(j, tab, 'Proposal hides the sale’s costs, proceeds and profit until unlocked', BUDGET.action * 2, async () => {
-        const link = `[...document.querySelectorAll('main a')].find(a => a.getClientRects().length && /^Client proposal/.test(a.getAttribute('aria-label') || '')${prompted ? ` && (a.getAttribute('aria-label') || '').endsWith(${JSON.stringify(name)})` : ''})`;
+        const link = `[...document.querySelectorAll('main a')].find(a => a.getClientRects().length && /^Client proposal/.test(a.getAttribute('aria-label') || '') && (a.getAttribute('aria-label') || '').endsWith(${JSON.stringify(name)}))`;
         await tab.click(link, 'The saved property’s Client proposal link');
         await tab.expect(`State.view === 'propertyProposal' && !!document.getElementById('cp-h-exit')`, 'the Client proposal link did not open a proposal with its sale');
         const sale = await tab.eval(`(() => { const doc = document.getElementById('cp-doc'), sec = document.getElementById('cp-h-exit').parentElement;
@@ -2930,8 +2939,7 @@ const JOURNEYS = [
         const price = `(() => { const l = [...document.querySelectorAll('main label[for]')].find(x => /^Purchase price/.test(x.textContent.trim())); return l ? document.getElementById(l.htmlFor) : null; })()`;
         await tab.fill(price, '615000', 'The purchase price', { commit: true });
         await sleep(300);
-        tab.prompt = name;
-        await tab.click(byText('main button', '/^Save this (property|deal)$/'), 'Save this property');
+        await saveByNameForm(tab, byText('main button', '/^Save this (property|deal)$/'), 'Save this property', name);
         await tab.expect(`/Saved/.test(document.getElementById('toast')?.textContent || '') && pmAll().some(r => r.name === ${JSON.stringify(name)})`, `the property “${name}” was not saved`, 4000);
       });
       await step(j, tab, 'Open the homepage', BUDGET.load, () => tab.goto('/'));

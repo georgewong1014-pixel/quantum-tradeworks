@@ -3442,8 +3442,18 @@ try {
       const txt = (n) => (n ? n.innerText : '').replace(/\\s+/g, ' ').trim();
       const btn = (t, root = document) => [...root.querySelectorAll('button, a')].find(x => x.offsetParent !== null && x.textContent.trim() === t);
       const primaries = () => [...document.querySelectorAll('main .btn-primary')].filter(b => b.offsetParent !== null).map(b => b.textContent.trim());
-      window.prompt = (m, d) => (window.__a1Prompt.length ? window.__a1Prompt.shift() : d);
-      window.confirm = () => true;`;
+      /* A name is asked for in the page, never by the browser: a native prompt counts as a failure. */
+      window.__nativePrompt = window.__nativePrompt || 0;
+      window.prompt = () => { window.__nativePrompt++; return null; };
+      window.confirm = () => true;
+      const nameIt = async (id, name) => {
+        document.getElementById(id).click(); await w(250);
+        const i = document.getElementById('pm-name-input');
+        if (!i) return false;
+        i.value = name; i.dispatchEvent(new Event('input', { bubbles: true }));
+        i.form.requestSubmit(); await w(300);
+        return true;
+      };`;
     const KEYS = ['savedWork', 'deal', 'dealBeforeLink', 'opportunities', 'observations', 'registerLog', 'lang', 'propertyReportsBought'];
     const kept = await evaluate(`JSON.stringify(Object.fromEntries(${JSON.stringify(KEYS)}.map(k => [k, localStorage.getItem('vl.' + k)])))`);
     const settle = async () => {
@@ -3537,7 +3547,6 @@ try {
            rate), Report, and the decision record — each against the model's
            own figure for that price. */
         const r2 = await evaluate(`(async () => { ${A1}
-          window.__a1Prompt = [];
           newPropertyDeal({ show: false }); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
           const f = document.getElementById('d-price');
           f.value = '612345'; f.dispatchEvent(new Event('change', { bubbles: true })); await w(350);
@@ -3552,8 +3561,7 @@ try {
             stress: isNum(m.breakEvenRate) ? sec('scenarios').includes(fmtPct(m.breakEvenRate, 2)) : 'no rate',
             report: sec('report').includes('Against the methodology'),
           };
-          window.__a1Prompt = ['A2 typed once'];
-          document.getElementById('wb-property-save').click(); await w(300);
+          await nameIt('wb-property-save', 'A2 typed once');
           out.saved = pmFind(State.deal.modelId)?.payload.deal.price;
           out.after = { status: txt(document.getElementById('pm-status')), primaries: primaries() };
           document.getElementById('pm-record').click(); await w(400);
@@ -3590,10 +3598,10 @@ try {
           const id = State.deal.modelId;
           const set = async (k, v) => { const f = document.getElementById('d-' + k); f.value = String(v); f.dispatchEvent(new Event('change', { bubbles: true })); await w(300); };
           await set('rent', 2600);
-          window.__a1Prompt = ['Higher rent']; document.getElementById('wb-property-scenario').click(); await w(300);
+          await nameIt('wb-property-scenario', 'Higher rent');
           document.getElementById('wb-property-base').click(); await w(300);
           await set('ratePct', 5.2);
-          window.__a1Prompt = ['Higher rate']; document.getElementById('wb-property-scenario').click(); await w(300);
+          await nameIt('wb-property-scenario', 'Higher rate');
           const rec = pmFind(id);
           const [s1, s2] = rec.scenarios;
           const out = { n: rec.scenarios.length, o1: s1?.overrides, o2: s2?.overrides, base: pmInputsOf(rec).price };
@@ -3696,8 +3704,7 @@ try {
           document.getElementById('pm-new').click(); await w(300);
           out.new = { view: State.view, modelId: State.deal.modelId, status: txt(document.getElementById('pm-status')), calcTab: [...document.querySelectorAll('.ptabs .ptab')].find(a => a.getAttribute('aria-current'))?.textContent.trim() };
           const f = document.getElementById('d-price'); f.value = '505000'; f.dispatchEvent(new Event('change', { bubbles: true })); await w(300);
-          window.__a1Prompt = ['CRUD one'];
-          document.getElementById('wb-property-save').click(); await w(250);
+          await nameIt('wb-property-save', 'CRUD one');
           const id = State.deal.modelId;
           navigate('/property/models'); await w(250);
           const n0 = pmAll().length;
@@ -3705,8 +3712,7 @@ try {
           document.getElementById('pm-dup-' + id).click(); await w(250);
           const copy = pmAll().find(r => r.name === 'CRUD one (copy)');
           out.dup = { n: pmAll().length - n0, copy: !!copy, focus: document.activeElement?.id };
-          window.__a1Prompt = ['CRUD renamed'];
-          document.getElementById('pm-ren-' + copy.id).click(); await w(250);
+          await nameIt('pm-ren-' + copy.id, 'CRUD renamed');
           out.ren = pmFind(copy.id)?.name;
           document.getElementById('pm-open-' + copy.id).click(); await w(350);
           out.open = { view: State.view, modelId: State.deal.modelId === copy.id, status: txt(document.getElementById('pm-status')) };
@@ -3821,7 +3827,6 @@ try {
            aside by "New property" was gone the moment a link was opened —
            replaced by a saved property that was never at risk. */
         await evaluate(`(async () => { ${A1}
-          window.__a1Prompt = [];
           localStorage.removeItem('vl.dealBeforeLink');
           newPropertyDeal({ show: false }); State.deal.price = 711111; markTouched(State.deal, 'price'); saveDeal();
           newPropertyDeal({ show: false }); State.deal.price = 522222; markTouched(State.deal, 'price'); saveDeal();
@@ -3859,7 +3864,6 @@ try {
            as an unsaved one, "not saved as a property yet", so its next Save
            made a second copy of a property already saved. */
         const r = await evaluate(`(async () => { ${A1}
-          window.__a1Prompt = [];
           /* Started by the reader (userStarted), which no address carries: the
              property comes back as saved, not rebuilt from its address as changed. */
           newPropertyDeal({ show: false }); State.deal.price = 610000; markTouched(State.deal, 'price'); State.deal.userStarted = true; saveDeal();
@@ -3905,7 +3909,6 @@ try {
            Report section asked for the demand sources and its contract did
            not name them. */
         const r = await evaluate(`(async () => { ${A1}
-          window.__a1Prompt = [];
           const read = () => ({
             rentalProvide: (document.querySelector('#rental .pc-contract')?.textContent || '').replace(/\\s+/g, ' ').trim(),
             rentInput: !!document.querySelector('#rental #d-rent'), vacInput: !!document.querySelector('#rental #d-vacancyPct'),
@@ -3935,12 +3938,11 @@ try {
            slot's "Save this property" wrote the scenario and left the
            property as it was. It reads "Save this scenario" there. */
         const r = await evaluate(`(async () => { ${A1}
-          window.__a1Prompt = [];
           newPropertyDeal({ show: false }); State.deal.price = 500500; markTouched(State.deal, 'price'); saveDeal();
           const rec = saveActiveProperty({ name: 'V4 base' });
           navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
           State.deal.rent = 2100; markTouched(State.deal, 'rent'); saveDeal();
-          window.__a1Prompt = ['V4 rent']; saveAsScenario(); render(); await w(250);
+          saveAsScenario({ name: 'V4 rent' }); render(); await w(250);
           const out = { clean: primaries() };
           State.deal.vacancyPct = 13; markTouched(State.deal, 'vacancyPct'); saveDeal(); render(); await w(250);
           out.scenario = primaries();
@@ -3969,7 +3971,6 @@ try {
            by id, so the second record opened the first one's property, with
            the first one's price. */
         const r = await evaluate(`(async () => { ${A1}
-          window.__a1Prompt = [];
           const rec = (price) => ({ id: 'opp-2-v5-terrace', name: 'V5 terrace', source: '', state: 'captured', capturedAt: '2026-09-01',
             availabilityCheckedAt: null, available: null, deal: { city: 'sibu', district: 'Lanang', propertyType: 'Terrace (2 storey)', price, sqft: 1400,
             projectId: 'custom-sibu', bankValuation: 0, titleType: 'unknown' }, touched: { price: true }, evidence: { price: 'user' }, checks: {},
@@ -4002,7 +4003,6 @@ try {
            "New property" dropped it without keeping it aside; a link, which
            kept everything, now keeps it the same way. */
         const r = await evaluate(`(async () => { ${A1}
-          window.__a1Prompt = [];
           localStorage.removeItem('vl.dealBeforeLink');
           newPropertyDeal({ show: false });
           const id = SARAWAK_CHECKS[0].id;
@@ -4131,11 +4131,10 @@ try {
     const ppStep = async (name, fn) => {
       try { await fn(); } catch (e) { fail(`property-proposal ${name}: the check could not run`, String(e.message).split('\n')[0]); }
     };
-    /* The page's own helpers, and a prompt that answers from a queue. */
+    /* The page's own helpers; a native prompt is a failure (names are given to saveAsScenario). */
     const PPH = `const w = (ms) => new Promise(r => setTimeout(r, ms));
       const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
-      window.__ppP = window.__ppP || [];
-      window.prompt = (m, d) => (window.__ppP.length ? window.__ppP.shift() : d);
+      window.prompt = () => { window.__nativePrompt = (window.__nativePrompt || 0) + 1; return null; };
       window.confirm = () => true;
       const ppMake = (name, set) => { newPropertyDeal({ show: false }); Object.assign(State.deal, set); Object.keys(set).forEach(k => markTouched(State.deal, k)); saveDeal(); return saveActiveProperty({ name }); };
       const ppNum = (s) => { const t = String(s ?? '').replace(/−/g, '-').replace(/,/g, ''); const m = t.match(/-?RM(\\d+(?:\\.\\d+)?)/); return m ? (t.trim().startsWith('-') ? -1 : 1) * Number(m[1]) : null; };`;
@@ -4179,7 +4178,7 @@ try {
         for (const [nm, ch] of spec.scenarios) {
           openPropertyModel(rec.id, { show: false });
           Object.assign(State.deal, ch); Object.keys(ch).forEach(k => markTouched(State.deal, k)); saveDeal();
-          window.__ppP = [nm]; scs.push(saveAsScenario());
+          scs.push(saveAsScenario({ name: nm }));
         }
         openPropertyModel(rec.id, { show: false });
         /* The full report, previewed, so the calculator shows its sale. */
@@ -4633,7 +4632,7 @@ try {
           out.dec = { rent: txt(doc.querySelector('[data-cp-in="rent"]')), price: txt(doc.querySelector('[data-cp-in="price"]')), rentRow: [...doc.querySelectorAll('.cp-table th')].map(txt).find(x => /^Rent, a year/.test(x)) || null };
           const rec = ppMake('PP words', { price: 520000, rent: 2100 });
           for (const [nm, ch] of [['PP words A', { selfManaged: false, ratePct: 4.375, downPct: 12.5, mgmtPct: 8 }], ['PP words B', { valuationRule: 'valuation_only', bankValuation: 540000, disposerCategory: 'company' }]]) {
-            openPropertyModel(rec.id, { show: false }); Object.assign(State.deal, ch); Object.keys(ch).forEach(k => markTouched(State.deal, k)); saveDeal(); window.__ppP = [nm]; saveAsScenario(); }
+            openPropertyModel(rec.id, { show: false }); Object.assign(State.deal, ch); Object.keys(ch).forEach(k => markTouched(State.deal, k)); saveDeal(); saveAsScenario({ name: nm }); }
           openPropertyModel(rec.id, { show: false });
           doc = await open(rec);
           for (let i = 0, cb; i < 6 && (cb = [...document.querySelectorAll('.cp-pick input[type=checkbox]')].find(x => !x.checked)); i++) { cb.click(); await w(300); }
@@ -4645,7 +4644,7 @@ try {
           const recS = ppMake('PP offered name', { price: 520000, rent: 2100 });
           openPropertyModel(recS.id, { show: false });
           const chS = { selfManaged: false, mgmtPct: 8, bankValuation: 540000, valuationRule: 'valuation_only', disposerCategory: 'company' };
-          Object.assign(State.deal, chS); Object.keys(chS).forEach(k => markTouched(State.deal, k)); saveDeal(); window.__ppP = [];
+          Object.assign(State.deal, chS); Object.keys(chS).forEach(k => markTouched(State.deal, k)); saveDeal();
           out.offered = saveAsScenario()?.name ?? null;
           openPropertyModel(recS.id, { show: false });
           doc = await open(ppMake('PP growth set', { price: 520000, apprecPct: 4 }));
@@ -9682,7 +9681,7 @@ try {
      reload and export … Test cancelled save, duplicate names and storage
      failure"). qt-day5 holds save → reset → reopen → export → restore and
      qt-recover a refused write; this holds the rest:
-     - a cancelled name prompt saves nothing and leaves the deal unsaved;
+     - a cancelled name form saves nothing and leaves the deal unsaved;
      - two properties saved under the same name are two records, each
        reopening its own figures;
      - a saved property, the page reloaded, reopens with its figures and
@@ -9696,9 +9695,13 @@ try {
       newPropertyDeal({ show: false });
       Object.assign(State.deal, { price: 512000, rent: 2700, renovation: 18000 });
       State.deal.touched = { ...(State.deal.touched || {}), price: true, rent: true, renovation: true }; saveDeal();
-      const ask = window.prompt; window.prompt = () => null;
-      let cancelled; try { cancelled = saveActiveProperty(); } finally { window.prompt = ask; }
-      out.cancel = { rec: cancelled || null, listed: loadWork().length - n0, modelId: State.deal.modelId || null };
+      /* Cancel on the in-page name form, as the reader meets it. */
+      const w6 = (ms) => new Promise(r => setTimeout(r, ms));
+      navigate('/property/calculator'); await w6(600);
+      document.getElementById('wb-property-save').click(); await w6(300);
+      const formOpen = !!document.getElementById('pm-name-input');
+      document.getElementById('pm-name-cancel')?.click(); await w6(300);
+      out.cancel = { rec: null, form: formOpen, closed: !document.getElementById('pm-name-input'), focus: document.activeElement?.id || null, listed: loadWork().length - n0, modelId: State.deal.modelId || null };
       const NAME = 'Model-test property — same name';
       const a = saveActiveProperty({ name: NAME });
       newPropertyDeal({ show: false });
@@ -9729,14 +9732,83 @@ try {
       out.cleaned = !loadWork().some(x => /Model-test property/.test(x.name || ''));
       return JSON.stringify(out); })()`));
     const p = [];
-    if (one.cancel.rec || one.cancel.listed !== 0 || one.cancel.modelId) p.push(`a cancelled name prompt saved something: ${JSON.stringify(one.cancel)}`);
+    if (!one.cancel.form || !one.cancel.closed || one.cancel.focus !== 'wb-property-save' || one.cancel.listed !== 0 || one.cancel.modelId) p.push(`a cancelled name form saved something, or left no focus on the button: ${JSON.stringify(one.cancel)}`);
     if (!one.dup.a || !one.dup.b || one.dup.a === one.dup.b) p.push(`two saves under one name are not two records: ${JSON.stringify(one.dup)}`);
     if (one.dup.aOpens.price !== 512000 || one.dup.bOpens.price !== 388000) p.push(`a same-named property reopened another's figures: ${JSON.stringify([one.dup.aOpens, one.dup.bOpens])}`);
     if (!two.found || !two.opened) p.push(`after a reload the saved property is ${two.found ? 'listed but did not open' : 'gone'}`);
     else if (JSON.stringify(one.saved) !== JSON.stringify(two.after)) p.push(`after a reload: saved ${JSON.stringify(one.saved)}, reopened ${JSON.stringify(two.after)}`);
     if (!two.cleaned) p.push('the test properties were left in the browser');
     if (p.length) fail('qt-day6: a cancelled save, two properties of one name and a reload each keep the saved figures and results', p);
-    else ok(`qt-day6: a cancelled name prompt saves nothing; two properties saved as "${one.dup.names[0]}" stay two records, each reopening its own price (512,000 and 388,000); after a page reload the first reopens with the same inputs, cash required ${Math.round(one.saved.safe)} and monthly position ${Math.round(one.saved.monthly)}`);
+    else ok(`qt-day6: a cancelled name form saves nothing; two properties saved as "${one.dup.names[0]}" stay two records, each reopening its own price (512,000 and 388,000); after a page reload the first reopens with the same inputs, cash required ${Math.round(one.saved.safe)} and monthly position ${Math.round(one.saved.monthly)}`);
+  }
+  /* THE CALCULATOR ASKS FOR A NAME IN THE PAGE, NOT WITH prompt(). Some
+     in-app browsers suppress a native prompt (it returns null and the save
+     is silently cancelled), a phone draws it over the page and a screen
+     reader announces it out of place; the Scenario Lab already asked in the
+     page. The journeys auto-accept native dialogs, so they never caught it.
+     Held here: the models file calls no prompt(); Save this property on an
+     unsaved deal opens a form with its input focused, pre-filled and
+     selected; typed text survives a redraw; Escape cancels and returns focus
+     to the button; Enter saves under the typed name; no native dialog. */
+  {
+    const { readFileSync: rf } = await import('node:fs');
+    const code = rf(new URL('./src/js/71-property-models.js', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const p = [];
+    if (/\bprompt\s*\(/.test(code)) p.push('src/js/71-property-models.js still calls prompt(');
+    const key = async (k, c, text) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code: k, windowsVirtualKeyCode: c, ...(text ? { text } : {}) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code: k, windowsVirtualKeyCode: c }, sessionId);
+    };
+    const HEAD = `const w = (ms) => new Promise(r => setTimeout(r, ms)); const out = {};`;
+    const a = JSON.parse(await evaluate(`(async () => { ${HEAD}
+      window.__nm = { keepDeal: JSON.stringify(State.deal), keepWork: JSON.stringify(loadWork()), n0: loadWork().length, prompts: 0, keep: window.prompt };
+      window.prompt = () => { window.__nm.prompts++; return null; };
+      newPropertyDeal({ show: false }); State.deal.price = 477000; markTouched(State.deal, 'price'); saveDeal();
+      navigate('/property/calculator'); await w(600);
+      const suggested = pmNameOf(State.deal);
+      document.getElementById('wb-property-save').click(); await w(300);
+      const i = document.getElementById('pm-name-input');
+      out.form = { has: !!i, focused: !!i && document.activeElement === i, preset: !!i && i.value === suggested && suggested !== '',
+        selected: !!i && i.selectionStart === 0 && i.selectionEnd === i.value.length, label: document.querySelector('label[for="pm-name-input"]')?.textContent || null,
+        inBar: !!(i && i.closest('.pm-bar')), saved: loadWork().length - window.__nm.n0, buttons: [...(i ? i.form.querySelectorAll('button') : [])].map(b => b.textContent.trim()) };
+      if (i) { i.value = 'Typed before redraw'; i.dispatchEvent(new Event('input', { bubbles: true })); }
+      render(); await w(300);
+      out.kept = document.getElementById('pm-name-input')?.value || null;
+      return JSON.stringify(out); })()`));
+    await key('Escape', 27);
+    const b = JSON.parse(await evaluate(`(async () => { ${HEAD}
+      await w(300);
+      out.cancel = { closed: !document.getElementById('pm-name-input'), focus: document.activeElement?.id || null, saved: loadWork().length - window.__nm.n0, modelId: State.deal.modelId || null };
+      document.getElementById('wb-property-save').click(); await w(300);
+      const i = document.getElementById('pm-name-input');
+      out.reopen = { focused: !!i && document.activeElement === i, value: i ? i.value : null };
+      if (i) { i.value = 'Typed in the page'; i.dispatchEvent(new Event('input', { bubbles: true })); }
+      return JSON.stringify(out); })()`));
+    await key('Enter', 13, '\r');
+    const c = JSON.parse(await evaluate(`(async () => { ${HEAD}
+      await w(400);
+      const rec = State.deal.modelId ? pmFind(State.deal.modelId) : null;
+      out.save = { name: rec ? rec.name : null, saved: loadWork().length - window.__nm.n0, closed: !document.getElementById('pm-name-input'),
+        prompts: window.__nm.prompts, focus: document.activeElement?.id || null };
+      window.prompt = window.__nm.keep;
+      persistWork(JSON.parse(window.__nm.keepWork)); State.deal = JSON.parse(window.__nm.keepDeal); saveDeal();
+      return JSON.stringify(out); })()`));
+    if (!a.form.has) p.push('Save this property on an unsaved deal opened no in-page name form');
+    else {
+      if (!a.form.focused) p.push('the name input does not hold focus when the form opens');
+      if (!a.form.preset || !a.form.selected) p.push(`the name input is not pre-filled and selected: ${JSON.stringify(a.form)}`);
+      if (a.form.label !== 'Name this property') p.push(`the form's label reads "${a.form.label}"`);
+      if (!a.form.inBar) p.push("the form is not beside the model bar's Save button");
+      if (a.form.saved !== 0) p.push('the form saved before Save was pressed');
+      if (a.form.buttons.join('|') !== 'Save|Cancel') p.push(`the form's buttons: ${a.form.buttons.join('|')}`);
+      if (a.kept !== 'Typed before redraw') p.push(`a redraw lost the typed name: ${a.kept}`);
+    }
+    if (!b.cancel.closed || b.cancel.focus !== 'wb-property-save' || b.cancel.saved !== 0 || b.cancel.modelId) p.push(`Escape did not cancel cleanly, with focus back on the button: ${JSON.stringify(b.cancel)}`);
+    if (!b.reopen.focused) p.push('the reopened form does not hold focus');
+    if (c.save.name !== 'Typed in the page' || c.save.saved !== 1 || !c.save.closed) p.push(`Enter did not save under the typed name: ${JSON.stringify(c.save)}`);
+    if (c.save.prompts !== 0) p.push(`${c.save.prompts} native prompt(s) opened`);
+    if (p.length) fail('property name form: Save this property asks in the page, never with a native prompt', p);
+    else ok('property name form: src/js/71-property-models.js calls no prompt(); Save this property opens the in-page form with the name focused, pre-filled and selected, keeps typed text across a redraw, cancels on Escape (focus back on the button) and saves under the typed name on Enter, with no native dialog');
   }
   /* AN INVESTMENT CASE KEEPS ITS WHOLE STATE (the 20 Oct Day-7 report,
      QT-D06-01, task 3: a saved case that reopens, or comes back from the
