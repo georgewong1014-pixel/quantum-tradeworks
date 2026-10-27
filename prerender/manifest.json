@@ -4416,8 +4416,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f056bb3a86170c3b",
-      "changed": "2026-10-11"
+      "digest": "3833dc90975d2afa",
+      "changed": "2026-10-27"
     },
     "pages/learn/trading-index.html": {
       "path": "/learn/trading-index",
@@ -4826,7 +4826,7 @@
       "view": "plans",
       "state": "filings in",
       "chrome": "public",
-      "h1": "Proposed plans — not on sale yet",
+      "h1": "What is free now, and what paid plans would add",
       "tabs": false,
       "nav": {
         "pubnav": [
@@ -4847,8 +4847,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3a551745caf05e2a",
-      "changed": "2026-10-24"
+      "digest": "52a1d5d58fd9b70d",
+      "changed": "2026-10-27"
     },
     "pages/privacy.html": {
       "path": "/privacy",
@@ -5309,8 +5309,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "63a12d85b241928f",
-      "changed": "2026-10-24"
+      "digest": "76ea488bb00dc5bc",
+      "changed": "2026-10-27"
     },
     "pages/us-options/wheel.html": {
       "path": "/us-options/wheel",
