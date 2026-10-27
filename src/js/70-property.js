@@ -2192,7 +2192,7 @@ const FEE_TABLE = {
 
   /* What could not be verified, and why — said, not discovered. */
   unverified: [
-    { what: 'Valuation fee', why: 'the Board of Valuers’ published scale could not be checked against a gazetted copy: the date its current bands took effect was not found, and the page carries injected third-party text. Carried at that scale’s ceiling as an estimate.' },
+    { what: 'Valuation fee', why: 'the scale matches the Board of Valuers’ published scale and a consolidated text of the Rules, and the Board’s Circular 3/2009 puts it in force from 1 October 2009, but it has not been read in a gazetted copy. Carried at that scale’s ceiling as an estimate, on the value the valuer finds.' },
     { what: 'Searches and the firm’s disbursements', why: 'no single official schedule covers the bundle: the land search (RM5 a title) is published, the firm’s own disbursements and how many searches it makes are not. Registration and the charge’s stamp, which are published, are their own verified lines since 1.1.0. Ask the acting firm for a quotation.' },
     { what: 'Mortgage protection and utility deposits', why: 'set by an insurer, the utility providers and the management body for each case; no rule fixes them. Mortgage protection is optional and left out of the cash required until you include it or enter a quote.' },
     { what: 'When the 4% transfer band took effect in practice', why: 'the remission order that kept 3% on the RM1m–2.5m slice to 30 June 2019 was found only in secondary sources, and its P.U.(A) number not confirmed. The bands in force are read in the official text.' },
