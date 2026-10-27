@@ -1618,6 +1618,18 @@ for (const route of ROUTES) {
     /* And /research draws none, hidden or not (N7). */
     await load(BASE + '/research');
     if (await ev(`!!document.querySelector('#views .start-here')`)) p.push('/research draws a Start here panel above its search (N7)');
+    /* With none hidden, /my/data names where each panel shows, and each
+       page it names shows that product's panel (QT-D14-01): it said each
+       showed "at the top of its product" while three landings draw none. */
+    await load(BASE + '/my/data');
+    const where = await ev(`(() => { const c = document.getElementById('start-here-settings'); return { said: c ? c.innerText.replace(/\\s+/g, ' ') : '', links: c ? [...c.querySelectorAll('a[data-start-here-seen]')].map(a => [a.dataset.startHereSeen, a.getAttribute('href')]) : [] }; })()`);
+    if (/top of its product until/.test(where.said) || !/None is hidden/.test(where.said) || !/Scenario Lab/.test(where.said)) p.push(`/my/data, none hidden, says "${where.said.slice(0, 200)}"`);
+    if (JSON.stringify(where.links.map(x => x[0])) !== '["equities","scanner","property"]') p.push(`/my/data names the panels' pages ${JSON.stringify(where.links)}`);
+    for (const [pid, href] of where.links) {
+      await load(BASE + href);
+      const shown = await ev(`document.querySelector('#views .start-here')?.dataset.product || null`);
+      if (shown !== pid) p.push(`/my/data sends ${pid}'s panel to ${href}, which shows ${JSON.stringify(shown)}`);
+    }
   }
 
   /* Every workspace page, emptied: what to do next, and one action. On the

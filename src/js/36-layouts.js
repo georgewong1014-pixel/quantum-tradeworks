@@ -224,15 +224,27 @@ function startHerePanel(pid) {
 const startHereNode = () => { const pid = startHereFor(); return pid ? startHerePanel(pid) : null; };
 
 /* YOUR DATA & SETTINGS: which panels are hidden, and the one control that
-   brings them back. Nothing to press while none is hidden. */
+   brings them back. Nothing to press while none is hidden. It said each
+   panel "shows at the top of its product", but three landings draw none
+   (startHereFor: the Lab, Research's front page, the Quick model), so a
+   reader looked there and found nothing (QT-D14-01, 27 Oct 2026). It now
+   says where they show, with one page for each that does (sweep.mjs holds
+   each link to its product's panel). */
+const START_HERE_SEEN = [
+  { pid: 'equities', label: 'Equities on the Screener', path: '/discover/screener' },
+  { pid: 'scanner', label: 'the Scanner on its dashboard', path: '/app/scanner' },
+  { pid: 'property', label: 'Property on the calculator’s full model', path: '/property/calculator?view=full' },
+];
 function startHereSettings() {
   const hidden = startHereHidden();
   const names = PRODUCTS.filter(p => START_HERE[p.id] && hidden[p.id]).map(p => p.name);
   const card = el('div', { class: 'card', id: 'start-here-settings' });
   card.append(cardHead('Start here panels',
-    'Equities Research, Quantum Scanner and Property Intelligence each open with a short Start here panel — what the product does, its one action and an example — until you hide it.'));
+    'Each product has a short Start here panel — what it does, its one action and an example — at the top of its tool pages, until you hide it there. Research’s front page, the Scenario Lab and the calculator’s Quick model open with their own short introduction instead.'));
   if (!names.length) {
-    card.append(el('p', { class: 'metaline' }, 'None is hidden: each shows at the top of its product until you hide it there.'));
+    const seen = START_HERE_SEEN.map(s => el('a', { href: s.path, 'data-start-here-seen': s.pid }, s.label));
+    card.append(el('p', { class: 'metaline' }, ['None is hidden. You will find ',
+      ...seen.flatMap((a, i) => [a, i < seen.length - 2 ? ', ' : i === seen.length - 2 ? ' and ' : '.'])]));
     return card;
   }
   card.append(el('div', { class: 'row row-wrap', style: 'gap:var(--sm) var(--md);align-items:center' }, [
@@ -242,7 +254,7 @@ function startHereSettings() {
       store.write('startHere', {});
       render();
       focusAfterRedraw('#start-here-settings .h-card', '#views h1');
-      toast(store.failed !== refused ? STORE_REFUSED : 'The Start here panels will show again, at the top of each product.');
+      toast(store.failed !== refused ? STORE_REFUSED : 'The Start here panels will show again, at the top of each product’s tool pages.');
     } }, 'Show them again'),
   ]));
   return card;
