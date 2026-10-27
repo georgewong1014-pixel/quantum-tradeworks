@@ -1366,7 +1366,10 @@ try {
     const r = await evaluate(`(() => {
       const out = {};
       const txt = () => document.querySelector('main')?.innerText || '';
-      out.bull = /bull case applies [a-zA-Z]+ [+−-]/.test(txt()) && !/mirror image/.test(txt());
+      /* The construction sentence sits in a closed fold now (the owner, 27 Oct
+         2026), which innerText skips: read the words, not what is open. */
+      const all = () => document.querySelector('main')?.textContent || '';
+      out.bull = /bull case applies [a-zA-Z]+ [+−-]/.test(all()) && !/mirror image/.test(all());
       const f = document.querySelector('#as-coe') || document.querySelector('.assumption input[type=number]');
       const k = f.id.slice(3);
       const set = (v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(f, v); f.dispatchEvent(new Event('input', { bubbles: true })); };
@@ -2034,8 +2037,9 @@ try {
       const after = await evaluate(`(() => {
         const r = BY_ID.get(${JSON.stringify(id)});
         document.querySelectorAll('details.explain').forEach(d => d.open = true);
+        /* The calculation and confidence explainers, not a folded note's details (foldedNote, 27 Oct 2026). */
         const run = valuationRun(r.c, r.d, studioInputs(r));
-        const ex = [...document.querySelectorAll('details.explain')].map(d => d.textContent);
+        const ex = [...document.querySelectorAll('details.explain:not(.folded-note > details)')].map(d => d.textContent);
         const p = run.confParts;
         return { value: document.getElementById('as-netDebt')?.value, adj: document.getElementById('as-adj')?.value,
           whose: document.querySelector('.a-whose')?.textContent || '',
@@ -11104,7 +11108,7 @@ try {
       if (SALE.test(said)) p.push(`the offer reads as a sale: "…${said.slice(Math.max(0, said.search(SALE) - 60), said.search(SALE) + 40)}…"`);
       r.controls.filter(t => SALE.test(t)).forEach(t => p.push(`a control reads as a purchase: "${t}"`));
       if (!r.pressed) p.push(`no "View and print it in this browser" button among ${JSON.stringify(r.controls)}`);
-      else if (!r.previewed || !r.report || !/^Previewing/.test(r.toast) || /unlocked/i.test(r.toast)) p.push(`after the preview: ${r.previewed} previewed, report ${r.report}, toast "${r.toast}"`);
+      else if (!r.previewed || !r.report || !/^(Previewing|Showing) .+ in this browser/.test(r.toast) || /unlocked/i.test(r.toast)) p.push(`after the preview: ${r.previewed} previewed, report ${r.report}, toast "${r.toast}"`);
     }
     if (p.length) fail('audit verify: the calculator\'s Investor report card names no plan or price, sends to no plans page and shows the report in this browser (owner, 27 Oct 2026)', p);
     else ok(`audit verify: the calculator's report card is "${r.title}", names no plan, price or "See plans", and its button shows the report in this browser ("${r.toast}")`);
