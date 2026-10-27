@@ -2014,11 +2014,6 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent);
 }
 .plan-current svg { width: 15px; height: 15px; }
-/* A plan's price. A proposed one — every paid tier, since none is on sale
-   (launch audit, 29 Sep 2026) — is set back a step, as the unlaunched tier's
-   was: shown so the plan can be read, not offered. */
-.plan-price { font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); }
-.plan-price-proposed { color: var(--ink-3); }
 /* THREE CONCEPT CARDS AND ONE CLOSED "COMPARE DETAILS" (N8; D21). What
    cannot be bought says so first, on a rule of its own; the three cards are
    read, not pressed — no button, no link — and everything else waits in
@@ -2033,8 +2028,6 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .plan-concept { gap: 6px; padding: var(--lg); border-radius: var(--r-lg); }
 .plan-concept-hd { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
 .plan-concept-hd .h-card { margin: 0; }
-.plan-concept-price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; margin: 6px 0 0; }
-.plan-concept-price .plan-price { font-size: 30px; }
 .plan-concept-line { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: var(--ink-2); max-width: 46ch; }
 .plan-concept-on { display: inline-flex; align-items: center; gap: 6px; margin: auto 0 0; padding-top: 10px; font-size: 13px; font-weight: var(--weight-semibold); color: var(--brand); }
 .plan-concept-on svg { width: 14px; height: 14px; }
@@ -2061,7 +2054,7 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .plan-table td { text-align: left; white-space: normal; vertical-align: top; }
 .plan-table tbody th { text-align: left; font-weight: var(--weight-semibold); white-space: normal; }
 .plan-col-name { display: block; font-size: 13px; font-weight: var(--weight-bold); color: var(--ink); text-transform: none; letter-spacing: 0; }
-.plan-col-price, .plan-col-yr { display: block; font-size: 12px; font-weight: var(--weight-medium); color: var(--ink-2); text-transform: none; letter-spacing: 0; }
+.plan-col-price { display: block; font-size: 12px; font-weight: var(--weight-medium); color: var(--ink-2); text-transform: none; letter-spacing: 0; }
 .plan-previews { display: flex; flex-wrap: wrap; gap: var(--sm); }
 .plan-previews .plan-cta { width: auto; flex: 1 1 16rem; margin: 0; padding: 0 14px; min-height: 44px; }
 .plan-boundary { margin: 0; font-size: 14px; color: var(--ink-2); }
