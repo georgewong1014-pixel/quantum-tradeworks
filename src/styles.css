@@ -2273,16 +2273,35 @@ table.scan-dt td { vertical-align: top; }
    <details> under them. Sizes are the layout system's tokens. A state is
    its word and a shape — a disc held, a ring not held, a dashed box
    unavailable — never a colour alone, and no colour says good or bad. */
-.scan-first { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--md); align-items: start; }
-@media (min-width: 1024px) { .scan-first { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
-.scan-band-why { margin: var(--ls-related) 0 0; font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); }
-.scan-qs { margin: var(--ls-group) 0 0; border-top: 1px solid var(--line); }
-.scan-qs-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px var(--ls-group); padding: 9px 0; border-bottom: 1px solid var(--line); }
-.scan-qs dt { font-size: var(--ls-meta); line-height: 18px; font-weight: var(--weight-semibold); color: var(--ink-2); }
-.scan-qs dd { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
-.scan-qs-v { font-size: var(--ls-support); font-weight: var(--weight-bold); color: var(--ink); }
-.scan-qs-link { font-size: var(--ls-meta); }
-.scan-qs-link a { color: var(--ink); text-underline-offset: 2px; }
+/* The four steps under the head (QT-D15-03, 28 Oct 2026): what works here
+   first, then what needs the worker. A phone stacks each step under its
+   number; links and the one primary are 44px targets. The example, last, is
+   held to the width of its own content. */
+:root .scan-steps { list-style: none; margin: 0; padding: 0; max-width: none; }
+.scan-step { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 2px var(--md); align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+:root .scan-steps > .scan-step { max-width: none; }
+.scan-step:first-child { border-top: 0; padding-top: 0; }
+.scan-step:last-child { padding-bottom: 0; }
+.scan-step-n { grid-row: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--line-2); font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); }
+.scan-step-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.scan-step-t strong { font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); }
+.scan-step-tag { font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+.scan-step-s, .scan-step-act { grid-column: 2; min-width: 0; }
+.scan-step-v { margin: 0; font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); }
+.scan-step-s .metaline { margin: 4px 0 0; max-width: 60ch; }
+.scan-step-act { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--md); }
+.scan-step-act:empty { display: none; }
+.scan-step-act .btn { min-height: 44px; padding: 0 18px; font-size: 14px; }
+.scan-step-link { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--ls-support); color: var(--ink); text-underline-offset: 2px; }
+@media (min-width: 768px) {
+  .scan-step { grid-template-columns: 28px minmax(0, 2fr) minmax(0, 3fr) minmax(0, 2fr); gap: 2px var(--lg, 24px); }
+  .scan-step-s, .scan-step-act { grid-column: auto; }
+  .scan-step-act { justify-content: flex-end; }
+}
+.scan-first-ex { max-width: 46rem; }
+/* The head's note is a claim — no scan here, no prices — so a phone shows it whole, not in the two lines a note is clamped to. */
+@media (max-width: 760px) { .page-hd.scan-hd-full .page-note { display: block; -webkit-line-clamp: unset; overflow: visible; } }
 
 .scan-ex {
   margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--ls-related);

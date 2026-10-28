@@ -2825,6 +2825,43 @@ const JOURNEYS = [
         const right = await at();
         if (left !== '65 Not held' || right !== '66 Held') throw new StepError(`by the arrow keys the replay read “${left}” then “${right}”, not “65 Not held” then “66 Held”`);
       });
+      /* THE FOUR STEPS (QT-D15-03, 28 Oct 2026). What works here — saving
+         rules — told apart from what needs the worker on the reader's own
+         computer: four steps under the head, in order, each with its own
+         state; one primary, "Create a setup", in step 1; "Run locally" the
+         closed details step 3 links to; the lede saying this website runs
+         no scans and supplies no prices. A fresh browser: no setup, no
+         price history, no run. */
+      await step(j, tab, 'The dashboard’s four steps, in order, with their states', BUDGET.action, async () => {
+        await tab.goto('/app/scanner');
+        const got = await tab.eval(`(() => {
+          const steps = [...document.querySelectorAll('main ol.scan-steps > li.scan-step')];
+          const t = (n) => (n?.innerText || '').replace(/\\s+/g, ' ').trim();
+          const fig = document.querySelector('main figure.scan-ex'), det = document.querySelector('main details#scan-run');
+          const prim = [...document.querySelectorAll('main .btn-primary')];
+          const link = steps[2]?.querySelector('a');
+          return { titles: steps.map(li => t(li.querySelector('strong'))), states: steps.map(li => t(li.querySelector('.scan-step-s'))),
+            badge2: t(steps[1]?.querySelector('.status-badge.status-unavailable')),
+            prim: prim.map(t), primIn1: prim.length === 1 && !!steps[0]?.contains(prim[0]),
+            detOpen: det ? det.open : null, detSum: t(det?.querySelector('summary')), detCmd: /node scanner\\/scan\\.mjs/.test(det?.textContent || ''),
+            link: link ? link.getAttribute('href') : null, lede: t(document.querySelector('main .page-lede')) + ' ' + t(document.querySelector('main .page-note')),
+            before: !!(steps[3] && fig && det && (steps[3].compareDocumentPosition(det) & Node.DOCUMENT_POSITION_FOLLOWING) && (steps[3].compareDocumentPosition(fig) & Node.DOCUMENT_POSITION_FOLLOWING)) };
+        })()`);
+        const want = ['Create a rule setup', 'Price history', 'Run locally', 'Review recorded results'];
+        if (JSON.stringify(got.titles) !== JSON.stringify(want)) throw new StepError(`the steps read ${JSON.stringify(got.titles)}, not ${want.join(' → ')}`);
+        if (!/^None yet\b/.test(got.states[0])) throw new StepError(`step 1 reads “${got.states[0]}”, not “None yet” on a fresh browser`);
+        if (!/^unavailable$/i.test(got.badge2) || !/None supplied/.test(got.states[1]) || /\b0\b/.test(got.states[1])) throw new StepError(`step 2 reads “${got.states[1]}”, not Unavailable and “None supplied” — and never a 0`);
+        if (!/Not available to download yet/.test(got.states[2])) throw new StepError(`step 3 reads “${got.states[2]}”`);
+        if (!/^No scan recorded\b/.test(got.states[3])) throw new StepError(`step 4 reads “${got.states[3]}”, not “No scan recorded”`);
+        if (got.prim.length !== 1 || got.prim[0] !== 'Create a setup' || !got.primIn1) throw new StepError(`the page’s primary buttons are ${JSON.stringify(got.prim)}: not one, “Create a setup”, in step 1`);
+        if (got.detOpen !== false || got.detSum !== 'Run locally' || !got.detCmd) throw new StepError(`“Run locally” is ${JSON.stringify({ open: got.detOpen, summary: got.detSum, commands: got.detCmd })}: not a closed details holding the commands`);
+        if (got.link !== '#scan-run') throw new StepError(`step 3 links to ${got.link}, not #scan-run`);
+        if (!/does not run scans or supply prices/.test(got.lede) || !/not available to download yet/.test(got.lede)) throw new StepError(`the lede reads “${got.lede.slice(0, 120)}”`);
+        if (!got.before) throw new StepError('the four steps do not come before “Run locally” and the example');
+        /* Step 3 opens the details it names. */
+        await tab.click(`document.querySelector('main ol.scan-steps > li:nth-child(3) a')`, 'Step 3’s “Run locally” link');
+        await tab.expect(`document.querySelector('main details#scan-run')?.open === true`, 'step 3’s link did not open “Run locally”', 2000);
+      });
       if (synthetic) {
         /* LOCAL ONLY: a price history made in the page, from the engine's own
            fixture (a quiet series, a drift down, then a close through its
@@ -2898,6 +2935,14 @@ const JOURNEYS = [
          recorded as gated: it proves the page says why it cannot evaluate,
          not that an evaluation ran (N1b). */
       }, synthetic ? undefined : { gated: 'no prices ship' });
+      /* After a save (and after the evaluation, on the dashboard again), step 1 counts it (QT-D15-03, 28 Oct 2026). */
+      await step(j, tab, 'The dashboard’s first step counts the saved setup', BUDGET.load, async () => {
+        await tab.goto('/app/scanner');
+        await tab.expect(`/^1 saved in this browser/.test(document.querySelector('main ol.scan-steps > li.scan-step .scan-step-s')?.textContent.trim() || '')`,
+          async () => `step 1 reads “${await tab.eval(`document.querySelector('main ol.scan-steps > li.scan-step .scan-step-s')?.textContent.trim() || ''`)}”, not “1 saved in this browser”`);
+        const prim = await tab.eval(`[...document.querySelectorAll('main .btn-primary')].map(b => b.textContent.trim()).join('|')`);
+        if (prim !== 'Create a setup') throw new StepError(`the primary buttons are “${prim}”, not “Create a setup” alone`);
+      });
     },
   },
   {
