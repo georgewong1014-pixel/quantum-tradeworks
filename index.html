@@ -3696,7 +3696,7 @@ th .kind-th { vertical-align: middle; }
   .dash-hd .body-lg { display: block; -webkit-line-clamp: unset; overflow: visible; }
 }
 
-/* The first-time card. The one thing on the page, so it takes the page's
+/* The first visit's card of three products. The one thing on the page, so it takes the page's
    deepest lift and a quiet field of the brand and the bronze behind it. */
 .dash-start {
   padding: var(--xl);
@@ -3706,44 +3706,8 @@ th .kind-th { vertical-align: middle; }
     var(--surface);
   box-shadow: var(--lift-3);
 }
-.dash-start-top {
-  display: flex; align-items: flex-end; justify-content: space-between;
-  gap: var(--md) var(--lg); flex-wrap: wrap; margin-bottom: var(--sm);
-}
-.dash-start-top > div:first-child { flex: 1 1 320px; min-width: 0; }
-.dash-progress { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
-.dash-progress-t { font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.dash-progress-bar {
-  display: block; width: 180px; height: 6px; border-radius: 999px; overflow: hidden;
-  background: color-mix(in srgb, var(--ink) 10%, transparent);
-}
-.dash-progress-bar > i {
-  display: block; height: 100%; border-radius: inherit; background: var(--brand);
-  transform-origin: left center; transition: transform 320ms ease;
-}
-
-/* A step: its mark, what it is, its one action. */
-.dash-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
-.dash-step {
-  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center;
-  gap: var(--md); padding: var(--md) 0; border-top: 1px solid var(--grid);
-}
-.dash-steps-sm .dash-step { grid-template-columns: 26px minmax(0, 1fr) auto; gap: var(--sm); padding: var(--sm) 0; }
-.dash-steps-sm .dash-step:first-child { border-top: 0; padding-top: 0; }
-.dash-step-mark {
-  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
-  border: 1.5px dashed color-mix(in srgb, var(--ink-3) 70%, transparent); background: var(--surface-2);
-}
-.dash-steps-sm .dash-step-mark { width: 26px; height: 26px; }
-.dash-step[data-done="1"] .dash-step-mark { border: 0; background: var(--brand); color: var(--surface-2); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--brand) 60%, transparent); }
-.dash-step-mark svg { width: 15px; height: 15px; }
-.dash-step-t { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
-.dash-step[data-done="1"] .dash-step-t .h-card { color: var(--ink-2); }
-.dash-step-body .caption { margin-top: 2px; max-width: 64ch; }
-.dash-step-go { white-space: nowrap; }
-
-/* The checklist, and beside it the two ways in that are not steps:
-   preferences and the goal launcher. */
+/* Beneath the three product cards: the workspace's parts, and beside them the
+   quiet entries — the watchlist, preferences and the goal launcher. */
 .dash-first { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: var(--lg); align-items: start; }
 .dash-more { display: flex; flex-direction: column; gap: var(--sm); margin-top: var(--sm); }
 .dash-more-link {
@@ -3884,10 +3848,6 @@ table.dt thead th .cmp-yearend { display: inline-block; margin-top: 2px; font-we
 @media (max-width: 560px) {
   .dash { gap: var(--md); }
   .dash-start { padding: var(--lg) var(--md); }
-  .dash-progress { align-items: flex-start; }
-  .dash-step { grid-template-columns: 28px minmax(0, 1fr); gap: var(--sm); }
-  .dash-step-mark { width: 28px; height: 28px; }
-  .dash-step-go { grid-column: 2; justify-self: start; }
   .dash-tiles { grid-template-columns: minmax(0, 1fr); gap: var(--sm); }
   .dash-tile {
     display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--md); row-gap: 2px;
@@ -6741,29 +6701,40 @@ input.au-in[type="text"] { text-align: left; }
    Only transform, opacity and box-shadow move. */
 /* A step or a row is a structure of its own words, each held to the
    measure where it is a block (a caption, a line): not the item itself. */
-:root .ls-view .dash :is(li.dash-step, .dash-list > li) { max-width: none; }
-:root .ls-view .dash :is(.dash-step-body .caption, .dash-row-s, .dash-more-link .caption, .dash-secs-lede, .dash-start-lede, .dash-empty .caption) { font-size: var(--ls-support); line-height: 1.5; }
+:root .ls-view .dash :is(li.dash-tool, .dash-list > li) { max-width: none; }
+:root .ls-view .dash :is(.dash-tool-body .caption, .dash-row-s, .dash-more-link .caption, .dash-secs-lede, .dash-start-lede, .dash-empty .caption) { font-size: var(--ls-support); line-height: 1.5; }
 :root .ls-view .dash :is(.dash-row-t, .dash-more-link strong) { font-size: var(--ls-support); }
 :root .ls-view .dash .dash-row-k { font-size: var(--ls-meta); }
 :root .ls-view .dash .dash-empty-t { font-size: var(--ls-body); }
 :root .ls-view .dash .dash-foot, :root .ls-view .dash .dash-backup { font-size: var(--ls-support); }
 .dash-start-lede { margin: var(--ls-within) 0 0; }
 
-/* The step's picture, between its mark and its words. */
-.dash-step { grid-template-columns: 32px 64px minmax(0, 1fr) auto; }
-/* Beside the counts, a step not taken is its mark, its words and its action
-   under them: the column is narrow, and its picture is the first visit's. */
-.dash-steps-sm .dash-step { grid-template-columns: 26px minmax(0, 1fr); }
-.dash-steps-sm .dash-step-pic { display: none; }
-.dash-steps-sm .dash-step-go { grid-column: 2; justify-self: start; }
+/* A product's picture, ahead of its words. */
 .dash-step-pic {
-  display: grid; place-items: center; width: 64px; height: 48px; padding: 2px; border-radius: var(--r-md);
+  flex: none; display: grid; place-items: center; width: 64px; height: 48px; padding: 2px; border-radius: var(--r-md);
   color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, var(--surface-2)); border: 1px solid var(--line);
 }
 .dash-step-pic svg { width: 100%; height: 100%; display: block; }
 .dash-step-pic .dsp-2 { stroke: var(--bronze); }
 .dash-step-pic .dsp-dot { fill: var(--surface-2); stroke: var(--brand); }
-.dash-step[data-done="1"] .dash-step-pic { opacity: .6; }
+
+/* THE THREE PRODUCTS (QT-D15-01, 28 Oct 2026): three equal cards side by side
+   — a picture, the product and its badge, its one line, what this browser
+   holds of it, one ghost button at the foot — stacked on a phone, the picture
+   beside its words. Only transform, opacity and box-shadow move. */
+.dash-tool-list { list-style: none; margin: var(--ls-related) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--md); }
+.dash-tool {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--md); min-width: 0; padding: var(--lg);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent), 0 14px 36px -22px color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.dash-tool-body { display: flex; flex-direction: column; gap: var(--xs); min-width: 0; flex: 1 1 auto; }
+.dash-tool-t { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+.dash-tool-note { color: var(--ink); }
+/* Property's badge carries its qualifier ("Your figures, sample to start"): on a line of its own under the name, as the sidebar sets it. */
+.dash-tool-t .pbadge-q { flex: 1 0 100%; font-size: var(--text-label); line-height: 1.35; }
+.dash-tool-t .pbadge-q::before { content: none; }
+.dash-tool-go { white-space: nowrap; margin-top: auto; }
 
 /* The workspace's five parts, on a first visit: a row each, a door each. */
 .dash-secs-lede { margin: var(--ls-within) 0 var(--ls-related); color: var(--ink-2); }
@@ -6797,13 +6768,20 @@ input.au-in[type="text"] { text-align: left; }
 @media (max-width: 1439px) {
   .dash-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+/* Stacked from 1024px down: a picture beside the words, the button under them. */
+@media (max-width: 1024px) {
+  .dash-tool-list { grid-template-columns: minmax(0, 1fr); }
+  .dash-tool { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: var(--md); row-gap: var(--sm); }
+  .dash-tool-go { grid-column: 2; justify-self: start; margin-top: 0; }
+}
+@media (max-width: 560px) {
+  .dash-tool { padding: var(--md); }
+}
 @media (max-width: 1024px) {
   .dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 560px) {
-  .dash-step { grid-template-columns: 28px 48px minmax(0, 1fr); }
   .dash-step-pic { width: 48px; height: 36px; }
-  .dash-step-go { grid-column: 2 / -1; }
   .dash-tiles { grid-template-columns: minmax(0, 1fr); }
   .dash-tile.ls-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--md); row-gap: 2px; align-items: center; padding: var(--sm) 40px var(--sm) var(--md); }
   .dash-tile > :not(.dash-tile-v):not(.dash-tile-go) { grid-column: 1; }
@@ -21760,7 +21738,7 @@ const SECTION_OF = {
   propertyProposal: 'property',
   tradingIndex: 'scanner',
   /* Preferences and the goal launcher are reached from My Dashboard's
-     "Other ways in", so the dashboard is where a reader on them is; with
+     "More in your workspace", so the dashboard is where a reader on them is; with
      no item current the sidebar gave no location at all. */
   onboarding: 'dashboard', launcher: 'dashboard',
   /* Every scanner page, the operations pages included: they are the
@@ -22775,7 +22753,7 @@ const SERVED_READS_ALL = ['realData', 'ownerMachine'];
 const SERVED_READS = {
   /* /app: what is the visitor's own — lists, holdings, cases, alerts,
      setups, saved work of every kind, a deal begun — counted apart from the
-     samples, and the first steps. The last visit (dashVisit, which the page
+     samples, and the product cards. The last visit (dashVisit, which the page
      itself keeps as it draws) is said only to a visitor with something of
      their own, which these already name: a reload of the dashboard is
      served. As a workspace (D12, 8 Oct 2026) it reads nothing more: the
@@ -24790,10 +24768,12 @@ function openDashboardCustomiser() {
    are never counted as the visitor's.
 
    Two states, chosen by that one fact. With nothing of the visitor's own
-   saved, the page is an onboarding checklist whose ticks are read from real
-   state — no tiles of zeros, no empty charts. With something saved, it is
-   four counts that each open the page they count, the latest matches of the
-   visitor's setups, the items to continue, and the first steps not yet taken.
+   saved, the page offers the three products, one action each (QT-D15-01), with
+   what this browser holds of each read from real state — no tiles of zeros,
+   no empty charts. With something saved, it leads with Continue on the latest
+   work, then the counts that each open the page they count, the three
+   products again as quiet buttons, and the latest matches of the visitor's
+   setups.
 
    The previous visit's time is kept in the store (dashVisit), so "since your
    last visit" means since this browser last had the dashboard open: a visit
@@ -24931,12 +24911,19 @@ function myDashOwn() {
            samples: typeof hasSeededData === 'function' && hasSeededData() };
 }
 
-/* The four first steps, each ticked from the state that proves it and each
-   with its one action. Research is ticked by a company report having been
-   read here (recentCompanies is written when one renders); a watchlist by a
-   list of the reader's own that holds a company; a setup by one saved here or
-   in the worker's file; a property model by an edit to the calculator's deal
-   or a saved snapshot of one. */
+/* The dashboard's entries, each with the state that proves it done and its
+   one action. Research is done when a company report has been read here
+   (recentCompanies is written when one renders); a watchlist when a list of
+   the reader's own holds a company; a setup when one is saved here or in the
+   worker's file; a property model when the calculator's deal was edited or a
+   snapshot of one saved.
+   THE THREE PRODUCTS AND THE REST (Day-15 review QT-D15-01, 28 Oct 2026). The
+   first visit offered four steps in one checklist, and a watchlist is not a
+   product: it competed with the three that are. The three products
+   (`tool: true`) are drawn as cards of their own, one action each (myDashTools);
+   the watchlist and the other ways in are a quiet section below them
+   (myDashMore). `what` is the card's one line; `note` is what this browser
+   holds, shown once there is something to show. */
 function myDashSteps(o) {
   const eq = productById('equities'), sc = productById('scanner'), pr = productById('property');
   const lastCo = o.researched.length ? BY_ID.get(o.researched[0]) : null;
@@ -24948,65 +24935,96 @@ function myDashSteps(o) {
     ? `${myDashPlural(o.instruments.size, 'company', 'companies')} you added ${o.instruments.size === 1 ? 'sits' : 'sit'} in a sample list. A list of your own keeps your companies apart from the samples.` : '';
   const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
   return [
-    { k: 'research', product: 'equities', tool: 'overview', title: 'Research a company', done: !!lastCo,
+    { k: 'research', tool: true, product: 'equities', badgeTool: 'overview', title: eq?.name || 'Equities Research', done: !!lastCo,
+      what: 'Understand a company using labelled financial evidence.',
       /* A name that ends in a full stop (Apple Inc.) ends the sentence. */
-      note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}`.replace(/\.?$/, '.')
-        : 'Statements, ratios and a valuation range, every figure with its formula and its source.',
-      action: eq?.action || 'Start research', path: eq?.actionPath || '/research' },
-    { k: 'watchlist', product: null, tool: 'watchlists', title: 'Create a watchlist', done: o.createdLists.length > 0,
-      note: o.createdLists.length ? `${inList}.` : inSample || 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
-      action: toolById('watchlists')?.action.label || 'Create a watchlist', path: '/my/watchlists' },
-    { k: 'setup', product: 'scanner', tool: 'setups', title: 'Create a scanner setup', done: o.setupsKnown > 0,
-      note: o.setupsKnown ? `${setupsText}.` : 'Conditions you choose, checked on each daily close of the price history you supply, with a record of every bar on which they held.',
-      action: sc?.action || 'Create a setup', path: sc?.actionPath || '/app/scanner/setups/new' },
-    /* The property step opens Property's landing, the Scenario Lab (D12; N3
+      note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}`.replace(/\.?$/, '.') : null,
+      action: 'Research a company', path: eq?.actionPath || '/research' },
+    { k: 'setup', tool: true, product: 'scanner', badgeTool: 'setups', title: sc?.name || 'Quantum Scanner', done: o.setupsKnown > 0,
+      what: 'Define rules to test against price history you supply.',
+      note: o.setupsKnown ? `${setupsText}.` : null,
+      action: 'Create a scanner setup', path: sc?.actionPath || '/app/scanner/setups/new' },
+    /* The property card opens Property's landing, the Scenario Lab (D12; N3
        made /property the Lab): the price, the rent and the loan moved and
        the figures following, before anything is typed into the calculator.
-       The step wears the product's Live badge, as the homepage and /status
-       do; the Lab's Beta is said in words, as the Lab's own lede says it
-       (the Day-10 report, QT-D10-01: Live there and Beta here read as two
-       answers about one product). */
-    { k: 'property', product: 'property', title: 'Start a property model in the Scenario Lab', done: o.dealStarted || o.propertySnaps > 0,
+       The card wears the product's badge, as the homepage and /status do;
+       the Lab's Beta is said in words after what is held, as the Lab's own
+       lede says it (the Day-10 report, QT-D10-01: Available there and Beta
+       here read as two answers about one product). */
+    { k: 'property', tool: true, product: 'property', title: pr?.name || 'Property Intelligence', done: o.dealStarted || o.propertySnaps > 0,
+      what: 'Model financing, cash flow and investment assumptions on your figures.',
       note: (o.dealStarted || o.propertySnaps
-        ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '.'
-        : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.') + ' The Scenario Lab is beta.',
-      action: pr?.action || 'Analyse a property', path: '/property' },
+        ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '. '
+        : '') + 'The Scenario Lab is beta.',
+      action: 'Model a property', path: '/property' },
+    { k: 'watchlist', tool: false, product: null, title: 'Create a watchlist', done: o.createdLists.length > 0,
+      note: o.createdLists.length ? `${inList}.` : inSample || 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
+      action: toolById('watchlists')?.action.label || 'Create a watchlist', path: '/my/watchlists' },
   ];
 }
 
-/* EACH STEP'S PICTURE (D12, 8 Oct 2026): a schematic of what the step
-   makes — a statement and its lens, a list, a line meeting a condition, a
-   house and three sliders — drawn without a figure, a name or a count, so
-   it can never be read as anyone's data. Decorative (aria-hidden): the
-   step's words say what it is. */
+/* EACH PRODUCT'S PICTURE (D12, 8 Oct 2026): a schematic of what the product
+   makes — a statement and its lens, a line meeting a condition, a house and
+   three sliders — drawn without a figure, a name or a count, so it can never
+   be read as anyone's data. Decorative (aria-hidden): the card's words say
+   what it is. (The list's picture is no longer drawn: the watchlist is not
+   a product, QT-D15-01.) */
 const MYDASH_PICS = {
   research: '<rect x="7" y="6" width="32" height="36" rx="4"/><path d="M13 14h20M13 20h13"/><path class="dsp-2" d="M14 36v-6M20 36v-9M26 36v-4M32 36v-11"/><circle cx="45" cy="29" r="7"/><path d="m50 34 7 7"/>',
-  watchlist: '<rect x="7" y="7" width="50" height="34" rx="4"/><path class="dsp-2" d="m15 13.6 1.5 3 3.3.5-2.4 2.3.6 3.3-3-1.6-3 1.6.6-3.3-2.4-2.3 3.3-.5z"/><path d="M25 18h24"/><circle cx="15" cy="27" r="1.8"/><path d="M25 27h18"/><circle cx="15" cy="34.5" r="1.8"/><path d="M25 34.5h21"/>',
   setup: '<path d="M6 41h52" opacity=".45"/><path class="dsp-2" d="M6 20h52" stroke-dasharray="3 3"/><path d="m6 35 9-6 8 4 9-11 8 3 8-12 10 3"/><circle class="dsp-dot" cx="40" cy="19" r="3.4"/>',
   property: '<path d="M6 25 20 13l14 12"/><path d="M10 22v18h20V22"/><path d="M17 40v-8h6v8"/><path d="M40 15h18M40 26h18M40 37h18"/><circle class="dsp-dot" cx="47" cy="15" r="3"/><circle class="dsp-dot" cx="53" cy="26" r="3"/><circle class="dsp-dot" cx="44" cy="37" r="3"/>',
 };
 const myDashPic = (k) => el('span', { class: 'dash-step-pic', 'aria-hidden': 'true',
   html: `<svg viewBox="0 0 64 48" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">${MYDASH_PICS[k] || ''}</svg>` });
 
-const MYDASH_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 const MYDASH_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
 
-/* One step as a row: its mark, its title and product, what it is or what was
-   done, and its action. Only the first step not yet done carries the primary
-   button, so the page has one thing to do next rather than four. */
-function myDashStepRow(s, primary) {
-  const li = el('li', { class: 'dash-step', data: { done: s.done ? '1' : '0', step: s.k } });
-  li.append(el('span', { class: 'dash-step-mark', 'aria-hidden': 'true', html: s.done ? MYDASH_CHECK : '' }));
-  li.append(myDashPic(s.k));
-  const body = el('div', { class: 'dash-step-body' });
-  body.append(el('div', { class: 'dash-step-t' }, [
-    el('h3', { class: 'h-card' }, [el('span', { class: 'sr-only' }, s.done ? 'Done: ' : 'Not done yet: '), s.title]),
-    s.tool ? toolBadge(s.tool) : s.product ? productBadge(s.product) : null,
+/* THE THREE PRODUCTS, ONE ACTION EACH (QT-D15-01, 28 Oct 2026). The products
+   are independent, so the cards are equal: the same size, the same button,
+   none promoted, and none the default for anyone.
+   THE PRIMARY-BUTTON RULE OF THIS PAGE: at most one .btn-primary in #views,
+   and it is "Continue" on the reader's most recent own work. A first visit
+   has none (three equal ghost buttons); a returning reader has Continue
+   (myDashContinue), and the three cards stay ghost. With nothing to continue
+   — or the item's tool unavailable here, so Continue is text — there is none. */
+function myDashTools(o, first) {
+  const cards = myDashSteps(o).filter(s => s.tool);
+  const sec = el('section', { class: `card ls-section dash-tools${first ? ' dash-start' : ''}`, 'aria-labelledby': 'dash-tools-hd' });
+  sec.append(el('h2', { id: 'dash-tools-hd', class: 'h-section' }, 'Three tools, each on its own'));
+  sec.append(el('p', { class: 'caption dash-start-lede' }, 'Pick the one for what you want to do. Each works without the others.'));
+  sec.append(el('ul', { class: 'dash-tool-list' }, cards.map(s => {
+    const li = el('li', { class: 'dash-tool', data: { done: s.done ? '1' : '0', step: s.k } });
+    li.append(myDashPic(s.k));
+    const body = el('div', { class: 'dash-tool-body' });
+    body.append(el('div', { class: 'dash-tool-t' }, [
+      el('h3', { class: 'h-card' }, s.title),
+      s.badgeTool ? toolBadge(s.badgeTool) : productBadge(s.product),
+    ]));
+    body.append(el('p', { class: 'caption dash-tool-what' }, s.what));
+    if (s.note) body.append(el('p', { class: 'caption dash-tool-note' }, s.note));
+    li.append(body);
+    li.append(myDashLink(s.path, { class: 'btn btn-ghost dash-tool-go' }, s.action));
+    return li;
+  })));
+  return sec;
+}
+
+/* The entries that are not products, in one quiet section under the cards:
+   the watchlist (with what this browser holds of it), the preferences'
+   questions and the goal launcher. Links, not buttons — none of them is the
+   page's action (QT-D15-01). */
+function myDashMore(o) {
+  const list = myDashSteps(o).find(s => s.k === 'watchlist');
+  const sec = el('section', { class: 'card ls-section dash-ways', 'aria-labelledby': 'dash-ways-hd' });
+  sec.append(el('h2', { id: 'dash-ways-hd', class: 'h-card' }, 'More in your workspace'));
+  sec.append(el('div', { class: 'dash-more' }, [
+    myDashLink(list.path, { class: 'dash-more-link', data: { step: list.k, done: list.done ? '1' : '0' } }, [el('strong', {}, list.action), el('span', { class: 'caption' }, list.note)]),
+    myDashLink('/welcome', { class: 'dash-more-link' }, [el('strong', {}, 'Set your preferences'),
+      el('span', { class: 'caption' }, onboarded() && !State.onboarding?.skipped ? 'Answered — change your market, currency or level of detail.' : 'Three questions: how much is explained, your market and your currency.')]),
+    myDashLink('/start', { class: 'dash-more-link' }, [el('strong', {}, 'Not sure where to start?'),
+      el('span', { class: 'caption' }, 'Pick what you want to find out, and the right tool opens.')]),
   ]));
-  body.append(el('p', { class: 'caption' }, s.note));
-  li.append(body);
-  li.append(myDashLink(s.path, { class: `btn ${primary ? 'btn-primary' : 'btn-ghost'} btn-sm dash-step-go` }, s.action));
-  return li;
+  return sec;
 }
 
 /* A count that opens the page it counts. `value` is text, so an absent record
@@ -25129,7 +25147,6 @@ function myDashTiles(o, visit, st) {
 VIEWS.home = () => {
   const visit = myDashVisit();
   const o = myDashOwn();
-  const steps = myDashSteps(o);
   /* On the layout system (37-layout-system.js; D12): its metric cards, its
      named sections, its type scale and its measure. */
   const wrap = el('div', { class: 'dash ls-page' });
@@ -25145,7 +25162,7 @@ VIEWS.home = () => {
   /* The lede is one line — what changed — and what qualifies it is the
      head's note (pageHead, 36-layouts.js; Release B). */
   const [lede, ledeNote] = !o.hasOwn
-    ? ['Your first steps, each with its one action.', 'As you take them, this page fills with your own work.']
+    ? ['Pick a tool to start.', 'As you use them, this page fills with your own work.']
     : !visit.prev ? ['This is the first visit this browser has recorded.', 'From the next one, the line above says what changed in between.']
     : !o.alerts ? [`Welcome back — you were last here ${myDashWhen(visit.prev)}.`, o.setupsKnown ? 'The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : null]
     : since.length ? [`Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`, null]
@@ -25165,82 +25182,50 @@ VIEWS.home = () => {
   wrap.append(pageHead({ cls: 'dash-hd', title: [el('span', { class: 'sr-only' }, 'My Dashboard: '),
     el('span', { 'data-now': 'Welcome' }, myDashGreeting())], lede, note: ledeNote }));
 
-  /* -- first time: the steps, and what the workspace holds (nothing yet) --- */
+  /* -- first time: the three products, then the quieter entries ----------- */
+  /* (QT-D15-01, 28 Oct 2026.) Three product cards, one action each and none
+     promoted, in place of the four-step checklist; the watchlist and the
+     other ways in sit below them in one quiet section. The workspace's five
+     parts, each "None yet", and the company last opened (D12 (b), (d)) stay. */
   if (!o.hasOwn) {
-    const card = el('section', { class: 'card ls-section dash-start', 'aria-labelledby': 'dash-start-hd' });
-    const top = el('div', { class: 'dash-start-top' });
-    top.append(el('div', {}, [
-      el('h2', { id: 'dash-start-hd', class: 'h-section' }, 'Set up your workspace'),
-      /* "…and stays ticked once it is true" was kept by nothing: each step
-         is read afresh, so Clear recent, which forgets the companies opened,
-         un-ticked "Research a company". The step follows what it reads.
-         No count of steps done (D12: a first visit shows no counts); each
-         step's mark says whether it is. */
-      el('p', { class: 'caption dash-start-lede' }, 'Each step is ticked from what this browser holds now.'),
-    ]));
-    card.append(top);
-    const firstOpen = steps.findIndex(s => !s.done);
-    card.append(el('ol', { class: 'dash-steps' }, steps.map((s, i) => myDashStepRow(s, i === firstOpen))));
-    /* Beside the steps, the two ways in that are not steps: the preferences
-       questions and the goal launcher. */
-    const ways = el('section', { class: 'card ls-section dash-ways', 'aria-labelledby': 'dash-ways-hd' });
-    ways.append(el('h2', { id: 'dash-ways-hd', class: 'h-card' }, 'Other ways in'));
-    ways.append(el('div', { class: 'dash-more' }, [
-      myDashLink('/welcome', { class: 'dash-more-link' }, [el('strong', {}, 'Set your preferences'),
-        el('span', { class: 'caption' }, onboarded() && !State.onboarding?.skipped ? 'Answered — change your market, currency or level of detail.' : 'Three questions: how much is explained, your market and your currency.')]),
-      myDashLink('/start', { class: 'dash-more-link' }, [el('strong', {}, 'Not sure where to start?'),
-        el('span', { class: 'caption' }, 'Pick what you want to find out, and the right tool opens.')]),
-    ]));
-    /* The workspace's five parts, each "None yet" — and the company last
-       opened, which a first visit can already have (D12 (b), (d)). */
-    const main = el('div', { class: 'dash-side' }, [card, myDashSections(o)]);
-    const aside = el('div', { class: 'dash-side' }, [ways, o.samples ? myDashSampleNote() : null]);
+    wrap.append(myDashTools(o, true));
+    const main = el('div', { class: 'dash-side' }, [myDashSections(o)]);
+    const aside = el('div', { class: 'dash-side' }, [myDashMore(o), o.samples ? myDashSampleNote() : null]);
     wrap.append(el('div', { class: 'dash-first' }, [main, aside]));
     wrap.append(backupLine({ compact: true }), myDashFoot());
     return wrap;
   }
 
-  /* -- returning: the reader's work first, as five counts, each a door ----- */
+  /* -- returning: the reader's work first ---------------------------------- */
   /* (D12 (e)): the company last opened, the saved properties, the
-     watchlists, the setups and the alerts, before any step not yet taken.
+     watchlists, the setups and the alerts, as five counts, each a door.
      Unread scanner matches are as the sidebar's badge counts them
      (scanUnreadCount): a setup muted in the scanner's settings is left out,
      and named. */
   const st = typeof scanAlertStateRead === 'function' ? scanAlertStateRead() : {};
-  wrap.append(myDashTiles(o, visit, st));
 
-  /* ONE NEXT ACTION (audit 1, #9). A returning reader's next action is to
-     carry on with the most recent thing they made, so "Continue" on it is the
-     page's one primary button; the first step not taken was a second one, of
-     the same weight, on the same screen. With nothing to continue — a
-     scanner record and nothing saved — the first step keeps it.
-     The card holding that action leads the left column, above the record;
-     the steps not taken move to the right. On a phone the page stacks in
-     that order, so the one action is the first thing under the counts, not
-     below three steps; with nothing to continue, the record and the steps
-     keep the left, as before. */
-  const split = el('div', { class: 'dash-split' });
-  const main = el('div', { class: 'dash-side' });
-  const side = el('div', { class: 'dash-side' });
+  /* ONE NEXT ACTION (audit 1, #9; QT-D15-01). A returning reader's next
+     action is to carry on with the most recent thing they made, so the first
+     thing under the heading is that work with "Continue" — the page's one
+     primary button; the three product cards under it are ghost buttons, so
+     there is still exactly one. The block holds the backup line beside the
+     saved work, where the export is most wanted. With nothing to continue —
+     a scanner record and nothing saved, or the item's tool unavailable here —
+     the block moves down and the page has no primary button. */
   const cont = myDashContinue(o);
   const continues = !!cont.querySelector('.dash-continue.btn-primary');
-  if (continues) main.append(cont);
-  main.append(myDashMatches(o, st));
-  const open = steps.filter(s => !s.done);
-  if (open.length) {
-    const ns = el('section', { class: 'card ls-section', 'aria-labelledby': 'dash-next-hd' });
-    ns.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
-      el('h2', { id: 'dash-next-hd', class: 'h-card' }, 'Next steps'),
-      el('p', { class: 'caption', style: 'margin-top:2px' }, `${myDashPlural(open.length, 'first step')} not taken yet.`),
-    ])));
-    ns.append(el('ol', { class: 'dash-steps dash-steps-sm' }, open.map((s, i) => myDashStepRow(s, !continues && i === 0))));
-    (continues ? side : main).append(ns);
-  }
+  if (continues) wrap.append(cont);
+  wrap.append(myDashTiles(o, visit, st));
+  wrap.append(myDashTools(o, false));
+  const split = el('div', { class: 'dash-split' });
+  const main = el('div', { class: 'dash-side' }, [myDashMatches(o, st)]);
+  const side = el('div', { class: 'dash-side' });
   if (!continues) side.append(cont);
+  side.append(myDashMore(o));
   if (o.samples) side.append(myDashSampleNote());
   split.append(main, side);
   wrap.append(split);
-  wrap.append(backupLine({ compact: true }), myDashFoot());
+  wrap.append(myDashFoot());
   return wrap;
 };
 
@@ -25374,7 +25359,7 @@ function myDashContinue(o) {
          reopens it), else the page it lives on. The button names the tool
          it reopens and passes the shell's gate now, as the link does, so
          a saved screen or comparison whose tool cannot be used here is
-         text, and the page's one primary action falls to the first step. */
+         text, and the page then has no primary action (QT-D15-01). */
       if (i === 0) {
         const name = `Continue: ${r.name}`;
         const go = r.open
@@ -25395,6 +25380,9 @@ function myDashContinue(o) {
     card.append(el('div', { class: 'dash-cos' }, recent.map(r => myDashLink(companyPath(r.c), { class: 'dash-co', title: r.c.real ? r.c.name : `${r.c.name} — ${ILLUS_TITLE}` },
       [el('strong', {}, r.c.tk), illusChip(r.c)]))));
   }
+  /* The export beside the saved work it saves (QT-D15-01): a reader with work
+     of their own is the one who needs the copy that travels. */
+  card.append(backupLine({ compact: true }));
   return card;
 }
 
