@@ -593,24 +593,66 @@ VIEWS.scannerDashboard = () => {
   const S = SCAN_STATE[st.state] || SCAN_STATE.never;
   /* THE FIRST VIEW (the 5 Oct audit's N5a and N5b; on the layout system):
      no scan recorded and no file open — the public site, always, and a
-     machine whose worker has not run. The example on a generated series
-     beside the state and the four answers; how to run the worker, its
-     commands and its files, one press away in "Run the worker on your own
-     computer". With any file open, or any run recorded, the page is the
-     reader's, exactly as it was. */
+     machine whose worker has not run. The four steps first, each with its
+     own state (QT-D15-03, 28 Oct 2026: what works here — saving rules —
+     apart from what needs the worker on the reader's computer); how to run
+     the worker, its commands and its files, one press away in "Run
+     locally"; the example on a generated series last, so that it is not the
+     first large thing on the page. With any file open, or any run
+     recorded, the page is the reader's, exactly as it was. */
   const first = st.state === 'never' && !scanOpsOpened.length && !scanOpsHistory() && !scanOpsSetupsDoc() && !scanOpsAlertsDoc();
   const wrap = el('div', { class: 'scan-page ls-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The product's one action, as its entry in PRODUCTS names it, is the
      overview's primary: the page had none, and "Create a setup" was two
-     clicks away under Setups. It stands at the head's end. */
+     clicks away under Setups. It moved from the head's end to step 1 of the
+     four steps below it (QT-D15-03, 28 Oct 2026), where it is the one
+     primary on the page. */
   const sc = typeof productById === 'function' ? productById('scanner') : null;
-  const head = scanOpsHead('Scanner dashboard', 'Your setups, the last scan and its matches, as the worker recorded them.',
-    first ? 'Nothing here is a scan run by this page and presented as the worker’s.'
-      : 'Whether each setup is active, when the last scan succeeded, what matched and whether anything is delivered, read from the worker’s files on this machine. Nothing here is a scan run by this page and presented as the worker’s.',
-    sc?.action && sc.actionPath && matchRoute(sc.actionPath) ? scanOpsLink(sc.actionPath, sc.action, { class: 'btn btn-primary' }) : null);
+  /* The lede says, once, what works here and what does not (QT-D15-03, 28
+     Oct 2026): "Nothing here is a scan run by this page…" is in it now. */
+  const head = scanOpsHead('Scanner dashboard', 'Create and save your scanning rules here. Scanning needs price history and the local worker on your own computer, which is not available to download yet. This website does not run scans or supply prices.',
+    first ? null : 'Whether each setup is active, when the last scan succeeded, what matched and whether anything is delivered, read from the worker’s files on this machine.');
   wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
+
+  /* ---- the four steps: what works here, then what needs the worker ---- */
+  /* One place for the state in the first view: the status card's four
+     answers (setups active, last scan, matches, notifications) are folded
+     into the steps — each step's state is read from the same records.
+     (QT-D15-03, 28 Oct 2026) */
+  const browserSetups = typeof scanBrowserSetups === 'function' ? scanBrowserSetups() : [];
+  const hist = scanOpsHistoryMeta(scanOpsHistory());
+  const lastRun = st.lastSuccess, lastTry = st.lastAttempt;
+  const step = (n, title, tag, state, act, note = null) => el('li', { class: 'scan-step' }, [
+    el('span', { class: 'scan-step-n', 'aria-hidden': 'true' }, String(n)),
+    el('div', { class: 'scan-step-t' }, [el('strong', {}, title), el('span', { class: 'scan-step-tag' }, tag)]),
+    el('div', { class: 'scan-step-s' }, [el('p', { class: 'scan-step-v' }, state), note ? el('p', { class: 'metaline' }, note) : null]),
+    el('div', { class: 'scan-step-act' }, act)]);
+  const createPath = sc?.actionPath && matchRoute(sc.actionPath) ? sc.actionPath : null;
+  const runLink = el('a', { href: '#scan-run', class: 'scan-step-link', onclick: (e) => {
+    const target = document.getElementById('scan-run');
+    if (!target) return;
+    e.preventDefault();
+    if (target.tagName === 'DETAILS') target.open = true;
+    target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    (target.querySelector('summary') || target).focus?.({ preventScroll: true });
+  } }, 'Run locally');
+  wrap.append(el('section', { class: 'card scan-steps-card ls-section' }, el('ol', { class: 'scan-steps', role: 'list', 'aria-label': 'From a rule to a recorded result' }, [
+    step(1, 'Create a rule setup', 'Works here',
+      browserSetups.length ? `${browserSetups.length} saved in this browser` : 'None yet',
+      [createPath ? scanOpsLink(createPath, sc.action, { class: 'btn btn-primary' }) : null,
+       browserSetups.length ? scanOpsLink('/app/scanner/setups', 'Your setups', { class: 'scan-step-link' }) : null]),
+    step(2, 'Price history', 'Needed',
+      hist ? `${scanOpsPlural(hist.symbols.length, 'series', 'series')}, newest bar ${hist.newestBar || '—'}`
+           : [el('span', { class: 'status-badge status-unavailable', title: 'This site ships no prices; the worker reads the history you supply.' }, 'Unavailable'), ' None supplied'],
+      null),
+    step(3, 'Run locally', 'Needs the worker on your computer', 'Not available to download yet', runLink),
+    step(4, 'Review recorded results', 'Recorded by the worker',
+      lastRun ? `Last scan ${scanOpsDay(lastRun.finishedAt || lastRun.startedAt)}` : lastTry ? `No scan has succeeded; latest attempt ${scanOpsDay(lastTry.startedAt)}` : 'No scan recorded',
+      scanOpsLink('/app/scanner/alerts', 'Alert history', { class: 'scan-step-link' }),
+      first ? 'The worker’s run log and record of matches stay on the computer that runs it, so on this site there is nothing to read — by design, not by fault.' : null),
+  ])));
 
   /* ---- the band: the state, and every reason for it ---- */
   const band = el('section', { class: 'card scan-band ls-section', data: { state: st.state }, 'aria-labelledby': 'scan-band-hd' });
@@ -618,9 +660,7 @@ VIEWS.scannerDashboard = () => {
   if (st.reasons.length && !first) band.append(el('ul', { class: 'rulelist', style: 'margin-top:10px' }, st.reasons.map(r => el('li', {}, r))));
   if (st.state === 'current') band.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `The last scan ran on the newest bar your history holds, with the setups and the engine as they stand. No exchange calendar is held, so “current” is judged against your own history and a four-day rule, not a trading calendar.`));
-  if (first) band.append(el('p', { class: 'body scan-band-why' },
-    'The worker’s run log and record of matches stay on the computer that runs it, so on this site this page has nothing to read — by design, not by fault.'));
-  else if (st.state === 'never') {
+  if (st.state === 'never' && !first) {
     band.append(el('p', { class: 'body', style: 'margin-top:10px;font-size:13px;max-width:72ch' },
       'The worker writes its run log (data/scan-runs.json) and its record of matches (data/scan-alerts.json) on the machine that runs it. Neither is ever deployed, so on the public site this page has nothing to read — by design, not by fault. Locally, run the worker once and reload; or open your own files below.'));
     band.append(scanOpsOpenFiles());
@@ -628,16 +668,15 @@ VIEWS.scannerDashboard = () => {
   if (!first) wrap.append(band);
 
   /* ---- the four questions ---- */
-  /* As tiles; in the first view, where every answer is "none yet", as four
-     lines of the band, each with its answer and its link. */
+  /* As tiles, when a file is open or a run is recorded. In the first view,
+     where every answer is "none yet", the four steps above hold them. */
   const tiles = el('div', { class: 'scan-tiles', role: 'list' });
-  const asked = [];
-  const tile = (q, value, subs, link) => (asked.push({ q, value, link }), el('div', { class: 'panel scan-q', role: 'listitem' }, [
+  const tile = (q, value, subs, link) => el('div', { class: 'panel scan-q', role: 'listitem' }, [
     el('p', { class: 'stat-label' }, q),
     el('p', { class: 'stat-value sm' }, value),
     ...subs.filter(Boolean).map(s => el('p', { class: 'stat-sub' }, s)),
     link ? el('p', { class: 'scan-q-link' }, link) : null,
-  ]));
+  ]);
   const a = st.active;
   const setupsDoc = scanOpsSetupsDoc();
   const refused = scanOpsRefused(a);
@@ -678,12 +717,6 @@ VIEWS.scannerDashboard = () => {
      unread == null ? (typeof scanUnreadCount === 'function' ? 'Unread in this browser: not counted — no alerts file is visible here.' : 'Unread in this browser: not counted — the alerts pages are not in this build.') : `${scanOpsPlural(unread, 'alert')} unread in this browser.`],
     el('span', {}, [scanOpsLink('/app/scanner/settings', 'Settings')])));
   if (!first) wrap.append(tiles);
-  else {
-    /* A link built for a tile is moved here: one each, the same node. */
-    band.append(el('dl', { class: 'scan-qs' }, asked.map(x => el('div', { class: 'scan-qs-row' }, [
-      el('dt', {}, x.q), el('dd', {}, [el('span', { class: 'scan-qs-v' }, x.value), x.link ? el('span', { class: 'scan-qs-link' }, x.link) : null])]))));
-    wrap.append(el('div', { class: 'scan-first' }, [scanExampleFigure({ id: 'scan-ex' }), band]));
-  }
 
   /* ---- the matches of the last scan, under a heading that dates them ---- */
   const alerts = (() => { const d = scanOpsAlertsDoc(); return Array.isArray(d) ? d : Array.isArray(d?.alerts) ? d.alerts : []; })();
@@ -737,7 +770,7 @@ VIEWS.scannerDashboard = () => {
   if (!first) wrap.append(mon);
 
   /* ---- how it runs ---- */
-  const run = el('section', { class: first ? 'scan-run-part' : 'card' });
+  const run = el('section', { class: first ? 'scan-run-part' : 'card', id: first ? null : 'scan-run' });
   run.append(cardHead('How the scan runs', 'The worker runs on your machine, after your own capture. This page never runs it.'));
   run.append(scanOpsCmd('node scanner/scan.mjs', 'Evaluates data/scan-setups.json on data/price-history.json and appends new matches to data/scan-alerts.json. A bar already recorded is never recorded again, so running it twice is safe.'));
   run.append(scanOpsCmd('node ingest/daily.mjs', 'The daily task: your capture, then the history, then the scan — the scan only if the history step succeeded.'));
@@ -746,15 +779,18 @@ VIEWS.scannerDashboard = () => {
   if (!first) { wrap.append(run); return wrap; }
   /* The first view's L3: closed, its summary in sight, everything the
      worker needs in it — what it writes, the three commands, the eight
-     files a reader can open here, and what it would watch. */
+     files a reader can open here, and what it would watch. Named "Run
+     locally" as step 3 names it (QT-D15-03, 28 Oct 2026). The example
+     follows it, last. */
   const files = el('section', { class: 'scan-run-part' }, [cardHead('Your files', 'Open the worker’s files from your own disk to read them on these pages.'), scanOpsOpenFiles()]);
   wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
-    el('summary', { class: 'scan-run-sum' }, 'Run the worker on your own computer'),
+    el('summary', { class: 'scan-run-sum' }, 'Run locally'),
     el('div', { class: 'scan-run-body' }, [
       el('p', { class: 'body' }, 'The worker is not distributed yet; setups can be tested here on prices you supply. If you hold its files, open them below.'),
       run, files, mon,
     ]),
   ]));
+  wrap.append(el('div', { class: 'scan-first-ex' }, scanExampleFigure({ id: 'scan-ex' })));
   return wrap;
 };
 
