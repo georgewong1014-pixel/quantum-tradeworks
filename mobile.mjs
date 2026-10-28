@@ -4818,7 +4818,7 @@ for (const w of [360, 390]) {
         if (!r.first || r.steps !== 3 || r.pics !== 3) fails.push(`${at}: the first visit shows ${r.steps} product cards, ${r.pics} with a picture`);
         if (r.primaries) fails.push(`${at}: ${r.primaries} primary button(s) on a first visit's page`);
         if (r.digits) fails.push(`${at}: ${r.digits} digits on a first visit's page`);
-      } else if (r.first || r.tiles !== 5 || !r.order || r.primaries !== 1 || !r.contFirst) fails.push(`${at}: the returning reader's page has ${r.tiles} counts${r.first ? ', and the first visit's cards' : ''}${r.order ? '' : ', after the cards'}, ${r.primaries} primary buttons, Continue first ${r.contFirst}`);
+      } else if (r.first || r.tiles !== 5 || !r.order || r.primaries !== 1 || !r.contFirst) fails.push(`${at}: the returning reader's page has ${r.tiles} counts${r.first ? ', and the first visit’s cards' : ''}${r.order ? '' : ', after the cards'}, ${r.primaries} primary buttons, Continue first ${r.contFirst}`);
     }
   } catch (e) { fails.push(`the checks threw: ${e.message}`); }
   finally {
