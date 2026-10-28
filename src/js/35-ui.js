@@ -1973,7 +1973,7 @@ const SECTION_OF = {
   propertyProposal: 'property',
   tradingIndex: 'scanner',
   /* Preferences and the goal launcher are reached from My Dashboard's
-     "Other ways in", so the dashboard is where a reader on them is; with
+     "More in your workspace", so the dashboard is where a reader on them is; with
      no item current the sidebar gave no location at all. */
   onboarding: 'dashboard', launcher: 'dashboard',
   /* Every scanner page, the operations pages included: they are the
@@ -2988,7 +2988,7 @@ const SERVED_READS_ALL = ['realData', 'ownerMachine'];
 const SERVED_READS = {
   /* /app: what is the visitor's own — lists, holdings, cases, alerts,
      setups, saved work of every kind, a deal begun — counted apart from the
-     samples, and the first steps. The last visit (dashVisit, which the page
+     samples, and the product cards. The last visit (dashVisit, which the page
      itself keeps as it draws) is said only to a visitor with something of
      their own, which these already name: a reload of the dashboard is
      served. As a workspace (D12, 8 Oct 2026) it reads nothing more: the

@@ -3627,7 +3627,7 @@ th .kind-th { vertical-align: middle; }
   .dash-hd .body-lg { display: block; -webkit-line-clamp: unset; overflow: visible; }
 }
 
-/* The first-time card. The one thing on the page, so it takes the page's
+/* The first visit's card of three products. The one thing on the page, so it takes the page's
    deepest lift and a quiet field of the brand and the bronze behind it. */
 .dash-start {
   padding: var(--xl);
@@ -3637,44 +3637,8 @@ th .kind-th { vertical-align: middle; }
     var(--surface);
   box-shadow: var(--lift-3);
 }
-.dash-start-top {
-  display: flex; align-items: flex-end; justify-content: space-between;
-  gap: var(--md) var(--lg); flex-wrap: wrap; margin-bottom: var(--sm);
-}
-.dash-start-top > div:first-child { flex: 1 1 320px; min-width: 0; }
-.dash-progress { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
-.dash-progress-t { font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.dash-progress-bar {
-  display: block; width: 180px; height: 6px; border-radius: 999px; overflow: hidden;
-  background: color-mix(in srgb, var(--ink) 10%, transparent);
-}
-.dash-progress-bar > i {
-  display: block; height: 100%; border-radius: inherit; background: var(--brand);
-  transform-origin: left center; transition: transform 320ms ease;
-}
-
-/* A step: its mark, what it is, its one action. */
-.dash-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
-.dash-step {
-  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center;
-  gap: var(--md); padding: var(--md) 0; border-top: 1px solid var(--grid);
-}
-.dash-steps-sm .dash-step { grid-template-columns: 26px minmax(0, 1fr) auto; gap: var(--sm); padding: var(--sm) 0; }
-.dash-steps-sm .dash-step:first-child { border-top: 0; padding-top: 0; }
-.dash-step-mark {
-  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
-  border: 1.5px dashed color-mix(in srgb, var(--ink-3) 70%, transparent); background: var(--surface-2);
-}
-.dash-steps-sm .dash-step-mark { width: 26px; height: 26px; }
-.dash-step[data-done="1"] .dash-step-mark { border: 0; background: var(--brand); color: var(--surface-2); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--brand) 60%, transparent); }
-.dash-step-mark svg { width: 15px; height: 15px; }
-.dash-step-t { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
-.dash-step[data-done="1"] .dash-step-t .h-card { color: var(--ink-2); }
-.dash-step-body .caption { margin-top: 2px; max-width: 64ch; }
-.dash-step-go { white-space: nowrap; }
-
-/* The checklist, and beside it the two ways in that are not steps:
-   preferences and the goal launcher. */
+/* Beneath the three product cards: the workspace's parts, and beside them the
+   quiet entries — the watchlist, preferences and the goal launcher. */
 .dash-first { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: var(--lg); align-items: start; }
 .dash-more { display: flex; flex-direction: column; gap: var(--sm); margin-top: var(--sm); }
 .dash-more-link {
@@ -3815,10 +3779,6 @@ table.dt thead th .cmp-yearend { display: inline-block; margin-top: 2px; font-we
 @media (max-width: 560px) {
   .dash { gap: var(--md); }
   .dash-start { padding: var(--lg) var(--md); }
-  .dash-progress { align-items: flex-start; }
-  .dash-step { grid-template-columns: 28px minmax(0, 1fr); gap: var(--sm); }
-  .dash-step-mark { width: 28px; height: 28px; }
-  .dash-step-go { grid-column: 2; justify-self: start; }
   .dash-tiles { grid-template-columns: minmax(0, 1fr); gap: var(--sm); }
   .dash-tile {
     display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--md); row-gap: 2px;
@@ -6672,29 +6632,40 @@ input.au-in[type="text"] { text-align: left; }
    Only transform, opacity and box-shadow move. */
 /* A step or a row is a structure of its own words, each held to the
    measure where it is a block (a caption, a line): not the item itself. */
-:root .ls-view .dash :is(li.dash-step, .dash-list > li) { max-width: none; }
-:root .ls-view .dash :is(.dash-step-body .caption, .dash-row-s, .dash-more-link .caption, .dash-secs-lede, .dash-start-lede, .dash-empty .caption) { font-size: var(--ls-support); line-height: 1.5; }
+:root .ls-view .dash :is(li.dash-tool, .dash-list > li) { max-width: none; }
+:root .ls-view .dash :is(.dash-tool-body .caption, .dash-row-s, .dash-more-link .caption, .dash-secs-lede, .dash-start-lede, .dash-empty .caption) { font-size: var(--ls-support); line-height: 1.5; }
 :root .ls-view .dash :is(.dash-row-t, .dash-more-link strong) { font-size: var(--ls-support); }
 :root .ls-view .dash .dash-row-k { font-size: var(--ls-meta); }
 :root .ls-view .dash .dash-empty-t { font-size: var(--ls-body); }
 :root .ls-view .dash .dash-foot, :root .ls-view .dash .dash-backup { font-size: var(--ls-support); }
 .dash-start-lede { margin: var(--ls-within) 0 0; }
 
-/* The step's picture, between its mark and its words. */
-.dash-step { grid-template-columns: 32px 64px minmax(0, 1fr) auto; }
-/* Beside the counts, a step not taken is its mark, its words and its action
-   under them: the column is narrow, and its picture is the first visit's. */
-.dash-steps-sm .dash-step { grid-template-columns: 26px minmax(0, 1fr); }
-.dash-steps-sm .dash-step-pic { display: none; }
-.dash-steps-sm .dash-step-go { grid-column: 2; justify-self: start; }
+/* A product's picture, ahead of its words. */
 .dash-step-pic {
-  display: grid; place-items: center; width: 64px; height: 48px; padding: 2px; border-radius: var(--r-md);
+  flex: none; display: grid; place-items: center; width: 64px; height: 48px; padding: 2px; border-radius: var(--r-md);
   color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, var(--surface-2)); border: 1px solid var(--line);
 }
 .dash-step-pic svg { width: 100%; height: 100%; display: block; }
 .dash-step-pic .dsp-2 { stroke: var(--bronze); }
 .dash-step-pic .dsp-dot { fill: var(--surface-2); stroke: var(--brand); }
-.dash-step[data-done="1"] .dash-step-pic { opacity: .6; }
+
+/* THE THREE PRODUCTS (QT-D15-01, 28 Oct 2026): three equal cards side by side
+   — a picture, the product and its badge, its one line, what this browser
+   holds of it, one ghost button at the foot — stacked on a phone, the picture
+   beside its words. Only transform, opacity and box-shadow move. */
+.dash-tool-list { list-style: none; margin: var(--ls-related) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--md); }
+.dash-tool {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--md); min-width: 0; padding: var(--lg);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent), 0 14px 36px -22px color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.dash-tool-body { display: flex; flex-direction: column; gap: var(--xs); min-width: 0; flex: 1 1 auto; }
+.dash-tool-t { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+.dash-tool-note { color: var(--ink); }
+/* Property's badge carries its qualifier ("Your figures, sample to start"): on a line of its own under the name, as the sidebar sets it. */
+.dash-tool-t .pbadge-q { flex: 1 0 100%; font-size: var(--text-label); line-height: 1.35; }
+.dash-tool-t .pbadge-q::before { content: none; }
+.dash-tool-go { white-space: nowrap; margin-top: auto; }
 
 /* The workspace's five parts, on a first visit: a row each, a door each. */
 .dash-secs-lede { margin: var(--ls-within) 0 var(--ls-related); color: var(--ink-2); }
@@ -6728,13 +6699,20 @@ input.au-in[type="text"] { text-align: left; }
 @media (max-width: 1439px) {
   .dash-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+/* Stacked from 1024px down: a picture beside the words, the button under them. */
+@media (max-width: 1024px) {
+  .dash-tool-list { grid-template-columns: minmax(0, 1fr); }
+  .dash-tool { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: var(--md); row-gap: var(--sm); }
+  .dash-tool-go { grid-column: 2; justify-self: start; margin-top: 0; }
+}
+@media (max-width: 560px) {
+  .dash-tool { padding: var(--md); }
+}
 @media (max-width: 1024px) {
   .dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 560px) {
-  .dash-step { grid-template-columns: 28px 48px minmax(0, 1fr); }
   .dash-step-pic { width: 48px; height: 36px; }
-  .dash-step-go { grid-column: 2 / -1; }
   .dash-tiles { grid-template-columns: minmax(0, 1fr); }
   .dash-tile.ls-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--md); row-gap: 2px; align-items: center; padding: var(--sm) 40px var(--sm) var(--md); }
   .dash-tile > :not(.dash-tile-v):not(.dash-tile-go) { grid-column: 1; }
