@@ -1652,7 +1652,8 @@ for (const route of ROUTES) {
     const at = `${path}${before ? ' (no lists at all)' : ''}`;
     empties.push(at);
     if (!r.says.length || r.says.some(t => t.length < 25)) p.push(`${at}, emptied: no empty state that says what to do next (${JSON.stringify(r.says)})`);
-    if (r.prim.length !== 1) p.push(`${at}, emptied: ${r.prim.length} primary actions (${r.prim.join(', ')}), not the one next action`);
+    /* (QT-D15-01, 28 Oct 2026) /app's empty state is three equal product cards, none primary: no one product is the next action for everyone. */
+    if (r.prim.length !== (path === '/app' ? 0 : 1)) p.push(`${at}, emptied: ${r.prim.length} primary actions (${r.prim.join(', ')}), not the one next action`);
   }
   await ev(clean);
 
