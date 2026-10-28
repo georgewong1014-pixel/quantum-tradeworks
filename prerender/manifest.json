@@ -209,8 +209,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a0fe56a0b0d80e23",
-      "changed": "2026-10-27"
+      "digest": "670b8684fdf12342",
+      "changed": "2026-10-28"
     },
     "pages/app/equities.html": {
       "path": "/app/equities",
@@ -320,13 +320,13 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 1,
+        "notShown": 2,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "52acc141a820d438",
-      "changed": "2026-10-24"
+      "digest": "6f51fdc6166d4c92",
+      "changed": "2026-10-28"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -4668,13 +4668,13 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 1,
+        "notShown": 2,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "52acc141a820d438",
-      "changed": "2026-10-24"
+      "digest": "6f51fdc6166d4c92",
+      "changed": "2026-10-28"
     },
     "pages/my/theses.html": {
       "path": "/my/theses",
@@ -4932,8 +4932,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "469663b390a78cc8",
-      "changed": "2026-10-27"
+      "digest": "4b63745cb6e8a82d",
+      "changed": "2026-10-28"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -5077,8 +5077,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "469663b390a78cc8",
-      "changed": "2026-10-27"
+      "digest": "4b63745cb6e8a82d",
+      "changed": "2026-10-28"
     },
     "pages/property/models.html": {
       "path": "/property/models",
