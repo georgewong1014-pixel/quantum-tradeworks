@@ -641,7 +641,9 @@ VIEWS.scannerDashboard = () => {
     target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     (target.querySelector('summary') || target).focus?.({ preventScroll: true });
   } }, 'Run locally');
-  wrap.append(el('section', { class: 'card scan-steps-card ls-section' }, el('ol', { class: 'scan-steps', role: 'list', 'aria-label': 'From a rule to a recorded result' }, [
+  /* The layout system's section names itself with a heading; this one is for
+     a screen reader — the steps are their own heading to a sighted reader. */
+  wrap.append(el('section', { class: 'card scan-steps-card ls-section', 'aria-labelledby': 'scan-steps-hd' }, [el('h2', { id: 'scan-steps-hd', class: 'sr-only' }, 'From a rule to a recorded result'), el('ol', { class: 'scan-steps', role: 'list' }, [
     step(1, 'Create a rule setup', 'Works here',
       browserSetups.length ? `${browserSetups.length} saved in this browser` : 'None yet',
       [createPath ? scanOpsLink(createPath, sc.action, { class: 'btn btn-primary' }) : null,
@@ -655,7 +657,7 @@ VIEWS.scannerDashboard = () => {
       lastRun ? `Last scan ${scanOpsDay(lastRun.finishedAt || lastRun.startedAt)}` : lastTry ? `No scan has succeeded; latest attempt ${scanOpsDay(lastTry.startedAt)}` : 'No scan recorded',
       scanOpsLink('/app/scanner/alerts', 'Alert history', { class: 'scan-step-link' }),
       first ? 'The worker’s run log and record of matches stay on the computer that runs it, so on this site there is nothing to read — by design, not by fault.' : null),
-  ])));
+  ])]));
 
   /* ---- the band: the state, and every reason for it ---- */
   const band = el('section', { class: 'card scan-band ls-section', data: { state: st.state }, 'aria-labelledby': 'scan-band-hd' });
