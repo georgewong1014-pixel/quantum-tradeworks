@@ -2747,13 +2747,13 @@ const HOME_PAGE = read(HOME);
         const at = (n) => nodes.indexOf(n);
         const fig = nodes.find(n => n.tag === 'figure' && has(n, 'scan-ex'));
         if (!fig || at(fig) < at(steps[3]) || (det && at(det) < at(steps[3]))) p.push('/app/scanner: the four steps do not come before "Run locally" and the example figure');
-        const lede = rawText(nodes.find(n => has(n, 'page-lede')) || { kids: [] });
+        const lede = rawText(nodes.find(n => has(n, 'page-lede')) || { kids: [] }) + ' ' + rawText(nodes.find(n => has(n, 'page-note')) || { kids: [] });
         said.lede = lede.length;
         if (!/does not run scans or supply prices/.test(lede) || !/not available to download yet/.test(lede)) p.push(`/app/scanner: the lede reads "${lede.slice(0, 120)}", not that this website runs no scans and supplies no prices and the worker is not available to download`);
       }
     }
   }
-  judge(p, `the Scanner's four steps (QT-D15-03): ${said.steps} steps in order (Create a rule setup → Price history → Run locally → Review recorded results), None yet · Unavailable "None supplied" · Not available to download yet · No scan recorded, step 3 linking the closed "Run locally", ${said.primaries} .btn-primary in <main> (Create a setup, in step 1), the lede saying the site runs no scans and supplies no prices and the worker is not available to download`,
+  judge(p, `the Scanner's four steps (QT-D15-03): ${said.steps} steps in order (Create a rule setup → Price history → Run locally → Review recorded results), None yet · Unavailable "None supplied" · Not available to download yet · No scan recorded, step 3 linking the closed "Run locally", ${said.primaries} .btn-primary in <main> (Create a setup, in step 1), the lede and the note under it saying the site runs no scans and supplies no prices and the worker is not available to download`,
     'the Scanner\'s four steps (QT-D15-03) are not served as accepted');
 }
 /* ---- end scanner-four-steps ---- */

@@ -2844,7 +2844,7 @@ const JOURNEYS = [
             badge2: t(steps[1]?.querySelector('.status-badge.status-unavailable')),
             prim: prim.map(t), primIn1: prim.length === 1 && !!steps[0]?.contains(prim[0]),
             detOpen: det ? det.open : null, detSum: t(det?.querySelector('summary')), detCmd: /node scanner\\/scan\\.mjs/.test(det?.textContent || ''),
-            link: link ? link.getAttribute('href') : null, lede: t(document.querySelector('main .page-lede')),
+            link: link ? link.getAttribute('href') : null, lede: t(document.querySelector('main .page-lede')) + ' ' + t(document.querySelector('main .page-note')),
             before: !!(steps[3] && fig && det && (steps[3].compareDocumentPosition(det) & Node.DOCUMENT_POSITION_FOLLOWING) && (steps[3].compareDocumentPosition(fig) & Node.DOCUMENT_POSITION_FOLLOWING)) };
         })()`);
         const want = ['Create a rule setup', 'Price history', 'Run locally', 'Review recorded results'];

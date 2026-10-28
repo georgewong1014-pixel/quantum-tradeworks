@@ -608,10 +608,13 @@ VIEWS.scannerDashboard = () => {
      four steps below it (QT-D15-03, 28 Oct 2026), where it is the one
      primary on the page. */
   const sc = typeof productById === 'function' ? productById('scanner') : null;
-  /* The lede says, once, what works here and what does not (QT-D15-03, 28
-     Oct 2026): "Nothing here is a scan run by this page…" is in it now. */
-  const head = scanOpsHead('Scanner dashboard', 'Create and save your scanning rules here. Scanning needs price history and the local worker on your own computer, which is not available to download yet. This website does not run scans or supply prices.',
-    first ? null : 'Whether each setup is active, when the last scan succeeded, what matched and whether anything is delivered, read from the worker’s files on this machine.');
+  /* The head says, once, what works here and what does not (QT-D15-03, 28
+     Oct 2026): "Nothing here is a scan run by this page…" is in it now, and
+     the long "Whether each setup is active…" note, which the answers below
+     give themselves, is gone. The layout system holds a lede to one line, so
+     the first sentence is the lede and the rest the note under it. */
+  const head = pageHead({ title: 'Scanner dashboard', lede: 'Create and save your scanning rules here.', cls: 'scan-hd-full',
+    note: 'Scanning needs price history and the local worker on your own computer, which is not available to download yet. This website does not run scans or supply prices.' });
   wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
