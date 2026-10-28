@@ -1480,7 +1480,9 @@ for (const route of ROUTES) {
       if (again.length) p.push(`${path}: a second strip in the page repeats the header's tabs (${again.join(', ')})`);
       if (!head.hd || !head.h1InHead) p.push(`${path}: the h1 "${head.h1}" is not in the page head`);
       if (head.eyebrow !== want.name) p.push(`${path}: the eyebrow reads ${JSON.stringify(head.eyebrow)}, not "${want.name}"`);
-      if (!head.lede || head.lines !== 1) p.push(`${path}: the lede ${head.lede ? `is ${head.lines} lines ("${head.lede.slice(0, 70)}…")` : 'is missing'}, not one line`);
+      /* The Lab's lede says what the page does for the reader (the Day-15 review, QT-D15-02, 28 Oct 2026: "See how your purchase price, financing and rent affect the cash you need and your monthly position. The Scenario Lab is beta.") — two sentences, up to three lines in its column; every other lede is one. HELD FOR THE OWNER: this loosens Release B's one-line lede for /property alone. */
+      const ledeMax = path === '/property' ? 3 : 1;
+      if (!head.lede || head.lines < 1 || head.lines > ledeMax) p.push(`${path}: the lede ${head.lede ? `is ${head.lines} lines ("${head.lede.slice(0, 70)}…")` : 'is missing'}, not ${ledeMax === 1 ? 'one line' : `at most ${ledeMax} lines`}`);
       if (r.prim.length > 1) p.push(`${path}: ${r.prim.length} primary actions (${r.prim.join(', ')})`);
     }
   }

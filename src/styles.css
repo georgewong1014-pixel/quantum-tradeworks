@@ -5225,6 +5225,20 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 /* The chip in the sentence's first line, not on a line of its own. */
 .lab-claim.lab-id-claim { display: block; max-width: var(--ls-measure); text-wrap: pretty; }
 .lab-id-claim > .chip { margin-right: 4px; vertical-align: 1px; }
+/* "Why this is not a valuation" (QT-D15-02): the registered-valuer line, one
+   tap away at the end of the claim's last line — inline, the way a link in a
+   sentence is, so it costs a phone's first screen a part of a line and not a
+   44px row. Opened, its text stands under the claim. */
+.lab-claim-more { display: inline; margin: 0; }
+.lab-claim-more > .pc-more-sum { display: inline; min-height: 0; white-space: nowrap; font: inherit; font-weight: var(--weight-semibold); color: var(--ink-2); }
+.lab-claim-more > .pc-more-sum::before { display: inline; margin-right: 4px; }
+/* Its target is 44px tall though its line is 16 (the owner's floor; the way the
+   questions' Change reaches over its line, .pq-change::after): an overlay on
+   the summary, over the claim's own lines and the gap under them. */
+.lab-claim-more > .pc-more-sum { position: relative; }
+.lab-claim-more > .pc-more-sum::after { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 44px; transform: translateY(-50%); }
+.lab-claim-more[open] > .pc-more-sum { white-space: normal; }
+.lab-claim-more > .pc-more-body { display: block; margin: 4px 0 0; }
 
 /* The four tiles: on the layout system (layout-system, at the end). */
 @media (max-width: 599px) {
@@ -5245,6 +5259,15 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 .lab-more > summary { display: none; list-style: none; }
 .lab-more > summary::-webkit-details-marker { display: none; }
 .lab-more:not(:has(.lab-knob.is-on)) { display: none; }
+/* The group's summary says how many of its inputs are the reader's own
+   (labRefineCount, QT-D15-02): the name in the button's weight, the count
+   beside it in the meta's. The objective sits under the knobs on a desk,
+   its choices wrapping inside the knob column rather than scrolling. */
+.lab-more-state { font-weight: 400; color: var(--ink-2); }
+.lab-more-state::before { content: "·"; margin-right: 6px; }
+.lab-more-body > .pq-objective { display: flex; flex-direction: column; gap: var(--ls-within, 8px); padding-top: var(--xs); }
+.lab-more-body > .pq-objective .pq-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
+.lab-more-body > .pq-objective .pq-seg { flex-wrap: wrap; }
 
 /* The pickers: a legend beside a strip of choices, one 44px line on a
    phone. The radio itself is out of sight; its whole label is the target,
@@ -5501,7 +5524,7 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
   .lab-knob:not(.is-on) { display: block; }
   .lab-more:not(:has(.lab-knob.is-on)) { display: block; }
-  .lab-more > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 var(--xs); cursor: pointer; }
+  .lab-more > summary { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-height: 44px; padding: 4px var(--xs); cursor: pointer; }
   .lab-more[open] > summary { margin-bottom: var(--xs); }
   .lab-more > summary .lab-about-chev { transition: transform 160ms ease; }
   .lab-more[open] > summary .lab-about-chev { transform: rotate(180deg); }
@@ -5536,7 +5559,7 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   :root[data-served] .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
   :root[data-served] .lab-knob:not(.is-on) { display: block; }
   :root[data-served] .lab-more:not(:has(.lab-knob.is-on)) { display: block; }
-  :root[data-served] .lab-more > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 var(--xs); }
+  :root[data-served] .lab-more > summary { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-height: 44px; padding: 4px var(--xs); }
   :root[data-served] .lab-more > summary .lab-about-chev { transition: transform 160ms ease; }
   :root[data-served] .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   :root[data-served] .lab-seg-by { display: flex; }
