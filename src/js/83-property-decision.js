@@ -131,7 +131,18 @@ const pqChangeButton = (prefix) => el('button', { type: 'button', class: 'pq-cha
   ['Change', el('span', { class: 'sr-only' }, ' what you are buying and how'), el('span', { class: 'pq-change-chev', 'aria-hidden': 'true' }, '›')]);
 const pqSummaryLine = (d, prefix) => el('span', { class: 'pq-sumline', id: `${prefix}-q-sum` }, pqSummaryText(d));
 
-function propertyQuestions({ d, prefix, answer, summary = true, contracts = true }) {
+/* THE OBJECTIVE, ON ITS OWN (Day-15 review QT-D15-02, 28 Oct 2026): optional,
+   and it changes no figure but which ones lead — so the Lab draws it inside
+   "Refine the assumptions" rather than among the two questions every deal
+   needs (propertyQuestions({ objective: false })). Same group, same ids
+   (`${prefix}-q-why`), and the same one-line note once one is chosen. */
+function propertyObjective({ d, prefix, answer }) {
+  const o = dealObjective(d);
+  return el('div', { class: 'pq-objective', 'data-pq-objective': '' }, [
+    pqGroup(prefix, 'why', 'Objective (optional)', PQ_WHY(), o.id, (v) => answer('objective', v)),
+    ...(o.id ? [el('p', { class: 'pq-note', 'data-note': 'objective' }, `${o.label} sets which figures lead; it ranks nothing and moves no column.`)] : [])]);
+}
+function propertyQuestions({ d, prefix, answer, summary = true, contracts = true, objective = true }) {
   const cls = propertyClassOf(d), route = dealRoute(d);
   const box = el('section', { class: `pq${PQ_OPEN.has(prefix) ? ' is-open' : ''}`, id: `${prefix}-q`, 'data-pq': '', 'aria-label': 'What you are buying, and how',
     /* Escape folds them again, the keyboard back on Change. */
@@ -145,7 +156,7 @@ function propertyQuestions({ d, prefix, answer, summary = true, contracts = true
   row.append(pqGroup(prefix, 'what', 'What are you buying?', PQ_WHAT(), cls, (v) => answer('propertyClass', v)));
   row.append(pqGroup(prefix, 'how', 'How are you buying?', PQ_HOW(), route, (v) => answer('route', v)));
   if (cls === 'commercial') row.append(pqGroup(prefix, 'sub', 'Which kind?', PQ_SUB(), dealCommercialSubtype(d), (v) => answer('commercialSubtype', v)));
-  row.append(pqGroup(prefix, 'why', 'Objective (optional)', PQ_WHY(), dealObjective(d).id, (v) => answer('objective', v)));
+  if (objective) row.append(pqGroup(prefix, 'why', 'Objective (optional)', PQ_WHY(), dealObjective(d).id, (v) => answer('objective', v)));
   body.append(row);
   /* What the answers mean for the figures, one line each, only where they
      change something: a route not modelled yet, and a class whose fees
@@ -168,7 +179,7 @@ function propertyQuestions({ d, prefix, answer, summary = true, contracts = true
       el('strong', {}, x.title), ` — ${x.state}. ${x.what}`,
       ...(x.source ? [' Source: ', x.source.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener' }, x.source.title) : x.source.title, '.'] : [])]))),
   ]));
-  if (dealObjective(d).id) notes.push(el('p', { class: 'pq-note', 'data-note': 'objective' },
+  if (objective && dealObjective(d).id) notes.push(el('p', { class: 'pq-note', 'data-note': 'objective' },
     `${dealObjective(d).label} sets which figures lead; it ranks nothing and moves no column.`));
   /* Every route on every kind, written down (the 11 Oct 2026 audit, #4).
      Not on the Lab, whose words before its first slider are counted
