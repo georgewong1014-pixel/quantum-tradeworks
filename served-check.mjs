@@ -2033,19 +2033,25 @@ const HOME_PAGE = read(HOME);
      p1-questions). */
   {
     const q = [], qs = {};
-    const choices = (S, group) => {
-      const fs = S.tags.find(t => t.tag === 'fieldset' && attr(t.raw, 'data-q') === group && t.pq);
+    /* `anywhere`: the objective is optional, and since QT-D15-02 (28 Oct
+       2026) it is served inside the closed "Refine the assumptions" group,
+       not among the two questions — it is held to being served, optional and
+       unanswered wherever it stands. */
+    const choices = (S, group, anywhere = false) => {
+      const fs = S.tags.find(t => t.tag === 'fieldset' && attr(t.raw, 'data-q') === group && (anywhere || t.pq));
       if (!fs) return null;
-      const end = S.tags.find(t => t.at > fs.at && (t.tag === 'fieldset' || !t.pq))?.at ?? Infinity;
+      const end = S.tags.find(t => t.at > fs.at && (anywhere
+        ? (t.tag === 'fieldset' || t.tag === 'section' || t.tag === 'details' || / lab-outputs /.test(` ${attr(t.raw, 'class') || ''} `))
+        : (t.tag === 'fieldset' || !t.pq)))?.at ?? Infinity;
       const opts = S.tags.filter(t => t.at > fs.at && t.at < end && / lab-seg-opt /.test(` ${attr(t.raw, 'class') || ''} `));
       const row = S.tags.find(t => t.at > fs.at && t.at < end && / lab-seg /.test(` ${attr(t.raw, 'class') || ''} `));
-      return { legend: S.textOf(S.tags.find(t => t.at > fs.at && t.tag === 'legend')?.at ?? -1),
+      return { legend: S.textOf(S.tags.find(t => t.at > fs.at && t.tag === 'legend')?.at ?? -1, anywhere),
         chips: !!row && / ls-chips /.test(` ${attr(row.raw, 'class') || ''} `), visible: fs.visible,
-        opts: opts.map(o => { const all = S.textOf(o.at, true); return { label: S.textOf(o.at).replace(/[☑☐]/g, '').trim(), on: all.includes('☑') }; }) };
+        opts: opts.map(o => { const all = S.textOf(o.at, true); return { label: S.textOf(o.at, anywhere).replace(/[☑☐]/g, '').trim(), on: all.includes('☑') }; }) };
     };
     if (C.tags.some(t => t.pq)) q.push('/property/calculator: serves the two questions — the full model\'s; the page is served in the Quick model (QT-003)');
     for (const [path, S, prefix] of [['/property', L, 'lab']]) {
-      const what = choices(S, 'what'), how = choices(S, 'how'), why = choices(S, 'why');
+      const what = choices(S, 'what'), how = choices(S, 'how'), why = choices(S, 'why', true);
       if (!what || !how) { q.push(`${path}: serves no ${!what ? '"What are you buying?"' : '"How are you buying?"'} among its questions ([data-pq])`); continue; }
       const W = [['What are you buying?', what, ['Residential', 'Commercial', 'Land'], 'Residential'], ['How are you buying?', how, ['New development', 'Subsale', 'Auction'], 'Subsale']];
       for (const [legend, g, want, on] of W) {
@@ -4281,9 +4287,11 @@ const HOME_PAGE = read(HOME);
     if (/Property Intelligence\s*<\/span>\s*<span class="status-badge status-beta"|Property Intelligence\s*<span class="status-badge status-beta"/.test(h)) p.push(`${path}: Property Intelligence wears Beta`);
   }
   const app = html('/app');
-  if (!/Start a property model in the Scenario Lab<\/h3>\s*(?:<span class="pbadge"[^>]*>)?<span class="status-badge status-live"/.test(app)) p.push('/app: the property step is not "Start a property model in the Scenario Lab" followed by the product\'s Available badge');
-  if (!/The Scenario Lab is beta\./.test(app)) p.push('/app: the property step does not say "The Scenario Lab is beta."');
-  judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied" and no telephone-like digits, /about no mailto: and the not-published line, /contact ${SUPPORT ? 'the support address the owner supplied, and the report handed over to send' : 'no mailto: and the interim support copy'}; /property serves "${LINE}" once as the Lab's lede, under its Beta badge, the Live badge in the tab row; /app's step is "Start a property model in the Scenario Lab"; ${said.join('; ')} left`,
+  /* The four steps became three product cards (QT-D15-01, 28 Oct 2026):
+     Property's card is headed by the product and wears its Available badge. */
+  if (!/>Property Intelligence<\/h3>\s*(?:<span class="pbadge"[^>]*>)?<span class="status-badge status-live"/.test(app)) p.push('/app: the Property card is not "Property Intelligence" followed by the product\'s Available badge');
+  if (!/The Scenario Lab is beta\./.test(app)) p.push('/app: the Property card does not say "The Scenario Lab is beta."');
+  judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied" and no telephone-like digits, /about no mailto: and the not-published line, /contact ${SUPPORT ? 'the support address the owner supplied, and the report handed over to send' : 'no mailto: and the interim support copy'}; /property serves "${LINE}" once as the Lab's lede, under its Beta badge, the Live badge in the tab row; /app's Property card is "Property Intelligence" with its Available badge; ${said.join('; ')} left`,
     'a customer page serves a placeholder marker, or the Available/Beta labels are not said once');
 }
 /* ---- end contact-status ---- */
