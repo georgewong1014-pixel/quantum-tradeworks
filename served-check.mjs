@@ -1860,7 +1860,11 @@ const HOME_PAGE = read(HOME);
    - before that control, in this order: the identity line, naming the
      property or "Sample deal", then four tiles labelled Cash required,
      Monthly position, Net yield and Next step, each with a kind tag;
-   - "Not an official property valuation" visible before it, and the
+   - "They are not a property valuation or investment recommendation"
+     visible before it, and "Not an official property valuation" (the
+     registered valuer's line) whole inside the closed "Why this is not a
+     valuation" (the Day-15 review, QT-D15-02, 28 Oct 2026: it was visible,
+     in a longer paragraph); and the
      sample's line under its name (the Day-8 report's QT-D08-02, the
      owner's decision of 20 Oct 2026; it took the place of "— not a real
      listing") word for word, in the identity line, before the tiles;
@@ -1959,7 +1963,10 @@ const HOME_PAGE = read(HOME);
     if (words > 290) p.push(`/property: ${words} visible words in <main> before the first form control, more than 290`);
     if (proseWords > 228) p.push(`/property: ${proseWords} of them in ${prose.length} blocks of eight words or more, more than 228`);
     const seen = L.runs.filter(r => r.at < L.control.at && r.visible).map(r => r.s).join(' ').replace(/\s+/g, ' ');
-    for (const want of ['Not an official property valuation', LAB_SAMPLE_ASSUME]) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
+    for (const want of ['They are not a property valuation or investment recommendation.', LAB_SAMPLE_ASSUME]) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
+    /* The registered valuer's line, kept whole and one tap away (QT-D15-02). */
+    const official = L.runs.find(r => r.s.includes('Not an official property valuation'));
+    if (!official || !official.closed || !official.s.includes('registered valuer')) p.push('/property: "Not an official property valuation — … registered valuer" is not served inside the closed "Why this is not a valuation"');
     const id = L.tags.find(t => / lab-identity /.test(` ${attr(t.raw, 'class') || ''} `));
     /* The sample's line under its name (QT-D08-02): word for word, in the
        identity line, before the figures. */
@@ -2005,7 +2012,7 @@ const HOME_PAGE = read(HOME);
     const n = top.split(k).length - 1;
     if (n !== 1) p.push(`/property/calculator: "${k}" is visible ${n} times, not once`);
   }
-  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "Not an official property valuation" and the sample's line ("${said.assume}") in sight; /property/calculator is served in the Quick model — no methodology, pillar table or blocker served outside a closed drawer, the worst in sight ("${said.worst}…"), the cash required and the monthly position said once (the full model, drawn: model-test qt-quick-full)`,
+  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "They are not a property valuation or investment recommendation" and the sample's line ("${said.assume}") in sight; /property/calculator is served in the Quick model — no methodology, pillar table or blocker served outside a closed drawer, the worst in sight ("${said.worst}…"), the cash required and the monthly position said once (the full model, drawn: model-test qt-quick-full)`,
     '/property is not the Scenario Lab with its identity line and four tiles first, or the calculator\'s top is not compacted (N3, D18)');
 
   /* ---- p1-questions ---- */
@@ -3127,17 +3134,20 @@ const HOME_PAGE = read(HOME);
     const labels = inside.filter(n => n.tag === 'label' && B.hasClass(n, 'lab-knob-label')).map(n => rawText(n).trim());
     said.inputs = labels.length;
     if (labels.length !== 9) p.push(`/property/lab lists ${labels.length} labelled inputs, not nine: ${labels.join(' | ')}`);
-    /* Four of the nine stand in the closed "More inputs (4)" group (the owner,
-       16 Oct 2026), so the first frame holds its words and its screen. */
+    /* Five of the nine stand in the closed "Refine the assumptions" group (the
+       owner, 16 Oct 2026 as "More inputs (4)"; widened by the Day-15 review,
+       QT-D15-02, 28 Oct 2026: the price, deposit, rate and rent stand first,
+       the renovation joins the group), so the first frame holds its words and
+       its screen — and its summary says how many of them are the reader's own. */
     const group = inside.find(n => B.hasClass(n, 'lab-more'));
     const grouped = group ? all(group).filter(n => n.tag === 'label' && B.hasClass(n, 'lab-knob-label')).map(n => rawText(n).trim()) : [];
     said.grouped = grouped.length;
-    if (!group) p.push('/property/lab serves no "More inputs" group');
+    if (!group) p.push('/property/lab serves no "Refine the assumptions" group');
     else {
-      if (attr(group, 'open') !== null) p.push('the "More inputs" group is served open');
-      if (JSON.stringify(grouped) !== JSON.stringify(['Loan tenure (years)', 'Vacancy allowance (% of the year)', 'Monthly maintenance (RM)', 'Holding period (years)']))
-        p.push(`the "More inputs" group holds ${grouped.join(' | ') || 'no input'}, not tenure, vacancy, maintenance and holding period`);
-      if (!all(group).some(n => /^More inputs \(4\)$/.test(rawText(n).trim()))) p.push('the group\'s button does not read "More inputs (4)"');
+      if (attr(group, 'open') !== null) p.push('the "Refine the assumptions" group is served open');
+      if (JSON.stringify(grouped) !== JSON.stringify(['Renovation and furnishing (RM)', 'Loan tenure (years)', 'Vacancy allowance (% of the year)', 'Monthly maintenance (RM)', 'Holding period (years)']))
+        p.push(`the "Refine the assumptions" group holds ${grouped.join(' | ') || 'no input'}, not renovation, tenure, vacancy, maintenance and holding period`);
+      if (!all(group).some(n => /^Refine the assumptions all illustrative defaults$/.test(rawText(n).trim()))) p.push('the group\'s button does not read "Refine the assumptions" with "all illustrative defaults"');
     }
     for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (% of the year)', 'Holding period (years)'])
       if (!labels.includes(want)) p.push(`/property/lab does not list the input “${want}”`);
@@ -3159,7 +3169,7 @@ const HOME_PAGE = read(HOME);
     }
     if (!/Save it first — a proposal is made from what is saved/.test(sight(views || tree[0]))) p.push('the reason “Save it first — a proposal is made from what is saved” is not in sight beside Export');
   }
-  judge(p, `the Scenario Lab's phase 2 as served: /property/lab lists ${said.inputs} labelled inputs, ${said.grouped} of them — Loan tenure (years) and Monthly maintenance (RM) among them — in the closed "More inputs (4)" group, ${said.rows} chain rows, Monthly commitment among them and Debt-service cover with its figure beside it, and Save (btn-primary) before a quiet “Export PDF / Share with client” with “Save it first — a proposal is made from what is saved” in sight`,
+  judge(p, `the Scenario Lab's phase 2 as served: /property/lab lists ${said.inputs} labelled inputs, ${said.grouped} of them — Loan tenure (years) and Monthly maintenance (RM) among them — in the closed "Refine the assumptions" group, ${said.rows} chain rows, Monthly commitment among them and Debt-service cover with its figure beside it, and Save (btn-primary) before a quiet “Export PDF / Share with client” with “Save it first — a proposal is made from what is saved” in sight`,
     'the Lab\'s phase 2 inputs, chain rows or export button are not served');
 }
 /* ---- end lab-phase2-served ---- */
@@ -4119,8 +4129,10 @@ const HOME_PAGE = read(HOME);
      (counted, not forbidden); with the address set, /privacy no longer says
      there is no contact address, and says what writing to it hands over.
      Never an address this check invents: it reads the one in LAUNCH;
-   - /property serves "Calculations run on the figures you enter; the
-     Scenario Lab is beta." once, as the Lab's lede under its heading and its
+   - /property serves "See how your purchase price, financing and rent affect
+     the cash you need and your monthly position. The Scenario Lab is beta."
+     (QT-D15-02, 28 Oct 2026; it was "Calculations run on the figures you
+     enter; the Scenario Lab is beta.") once, as the Lab's lede under its heading and its
      Beta badge (it replaced "Move a slider and every figure below follows."),
      with the product's Live badge in the tab row; the Property product never
      wears Beta;
@@ -4166,7 +4178,9 @@ const HOME_PAGE = read(HOME);
   const marks = (path) => (html(path).match(/data-tbs=/g) || []).length;
   if (!marks('/privacy') || !marks('/terms')) p.push(`/privacy (${marks('/privacy')}) and /terms (${marks('/terms')}) keep their markers`);
   said.push(`${marks('/privacy')} markers on /privacy and ${marks('/terms')} on /terms`);
-  const LINE = 'Calculations run on the figures you enter; the Scenario Lab is beta.';
+  /* The Lab's lede since the Day-15 review (QT-D15-02, 28 Oct 2026): what it does
+     for the reader, then the one-sentence beta line the N2b decision keeps. */
+  const LINE = 'See how your purchase price, financing and rent affect the cash you need and your monthly position. The Scenario Lab is beta.';
   for (const path of ['/property', '/property/lab']) {
     const h = html(path), t = pageText(h);
     const n = t.split(LINE).length - 1;
@@ -4176,7 +4190,7 @@ const HOME_PAGE = read(HOME);
        Lab's, on its heading; the line is the Lab's lede, under that heading. */
     const row = (/<nav class="ptabs[\s\S]*?<\/nav>/.exec(h) || [''])[0];
     if (!/status-live/.test(row) || !/data-badge-of="property"/.test(row)) p.push(`${path}: Property Intelligence's Available badge is not in the tab row`);
-    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,1200}?<p class="body-lg page-lede"[^>]*>Calculations run on the figures you enter; the Scenario Lab is beta\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
+    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,1200}?<p class="body-lg page-lede"[^>]*>See how your purchase price, financing and rent affect the cash you need and your monthly position\. The Scenario Lab is beta\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
   }
   /* Every Beta badge on /property and /app: whose is it? */
   const OTHERS = /(Equities Research|Quantum Scanner|Research a company|Create a scanner setup)\s*$/;

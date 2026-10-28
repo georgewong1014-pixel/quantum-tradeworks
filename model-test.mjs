@@ -5594,6 +5594,103 @@ try {
         if (p.length) fail('scenario-lab L18: the tenure, vacancy, maintenance and holding-period knobs', p);
         else ok(`scenario-lab L18: the four knobs added in phase 2 each stand as a slider; every span, at twelve anchors, holds only what dealEntryRefused takes (and whole years, and the model's own hold limits); a move of each travels in the address as ${r.param.split('~').filter(x => /^(tenureYears|vacancyPct|maintenance|holdYears):/.test(x)).join(', ')} and comes back the same, marked the reader's; an address of tenureYears:-5, vacancyPct:101 and maintenance:-10 skips those and applies holdYears:12 and rent:2100; typed, a negative maintenance, a 101% vacancy, a negative tenure, a rate of −1% or 101%, a rent of −RM500 and a renovation of −RM20,000 keep their figures, each refused with the calculator's reason, 27.6 years is 28 and 99 is held to ${30}; a 100% deposit shows the tenure off in place, its reason in sight, and on again at 10%; the vacancy knob says its occupancy is exactly 100 less it`);
       });
+
+      /* THE LAB'S FIRST USE ASKS FOR THE ESSENTIALS FIRST, WITHOUT HIDING
+         ASSUMPTIONS (the Day-15 review, QT-D15-02, 28 Oct 2026). The price,
+         the deposit, the rate and the rent stand always; the renovation, the
+         tenure, the vacancy, the upkeep, the holding period and the optional
+         objective sit in "Refine the assumptions", closed on a first visit
+         with its summary saying "all illustrative defaults", open (and
+         counting) once any of them is the reader's own, and as the reader
+         left it across a redraw, focus kept. Held to the model: each
+         essential moves the figure it should, and that figure is dealModel's
+         for the column. A and B keep their own inputs through it. Fails on
+         5f0ce4bbf, which drew five knobs and "More inputs (4)". */
+      await lStep('L19', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          const out = { narrow: null, first: null, flip: null, kept: null, focus: null, moved: [], ab: [], saved: null };
+          const P = [...LAB_PANELS].find(x => x.address);
+          const det = () => document.getElementById('lab-more');
+          const sum = () => txt(document.getElementById('lab-more-btn'));
+          const vis = (id) => { const n = document.getElementById(id); return !!n && n.checkVisibility(); };
+          out.narrow = labNarrow(P);
+          const ESS = ['price', 'downPct', 'ratePct', 'rent'], REF = ['renovation', 'tenureYears', 'vacancyPct', 'maintenance', 'holdYears'];
+          out.first = { ess: ESS.filter(k => !vis('lab-r-' + k)), refVisible: REF.filter(k => vis('lab-r-' + k)), refInside: REF.filter(k => !det().contains(document.getElementById('lab-r-' + k))),
+            essInside: ESS.filter(k => det().contains(document.getElementById('lab-r-' + k))), open: det().open, sum: sum(),
+            objective: !!document.getElementById('lab-q-why') && det().contains(document.getElementById('lab-q-why')), pqObjective: !!document.querySelector('[data-pq] #lab-q-why') };
+          /* A refine input moved: the summary counts it as it moves, and a redraw leaves the group open. */
+          await setRange('vacancyPct', 14);
+          out.flip = { live: sum(), openAfterMove: det().open };
+          labDraw(P); await frame();
+          out.flip.afterRedraw = { open: det().open, sum: sum(), vacancy: A().moves.vacancyPct };
+          /* The reader closes it: a redraw keeps it closed, the count still said. */
+          det().querySelector('summary').click(); await frame();
+          labDraw(P); await frame();
+          out.kept = { closedStays: !det().open, sum: sum() };
+          /* The reader opens it and works a slider: a redraw keeps it open and the slider focused. */
+          det().querySelector('summary').click(); await frame();
+          const r = document.getElementById('lab-r-vacancyPct'); r.focus();
+          labDraw(P); await frame();
+          out.focus = { open: det().open, active: document.activeElement && document.activeElement.id };
+          /* Each essential moves the figure it should, and every figure is the model's. */
+          const FIG = (k) => { const n = document.querySelector('#views [data-lab="' + k + '"]'); return Number(n.getAttribute('data-value')); };
+          const model = () => { const col = A(); return dealModel(pmMerge(col.baseInputs, col.moves)); };
+          const KEYS = ['safeCashRequired', 'cashflowMonthly', 'netYield'];
+          const TO = { price: [520000, ['safeCashRequired', 'cashflowMonthly', 'netYield']], rent: [2300, ['cashflowMonthly', 'netYield']],
+            ratePct: [5.5, ['cashflowMonthly']], downPct: [25, ['safeCashRequired', 'cashflowMonthly']] };
+          for (const [k, [v, must]] of Object.entries(TO)) {
+            const was = Object.fromEntries(KEYS.map(x => [x, FIG(x)]));
+            await setRange(k, v);
+            const m = model(), f = labFigs();
+            if (A().moves[k] !== v) out.moved.push(k + ' is not a move of the column: ' + A().moves[k]);
+            for (const x of must) if (FIG(x) === was[x]) out.moved.push(k + ' moved to ' + v + ' and ' + x + ' stayed ' + was[x]);
+            for (const x of KEYS) if (!near(FIG(x), m[x])) out.moved.push(k + ' at ' + v + ': ' + x + ' reads ' + FIG(x) + ', dealModel ' + m[x]);
+            f.bad.slice(0, 2).forEach(b => out.moved.push(k + ' at ' + v + ': ' + b));
+          }
+          /* A and B keep their own inputs: B holds the moves, A none, through a switch and a redraw. */
+          const lab = L();
+          const bKey = lab.active, aKey = lab.cols.find(c => c.key !== bKey).key;
+          const bMoves = JSON.stringify(lab.cols.find(c => c.key === bKey).moves);
+          document.getElementById('lab-col-' + aKey).click(); await frame();
+          const aCol = labActive(L());
+          out.ab.push(aCol.key === aKey ? '' : 'the switch did not make ' + aKey + ' active');
+          if (Object.keys(aCol.moves).length) out.ab.push(aKey + ' took B\\'s moves: ' + JSON.stringify(aCol.moves));
+          if (JSON.stringify(L().cols.find(c => c.key === bKey).moves) !== bMoves) out.ab.push(bKey + ' lost its moves on the switch');
+          if (!near(FIG('safeCashRequired'), dealModel(pmMerge(aCol.baseInputs, aCol.moves)).safeCashRequired)) out.ab.push(aKey + '\\'s cash required is not the model\\'s for its own inputs');
+          await setRange('rent', 1700);
+          document.getElementById('lab-col-' + bKey).click(); await frame();
+          labDraw(P); await frame();
+          const b2 = labActive(L());
+          if (b2.key !== bKey || JSON.stringify(b2.moves) !== bMoves) out.ab.push(bKey + ' after the round trip holds ' + JSON.stringify(b2.moves) + ', not ' + bMoves);
+          if (L().cols.find(c => c.key === aKey).moves.rent !== 1700) out.ab.push(aKey + ' lost its own rent move');
+          out.ab = out.ab.filter(Boolean);
+          return out;
+        })()`);
+        /* A deal that arrives with a figure of the reader's own opens the group, counting it. */
+        await lDeal({ vacancyPct: 14, touched: { vacancyPct: true } });
+        r.saved = await evaluate(`({ open: document.getElementById('lab-more').open, sum: document.getElementById('lab-more-btn').textContent.replace(/\\s+/g, ' ').trim() })`);
+        const p = [];
+        if (r.narrow) p.push('the panel is under 600px, where the group has no summary — the check needs a desk width');
+        else {
+          if (r.first.ess.length) p.push(`essential inputs not in sight on a first visit: ${r.first.ess.join(', ')}`);
+          if (r.first.essInside.length) p.push(`essentials drawn inside "Refine the assumptions": ${r.first.essInside.join(', ')}`);
+          if (r.first.refInside.length) p.push(`not inside "Refine the assumptions": ${r.first.refInside.join(', ')}`);
+          if (r.first.refVisible.length) p.push(`refine inputs in sight with the group closed: ${r.first.refVisible.join(', ')}`);
+          if (r.first.open) p.push('"Refine the assumptions" is open on a first visit');
+          if (r.first.sum !== 'Refine the assumptions all illustrative defaults') p.push(`its summary reads "${r.first.sum}", not "Refine the assumptions all illustrative defaults"`);
+          if (!r.first.objective || r.first.pqObjective) p.push(`the optional objective is not inside the group: ${JSON.stringify({ inside: r.first.objective, inQuestions: r.first.pqObjective })}`);
+          if (r.flip.live !== 'Refine the assumptions 1 of 6 changed') p.push(`a vacancy move leaves the summary at "${r.flip.live}", not "… 1 of 6 changed"`);
+          if (!r.flip.afterRedraw.open || r.flip.afterRedraw.sum !== 'Refine the assumptions 1 of 6 changed' || r.flip.afterRedraw.vacancy !== 14) p.push(`after a redraw with vacancy moved: ${JSON.stringify(r.flip.afterRedraw)}`);
+          if (!r.kept.closedStays || r.kept.sum !== 'Refine the assumptions 1 of 6 changed') p.push(`the group the reader closed: ${JSON.stringify(r.kept)}`);
+          if (!r.focus.open || r.focus.active !== 'lab-r-vacancyPct') p.push(`a slider in the group, focused, across a redraw: ${JSON.stringify(r.focus)}`);
+          if (!r.saved.open || r.saved.sum !== 'Refine the assumptions 1 of 6 changed') p.push(`a deal that arrives with its own vacancy: ${JSON.stringify(r.saved)}`);
+        }
+        r.moved.forEach(x => p.push(x));
+        r.ab.forEach(x => p.push(x));
+        if (p.length) fail('scenario-lab L19: the essentials first, the rest under "Refine the assumptions"', p);
+        else ok('scenario-lab L19: on a first visit the price, deposit, rate and rent stand in sight and the renovation, tenure, vacancy, upkeep, holding period and objective sit in a closed "Refine the assumptions" saying "all illustrative defaults"; a vacancy move reads "1 of 6 changed" live, the group open after a redraw, closed and counting when the reader closed it, a focused slider kept across a redraw, and open from the start for a deal that arrives with its own figure; the price, rent, rate and deposit each move the figures they should and the cash, month and yield are dealModel\'s; A and B keep their own inputs through a switch and a redraw');
+      });
     } finally {
       await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId).catch(() => {});
       await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});

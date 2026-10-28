@@ -2383,7 +2383,8 @@ for (const w of [360, 390]) {
       const r = await ev(`(() => {
         const lab = document.querySelector('.lab');
         const shown = (n) => n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden';
-        const ctl = [...lab.querySelectorAll('a[href], button, input:not([type=radio]):not([type=hidden]), select, summary, label.lab-seg-opt')].filter(shown);
+        const ctl = [...lab.querySelectorAll('a[href], button, input:not([type=radio]):not([type=hidden]), select, summary, label.lab-seg-opt')].filter(shown).filter(n => !n.matches('.lab-claim-more > summary'));
+        /* The claim's "Why this is not a valuation" ends its last line, inline (QT-D15-02); its 44px target is the summary's ::after, measured in lab-words. */
         return { n: ctl.length, small: ctl.map(n => { const b = n.getBoundingClientRect(); return { who: (n.id || n.tagName.toLowerCase()) + ' "' + (n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30) + '"', w: b.width, h: b.height }; })
           .filter(x => x.w < 43.5 || x.h < 43.5).map(x => x.who + ' ' + Math.round(x.w) + '×' + Math.round(x.h)) };
       })()`);
@@ -2426,13 +2427,15 @@ for (const w of [360, 390]) {
       await load('/property/lab');
       const drawn = `[...document.querySelectorAll('.lab-knob')].filter(n => n.checkVisibility()).length`;
       const n = await ev(drawn);
-      if (n !== 5) fails.push(`${w}px: ${n} knobs drawn, not the five, with "More inputs (4)" closed`);
+      if (n !== 4) fails.push(`${w}px: ${n} knobs drawn, not the four essentials (price, deposit, rate, rent), with "Refine the assumptions" closed`);
       const btn = await ev(`(() => { const b = document.getElementById('lab-more-btn'); return b && b.getClientRects().length ? { text: b.textContent.trim(), open: String(b.parentElement.open), h: Math.round(b.getBoundingClientRect().height) } : null; })()`);
-      if (!btn || btn.text !== 'More inputs (4)' || btn.open !== 'false' || btn.h < 44) fails.push(`${w}px: the group's button is ${JSON.stringify(btn)}, not a closed 44px "More inputs (4)"`);
+      if (!btn || btn.text !== 'Refine the assumptions all illustrative defaults' || btn.open !== 'false' || btn.h < 44) fails.push(`${w}px: the group's button is ${JSON.stringify(btn)}, not a closed 44px "Refine the assumptions" saying "all illustrative defaults" (QT-D15-02)`);
       await ev(`document.getElementById('lab-more-btn').click()`);
       await ev(`new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)))`);
       const m = await ev(drawn);
-      if (m !== 9) fails.push(`${w}px: ${m} knobs drawn with "More inputs (4)" open, not nine`);
+      if (m !== 9) fails.push(`${w}px: ${m} knobs drawn with "Refine the assumptions" open, not nine`);
+      const obj = await ev(`(() => { const f = document.getElementById('lab-q-why'); return f ? { inGroup: !!f.closest('#lab-more'), shown: f.checkVisibility(), inQuestions: !!f.closest('[data-pq]') } : null; })()`);
+      if (!obj || !obj.inGroup || !obj.shown || obj.inQuestions) fails.push(`${w}px: the optional objective is ${JSON.stringify(obj)}, not inside the open "Refine the assumptions" (QT-D15-02)`);
     }
     /* Colour, light and dark. */
     await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
@@ -4160,7 +4163,10 @@ for (const w of [360, 390]) {
        grade stays U — is a closed <details> (L3), there whole;
      - the disclosures that stay in sight are in sight without opening
        anything: the status strip's "Beta preview.", the Beta badge beside
-       the title, "Not a valuation", "Not an official property valuation",
+       the title, "Not a valuation", "They are not a property valuation or
+       investment recommendation" (the Day-15 review, QT-D15-02, 28 Oct 2026:
+       the registered valuer's "Not an official property valuation" line is
+       whole in the closed "Why this is not a valuation" under it),
        "not a real listing", "Illustrative default" on the tiles and the
        first knob, the cash required's "on unverified lines" and, on a deal
        answered Auction, "Not final: 6 checks open".
@@ -4239,6 +4245,7 @@ for (const w of [360, 390]) {
       line: line && seen(line.firstChild || line) ? line.textContent.trim() : null,
       more: more ? { tag: more.tagName, open: more.open, sum: (more.querySelector(':scope > summary')?.textContent || '').trim(), words: words(more.textContent).length } : null,
       commitSeen,
+      claimMore: (() => { const d = document.getElementById('lab-claim-more'); return d ? { tag: d.tagName, open: d.open, sum: (d.querySelector(':scope > summary')?.textContent || '').trim(), text: d.textContent, hit: Math.round(parseFloat(getComputedStyle(d.querySelector(':scope > summary'), '::after').height)) } : null; })(),
       strip: strip ? seenText(strip) : '', beta: head ? seenText(head) : '', page: seenText(main),
       assume: assumeAt && seen(assumeAt.firstChild || assumeAt) ? assumeAt.textContent.trim() : null,
       firstKnob: (() => { const k = slider?.closest('.lab-knob'); return k ? seenText(k) : ''; })() };
@@ -4292,9 +4299,12 @@ for (const w of [360, 390]) {
       if (commitWords > 40) fails.push(`${at}: ${commitWords} words in sight in the commit card ("${r.commitSeen.slice(0, 80)}…"), not its buttons and one line`);
       /* The disclosures in sight, nothing opened. */
       const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.beta, 'Beta', 'the Beta badge beside the title'], [r.page, 'Not a valuation', 'the chip'],
-        [r.page, 'Not an official property valuation', 'the regulated claim'],
+        [r.page, 'They are not a property valuation or investment recommendation', 'the claim'],
         [r.page, 'on estimated lines', 'the cash required\'s estimated lines'], [r.firstKnob, 'Illustrative default', 'the first knob\'s evidence tag']];
       for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
+      /* The registered valuer's line, whole and one tap away (QT-D15-02). */
+      if (!r.claimMore || r.claimMore.tag !== 'DETAILS' || r.claimMore.open || r.claimMore.sum !== 'Why this is not a valuation' || !r.claimMore.text.includes('Not an official property valuation') || !r.claimMore.text.includes('registered valuer')) fails.push(`${at}: "Why this is not a valuation" is ${JSON.stringify(r.claimMore)}, not a closed <details> holding the registered valuer's line`);
+      if (r.claimMore && !(r.claimMore.hit >= 44)) fails.push(`${at}: "Why this is not a valuation" has a ${r.claimMore.hit}px target, under 44px`);
       if (r.assume !== LAB_SAMPLE_ASSUME) fails.push(`${at}: the sample's line under its name reads ${r.assume === null ? 'nothing in sight' : `"${r.assume}"`}, not "${LAB_SAMPLE_ASSUME}" word for word`);
       const tileDefaults = t.filter(x => x.badge === 'Illustrative default').length;
       if (tileDefaults < 3) fails.push(`${at}: ${tileDefaults} tiles show "Illustrative default" on the sample, not every figure's`);
