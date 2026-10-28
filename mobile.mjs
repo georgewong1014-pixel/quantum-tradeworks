@@ -4785,12 +4785,13 @@ for (const w of [360, 390]) {
     const controls = [...views.querySelectorAll(sel), ...document.querySelectorAll('#productTabs a[href]')].filter(n => shown(n) && !n.closest('.sr-only'));
     const small = controls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.width < 43.5 || b.height < 43.5)
       .map(([n, b]) => (n.className || n.tagName).toString().split(' ')[0] + ' ' + Math.round(b.width) + '×' + Math.round(b.height) + ' “' + n.textContent.trim().replace(/\\s+/g, ' ').slice(0, 28) + '”');
-    const steps = [...views.querySelectorAll('li.dash-step')];
-    const tiles = views.querySelector('.dash-tiles'), firstStep = views.querySelector('.dash-steps');
+    const steps = [...views.querySelectorAll('li.dash-tool')];
+    const tiles = views.querySelector('.dash-tiles'), firstStep = views.querySelector('.dash-tool-list');
     return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, n: controls.length, small,
       first: !!views.querySelector('.dash-start'), steps: steps.length, pics: steps.filter(li => li.querySelector('svg')).length,
       digits: views.querySelector('.dash-start') ? (views.innerText.match(/\\d/g) || []).length : null,
       tiles: views.querySelectorAll('.dash-tile').length,
+      primaries: views.querySelectorAll('.btn-primary').length, contFirst: views.querySelector('.dash')?.children[1]?.classList.contains('dash-cont-card'),
       order: !tiles || !firstStep || !!(tiles.compareDocumentPosition(firstStep) & Node.DOCUMENT_POSITION_FOLLOWING) };
   })()`;
   try {
@@ -4813,9 +4814,11 @@ for (const w of [360, 390]) {
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
       if (r.small.length) fails.push(`${at}: ${r.small.length} of ${r.n} controls under 44px: ${r.small.slice(0, 5).join('; ')}`);
       if (state === 'first') {
-        if (!r.first || r.steps !== 4 || r.pics !== 4) fails.push(`${at}: the first visit shows ${r.steps} steps, ${r.pics} with a picture`);
+        /* (QT-D15-01, 28 Oct 2026) three product cards, each with a picture, and no primary button on a first visit. */
+        if (!r.first || r.steps !== 3 || r.pics !== 3) fails.push(`${at}: the first visit shows ${r.steps} product cards, ${r.pics} with a picture`);
+        if (r.primaries) fails.push(`${at}: ${r.primaries} primary button(s) on a first visit's page`);
         if (r.digits) fails.push(`${at}: ${r.digits} digits on a first visit's page`);
-      } else if (r.first || r.tiles !== 5 || !r.order) fails.push(`${at}: the returning reader's page has ${r.tiles} counts${r.first ? ', and the first visit\'s steps' : ''}${r.order ? '' : ', after the steps'}`);
+      } else if (r.first || r.tiles !== 5 || !r.order || r.primaries !== 1 || !r.contFirst) fails.push(`${at}: the returning reader's page has ${r.tiles} counts${r.first ? ', and the first visit's cards' : ''}${r.order ? '' : ', after the cards'}, ${r.primaries} primary buttons, Continue first ${r.contFirst}`);
     }
   } catch (e) { fails.push(`the checks threw: ${e.message}`); }
   finally {
@@ -4823,7 +4826,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL d12-workspace — /app on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   d12-workspace: /app at 360, 390 and 430, in the page's font and in Verdana, as a first visit and as a returning reader (${said.pages} pages) — nothing scrolls sideways; all ${said.targets} controls 44px each way; a picture on each of the four steps and no digit on a first visit; the returning reader's five counts before any step`);
+  else console.log(`ok   d12-workspace: /app at 360, 390 and 430, in the page's font and in Verdana, as a first visit and as a returning reader (${said.pages} pages) — nothing scrolls sideways; all ${said.targets} controls 44px each way; a picture on each of the three product cards, no primary button and no digit on a first visit; the returning reader's five counts before any step`);
 }
 /* ---- end d12-workspace ---- */
 

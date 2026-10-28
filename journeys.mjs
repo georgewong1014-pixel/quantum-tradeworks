@@ -2947,9 +2947,11 @@ const JOURNEYS = [
         await tab.click(visible('a.pub-cta'), 'The header’s “Open workspace”');
         await tab.expect(`State.view === 'home' && location.pathname === '/app' && !document.getElementById('views').hasAttribute('data-served') && document.querySelectorAll('#views .dash-tile').length === 5`,
           async () => `“Open workspace” opened ${await tab.eval('location.pathname')} without the five counts`);
-        const order = await tab.eval(`(() => { const t = document.querySelector('#views .dash-tiles'), s = document.querySelector('#views .dash-steps');
-          return { start: !!document.querySelector('#views .dash-start'), before: !s || !!(t.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
-        if (order.start || !order.before) throw new StepError(`the reader's work is not first: the first-visit steps ${order.start ? 'are shown' : 'come before the counts'}`);
+        /* (QT-D15-01, 28 Oct 2026) Continue is the first block under the heading, and the counts come before the three product cards. */
+        const order = await tab.eval(`(() => { const t = document.querySelector('#views .dash-tiles'), s = document.querySelector('#views .dash-tools'), d = document.querySelector('#views .dash');
+          return { start: !!document.querySelector('#views .dash-start'), before: !s || !!(t.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING),
+            contFirst: d.children[1]?.classList.contains('dash-cont-card'), primaries: document.querySelectorAll('#views .btn-primary').length }; })()`);
+        if (order.start || !order.before || !order.contFirst || order.primaries !== 1) throw new StepError(`the reader's work is not first: the first-visit cards ${order.start ? 'are shown' : 'come before the counts'}, Continue first ${order.contFirst}, ${order.primaries} primary buttons`);
       });
       await step(j, tab, 'Saved properties tile reads 1', BUDGET.action, async () => {
         const tiles = await tab.eval(`Object.fromEntries([...document.querySelectorAll('#views .dash-tile')].map(t => [t.dataset.tile, { v: t.querySelector('.dash-tile-v')?.textContent.trim(), sub: t.querySelector('.ls-card-sub')?.textContent.trim(), href: t.getAttribute('href') }]))`);
@@ -3864,13 +3866,13 @@ const JOURNEYS = [
       };
 
       /* The dashboard first, while this browser holds nothing of its own:
-         the first-time checklist is what a new reader sees. */
+         the three product cards are what a new reader sees. */
       await step(j, tab, 'Open My Dashboard', BUDGET.load, () => load('/app'));
-      const steps = await list('main .dash-steps a[href], main .dash-more a[href]');
-      if (!steps.length) failures.push({ step: 'Open My Dashboard', route: '/app', why: 'the dashboard shows no checklist actions to a first-time reader' });
+      const steps = await list('main .dash-tools a[href], main .dash-more a[href]');
+      if (!steps.length) failures.push({ step: 'Open My Dashboard', route: '/app', why: 'the dashboard shows no product or supporting actions to a first-time reader' });
       for (let i = 0; i < steps.length; i++) {
         await load('/app').catch(() => {});
-        await press('/app', `[...document.querySelectorAll('main .dash-steps a[href], main .dash-more a[href]')].filter(n => n.getClientRects().length)[${i}]`, steps[i], `Dashboard checklist “${steps[i]}”`);
+        await press('/app', `[...document.querySelectorAll('main .dash-tools a[href], main .dash-more a[href]')].filter(n => n.getClientRects().length)[${i}]`, steps[i], `Dashboard action “${steps[i]}”`);
       }
 
       await load('/').catch(() => {});

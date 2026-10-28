@@ -7913,14 +7913,24 @@ try {
       /* The deployed site: the worker's files are never there. */
       scanSetupsFile = null; scanAlertsFile = null; navigate('/app'); await w(200);
       out.first = { view: State.view, start: !!main().querySelector('.dash-start'), tiles: main().querySelectorAll('.dash-tile').length,
-        steps: [...main().querySelectorAll('.dash-step')].map(s => s.dataset.done).join(''), progress: main().querySelector('.dash-progress-t')?.textContent,
-        primary: main().querySelectorAll('.dash-start .btn-primary').length, samples: !!main().querySelector('.dash-note'), seeded: hasSeededData(),
+        steps: [...main().querySelectorAll('.dash-tool')].map(s => s.dataset.done).join(''), progress: main().querySelector('.dash-progress-t')?.textContent,
+        /* (QT-D15-01, 28 Oct 2026) three product cards, one action each, equal weight; the watchlist only in the supporting section. */
+        cards: [...main().querySelectorAll('.dash-tools .dash-tool')].map(li => ({ h: li.querySelector('h3')?.textContent, go: li.querySelector('.dash-tool-go')?.textContent, path: new URL(li.querySelector('.dash-tool-go').href).pathname,
+          cls: li.querySelector('.dash-tool-go').className })),
+        wlIn: [...main().querySelectorAll('a')].filter(a => /Create a watchlist/.test(a.textContent)).map(a => a.closest('.dash-ways') ? 'more' : a.closest('.dash-tools') ? 'cards' : 'elsewhere'),
+        moreHeading: main().querySelector('.dash-ways h2')?.textContent,
+        primary: main().querySelectorAll('.btn-primary').length, samples: !!main().querySelector('.dash-note'), seeded: hasSeededData(),
         prefs: !!main().querySelector('a[href$="/welcome"]'), start2: !!main().querySelector('a[href$="/start"]'), dead: deadLinks() };
       /* Two steps taken: a company read, and a list of the reader's own. */
       openResearch('MAYBANK'); await w(200); openResearch('MSFT-SEC'); await w(200);
       const made = wlCreate('release-a list'); wlAdd(made.watchlist.id, 'MSFT-SEC'); wlAdd(made.watchlist.id, 'MAYBANK');
       navigate('/app'); await w(200);
-      out.second = { tiles: tiles(), steps: [...main().querySelectorAll('.dash-step')].length, dead: deadLinks(),
+      const kids = [...main().querySelector('.dash'). children];
+      out.second = { tiles: tiles(), steps: [...main().querySelectorAll('.dash-tool')].length, dead: deadLinks(),
+        /* (QT-D15-01) a returning reader: Continue first under the heading, the one primary button, the cards ghost, the export beside the saved work. */
+        firstBlock: kids[1]?.classList.contains('dash-cont-card'), primary: [...main().querySelectorAll('.btn-primary')].map(b => b.textContent.trim()),
+        cardsGhost: [...main().querySelectorAll('.dash-tool-go')].every(b => b.classList.contains('btn-ghost')),
+        backup: !!main().querySelector('.dash-cont-card [data-backup-line] a[href$="/my/data"]'), nextSteps: !!main().querySelector('#dash-next-hd'),
         text: main().textContent.replace(/\\s+/g, ' ') };
       /* A visit two hours ago, and the worker's record: two matches found
          since, one before, one of them read here. */
@@ -7947,10 +7957,15 @@ try {
     })()`);
     const p = [];
     const f = r.first;
-    if (f.view !== 'home' || !f.start || f.tiles !== 0) p.push(`first time: view ${f.view}, checklist ${f.start}, ${f.tiles} tiles`);
+    if (f.view !== 'home' || !f.start || f.tiles !== 0) p.push(`first time: view ${f.view}, three-product card ${f.start}, ${f.tiles} tiles`);
+    /* (QT-D15-01, 28 Oct 2026) three product cards, one action each, at equal weight and none primary; the watchlist and the other entries in one quiet section below; with the seeded samples present it is still the first visit (sample data does not count). */
+    const WANT_CARDS = [['Equities Research', 'Research a company', '/research'], ['Quantum Scanner', 'Create a scanner setup', '/app/scanner/setups/new'], ['Property Intelligence', 'Model a property', '/property']];
+    if (JSON.stringify(f.cards.map(c => [c.h, c.go, c.path])) !== JSON.stringify(WANT_CARDS)) p.push(`first time: the product cards read ${JSON.stringify(f.cards.map(c => [c.h, c.go, c.path]))}`);
+    if (f.cards.some(c => c.cls !== f.cards[0].cls || /btn-primary/.test(c.cls))) p.push(`first time: the three cards' buttons are not equal and non-primary: ${JSON.stringify(f.cards.map(c => c.cls))}`);
+    if (f.wlIn.join() !== 'more' || f.moreHeading !== 'More in your workspace') p.push(`first time: "Create a watchlist" sits in ${JSON.stringify(f.wlIn)} (want only the supporting section "More in your workspace", heading "${f.moreHeading}")`);
     /* D12: a first visit shows no count, not even of the steps done. */
-    if (f.steps !== '0000' || f.progress != null) p.push(`first time: steps ${f.steps}, "${f.progress}" — the seeded samples were counted as the visitor's, or the steps were counted`);
-    if (f.primary !== 1) p.push(`first time: ${f.primary} primary actions in the checklist, not one`);
+    if (f.steps !== '000' || f.progress != null) p.push(`first time: steps ${f.steps}, "${f.progress}" — the seeded samples were counted as the visitor's, or the steps were counted`);
+    if (f.primary > 1) p.push(`first time: ${f.primary} primary buttons on the page, at most one`);
     if (!f.seeded || !f.samples) p.push(`first time: the seeded samples (${f.seeded}) are not named on the page (${f.samples})`);
     if (!f.prefs || !f.start2) p.push(`first time: "Set your preferences" ${f.prefs}, "Not sure where to start?" ${f.start2}`);
     const s = r.second, t2 = s.tiles;
@@ -7958,7 +7973,8 @@ try {
     /* D12: Your alerts — none set, no record here: a true nought, and the samples said not counted. */
     if (t2['Your alerts']?.v !== '0' || !/sample alerts not counted/.test(t2['Your alerts']?.sub || '')) p.push(`with no alert of its own and no record visible the alerts tile reads ${JSON.stringify(t2['Your alerts'])}`);
     if (t2['Active setups']?.v !== '0' || t2['Saved properties']?.v !== '0') p.push(`counts with nothing saved: ${JSON.stringify(t2)}`);
-    if (s.steps !== 2) p.push(`next steps list ${s.steps} steps, not the two not taken`);
+    if (s.steps !== 3 || s.nextSteps) p.push(`returning: ${s.steps} product cards, not three; the old "Next steps" list ${s.nextSteps ? 'is' : 'is not'} drawn`);
+    if (!s.firstBlock || s.primary.join() !== 'Continue' || !s.cardsGhost || !s.backup) p.push(`returning: Continue block first ${s.firstBlock}, primary buttons ${JSON.stringify(s.primary)}, cards ghost ${s.cardsGhost}, backup link beside the saved work ${s.backup}`);
     const hrefs = { 'Active setups': '/app/scanner/setups', 'Instruments watchlisted': '/my/watchlists', 'Saved properties': '/property/models', 'Your alerts': '/my/alerts' };
     for (const [k, h] of Object.entries(hrefs)) if (!t2[k] || !(t2[k].href || '').endsWith(h)) p.push(`the ${k} tile opens ${t2[k]?.href}, not ${h}`);
     /* audit1 registry-ctas: with no record here the Alerts tool is
@@ -7977,7 +7993,7 @@ try {
     if (dead.length) p.push(`links to routes that do not render: ${[...new Set(dead)].join(', ')}`);
     if (r.queue.h1 !== 'Research queue' || !r.queue.fresh || !r.queue.largest || !r.queue.waits) p.push(`the research queue: ${JSON.stringify(r.queue)}`);
     if (p.length) fail('release-a dashboard: the visitor’s own counts, doors and record', p);
-    else ok(`release-a dashboard: a clean profile gets the four-step checklist (no count, samples named and not counted, one primary action); a list of its own reads 2 instruments, no alert of its own and no record a true nought, and ${t.tiles['Your alerts'].v} matches recorded since the last visit stay ${r.redraw} after a redraw; each of ${t.rows.length} rows opens its alert as “your setup”, no link leads to a route that does not render, and the research queue keeps the old dashboard`);
+    else ok(`release-a dashboard: a clean profile gets the three product cards (no count, samples named and not counted, no primary button), a returning reader Continue first and its one primary button; a list of its own reads 2 instruments, no alert of its own and no record a true nought, and ${t.tiles['Your alerts'].v} matches recorded since the last visit stay ${r.redraw} after a redraw; each of ${t.rows.length} rows opens its alert as “your setup”, no link leads to a route that does not render, and the research queue keeps the old dashboard`);
     await evaluate(`(() => { const keep = JSON.parse(${JSON.stringify(keepLs)});
       Object.keys(localStorage).forEach(k => { if (!(k in keep)) localStorage.removeItem(k); });
       Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v)); return true; })()`);

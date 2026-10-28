@@ -2701,9 +2701,13 @@ const HOME_PAGE = read(HOME);
    2026; 40-views-discover.js). The served /app is a fresh visitor's page —
    a first visit — read as a fetch reads it (in sight: build.mjs's
    sightText):
-   - every step (li.dash-step) carries its schematic picture, an <svg>
-     with no <text> in it, and the property step opens Property's landing,
-     the Scenario Lab: a link to /property;
+   - the three product cards (li.dash-tool; QT-D15-01, 28 Oct 2026: they
+     replaced the four-step checklist) each carry their schematic picture,
+     an <svg> with no <text> in it, and one action: Research a company
+     (/research), Create a scanner setup (/app/scanner/setups/new) and Model
+     a property (/property, the Scenario Lab), none of them a primary button
+     (a first visit has no one thing to promote); the watchlist is a link in
+     the section "More in your workspace" and in no card;
    - the workspace's five parts are listed — Recently opened, Saved
      properties, Watchlists, Scanner setups, Your alerts — each with what it
      holds, which is nothing yet ("None yet", "None of your own yet");
@@ -2723,19 +2727,29 @@ const HOME_PAGE = read(HOME);
     const views = all(B.htmlTree(r.body)).find(n => attr(n, 'id') === 'views');
     if (!views) p.push('/app: serves no #views');
     else {
-      const steps = all(views).filter(n => n.tag === 'li' && has(n, 'dash-step'));
+      const steps = all(views).filter(n => n.tag === 'li' && has(n, 'dash-tool'));
       said.steps = steps.length;
-      if (steps.length < 4) p.push(`/app: ${steps.length} steps served, not four`);
+      if (steps.length !== 3) p.push(`/app: ${steps.length} product cards served, not three`);
       steps.forEach((li, i) => {
         const svg = all(li).filter(n => n.tag === 'svg');
-        if (!svg.length) p.push(`/app: step ${i + 1} ("${sight(li).slice(0, 40)}") carries no <svg> picture`);
-        if (all(li).some(n => n.tag === 'text')) p.push(`/app: step ${i + 1}'s picture has words in it`);
+        if (!svg.length) p.push(`/app: card ${i + 1} ("${sight(li).slice(0, 40)}") carries no <svg> picture`);
+        if (all(li).some(n => n.tag === 'text')) p.push(`/app: card ${i + 1}'s picture has words in it`);
       });
+      const WANT_CARDS = [['Research a company', '/research'], ['Create a scanner setup', '/app/scanner/setups/new'], ['Model a property', '/property']];
+      WANT_CARDS.forEach(([label, to], i) => {
+        const goes = steps[i] ? all(steps[i]).filter(n => n.tag === 'a' && has(n, 'dash-tool-go')) : [];
+        if (goes.length !== 1 || sight(goes[0]) !== label || attr(goes[0], 'href') !== to) p.push(`/app: card ${i + 1}'s one action reads ${JSON.stringify(goes.map(g => [sight(g), attr(g, 'href')]))}, not "${label}" to ${to}`);
+        if (goes[0] && has(goes[0], 'btn-primary')) p.push(`/app: card ${i + 1}'s action is a primary button`);
+      });
+      if (all(views).some(n => has(n, 'btn-primary'))) p.push('/app: a primary button is served on a first visit');
+      const wlLinks = all(views).filter(n => n.tag === 'a' && /Create a watchlist/.test(sight(n)));
+      if (wlLinks.length !== 1 || steps.some(li => all(li).includes(wlLinks[0]))) p.push(`/app: "Create a watchlist" is served ${wlLinks.length} time(s), or inside a product card`);
+      if (!/More in your workspace/.test(sight(views))) p.push('/app: the section "More in your workspace" is not served');
       said.pics = steps.filter(li => all(li).some(n => n.tag === 'svg')).length;
       const prop = all(views).filter(n => n.tag === 'a' && attr(n, 'href') === '/property');
-      if (!prop.length) p.push('/app: no link to /property (the property step opens the Scenario Lab)');
+      if (!prop.length) p.push('/app: no link to /property (the property card opens the Scenario Lab)');
       const propStep = steps.find(li => attr(li, 'data-step') === 'property');
-      if (propStep && !all(propStep).some(n => n.tag === 'a' && attr(n, 'href') === '/property')) p.push('/app: the property step does not open /property');
+      if (propStep && !all(propStep).some(n => n.tag === 'a' && attr(n, 'href') === '/property')) p.push('/app: the property card does not open /property');
       const WANT = { recent: 'Recently opened', properties: 'Saved properties', watchlists: 'Watchlists', setups: 'Scanner setups', alerts: 'Your alerts' };
       for (const [k, name] of Object.entries(WANT)) {
         const li = all(views).find(n => n.tag === 'li' && attr(n, 'data-sec') === k);
@@ -2751,7 +2765,7 @@ const HOME_PAGE = read(HOME);
       if (!/Sample alerts are not counted/.test(seen)) p.push('/app: the alerts\' line does not say the sample alerts are not counted');
     }
   }
-  judge(p, `/app served as a first visit (D12): ${said.pics} of ${said.steps} steps with a schematic <svg> and no words in it, the property step to /property (the Scenario Lab); Recently opened, Saved properties, Watchlists, Scanner setups and Your alerts listed, each "None yet"; no digit in sight (${said.digits}), no "Tool snapshot", and the sample alerts said not counted`,
+  judge(p, `/app served as a first visit (D12): ${said.pics} of ${said.steps} product cards with a schematic <svg> and no words in it, one action each and none primary, the property card to /property (the Scenario Lab); Recently opened, Saved properties, Watchlists, Scanner setups and Your alerts listed, each "None yet"; no digit in sight (${said.digits}), no "Tool snapshot", and the sample alerts said not counted`,
     '/app is not served as D12\'s first visit');
 }
 /* ---- end d12-workspace ---- */

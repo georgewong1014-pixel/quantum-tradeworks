@@ -996,7 +996,7 @@ for (const route of ROUTES) {
   await ev(`(() => { const w = wlCreate('Registry check list'); wlAdd(w.watchlist.id, 'MSFT-SEC'); return true; })()`);
   await load(LIVE + '/app');
   const dash2 = await ev(`({ prim: ${PRIMARIES}, first: !!document.querySelector('#views .dash-start'), row: document.querySelector('#views .dash-row-first')?.textContent || '' })`);
-  if (!dash1.first || dash1.prim.length !== 1 || dash1.prim[0].t !== 'Start research') p.push(`dashboard, first time: ${JSON.stringify(dash1)}`);
+  if (!dash1.first || dash1.prim.length !== 0) p.push(`dashboard, first time: ${JSON.stringify(dash1)}`);
   if (dash2.first || dash2.prim.length !== 1 || dash2.prim[0].t !== 'Continue' || !/Registry check list/.test(dash2.row)) p.push(`dashboard, returning: ${JSON.stringify(dash2)}`);
 
   /* 5. The goal words. */
@@ -1018,8 +1018,9 @@ for (const route of ROUTES) {
   if (JSON.stringify(hiw) !== JSON.stringify(words)) p.push(`How it works' product actions: ${JSON.stringify(hiw)}`);
   await load(LIVE + '/app'); await ev(clean);
   await load(LIVE + '/app');
-  const steps = await ev(`[...document.querySelectorAll('#views .dash-step-go')].map(a => a.textContent.trim())`);
-  for (const w of words) if (!steps.includes(w)) p.push(`the dashboard checklist does not say "${w}": ${JSON.stringify(steps)}`);
+  /* (QT-D15-01, 28 Oct 2026) the dashboard's three cards say the goal, one each. */
+  const steps = await ev(`[...document.querySelectorAll('#views .dash-tool-go')].map(a => a.textContent.trim())`);
+  if (JSON.stringify(steps) !== JSON.stringify(['Research a company', 'Create a scanner setup', 'Model a property'])) p.push(`the dashboard's three product cards say ${JSON.stringify(steps)}`);
 
   if (p.length) { bad++; console.log(`FAIL registry-ctas: the tool registry, what a tool that cannot be used offers, and one next action per result screen (${p.length} problems)`); p.slice(0, 60).forEach(x => console.log('     ' + x)); }
   else console.log(`ok   registry-ctas: ${reg.length} tools in the registry (${absent.length ? `${absent.join(', ')} not in this build, listed nowhere` : 'all in this build'}), ${opened} addresses open their view; as production serves it ${offLinks} scanner tabs are text with the reason and no page offers an unusable tool; with us.json held back the four Equities tools that read it are Unavailable with its error${heldOk ? '' : ' (not reached)'}, 400 days past its date they are Delayed links; ${scanned ? 'a synthetic history and record bring Market, Alerts and Historical back and ten days old make them Delayed; the alert opens Apple Inc. research; ' : ''}the company page, the calculator and the dashboard each have one primary action, How it works and the checklist say "${words.join('", "')}", and each homepage card's task opens where it starts`);
@@ -1136,7 +1137,8 @@ for (const route of ROUTES) {
       pressed++;
       if (path === '/app') {
         const r = await ev(`({ prim: ${PRIMARIES}, off: !!document.querySelector('#views .dash-continue.tool-off') })`);
-        if (r.prim.length !== 1 || r.prim[0] === 'Continue' || !r.off) p.push(`us.json held back, a saved screen the newest thing: the dashboard's primary actions ${JSON.stringify(r.prim)}, its Continue ${r.off ? 'text' : 'not text'}`);
+        /* (QT-D15-01, 28 Oct 2026) the three product cards are equal ghost buttons, so with Continue text the page has no primary action, rather than promoting one product. */
+        if (r.prim.length !== 0 || !r.off) p.push(`us.json held back, a saved screen the newest thing: the dashboard's primary actions ${JSON.stringify(r.prim)}, its Continue ${r.off ? 'text' : 'not text'}`);
       }
     }
   } finally {
@@ -2312,7 +2314,7 @@ for (const route of ROUTES) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`);
     await load(BASE + '/company/aapl-apple-inc');
     await ev(`(navigate('/app'), true)`); await sleep(500);
-    const d8 = await ev(`(() => { const t = document.querySelector('main').innerText; return { checklist: /Set up your workspace/.test(t), last: (t.match(/Last opened:[^\\n]*/) || [''])[0], stays: /stays ticked/.test(t) }; })()`);
+    const d8 = await ev(`(() => { const t = document.querySelector('main').innerText; return { checklist: !!document.querySelector('.dash-start'), last: (t.match(/Last opened:[^\\n]*/) || [''])[0], stays: /stays ticked/.test(t) }; })()`);
     if (!d8.checklist) steps = 'not shown here: this browser holds work of its own';
     else if (!/Apple Inc\.$/.test(d8.last) || /\.\.$/.test(d8.last) || d8.stays) q.push(`the dashboard's first step: ${JSON.stringify(d8)}`);
 
