@@ -22855,7 +22855,8 @@ const SERVED_READS = {
   /* The scanner's pages: the setups kept here, the preferences, the alerts
      read or archived, the list a watchlist scan takes, and what the builder
      and the alerts read from their address. */
-  scannerDashboard: ['startHere'],
+  /* The dashboard's first step counts the setups saved here (QT-D15-03, 28 Oct 2026). */
+  scannerDashboard: ['scanSetups', 'startHere'],
   scannerSetups: ['scanSetups', 'startHere'],
   scannerSetupNew: ['scanSetups', 'startHere', '?example', '?from', '?fromAlert', '?key', '?market', '?symbol'],
   scannerWatchlists: ['watchlists', 'scanSetups', 'startHere'],
