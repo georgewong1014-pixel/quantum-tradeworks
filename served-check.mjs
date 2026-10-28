@@ -2551,11 +2551,11 @@ const HOME_PAGE = read(HOME);
    [hidden], not inside a closed <details> but its summary — build.mjs's
    sightText, the measure homeBudgets uses; a word is wordsIn's):
    N5a  "node scanner/scan.mjs" and every data/*.json name are served only
-        inside the closed <details> "Run the worker on your own computer",
+        inside the closed <details> "Run locally",
         which also holds the three commands and the eight file names — but
         for an Unavailable badge's own note (.tool-off: its title and its
         screen-reader words name the file it lacks, and the badge stays as
-        it is); "No scan has been recorded on this machine" and "by design,
+        it is); "No scan recorded" and "by design,
         not by fault" are in sight, and so are the four Unavailable badges;
    N5b  on /app/scanner and on /how-it-works#hiw-scanner, one <figure>:
         its caption "Example — generated series, not a market’s prices",
@@ -2660,8 +2660,8 @@ const HOME_PAGE = read(HOME);
     if (!main) p.push('/app/scanner: no <main>');
     else {
       figureProblems('/app/scanner', main);
-      const run = all(main).filter(n => n.tag === 'details' && attr(n, 'open') === null && sight(n.kids.find(k => k.tag === 'summary') || { kids: [] }) === 'Run the worker on your own computer');
-      if (run.length !== 1) p.push(`/app/scanner: ${run.length} closed <details> "Run the worker on your own computer", not one`);
+      const run = all(main).filter(n => n.tag === 'details' && attr(n, 'open') === null && sight(n.kids.find(k => k.tag === 'summary') || { kids: [] }) === 'Run locally');
+      if (run.length !== 1) p.push(`/app/scanner: ${run.length} closed <details> "Run locally", not one`);
       const fold = run[0] ? rawText(run[0]) : '';
       for (const want of ['How the scan runs', 'node scanner/scan.mjs', 'node ingest/daily.mjs', 'node scanner/scan.mjs --status',
         'scan-runs, scan-alerts, scan-setups, price-history, price-adjustments, scan-control, scan-deliveries, ingest-runs'])
@@ -2675,7 +2675,7 @@ const HOME_PAGE = read(HOME);
       said.loose = loose.length;
       loose.slice(0, 4).forEach(x => p.push(`/app/scanner: outside the closed <details>: "${x.t.trim().slice(0, 100)}"`));
       const seen = sight(main);
-      for (const want of ['No scan has been recorded on this machine', 'by design, not by fault']) if (!seen.includes(want)) p.push(`/app/scanner: "${want}" is not in sight`);
+      for (const want of ['No scan recorded', 'by design, not by fault']) if (!seen.includes(want)) p.push(`/app/scanner: "${want}" is not in sight`);
       const unav = all(main).filter(n => has(n, 'status-badge') && has(n, 'status-unavailable') && B.inSight(n) && rawText(n) === 'Unavailable');
       said.unavailable = unav.length;
       if (unav.length < 4) p.push(`/app/scanner: ${unav.length} Unavailable badges in sight, not the four`);
@@ -2691,10 +2691,72 @@ const HOME_PAGE = read(HOME);
     else figureProblems('/how-it-works#hiw-scanner', sec);
     if (/No example match is shown here/.test(hw.body)) p.push('/how-it-works: still says "No example match is shown here"');
   }
-  judge(p, `the Scanner's first view (N5a, N5b, D14c): /app/scanner ${said.words} words in sight (≤300), the commands and the data files only in the closed "Run the worker on your own computer" or an Unavailable badge's note, "No scan has been recorded" and "by design, not by fault" in sight with ${said.unavailable} Unavailable badges; one example figure there and on /how-it-works#hiw-scanner — "Example — generated series, not a market’s prices", Illustrative to /data-sources#kinds, ${said['/app/scanner points']} points, the engine's three conditions at bar 66 word for word, series B Not held for RSI on a flat series, the caption — with no date, currency, registry symbol, banned word or other state in it; no "N match" on either page`,
+  judge(p, `the Scanner's first view (N5a, N5b, D14c): /app/scanner ${said.words} words in sight (≤300), the commands and the data files only in the closed "Run locally" or an Unavailable badge's note, "No scan recorded" and "by design, not by fault" in sight with ${said.unavailable} Unavailable badges; one example figure there and on /how-it-works#hiw-scanner — "Example — generated series, not a market’s prices", Illustrative to /data-sources#kinds, ${said['/app/scanner points']} points, the engine's three conditions at bar 66 word for word, series B Not held for RSI on a flat series, the caption — with no date, currency, registry symbol, banned word or other state in it; no "N match" on either page`,
     'the Scanner\'s first view and its example (N5a, N5b) are not served as accepted');
 }
 /* ---- end scanner-first-view ---- */
+
+/* ---- scanner-four-steps ---- */
+/* THE SCANNER'S FOUR STEPS, AS SERVED (QT-D15-03, 28 Oct 2026). What works
+   here (saving rules) is told apart from what needs the worker on the
+   reader's computer (scanning). /app/scanner, read as a fetch reads it:
+   (a) four steps in order — Create a rule setup, Price history, Run locally,
+       Review recorded results — each with its state: "None yet", "Unavailable"
+       with "None supplied" (never a 0), "Not available to download yet",
+       "No scan recorded";
+   (b) one .btn-primary in <main>, "Create a setup", in step 1;
+   (c) the closed <details id="scan-run"> "Run locally", and step 3 links to it;
+   (d) the lede says the site does not run scans or supply prices and the
+       worker is not available to download;
+   and the four steps come before the example figure and the details. */
+{
+  const B = await import('./build.mjs');
+  const p = [], said = {};
+  const all = B.allOf, has = B.hasClass, attr = B.attrOf;
+  const rawText = (n) => { let o = ''; const w = (x) => { for (const k of x.kids || []) { if (k.tag === '#text') o += k.text; else { o += ' '; w(k); } } }; w(n); return decode(o).replace(/\s+/g, ' ').trim(); };
+  const got = await getAll(['/app/scanner']);
+  const r = got.get('/app/scanner');
+  if (r?.status !== 200) p.push(`/app/scanner: ${described(r)}`);
+  else {
+    const main = all(B.htmlTree(r.body)).find(n => n.tag === 'main');
+    if (!main) p.push('/app/scanner: no <main>');
+    else {
+      const nodes = all(main);
+      const steps = nodes.filter(n => n.tag === 'li' && has(n, 'scan-step'));
+      said.steps = steps.length;
+      const TITLES = ['Create a rule setup', 'Price history', 'Run locally', 'Review recorded results'];
+      const title = (li) => rawText(all(li).find(n => n.tag === 'strong') || { kids: [] });
+      const state = (li) => rawText(all(li).find(n => has(n, 'scan-step-s')) || { kids: [] });
+      if (steps.length !== 4 || steps.some((li, i) => title(li) !== TITLES[i])) p.push(`/app/scanner: the steps read ${JSON.stringify(steps.map(title))}, not ${JSON.stringify(TITLES)} in that order`);
+      else {
+        if (!/^None yet\b/.test(state(steps[0]))) p.push(`/app/scanner: step 1 reads "${state(steps[0])}", not "None yet"`);
+        const s2 = state(steps[1]);
+        const badge = all(steps[1]).find(n => has(n, 'status-badge') && has(n, 'status-unavailable'));
+        if (!badge || rawText(badge) !== 'Unavailable' || !/None supplied/.test(s2) || /\b0\b/.test(s2)) p.push(`/app/scanner: step 2 reads "${s2}", not Unavailable and "None supplied" (and never a 0)`);
+        if (!/Not available to download yet/.test(state(steps[2]))) p.push(`/app/scanner: step 3 reads "${state(steps[2])}", not "Not available to download yet"`);
+        if (!/^No scan recorded\b/.test(state(steps[3]))) p.push(`/app/scanner: step 4 reads "${state(steps[3])}", not "No scan recorded"`);
+        const link = all(steps[2]).find(n => n.tag === 'a');
+        if (!link || attr(link, 'href') !== '#scan-run') p.push('/app/scanner: step 3 does not link to #scan-run');
+        const prim = nodes.filter(n => has(n, 'btn-primary'));
+        said.primaries = prim.length;
+        if (prim.length !== 1 || rawText(prim[0]) !== 'Create a setup' || !all(steps[0]).includes(prim[0])) p.push(`/app/scanner: ${prim.length} .btn-primary in <main> (${prim.map(rawText).join(', ')}), not one "Create a setup" in step 1`);
+        const det = nodes.find(n => n.tag === 'details' && attr(n, 'id') === 'scan-run');
+        const sum = det && det.kids.find(k => k.tag === 'summary');
+        if (!det || attr(det, 'open') !== null || !sum || rawText(sum) !== 'Run locally') p.push('/app/scanner: no closed <details id="scan-run"> headed "Run locally"');
+        else if (!rawText(det).includes('node scanner/scan.mjs')) p.push('/app/scanner: "Run locally" does not hold the worker\'s commands');
+        const at = (n) => nodes.indexOf(n);
+        const fig = nodes.find(n => n.tag === 'figure' && has(n, 'scan-ex'));
+        if (!fig || at(fig) < at(steps[3]) || (det && at(det) < at(steps[3]))) p.push('/app/scanner: the four steps do not come before "Run locally" and the example figure');
+        const lede = rawText(nodes.find(n => has(n, 'page-lede')) || { kids: [] });
+        said.lede = lede.length;
+        if (!/does not run scans or supply prices/.test(lede) || !/not available to download yet/.test(lede)) p.push(`/app/scanner: the lede reads "${lede.slice(0, 120)}", not that this website runs no scans and supplies no prices and the worker is not available to download`);
+      }
+    }
+  }
+  judge(p, `the Scanner's four steps (QT-D15-03): ${said.steps} steps in order (Create a rule setup → Price history → Run locally → Review recorded results), None yet · Unavailable "None supplied" · Not available to download yet · No scan recorded, step 3 linking the closed "Run locally", ${said.primaries} .btn-primary in <main> (Create a setup, in step 1), the lede saying the site runs no scans and supplies no prices and the worker is not available to download`,
+    'the Scanner\'s four steps (QT-D15-03) are not served as accepted');
+}
+/* ---- end scanner-four-steps ---- */
 
 /* ---- d12-workspace ---- */
 /* MY DASHBOARD AS A WORKSPACE, AS SERVED (the owner's decision D12, 8 Oct
@@ -4286,7 +4348,7 @@ const HOME_PAGE = read(HOME);
   for (const path of ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists']) {
     const t = mainOf(path);
     if (/never deployed|node scanner\/scan\.mjs|node ingest\/daily/.test(t)) p.push(`${path}: serves "${/never deployed|node scanner\/scan\.mjs|node ingest\/daily/.exec(t)[0]}" in sight`);
-    if (/data\/price-history\.json|data\/scan-alerts\.json/.test(t.replace(/Run the worker on your own computer[\s\S]*$/, ''))) p.push(`${path}: names a data file in an Unavailable reason or a note`);
+    if (/data\/price-history\.json|data\/scan-alerts\.json/.test(t)) p.push(`${path}: names a data file in an Unavailable reason or a note`);
   }
   /* The tab's reason is said to a screen reader (sr-only), so it is read from the markup. */
   for (const [path, want] of [['/app/scanner/market', /Market \(your series\)[\s\S]{0,300}No price history is loaded here\. This site ships none; open yours on the Scanner’s dashboard/],
