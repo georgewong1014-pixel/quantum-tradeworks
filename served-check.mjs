@@ -2369,8 +2369,17 @@ const HOME_PAGE = read(HOME);
   if (cards.length !== 3) p.push(`/: ${cards.length} product cards (<article>), not three`);
   for (const c of cards) {
     const id = attr(c, 'data-product') || '?';
-    const w = wordsIn(sight(c, n => n.tag === 'figure' || has(n, 'pub-card-also') || has(n, 'pub-card-bound') || has(n, 'pub-card-outcome'))).length;
-    if (w > 12) p.push(`/: the ${id} card is ${w} words outside its figure, more than 12`);
+    const w = wordsIn(sight(c, n => n.tag === 'figure' || has(n, 'pub-card-limit') || has(n, 'pub-card-outcome'))).length;
+    if (w > 12) p.push(`/: the ${id} card is ${w} words outside its figure, its outcome and its limit, more than 12`);
+    /* (Day-16, 29 Oct 2026; QT-D15-01) a card in sight is its purpose, its badge and qualifier, one short
+       limit and ONE action: the title link. Nothing else links outside the figure and the ⓘ. */
+    const det = all(c).find(n => n.tag === 'details' && has(n, 'pub-info'));
+    const fig = all(c).find(n => n.tag === 'figure');
+    const acts = all(c).filter(n => n.tag === 'a' && !(det && all(det).includes(n)) && !(fig && all(fig).includes(n)));
+    if (acts.length !== 1 || !has(acts[0], 'pub-card-link')) p.push(`/: the ${id} card has ${acts.length} links outside its figure and its ⓘ (${acts.map(a => sight(a)).join(' | ')}), not the one action`);
+    if (all(c).some(n => has(n, 'pub-card-also') || has(n, 'pub-card-bound')) || /Try the Scenario Lab/.test(rawText(c))) p.push(`/: the ${id} card still has a second action or the long limit paragraph in sight`);
+    const limN = all(c).filter(n => has(n, 'pub-card-limit'));
+    if (limN.length !== 1 || wordsIn(sight(limN[0])).length > 8) p.push(`/: the ${id} card has ${limN.length} limit lines, or one over 8 words`);
     const link = all(c).find(n => n.tag === 'a' && has(n, 'pub-card-link'));
     const ids = (link && attr(link, 'aria-describedby') || '').split(/\s+/).filter(Boolean);
     const q = ids.find(x => /-q$/.test(x)), note = ids.find(x => /-note$/.test(x));
@@ -2379,7 +2388,10 @@ const HOME_PAGE = read(HOME);
   }
   if (hm) for (const a of all(hm).filter(n => n.tag === 'a')) if (all(a).some(n => ['a', 'button', 'details'].includes(n.tag))) p.push(`/: a link holds a ${all(a).find(n => ['a', 'button', 'details'].includes(n.tag)).tag}`);
   const cardOf = (id) => cards.find(c => attr(c, 'data-product') === id);
-  if (!cardOf('property') || !all(cardOf('property')).some(n => n.tag === 'a' && attr(n, 'href') === '/property/lab')) p.push('/: the Property card does not link /property/lab');
+  /* (Day-16, 29 Oct 2026) the Property card's title opens the calculator; the Lab is the next tab there and a
+     step of the example path below, so the card no longer links /property/lab itself. */
+  if (!cardOf('property') || all(cardOf('property')).some(n => n.tag === 'a' && attr(n, 'href') === '/property/lab')) p.push('/: the Property card still links /property/lab (a second action)');
+  if (!cardOf('property') || !all(cardOf('property')).some(n => n.tag === 'a' && has(n, 'pub-card-link') && attr(n, 'href') === '/property/calculator')) p.push('/: the Property card\'s one action does not open /property/calculator');
   /* QT-D02-02 and QT-D03-01: each card's first useful outcome and its limit,
      in sight, once each, as PRODUCTS states them; the Property card's limit
      is the 15 Oct report's boundary, word for word. */
@@ -2387,7 +2399,17 @@ const HOME_PAGE = read(HOME);
   const wantOut = [['equities', 'Read a company’s filed financials and compare companies side by side.'], ['scanner', 'Write your own setup rules and see where they held in your price history.'], ['property', 'See the cash required, the monthly position and scenarios for a deal.']];
   const wantBound = [['equities', 'US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.'], ['scanner', 'No hosted monitoring: the worker runs on your computer, on price history you supply.'], ['property', 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.']];
   if (JSON.stringify(lines('pub-card-outcome')) !== JSON.stringify(wantOut)) p.push(`/: the cards' outcome lines are not one each, as stated (${JSON.stringify(lines('pub-card-outcome'))})`);
-  if (JSON.stringify(lines('pub-card-bound')) !== JSON.stringify(wantBound)) p.push(`/: the cards' limits are not one each, as stated (${JSON.stringify(lines('pub-card-bound'))})`);
+  /* (Day-16, 29 Oct 2026; QT-D15-01) the limit in sight is one short line; the long sentence is in the card's ⓘ, in the served page. */
+  const wantLimit = [['equities', 'No licensed market prices.'], ['scanner', 'Hosted monitoring is not available.'], ['property', 'No listings or official valuation.']];
+  if (JSON.stringify(lines('pub-card-limit')) !== JSON.stringify(wantLimit)) p.push(`/: the cards' limit lines are not one short line each, as stated (${JSON.stringify(lines('pub-card-limit'))})`);
+  for (const [id, want] of wantBound) {
+    const c = cardOf(id);
+    const body = c && all(c).find(n => has(n, 'pub-info-body'));
+    const det = c && all(c).find(n => n.tag === 'details' && has(n, 'pub-info'));
+    if (!body || !rawText(body).includes(want)) p.push(`/: the ${id} card's ⓘ does not print its long limit "${want.slice(0, 40)}…" in the served page`);
+    if (det && attr(det, 'open') !== null) p.push(`/: the ${id} card's ⓘ is served open`);
+    if (c && sight(c).includes(want)) p.push(`/: the ${id} card shows its long limit in sight, not only in the ⓘ`);
+  }
   const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
   if (!scanNote || !/this site ships no prices/.test(rawText(scanNote))) p.push('/: the Scanner card\'s ⓘ does not say "this site ships no prices"');
   const WANT = { equities: 'Beta', scanner: 'Beta', property: 'Available', business: 'Coming soon' };
@@ -2552,7 +2574,7 @@ const HOME_PAGE = read(HOME);
     if (!badges.length) p.push(`${path}: serves no Property Available badge in sight`);
     if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Available badges, ${beside.length} with "Your figures, sample to start" in sight beside them, ${quals.length} qualifiers`);
   }
-  judge(p, `the homepage cleanup as served: the strip a <details> on ${said.strips} pages, the warning and "No licensed prices" in its summary, Research mode and the links in its Details; the hero ${said.hero} words with one action; three cards, each 12 words or fewer, described by qualifier and note, the Property card to /property/lab, badges Beta · Beta · Live · Coming soon on /, /how-it-works and the footer; the example path ${said.path} words, 5 and 4 links served 200, no digit or name; #views within 16kB on ${said.views} pages; one variant of each positioning string; budgets ${JSON.stringify(said.budget)}; ${said.visuals} visuals, Apple's ${said.years} columns as filed; /pricing ${said.pricing} words outside "Compare details", three cards, no button outside it; Property's qualifier beside every Live badge (${said.qual.join(', ')})`,
+  judge(p, `the homepage cleanup as served: the strip a <details> on ${said.strips} pages, the warning and "No licensed prices" in its summary, Research mode and the links in its Details; the hero ${said.hero} words with one action; three cards, each 12 words or fewer outside its outcome and a limit line of 8 or fewer, one link outside the figure and the ⓘ, the long limit printed in the ⓘ, described by qualifier and note, the Property card to /property/calculator with no second link, badges Beta · Beta · Live · Coming soon on /, /how-it-works and the footer; the example path ${said.path} words, 5 and 4 links served 200, no digit or name; #views within 16kB on ${said.views} pages; one variant of each positioning string; budgets ${JSON.stringify(said.budget)}; ${said.visuals} visuals, Apple's ${said.years} columns as filed; /pricing ${said.pricing} words outside "Compare details", three cards, no button outside it; Property's qualifier beside every Live badge (${said.qual.join(', ')})`,
     'the homepage cleanup (plan 3.1–3.6, 3.8, N8, N9, D17) is not served as accepted');
 }
 /* ---- end home-3a ---- */
@@ -4242,7 +4264,12 @@ const HOME_PAGE = read(HOME);
   const contact = pageText(html('/contact'));
   if (SUPPORT) {
     const at = SUPPORT.replace(/[.+]/g, '\\$&');
-    if (!new RegExp(`Write to ${at} ?\\. Nothing on this site sends a message by itself: the address opens your own email program\\.`).test(contact)) p.push(`/contact does not say "Write to ${SUPPORT}." and that nothing on the site sends a message by itself`);
+    /* (Day-16, 29 Oct 2026; QT-D05-01) whom the address reaches, and that opening the email program is not
+       sending: no reply time, backup person or entity (none is approved), and no "whoever is responsible". */
+    if (!new RegExp(`Write to ${at} ?, the site owner’s support address\\. It opens your own email program; this site does not send the message or confirm that it arrived\\.`).test(contact)) p.push(`/contact does not say "Write to ${SUPPORT}, the site owner’s support address." and that opening the email program is not sending and nothing confirms arrival`);
+    if (/whoever is responsible/i.test(contact)) p.push('/contact still says "whoever is responsible"');
+    if (!/How to reach the site’s owner, who handles support and corrections — and what does not exist yet\./.test(contact)) p.push('/contact\'s lede does not name the site owner who handles support and corrections');
+    if (/\b(within|hours?|business days?|reply|respond)\b/i.test(contact)) p.push(`/contact carries a response-time word ("${/\b(within|hours?|business days?|reply|respond)\b/i.exec(contact)[0]}"): no response time is approved`);
     if (!/Its last step gives you the report to copy and send to that address from your own email program; the case stays recorded here, not confirmed received, and is listed under Corrections ?\./.test(contact)) p.push('/contact does not say the report is handed over to send, recorded here and not confirmed received');
     if (!/Do not include confidential or sensitive information\./.test(contact)) p.push('/contact no longer says not to include confidential or sensitive information');
     if (/Customer support is not available yet|because nobody has received it/.test(contact)) p.push('/contact still serves the no-address copy beside the address');

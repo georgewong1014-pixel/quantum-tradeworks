@@ -395,31 +395,39 @@ const PRODUCTS = [
     status: 'beta', qualifier: 'Filed + illustrative data',
     /* The homepage card's first useful outcome and its limit, in sight
        (QT-D03-01, the 16 Oct report; the owner chose card lines only).
-       served-check holds every card's two lines word for word. */
+       served-check holds every card's two lines word for word. Day-16
+       review QT-D15-01 (29 Oct 2026): the limit in sight is now `limit`,
+       one short line; the long sentence (`boundary`) went into the card's
+       ⓘ beside statusNote, so every detail stays on the page. */
     outcome: 'Read a company’s filed financials and compare companies side by side.',
+    limit: 'No licensed market prices.',
     boundary: 'US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.',
     statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
      promised a watch this site never keeps — it ships no prices, and the
-     worker that records a match is not distributed yet (23 Oct 2026). */
+     worker that records a match is not distributed yet (23 Oct 2026).
+     "Create a scanner setup" (29 Oct 2026, the owner's quick-wins brief):
+     the dashboard's label for the same act, so the homepage and /app name
+     it alike; it promises no watch either. */
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
-    task: 'Build my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
+    task: 'Create a scanner setup', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
+    limit: 'Hosted monitoring is not available.',
     boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
     statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
-    task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
+    task: 'Model a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
-    /* The Scenario Lab, offered beside the main action on the homepage card
-       (D5(d)) — until the map ships, when the card's action becomes
-       "Explore Property". */
-    also: { label: 'Try the Scenario Lab', path: '/property/lab' },
     status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
     /* What the calculator does not do, in sight beside the homepage card's
-       action (QT-D02-02, the 15 Oct report): served-check holds the words. */
+       action (QT-D02-02, the 15 Oct report): served-check holds the words.
+       The card's second link, "Try the Scenario Lab", went (Day-16 review
+       QT-D15-01, 29 Oct 2026): one action a card; the Lab is a tab beside
+       the calculator and a step of the homepage's example path. */
     outcome: 'See the cash required, the monthly position and scenarios for a deal.',
+    limit: 'No listings or official valuation.',
     boundary: 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.',
     statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
@@ -1149,8 +1157,12 @@ const POSITIONING = {
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
   kicker: 'Research · Monitor · Model · Plan',
-  /* The hero's lede under the held h1 (D5): with it, 14 words. */
-  lede: 'Companies, market setups and property, in one workspace.',
+  /* The hero's lede under the held h1: with it, 15 words. The three tools as
+     the three things a visitor can do, in the cards' own words (the owner's
+     quick-wins brief, 29 Oct 2026; was "Companies, market setups and
+     property, in one workspace."). Not "test investment rules": nothing
+     here runs a rule. */
+  lede: 'Research companies. Create scanner setups. Model property decisions.',
   /* The footer's line on every page. Business planning is "planned, not
      yet scheduled" (the owner's decision of 11 Oct 2026; the claims audit,
      R-20): "is next" promised a release no plan or date is behind.

@@ -12630,31 +12630,39 @@ const PRODUCTS = [
     status: 'beta', qualifier: 'Filed + illustrative data',
     /* The homepage card's first useful outcome and its limit, in sight
        (QT-D03-01, the 16 Oct report; the owner chose card lines only).
-       served-check holds every card's two lines word for word. */
+       served-check holds every card's two lines word for word. Day-16
+       review QT-D15-01 (29 Oct 2026): the limit in sight is now `limit`,
+       one short line; the long sentence (`boundary`) went into the card's
+       ⓘ beside statusNote, so every detail stays on the page. */
     outcome: 'Read a company’s filed financials and compare companies side by side.',
+    limit: 'No licensed market prices.',
     boundary: 'US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.',
     statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
      promised a watch this site never keeps — it ships no prices, and the
-     worker that records a match is not distributed yet (23 Oct 2026). */
+     worker that records a match is not distributed yet (23 Oct 2026).
+     "Create a scanner setup" (29 Oct 2026, the owner's quick-wins brief):
+     the dashboard's label for the same act, so the homepage and /app name
+     it alike; it promises no watch either. */
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
-    task: 'Build my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
+    task: 'Create a scanner setup', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
+    limit: 'Hosted monitoring is not available.',
     boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
     statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
-    task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
+    task: 'Model a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
-    /* The Scenario Lab, offered beside the main action on the homepage card
-       (D5(d)) — until the map ships, when the card's action becomes
-       "Explore Property". */
-    also: { label: 'Try the Scenario Lab', path: '/property/lab' },
     status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
     /* What the calculator does not do, in sight beside the homepage card's
-       action (QT-D02-02, the 15 Oct report): served-check holds the words. */
+       action (QT-D02-02, the 15 Oct report): served-check holds the words.
+       The card's second link, "Try the Scenario Lab", went (Day-16 review
+       QT-D15-01, 29 Oct 2026): one action a card; the Lab is a tab beside
+       the calculator and a step of the homepage's example path. */
     outcome: 'See the cash required, the monthly position and scenarios for a deal.',
+    limit: 'No listings or official valuation.',
     boundary: 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.',
     statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
@@ -13384,8 +13392,12 @@ const POSITIONING = {
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
   kicker: 'Research · Monitor · Model · Plan',
-  /* The hero's lede under the held h1 (D5): with it, 14 words. */
-  lede: 'Companies, market setups and property, in one workspace.',
+  /* The hero's lede under the held h1: with it, 15 words. The three tools as
+     the three things a visitor can do, in the cards' own words (the owner's
+     quick-wins brief, 29 Oct 2026; was "Companies, market setups and
+     property, in one workspace."). Not "test investment rules": nothing
+     here runs a rule. */
+  lede: 'Research companies. Create scanner setups. Model property decisions.',
   /* The footer's line on every page. Business planning is "planned, not
      yet scheduled" (the owner's decision of 11 Oct 2026; the claims audit,
      R-20): "is next" promised a release no plan or date is behind.
@@ -27916,7 +27928,10 @@ const HOME_FILED = {"id":"AAPL-SEC","tk":"AAPL","name":"Apple Inc.","path":"/com
 /* A product's qualifier and its ⓘ: the badge and its few words in sight,
    and the full note one press away — a native <details>, so it opens with
    no script, from the keyboard as from a finger — with where every label is
-   explained. The card's link is described by both (aria-describedby). */
+   explained. The card's link is described by both (aria-describedby).
+   The card's long limitation (`boundary`) is printed here with the note
+   (Day-16 review QT-D15-01, 29 Oct 2026): in sight is the one short line
+   (`limit`), and every detail stays one press away. */
 function pubQualifier(p, id) {
   return el('div', { class: 'pub-card-qual' }, [
     productBadge(p.id, { qualified: true, qualId: id('q') }),
@@ -27927,6 +27942,7 @@ function pubQualifier(p, id) {
       ]),
       el('p', { class: 'pub-info-body' }, [
         el('span', { id: id('note') }, p.statusNote), ' ',
+        p.boundary ? el('span', { id: id('bound') }, p.boundary) : null, p.boundary ? ' ' : null,
         el('a', { href: '/how-it-works#hiw-status', class: 'pub-textlink' }, 'What the labels mean'),
       ]),
     ]),
@@ -28060,22 +28076,20 @@ const PUB_VISUALS = { equities: pubVisEquities, scanner: pubVisScanner, property
 
 /* ONE PRODUCT, AS A CARD (plan 3.3). An <article>: its name, its task — the
    card's one action, an <h3> link stretched over the card — its qualifier
-   with the ⓘ, and its visual. What sits over the stretched link (the ⓘ,
-   the visual's own link and control, a badge, the Property card's second
-   action) is its own target: no link, button or <details> inside a link.
+   with the ⓘ, one short limit line, and its visual. What sits over the stretched link (the ⓘ,
+   the visual's own link and control, a badge) is its own target: no link, button or <details> inside a link.
    Business, which is not built, is not a card: one line of text below. */
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') },
-    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
+    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.limit ? ` ${id('limit')}` : ''}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
   if (p.outcome) card.append(el('p', { class: 'pub-card-outcome', id: id('out') }, p.outcome));
   card.append(pubQualifier(p, id));
-  if (p.boundary) card.append(el('p', { class: 'pub-card-bound', id: id('bound') }, p.boundary));
+  if (p.limit) card.append(el('p', { class: 'pub-card-limit', id: id('limit') }, p.limit));
   const vis = PUB_VISUALS[p.id];
   if (vis) card.append(vis());
-  if (p.also) card.append(el('p', { class: 'pub-card-also' }, pubLink(p.also.path, { class: 'pub-textlink' }, p.also.label, pubArrow())));
   return card;
 }
 
@@ -29884,15 +29898,19 @@ VIEWS.about = () => trustPage('About',
    nothing; the page now says exactly that, and opens it. The address comes
    from OPERATOR, so when LAUNCH.contactEmail is set the marker becomes the
    address — the page did not read it at all, although LAUNCH's own note
-   says /contact does. */
+   says /contact does.
+   Day-16 review QT-D05-01 (29 Oct 2026): the page says whom the address
+   reaches — the site owner, who handles support and corrections (the
+   owner named the address on 23 Oct 2026) — and that opening the email
+   program is not sending. No reply time, backup or entity: none is approved. */
 VIEWS.contact = () => trustPage('Contact',
-  'What exists today to reach whoever is responsible for a page, a figure or a correction — and what does not exist yet.',
+  'How to reach the site’s owner, who handles support and corrections — and what does not exist yet.',
   [
     ['What exists today',
       [...(() => {
         const v = supportEmail();
         return v
-          ? [tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.'),
+          ? [tp('Write to ', supplied('email'), ', the site owner’s support address. It opens your own email program; this site does not send the message or confirm that it arrived.'),
              tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step gives you the report to copy and send to that address from your own email program; the case stays recorded here, not confirmed received, and is listed under ', tlink('Corrections', '/corrections'), '.')]
           : [tp(...supportUnavailable())];
       })(),

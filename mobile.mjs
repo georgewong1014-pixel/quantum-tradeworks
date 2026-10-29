@@ -4519,7 +4519,7 @@ for (const w of [360, 390]) {
         if (path === '/') {
           if (r.over > 1) fails.push(`${at}: the page runs ${r.over}px sideways`);
           if (r.lines.length) fails.push(`${at}: a disclosure line in sight above the footer besides the strip: "${r.lines[0]}"`);
-          if (!r.hero || r.hero.h1 !== 'Make financial decisions with greater clarity.' || r.hero.lede !== 'Companies, market setups and property, in one workspace.' || r.hero.acts !== 1)
+          if (!r.hero || r.hero.h1 !== 'Make financial decisions with greater clarity.' || r.hero.lede !== 'Research companies. Create scanner setups. Model property decisions.' || r.hero.acts !== 1)
             fails.push(`${at}: the hero reads ${JSON.stringify(r.hero)}`);
         }
       }

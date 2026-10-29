@@ -100,7 +100,10 @@ const HOME_FILED = /*@INJECT:homeFiled*/ null;
 /* A product's qualifier and its ⓘ: the badge and its few words in sight,
    and the full note one press away — a native <details>, so it opens with
    no script, from the keyboard as from a finger — with where every label is
-   explained. The card's link is described by both (aria-describedby). */
+   explained. The card's link is described by both (aria-describedby).
+   The card's long limitation (`boundary`) is printed here with the note
+   (Day-16 review QT-D15-01, 29 Oct 2026): in sight is the one short line
+   (`limit`), and every detail stays one press away. */
 function pubQualifier(p, id) {
   return el('div', { class: 'pub-card-qual' }, [
     productBadge(p.id, { qualified: true, qualId: id('q') }),
@@ -111,6 +114,7 @@ function pubQualifier(p, id) {
       ]),
       el('p', { class: 'pub-info-body' }, [
         el('span', { id: id('note') }, p.statusNote), ' ',
+        p.boundary ? el('span', { id: id('bound') }, p.boundary) : null, p.boundary ? ' ' : null,
         el('a', { href: '/how-it-works#hiw-status', class: 'pub-textlink' }, 'What the labels mean'),
       ]),
     ]),
@@ -244,22 +248,20 @@ const PUB_VISUALS = { equities: pubVisEquities, scanner: pubVisScanner, property
 
 /* ONE PRODUCT, AS A CARD (plan 3.3). An <article>: its name, its task — the
    card's one action, an <h3> link stretched over the card — its qualifier
-   with the ⓘ, and its visual. What sits over the stretched link (the ⓘ,
-   the visual's own link and control, a badge, the Property card's second
-   action) is its own target: no link, button or <details> inside a link.
+   with the ⓘ, one short limit line, and its visual. What sits over the stretched link (the ⓘ,
+   the visual's own link and control, a badge) is its own target: no link, button or <details> inside a link.
    Business, which is not built, is not a card: one line of text below. */
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') },
-    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
+    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.limit ? ` ${id('limit')}` : ''}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
   if (p.outcome) card.append(el('p', { class: 'pub-card-outcome', id: id('out') }, p.outcome));
   card.append(pubQualifier(p, id));
-  if (p.boundary) card.append(el('p', { class: 'pub-card-bound', id: id('bound') }, p.boundary));
+  if (p.limit) card.append(el('p', { class: 'pub-card-limit', id: id('limit') }, p.limit));
   const vis = PUB_VISUALS[p.id];
   if (vis) card.append(vis());
-  if (p.also) card.append(el('p', { class: 'pub-card-also' }, pubLink(p.also.path, { class: 'pub-textlink' }, p.also.label, pubArrow())));
   return card;
 }
 
@@ -2068,15 +2070,19 @@ VIEWS.about = () => trustPage('About',
    nothing; the page now says exactly that, and opens it. The address comes
    from OPERATOR, so when LAUNCH.contactEmail is set the marker becomes the
    address — the page did not read it at all, although LAUNCH's own note
-   says /contact does. */
+   says /contact does.
+   Day-16 review QT-D05-01 (29 Oct 2026): the page says whom the address
+   reaches — the site owner, who handles support and corrections (the
+   owner named the address on 23 Oct 2026) — and that opening the email
+   program is not sending. No reply time, backup or entity: none is approved. */
 VIEWS.contact = () => trustPage('Contact',
-  'What exists today to reach whoever is responsible for a page, a figure or a correction — and what does not exist yet.',
+  'How to reach the site’s owner, who handles support and corrections — and what does not exist yet.',
   [
     ['What exists today',
       [...(() => {
         const v = supportEmail();
         return v
-          ? [tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.'),
+          ? [tp('Write to ', supplied('email'), ', the site owner’s support address. It opens your own email program; this site does not send the message or confirm that it arrived.'),
              tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step gives you the report to copy and send to that address from your own email program; the case stays recorded here, not confirmed received, and is listed under ', tlink('Corrections', '/corrections'), '.')]
           : [tp(...supportUnavailable())];
       })(),
