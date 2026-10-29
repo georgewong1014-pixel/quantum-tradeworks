@@ -3093,7 +3093,7 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-cards > .ls-card.pub-card .pub-card-link .pub-arrow { color: var(--acc, var(--brand)); }
 .pub-cards > .ls-card.pub-card:hover .pub-card-link .pub-arrow { transform: translateX(3px); }
 /* What stands over the card's link answers for itself. */
-.pub-card-qual, .pub-card .pub-vis, .pub-card-also { position: relative; z-index: 1; }
+.pub-card-qual, .pub-card .pub-vis { position: relative; z-index: 1; }
 .pub-card-qual { z-index: 3; }
 .pub-card .pub-vis { pointer-events: none; }
 .pub-card .pub-vis :is(a, input, label, .kind-badge) { pointer-events: auto; }
@@ -3207,12 +3207,10 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-bar-rent, .pub-sw-rent { fill: var(--acc, var(--brand)); background: var(--acc, var(--brand)); }
 .pub-bar-rep, .pub-sw-rep { fill: color-mix(in srgb, var(--ink) 62%, var(--surface-2)); background: color-mix(in srgb, var(--ink) 62%, var(--surface-2)); }
 .pub-bar-cost, .pub-sw-cost { fill: color-mix(in srgb, var(--ink) 26%, var(--surface-2)); background: color-mix(in srgb, var(--ink) 26%, var(--surface-2)); }
-/* The Property card's second action, under its visual. */
 .pub-card-outcome { position: relative; z-index: 1; margin: 0; max-width: 60ch; line-height: 1.45; color: var(--ink); }
-.pub-card-bound { position: relative; z-index: 1; margin: 0; max-width: 60ch; font-size: var(--ls-support); line-height: 1.45; color: var(--ink-2); }
-.pub-card-also { margin: 0; }
-.pub-card-also .pub-textlink { min-height: 40px; font-size: var(--ls-support); }
-@media (pointer: coarse), (max-width: 768px) { .pub-card-also .pub-textlink { min-height: 44px; } }
+/* The card's one short limit, under the badge row (Day-16 review QT-D15-01,
+   29 Oct 2026): the long sentence is in the ⓘ. */
+.pub-card-limit { position: relative; z-index: 1; margin: 0; max-width: 60ch; font-size: var(--ls-support); line-height: 1.45; color: var(--ink-2); }
 /* Served before the script: the range is inert text (prerender), kept
    the slider's own box — a track, its words out of sight — so nothing
    moves when the page is drawn over it. */

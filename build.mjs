@@ -1870,9 +1870,10 @@ export function layoutSystemProblems({ root = ROOT } = {}) {
    again, or a visual taken out fails --check in CI's first job:
    - the hero: its h1 and lede 15 words or fewer, and one call to action;
    - each card (article.pub-card): 12 words or fewer outside its figure,
-     its second action (.pub-card-also) and the Property card's boundary
-     (.pub-card-bound, QT-D02-02) and each card's outcome line (.pub-card-outcome,
-     QT-D03-01) left out — served-check holds those word for word;
+     its one short limit line (.pub-card-limit, QT-D02-02; Day-16 QT-D15-01,
+     29 Oct 2026: the long sentence moved into the ⓘ) and each card's outcome
+     line (.pub-card-outcome, QT-D03-01) left out — served-check holds those
+     word for word, and the limit at 8 words or fewer;
    - each figure: 20 words or fewer — its caption, legend and state rows,
      inside the <figure>, the <svg>'s words with them;
    - <main>: 110 words or fewer outside its figures and those lines;
@@ -1978,8 +1979,14 @@ export function homeBudgets(html) {
   const cards = inMain.filter(n => n.tag === 'article' && hasClass(n, 'pub-card'));
   said.cards = cards.map(c => {
     const name = sightText(allOf(c).find(n => hasClass(n, 'pub-card-product')) || { kids: [] }) || attrOf(c, 'data-product');
-    const w = wordsIn(sightText(c, n => isFig(n) || hasClass(n, 'pub-card-also') || hasClass(n, 'pub-card-bound') || hasClass(n, 'pub-card-outcome'))).length;
-    if (w > HOME_BUDGET.card) p.push(`the ${name} card is ${w} words outside its figure and its second action, more than ${HOME_BUDGET.card}`);
+    const w = wordsIn(sightText(c, n => isFig(n) || hasClass(n, 'pub-card-limit') || hasClass(n, 'pub-card-outcome'))).length;
+    if (w > HOME_BUDGET.card) p.push(`the ${name} card is ${w} words outside its figure, its outcome and its limit, more than ${HOME_BUDGET.card}`);
+    /* (Day-16, 29 Oct 2026) the limit in sight is one short line, one action a card. */
+    const lim = allOf(c).filter(n => hasClass(n, 'pub-card-limit'));
+    const limW = lim.length ? wordsIn(sightText(lim[0])).length : 0;
+    if (lim.length !== 1 || limW < 1 || limW > 8) p.push(`the ${name} card has ${lim.length} limit line(s) of ${limW} words, not one of 8 words or fewer`);
+    const acts = allOf(c).filter(n => n.tag === 'a' && !allOf(allOf(c).find(x => x.tag === 'figure') || { kids: [] }).includes(n) && !allOf(allOf(c).find(x => x.tag === 'details') || { kids: [] }).includes(n));
+    if (acts.length !== 1) p.push(`the ${name} card has ${acts.length} actions outside its figure and its ⓘ, not one`);
     return [name, w];
   });
   if (cards.length < 3) p.push(`/ serves ${cards.length} product cards, not three`);
@@ -1991,7 +1998,7 @@ export function homeBudgets(html) {
     return w;
   });
   /* Main, outside its figures. */
-  const mainText = sightText(main, n => isFig(n) || hasClass(n, 'pub-card-bound') || hasClass(n, 'pub-card-outcome'));
+  const mainText = sightText(main, n => isFig(n) || hasClass(n, 'pub-card-limit') || hasClass(n, 'pub-card-outcome'));
   said.main = wordsIn(mainText).length;
   if (said.main > HOME_BUDGET.main) p.push(`<main> is ${said.main} words outside its figures, more than ${HOME_BUDGET.main}`);
   /* The data visuals. */
