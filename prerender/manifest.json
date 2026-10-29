@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "63b2f2b80db16ab4",
-      "changed": "2026-10-27"
+      "digest": "83f2b20610f5ef3e",
+      "changed": "2026-10-29"
     },
     "pages/about.html": {
       "path": "/about",
@@ -4097,8 +4097,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6be66e67f8939f46",
-      "changed": "2026-10-24"
+      "digest": "c2a48262400ffc05",
+      "changed": "2026-10-29"
     },
     "pages/corrections.html": {
       "path": "/corrections",
