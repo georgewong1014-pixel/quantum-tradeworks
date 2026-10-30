@@ -3179,23 +3179,21 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-vis-base { stroke: var(--line-2); stroke-width: 1; }
 .pub-vis-val { font: 600 10px/1 var(--sans); fill: var(--ink); }
 .pub-vis-tick { font: 500 10px/1 var(--sans); fill: var(--ink-3); }
-/* Scanner: the starting rule as chips, and the empty record. */
-.pub-vis-k-top { margin: 0; }
-.pub-rule { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
-.pub-chip { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 999px; font-size: var(--ls-support); font-weight: var(--weight-semibold);
-  color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent); }
-.pub-chip-op { color: var(--acc, var(--brand)); background: color-mix(in srgb, var(--acc, var(--brand)) 9%, var(--surface-2)); border-color: color-mix(in srgb, var(--acc, var(--brand)) 30%, var(--line)); }
-.pub-vis-empty { flex-direction: row; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--r-md);
-  border: 1px dashed var(--line-2); font-size: var(--ls-support); line-height: 1.45; color: var(--ink-2); }
-.pub-vis-empty-mark { flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
-/* The record, empty: its rows drawn as the places a match would take,
-   with nothing in them. */
-.pub-record { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 0; flex: 1 1 auto; justify-content: center; }
-.pub-record-row { display: grid; grid-template-columns: 10px minmax(0, 3fr) minmax(0, 2fr); gap: 10px; align-items: center; height: 26px; padding: 0 10px;
-  border-radius: var(--r-sm); border: 1px dashed color-mix(in srgb, var(--ink) 16%, transparent); }
-.pub-record-row > i { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 9%, transparent); }
-.pub-record-row > i:first-child { width: 10px; height: 10px; border-radius: 50%; }
-.pub-record-row:nth-child(2) { opacity: .7; } .pub-record-row:nth-child(3) { opacity: .45; }
+/* "Example output", the caption at the top of all three previews (the 30 Oct
+   2026 audit): the words, and a hairline to the figure's edge. */
+.pub-vis-eg { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--ls-meta); line-height: 16px; font-weight: var(--weight-semibold); letter-spacing: .02em; color: var(--ink-2); }
+.pub-vis-eg::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--line); }
+/* Scanner: the engine's own example (scanExample), small — the series and
+   its EMA to bar 66, the verdict, and the three conditions as it words them. */
+.pub-scan-plot { display: block; aspect-ratio: 320 / 62; }
+.pub-scan-plot .scan-ex-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.pub-vis-scan .pub-vis-legend { margin-top: -2px; }
+.pub-vis-scan .scan-sw-ema { margin-left: 8px; }
+.pub-scan-verdict { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding-top: 6px; border-top: 1px solid var(--line); }
+.pub-scan-verdict .num { font-variant-numeric: tabular-nums; color: var(--ink); }
+.pub-scan-conds { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pub-vis-scan .scan-ex-c { grid-template-columns: 8px minmax(0, 1fr); gap: 8px; font-size: var(--ls-meta); line-height: 1.4; align-items: start; }
+.pub-vis-scan .scan-ex-s { margin-top: 4px; }
 /* Property: the price knob, three figures, where the month's rent goes. */
 .pub-lab-knob { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 8px; }
 .pub-lab-knob .pub-vis-k { grid-column: 1; }
