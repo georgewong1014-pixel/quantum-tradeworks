@@ -9649,6 +9649,7 @@ try {
         const det = () => document.getElementById('pc-q-more');
         const vis = (k) => { const n = document.getElementById('d-' + k); return !!n && n.checkVisibility(); };
         const tag = (k) => t(document.getElementById('d-' + k + '-own'));
+        if (!det()) { out.noGroup = true; out.eight = ['price', 'downPct', 'ratePct', 'rent', 'tenureYears', 'vacancyPct', 'maintenance', 'renovation'].filter(k => vis(k)).length; return JSON.stringify(out); }
         const ESS = ['price', 'downPct', 'ratePct', 'rent'], REF = ['tenureYears', 'vacancyPct', 'maintenance', 'mgmtPct', 'renovation', 'insurance'];
         out.first = { quick: !!document.getElementById('pc-quick'), essHidden: ESS.filter(k => !vis(k)), essInside: ESS.filter(k => det().contains(document.getElementById('d-' + k))),
           refOutside: REF.filter(k => !det().contains(document.getElementById('d-' + k))), refVisible: REF.filter(k => vis(k)), open: det().open,
@@ -9694,7 +9695,8 @@ try {
       return JSON.stringify(out); })()`));
     const p = [];
     const f = r.first || {};
-    if (!f.quick) p.push('the Quick model was not drawn');
+    if (r.noGroup) p.push(`no "Refine the assumptions" (#pc-q-more): ${r.eight} of the eight boxes stand in sight, each under its own line`);
+    else if (!f.quick) p.push('the Quick model was not drawn');
     if (f.essHidden?.length) p.push(`essential inputs not in sight on a first visit: ${f.essHidden.join(', ')}`);
     if (f.essInside?.length) p.push(`essentials drawn inside "Refine the assumptions": ${f.essInside.join(', ')}`);
     if (f.refOutside?.length) p.push(`not inside "Refine the assumptions": ${f.refOutside.join(', ')}`);
