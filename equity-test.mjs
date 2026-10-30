@@ -7883,6 +7883,62 @@ try {
     else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS with ${home.figures} charts and Business as text; /how-it-works has the steps, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
   }
   /* ---- end release-a: public ---- */
+  /* ---- home: example outputs ---- */
+  /* THE HOMEPAGE'S THREE PREVIEWS ARE EXAMPLE OUTPUT (the 30 Oct 2026 audit:
+     "a genuine, clearly labelled example of what they will obtain, rather than
+     invented performance claims"). The Scanner's was a mock-up — starting-rule
+     chips and grey placeholder rows. It is now what the dashboard shows: the
+     engine's evaluation (scanExample) of the example setup on its generated
+     series, read at bar 66 — the verdict and the three conditions with their
+     values, as scanEvaluate words them, the 66 closes, labelled Illustrative —
+     and nothing is written by hand: the card is compared here with a fresh
+     evaluation of the same fixture. Each preview opens with the one "Example
+     output" caption; the three cards are one height where they sit side by
+     side; and no preview draws a count, a date, a symbol or a word that leans
+     toward a trade. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      navigate('/'); await w(250);
+      const m = document.querySelector('#views');
+      const cards = [...m.querySelectorAll('.pub-card')];
+      const fx = scanFixture(), setup = scanNormaliseSetup(fx.setup), cache = scanCache();
+      const A = scanBars(fx.history, 'MATCH', { timeframe: '1D', now: fx.now, calendar: scanCalendar(fx.history, [], null) });
+      const eng = scanEvaluate(setup.ruleTree, A, { cache });
+      const sc = cards.find(c => c.dataset.product === 'scanner');
+      const fig = sc?.querySelector('figure');
+      const rows = fig ? [...fig.querySelectorAll('li.scan-ex-c')].map(li => ({ text: li.querySelector('.scan-ex-x')?.textContent.trim(), state: li.dataset.state, word: li.querySelector('.scan-ex-s')?.textContent.trim() })) : [];
+      const h = cards.map(c => Math.round(c.getBoundingClientRect().height));
+      return {
+        captions: cards.map(c => { const f = c.querySelector('figure'); const e = f?.firstElementChild; return e && e.classList.contains('pub-vis-eg') ? e.textContent.trim() : (e ? e.className : null); }),
+        side: cards.length > 1 && Math.abs(cards[0].getBoundingClientRect().top - cards[1].getBoundingClientRect().top) < 2,
+        h,
+        mock: fig ? fig.querySelectorAll('.pub-record, .pub-record-row, .pub-chip, .pub-rule, .pub-vis-empty').length : -1,
+        rows, engine: eng.conditions.map(c => ({ text: c.text, state: c.state, word: { MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' }[c.state] })), engineState: eng.state,
+        verdict: fig?.querySelector('.pub-scan-verdict')?.textContent.replace(/\\s+/g, ' ').trim(),
+        verdictState: fig?.querySelector('.scan-ex-v')?.dataset.state,
+        points: fig?.querySelector('path.scan-ex-close')?.getAttribute('data-points'), closes: A.closes.length,
+        label: fig?.querySelector('.pub-vis-src')?.textContent.replace(/\\s+/g, ' ').trim(),
+        badge: fig?.querySelector('.pub-vis-src .kind-illustrative')?.textContent.trim(),
+        text: fig?.textContent || '',
+        overflow: document.documentElement.scrollWidth - innerWidth,
+      };
+    })()`);
+    const p = [];
+    if (r.captions.length !== 3 || r.captions.some(c => c !== 'Example output')) p.push(`the previews open with ${JSON.stringify(r.captions)}, not "Example output" on each of three`);
+    if (r.mock !== 0) p.push(`the Scanner preview still draws the mock-up (${r.mock} chips, placeholder rows or empty-record parts)`);
+    if (r.rows.length !== r.engine.length || r.rows.length !== 3) p.push(`the Scanner preview has ${r.rows.length} conditions, the engine's evaluation ${r.engine.length}`);
+    r.rows.forEach((x, i) => { const e = r.engine[i]; if (!e || x.text !== e.text || x.state !== e.state || x.word !== e.word) p.push(`condition ${i + 1}: "${x.text}" ${x.word} (${x.state}), the engine: "${e?.text}" ${e?.word}`); });
+    const want = `The rule at bar ${r.closes} ${{ MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' }[r.engineState]}`;
+    if (r.verdict !== want || r.verdictState !== r.engineState) p.push(`the verdict reads "${r.verdict}" (${r.verdictState}), the engine: "${want}" (${r.engineState})`);
+    if (Number(r.points) !== r.closes || r.closes !== 66) p.push(`the series has ${r.points} points, the generated series ${r.closes} (66)`);
+    if (r.badge !== 'Illustrative' || !/Generated series, not a market’s prices/.test(r.label || '')) p.push(`the Scanner preview's label is "${r.label}" (badge "${r.badge}")`);
+    if (/\b(matched|approaching|watching|signal|buy|sell|live|works)\b/i.test(r.text) || /[0-9]{4}-[0-9]{2}-[0-9]{2}|RM|US\$/.test(r.text)) p.push(`the Scanner preview says something a market's page would: "${r.text.replace(/\s+/g, ' ').slice(0, 160)}"`);
+    if (r.side && new Set(r.h).size !== 1) p.push(`the three cards sit side by side at ${JSON.stringify(r.h)}px, not one height`);
+    if (p.length) fail('home: the three previews are example output, the Scanner\'s the engine\'s own evaluation', p);
+    else ok(`home: each of the three previews opens with "Example output"; the Scanner's is scanExample's evaluation at bar ${r.closes} — "${r.verdict}" and ${r.rows.length} conditions as the engine words them — labelled Illustrative, with no placeholder rows${r.side ? `; the cards are ${r.h[0]}px each` : ''}`);
+  }
+  /* ---- end home: example outputs ---- */
   /* ---- release-a: dashboard ---- */
   /* MY DASHBOARD COUNTS ONLY WHAT IS THE VISITOR'S, AND EVERY COUNT IS A DOOR.
      /app was the equities research queue; Release A makes it the visitor's
