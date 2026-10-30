@@ -12025,6 +12025,118 @@ try {
     }
   }
   /* ---- end screener-coverage ---- */
+  /* ---- saved-protect ---- */
+  /* SAVED IN THIS BROWSER, AND THE EXPORT BESIDE IT (the owner's quick-wins
+     brief, fix 9, 30 Oct 2026). My properties and Saved work carry one block
+     above their list (savedProtection, 55-views-public.js): the label, the
+     backup state, Export backup — the export of "Export everything" on Your
+     data, run on the page, without clearing or navigating — and the sentence
+     that says how a cleared browser is recovered, with "Your data & settings"
+     a link to /my/data. With only the samples a first visit holds, there is
+     no Export backup: nothing the block could export is the reader's.
+     Run last, on a fresh visitor's storage, because it clears it. */
+  {
+    try {
+      await evaluate(`localStorage.clear(); true`);
+      await send('Page.navigate', { url: `${BASE}/property/models` }, sessionId);
+      for (let i = 0; i < 40; i++) { await sleep(300); try { if (await evaluate(`typeof pmAll === 'function' && typeof savedProtection === 'function' && !!document.querySelector('#views')`)) break; } catch { /* booting */ } }
+      await sleep(600);
+      const r = await evaluate(`(async () => {
+        ${shellWait}
+        const SAY = 'If this browser is cleared or you change device, open Your data & settings and choose Restore from a file with your backup.';
+        const snap = (path) => {
+          const blocks = [...document.querySelectorAll('#views [data-saved-protect]')];
+          const b = blocks[0];
+          const txt = (document.querySelector('#views') || {}).textContent || '';
+          const norm = (s) => s.replace(/\\s+/g, ' ');
+          const count = (s) => norm(txt).split(s).length - 1;
+          const a = b && [...b.querySelectorAll('a')].find(x => x.textContent.trim() === 'Your data & settings');
+          return { path, here: location.pathname, blocks: blocks.length, label: count('Saved in this browser'), say: count(SAY),
+            link: a ? a.getAttribute('href') : null, btns: [...document.querySelectorAll('#views button')].filter(x => x.textContent.trim() === 'Export backup').length,
+            state: b ? ((b.querySelector('[data-saved-state]') || {}).textContent || '').replace(/\\s+/g, ' ').trim() : null,
+            old: /No account, no sync|Back up everything|The export on Your data/.test(txt),
+            beforeList: b && (document.querySelector('#views .pm-saved, #views .ws-filters') ? !!(b.compareDocumentPosition(document.querySelector('#views .pm-saved, #views .ws-filters')) & Node.DOCUMENT_POSITION_FOLLOWING) : null) };
+        };
+        const out = { fresh: {}, own: {}, after: {}, gone: {} };
+        const visit = async (path) => { navigate(path); await w(250); return snap(path); };
+        /* A fresh visitor: samples only. */
+        out.fresh.models = await visit('/property/models');
+        out.fresh.ws = await visit('/my/workspace');
+        /* A property of the reader's own. */
+        State.deal.userStarted = true; State.deal.price = 520000; State.deal.district = 'Petra Jaya';
+        const rec = saveActiveProperty({ name: 'Block test property' });
+        out.saved = !!rec;
+        out.own.models = await visit('/property/models');
+        out.own.ws = await visit('/my/workspace');
+        /* The same export as Your data's, run in place. */
+        const keepCreate = URL.createObjectURL, keepClick = HTMLAnchorElement.prototype.click;
+        const caught = [];
+        URL.createObjectURL = (blob) => { caught.push({ blob }); return 'blob:test-' + caught.length; };
+        HTMLAnchorElement.prototype.click = function () { if (caught.length) caught[caught.length - 1].name = this.getAttribute('download'); };
+        const docs = {};
+        try {
+          navigate('/property/models'); await w(250);
+          const n0 = loadWork().length;
+          document.querySelector('#saved-export-backup')?.click(); await w(300);
+          out.click = { path: location.pathname, kept: loadWork().length === n0, files: caught.length, name: caught[0] && caught[0].name,
+            stamped: !!store.read('lastExport', null) };
+          docs.models = caught[0] ? JSON.parse(await caught[0].blob.text()) : null;
+          out.after.models = snap('/property/models');
+          navigate('/my/workspace'); await w(250);
+          document.querySelector('#saved-export-backup')?.click(); await w(300);
+          docs.ws = caught[1] ? JSON.parse(await caught[1].blob.text()) : null;
+          out.after.ws = snap('/my/workspace');
+          out.clickWs = { path: location.pathname, files: caught.length };
+          navigate('/my/data'); await w(300);
+          document.getElementById('ud-export-all')?.click(); await w(300);
+          docs.data = caught[2] ? JSON.parse(await caught[2].blob.text()) : null;
+          out.restoreOnData = [...document.querySelectorAll('#views button')].some(x => x.textContent.trim() === 'Restore from a file');
+        } finally { URL.createObjectURL = keepCreate; HTMLAnchorElement.prototype.click = keepClick; }
+        const same = (a, b) => !!a && !!b && a.format === b.format && a.version === b.version && JSON.stringify(a.data) === JSON.stringify(b.data);
+        out.same = { models: same(docs.models, docs.data), ws: same(docs.ws, docs.data), format: docs.models && docs.models.format,
+          holds: !!docs.models && JSON.stringify(docs.models.data.savedWork || []).includes('Block test property') };
+        /* Only the samples again. */
+        deletePropertyModel(rec.id);
+        out.gone.models = await visit('/property/models');
+        out.gone.ws = await visit('/my/workspace');
+        return out;
+      })()`);
+      const p = [];
+      for (const k of ['models', 'ws']) {
+        for (const [when, label] of [['fresh', 'with only the first visit\'s samples'], ['own', 'with a property of their own'], ['after', 'after exporting'], ['gone', 'with the property deleted again']]) {
+          const s = r[when][k]; if (!s) continue;
+          const at = `${s.path} ${label}`;
+          if (s.here !== s.path) p.push(`${at}: the address is ${s.here}`);
+          if (s.blocks !== 1) p.push(`${at}: ${s.blocks} blocks, not one`);
+          if (s.label !== 1) p.push(`${at}: "Saved in this browser" is said ${s.label} times, not once`);
+          if (s.say !== 1) p.push(`${at}: the recovery sentence is said ${s.say} times, not once`);
+          if (s.link !== '/my/data') p.push(`${at}: "Your data & settings" links to ${s.link}, not /my/data`);
+          if (s.old) p.push(`${at}: the strip or the "Back up everything" link it replaced is still there`);
+          if (s.beforeList === false) p.push(`${at}: the block is below the list, not above it`);
+          const wantBtn = when === 'own' || when === 'after' ? 1 : 0;
+          if (s.btns !== wantBtn) p.push(`${at}: ${s.btns} Export backup buttons, ${wantBtn} wanted`);
+          if (when === 'own' && s.state !== 'Never backed up') p.push(`${at}: the state reads "${s.state}", not "Never backed up"`);
+          if (when === 'after' && !/^Last backed up \d{1,2} \w{3} \d{4} — nothing changed since$/.test(s.state || '')) p.push(`${at}: the state reads "${s.state}", not "Last backed up <date> — nothing changed since"`);
+          if ((when === 'fresh' || when === 'gone') && s.state) p.push(`${at}: a backup state ("${s.state}") is claimed for samples`);
+        }
+      }
+      if (!r.saved) p.push('the test property was not saved');
+      if (r.click.path !== '/property/models') p.push(`Export backup navigated away, to ${r.click.path}`);
+      if (!r.click.kept) p.push('Export backup changed what was saved');
+      if (r.click.files !== 1 || !/^quantum-tradeworks-.*\.json$/.test(r.click.name || '')) p.push(`Export backup handed over ${r.click.files} files, named ${r.click.name}`);
+      if (!r.click.stamped) p.push('Export backup was not recorded as the last export');
+      if (r.clickWs.path !== '/my/workspace') p.push(`Export backup on Saved work navigated away, to ${r.clickWs.path}`);
+      if (!r.same.models || !r.same.ws) p.push(`the export is not the one "Export everything" makes on Your data: ${JSON.stringify(r.same)}`);
+      if (!r.same.holds) p.push('the exported file does not hold the saved property');
+      if (!r.restoreOnData) p.push('Your data & settings has no "Restore from a file" button for the sentence to name');
+      if (p.length) fail('saved-protect: My properties and Saved work carry one "Saved in this browser" block with Export backup and the way back', p);
+      else ok('saved-protect: My properties and Saved work each carry one "Saved in this browser" block above the list — the label, the recovery sentence and a link to Your data & settings once; with only samples no Export backup and no backup state; with a property of the reader\'s own "Never backed up" and Export backup, which hands over the same file as "Export everything", in place and clearing nothing, after which it reads "Last backed up … — nothing changed since"');
+    } catch (e) {
+      fail('saved-protect: the check could not run', e.message);
+    }
+  }
+  /* ---- end saved-protect ---- */
+
 
 } catch (e) {
   fail('harness error', e.message);

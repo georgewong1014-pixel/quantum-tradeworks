@@ -1684,6 +1684,15 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 
 /* ------------------------------------------------------------- workspace */
 .ws-limits .chip { font-size: var(--text-label); }
+/* Saved in this browser, and the export beside it (savedProtection; the
+   owner's quick-wins brief, fix 9, 30 Oct 2026): the state and the button on
+   one line, the recovery sentence under. Export backup is the ghost button;
+   on a phone it is lifted to 44px with the other .btn-sm. */
+.saved-protect-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sm) var(--md); }
+.saved-protect .chip { font-size: var(--text-label); }
+.saved-protect-state { color: var(--ink); font-weight: var(--weight-semibold); font-size: var(--text-sm); }
+.saved-protect-recovery { margin: var(--sm) 0 0; max-width: 72ch; }
+.saved-protect details.explain { margin-top: var(--sm); }
 .ws-filters .segmented { max-width: 100%; }
 .ws-search { flex: 1 1 220px; max-width: 320px; }
 .ws-list { list-style: none; margin: 0; padding: 0; }

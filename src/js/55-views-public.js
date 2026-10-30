@@ -1154,6 +1154,42 @@ function downloadEverything() {
   return true;
 }
 
+/* SAVED IN THIS BROWSER, WITH THE WAY TO KEEP IT (the owner's quick-wins
+   brief, fix 9, 30 Oct 2026). The one block above the saved list on My
+   properties and Saved work: where it is held, whether a file of it has left
+   this browser (backupHealth, the state backupLine reads), the export in
+   place — downloadEverything, the file "Restore from a file" on Your data &
+   settings takes back, and recorded as the last export — and how to get it
+   back. `own`: whether this page lists anything of the reader's own; with
+   none the block says only where saved work lives and how it is recovered,
+   and offers no export, so a sample is never claimed as theirs. `extra`:
+   nodes for the foot of the block; `cls`: the page's own class. */
+function savedProtection({ own = false, badge = null, extra = [], cls = '' } = {}) {
+  const h = own ? backupHealth() : null;
+  const state = !own ? null : !h.at ? 'never' : h.since ? 'behind' : 'current';
+  const items = (n) => `${n} item${n === 1 ? '' : 's'}`;
+  const said = !own ? null : !h.at ? 'Never backed up'
+    : `Last backed up ${backupDay(h.at)} — ${h.since ? `${items(h.since)} changed since` : 'nothing changed since'}`;
+  const card = el('div', { class: `card saved-protect ${cls}`.trim(), 'data-saved-protect': '', 'data-backup-state': state || 'none' });
+  card.append(el('div', { class: 'saved-protect-row' }, [
+    el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;flex:1 1 260px' }, [
+      badge, el('span', { class: 'chip' }, 'Saved in this browser'),
+      said ? el('strong', { class: 'saved-protect-state', 'data-saved-state': '' }, said) : null,
+    ]),
+    own ? el('button', { class: 'btn btn-ghost btn-sm', id: 'saved-export-backup', 'data-saved-export': '', onclick: () => {
+      if (!downloadEverything()) return;
+      toast('Exported — the file is in your downloads');
+      redrawKeepFocus();
+    } }, 'Export backup') : null,
+  ]));
+  card.append(el('p', { class: 'metaline saved-protect-recovery', 'data-saved-recovery': '' }, [
+    'If this browser is cleared or you change device, open ',
+    el('a', { href: href('/my/data'), onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/data'); } }, 'Your data & settings'),
+    ' and choose Restore from a file with your backup.']));
+  extra.forEach(n => n && card.append(n));
+  return card;
+}
+
 /* BEFORE ANYTHING IS CLEARED (the 10 Oct 2026 audit, #8): what will be
    removed, what is kept, that it cannot be undone without an export, and
    the export one press away — in a drawer, not a native confirm, because a
