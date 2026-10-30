@@ -3385,7 +3385,12 @@ try {
         scanAlertsFile = null; navigate('/app/scanner/alerts'); await w(150); out.noFile = /cannot be seen from here/.test(t()) && !/0 unread/.test(t());
         out.subnav = [...document.querySelectorAll('main nav a')].map(a => a.textContent).join('|');
         localStorage.removeItem('vl.scanSetups'); scanSetupsFile = null; navigate('/app/scanner/setups'); await w(150);
-        out.noSetups = /No setups saved in this browser/.test(t()) && /cannot be seen from here/.test(t());
+        /* The 30 Oct 2026 audit: with nothing saved the worker's file card is
+           in the closed Advanced details, so its "cannot be seen from here" is
+           in the page and not in its sight (innerText leaves out a closed
+           details' body): the empty state is what the reader sees. */
+        out.noSetups = /No setups saved in this browser/.test(t()) && !/cannot be seen from here/.test(t())
+          && /cannot be seen from here/.test(document.querySelector('main details#scan-advanced').textContent);
         scanHistoryFile = null; navigate('/app/scanner/setups/new'); await w(150);
         const test = [...document.querySelectorAll('main button')].find(b => /Test against your history/.test(b.textContent));
         out.noHistory = test?.disabled === true && /nothing to test against/.test(t());
@@ -7566,6 +7571,121 @@ try {
     try { if (await evaluate(`typeof realPending !== 'undefined' && !realPending && U.some(r => r.c.real)`)) break; } catch { /* booting */ }
   }
   /* ---- end bugfix5: shell ---- */
+
+  /* ---- scanner: first use ---- */
+  /* THE SCANNER'S FIRST USE, LESS TECHNICAL (the 30 Oct 2026 audit: "lead
+     with 'Create a setup' and explain the required price-history data; place
+     local-worker commands in an advanced section").
+     1. /app/scanner/setups with nothing saved: the empty state and its
+        "Create a setup" come before every technical card, which now sit in
+        ONE closed <details id="scan-advanced"> headed "Advanced"; "What this
+        will and will not do" stays last. With a setup saved, the list comes
+        first, the worker's file and its export follow it in sight, and the
+        TradingView card and "Evaluate now" are in Advanced.
+     2. Advanced is closed on arrival; it keeps its open state across a
+        redraw; an address naming something in it (#scan-bot, #scan-evaluate)
+        opens it first — and the TradingView card too for #scan-bot.
+     3. /app/scanner step 2 with no price history: tag "You supply it", state
+        "None supplied — this site ships no prices", no red Unavailable badge,
+        and a line naming what the worker reads. With a history loaded, the
+        step keeps its old text. */
+  scannerFirstUse: {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const main = () => document.querySelector('main');
+      const keep = { h: scanHistoryFile, a: scanAlertsFile, s: scanSetupsFile, store: localStorage.getItem('vl.scanSetups'),
+        bot: JSON.stringify(scanBotState), adv: JSON.stringify(scanAdvState), hash: location.hash };
+      const out = {};
+      try {
+        scanHistoryFile = null; scanAlertsFile = null; scanSetupsFile = null;
+        localStorage.removeItem('vl.scanSetups');
+        Object.assign(scanBotState, { open: false, symbols: null, tfs: ['1W', '1M'], signals: null, cooldownMode: 'NEW_MATCH', criterion3: 'ema', result: null });
+        scanAdvState.open = false; scanAdvLeft();
+        const order = () => {
+          const kids = [...(main().querySelector('.scan-page')?.children || [])];
+          const at = (sel) => kids.findIndex(k => k.matches(sel) || k.querySelector(sel));
+          const adv = main().querySelector('details#scan-advanced');
+          return { empty: at('.scan-empty'), list: at('.scan-setup-row'), exportAt: kids.findIndex(k => k.id === 'scan-export'), advAt: kids.findIndex(k => k.id === 'scan-advanced'),
+            boundary: kids.findIndex(k => k.classList.contains('scan-boundary')), n: kids.length,
+            advOpen: adv ? adv.open : null, advSum: (adv?.querySelector('summary')?.textContent || '').trim(),
+            inAdv: ['#scan-export', '#scan-bot', '#scan-evaluate'].map(s => !!adv?.querySelector(s)),
+            exportInAdv: !!adv?.querySelector('#scan-export'), exportVisible: !!main().querySelector('#scan-export') && !main().querySelector('#scan-export').closest('details:not([open])'),
+            create: [...main().querySelectorAll('a')].filter(a => a.textContent.trim() === 'Create a setup').length };
+        };
+        /* 1 — nothing saved. */
+        navigate('/app/scanner/setups'); await w(200);
+        out.none = order();
+        /* 2 — closed on arrival, kept across a redraw, an address opens it. */
+        const adv = () => main().querySelector('details#scan-advanced');
+        /* The reader's open and close, waited for as the page hears them (a toggle event). */
+        const flip = (open) => new Promise(res => { adv().addEventListener('toggle', res, { once: true }); adv().open = open; });
+        await flip(true); render(); await w(100);
+        out.keptOpen = adv().open;
+        await flip(false); render(); await w(100);
+        out.keptClosed = adv().open;
+        history.replaceState(history.state, '', location.pathname + '#scan-bot');
+        scanAdvLeft(); scanBotState.open = false; render(); await w(150);
+        out.byBot = { advOpen: adv().open, botOpen: main().querySelector('details#scan-bot')?.open, form: !!main().querySelector('details#scan-bot .scan-bot-body > *') };
+        await flip(false); render(); await w(100);
+        out.closedAgain = adv().open;
+        history.replaceState(history.state, '', location.pathname);
+        navigate('/learn'); await w(100);
+        scanAdvState.open = false; scanBotState.open = false;
+        navigate('/app/scanner/setups'); await w(200);
+        out.arrival = adv().open;
+        location.hash = '#scan-evaluate'; await w(250);
+        out.byEvaluate = { advOpen: adv()?.open, inside: !!adv()?.querySelector('#scan-evaluate') };
+        history.replaceState(history.state, '', location.pathname);
+        scanAdvState.open = false; scanBotState.open = false; scanAdvLeft();
+        /* 3 — one setup saved. */
+        const one = { id: 'qa-first-use', name: 'QA first use', version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D',
+          cooldownMode: 'EVERY_MATCH', cooldownBars: 0, ruleTree: { type: 'group', logic: 'ALL', children: [
+            { type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'sma', n: 5 } }] } };
+        scanSaveSetup(one);
+        navigate('/app/scanner/setups'); await w(200);
+        out.saved = order(); out.savedCount = scanBrowserSetups().length;
+        /* 4 — the dashboard's step 2. */
+        localStorage.removeItem('vl.scanSetups');
+        navigate('/app/scanner'); await w(250);
+        const step2 = () => main().querySelectorAll('ol.scan-steps > li.scan-step')[1];
+        const t = (n) => (n?.innerText || '').replace(/\\s+/g, ' ').trim();
+        out.step2 = { tag: t(step2()?.querySelector('.scan-step-tag')), state: t(step2()?.querySelector('.scan-step-v')), note: t(step2()?.querySelector('.metaline')),
+          badge: !!step2()?.querySelector('.status-badge'), whole: t(step2()) };
+        out.runSum = t(main().querySelector('details#scan-run > summary'));
+        out.runLink = t(main().querySelector('ol.scan-steps > li:nth-child(3) a'));
+        main().querySelector('ol.scan-steps > li:nth-child(3) a').click(); await w(150);
+        out.runOpened = main().querySelector('details#scan-run')?.open;
+        scanHistoryFile = { generated: '2026-09-25T22:00:00Z', series: { AAA: { '2026-09-24': 10, '2026-09-25': 11 } }, volume: {} };
+        navigate('/learn'); await w(60); navigate('/app/scanner'); await w(250);
+        out.step2Loaded = { tag: t(step2()?.querySelector('.scan-step-tag')), state: t(step2()?.querySelector('.scan-step-v')), notes: step2()?.querySelectorAll('.metaline').length };
+        return out;
+      } finally {
+        scanHistoryFile = keep.h; scanAlertsFile = keep.a; scanSetupsFile = keep.s;
+        if (keep.store == null) localStorage.removeItem('vl.scanSetups'); else localStorage.setItem('vl.scanSetups', keep.store);
+        Object.assign(scanBotState, JSON.parse(keep.bot)); Object.assign(scanAdvState, JSON.parse(keep.adv));
+        history.replaceState(history.state, '', location.pathname);
+        navigate('/learn');
+      }
+    })()`);
+    const pf = [];
+    const n0 = r.none || {};
+    if (!(n0.empty >= 0 && n0.exportAt === -1 && n0.advAt > n0.empty) || n0.create < 2) pf.push(`nothing saved: the empty state is at ${n0.empty}, Advanced at ${n0.advAt}, the export card outside Advanced at ${n0.exportAt}; ${n0.create} "Create a setup" links`);
+    if (n0.advOpen !== false || !/^Advanced/.test(n0.advSum) || JSON.stringify(n0.inAdv) !== '[true,true,true]') pf.push(`Advanced on arrival: open ${n0.advOpen}, headed "${n0.advSum}", holds export/TradingView/Evaluate ${JSON.stringify(n0.inAdv)}`);
+    if (!(n0.boundary === n0.n - 1 && n0.boundary > n0.advAt)) pf.push(`"What this will and will not do" is at ${n0.boundary} of ${n0.n}, not last after Advanced (${n0.advAt})`);
+    const s1 = r.saved || {};
+    if (r.savedCount !== 1 || !(s1.list >= 0 && s1.exportAt > s1.list && s1.advAt > s1.exportAt) || s1.exportInAdv || s1.advOpen !== false || JSON.stringify(s1.inAdv) !== '[false,true,true]') pf.push(`one setup saved: list ${s1.list}, export card ${s1.exportAt}, Advanced ${s1.advAt}; export in Advanced ${s1.exportInAdv}; Advanced open ${s1.advOpen}, holds ${JSON.stringify(s1.inAdv)}`);
+    if (r.keptOpen !== true || r.keptClosed !== false) pf.push(`Advanced after a redraw: opened → ${r.keptOpen}, closed → ${r.keptClosed}`);
+    if (!r.byBot || r.byBot.advOpen !== true || r.byBot.botOpen !== true || !r.byBot.form || r.closedAgain !== false) pf.push(`#scan-bot opened Advanced ${r.byBot?.advOpen}, the TradingView card ${r.byBot?.botOpen} (form ${r.byBot?.form}); closed by the reader and redrawn → ${r.closedAgain}`);
+    if (r.arrival !== false || !r.byEvaluate?.advOpen || !r.byEvaluate?.inside) pf.push(`arriving afresh: open ${r.arrival}; #scan-evaluate opened ${JSON.stringify(r.byEvaluate)}`);
+    const s2 = r.step2 || {};
+    if (s2.tag !== 'You supply it' || s2.state !== 'None supplied — this site ships no prices' || s2.badge || /Unavailable/i.test(s2.whole || '')) pf.push(`step 2 reads tag "${s2.tag}", state "${s2.state}", badge ${s2.badge}: "${s2.whole}"`);
+    if (!/^The worker reads your price history on your own computer: for each symbol, a close for each date \(YYYY-MM-DD\), and optionally open, high, low and volume/.test(s2.note || '')) pf.push(`step 2's note reads "${s2.note}"`);
+    if (!/^Advanced: run the worker on your computer/.test(r.runSum || '') || !/not available to download yet/.test(r.runSum || '') || r.runOpened !== true) pf.push(`"Run locally": summary "${r.runSum}", link "${r.runLink}" opened it ${r.runOpened}`);
+    if (r.step2Loaded?.tag !== 'Needed' || !/^1 series, newest bar 2026-09-25$/.test(r.step2Loaded?.state || '') || r.step2Loaded?.notes) pf.push(`step 2 with a history loaded: ${JSON.stringify(r.step2Loaded)}`);
+    if (pf.length) fail('scanner first use: the setups page leads with its setups or "Create a setup" and keeps the worker, the TradingView import and "Evaluate now" in one closed Advanced; step 2 explains the price history without an alarm', pf);
+    else ok('scanner first use: /app/scanner/setups leads with the empty state ("Create a setup") or the setups and their export, "What this will and will not do" last; the worker\'s file with nothing saved, the TradingView import and "Evaluate now" sit in one Advanced details that is closed on arrival, keeps its state across redraws and is opened by #scan-bot or #scan-evaluate; step 2 says "You supply it · None supplied — this site ships no prices" with a line on what the worker reads; "Advanced: run the worker on your computer" opens from step 3');
+  }
+  /* ---- end scanner: first use ---- */
 
   /* ---- bot: pages ---- */
   /* THE READER'S TRADINGVIEW BOT ON THE SCANNER PAGES (the bot contract,

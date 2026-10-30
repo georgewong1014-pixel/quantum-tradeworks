@@ -2846,7 +2846,7 @@ const JOURNEYS = [
           const prim = [...document.querySelectorAll('main .btn-primary')];
           const link = steps[2]?.querySelector('a');
           return { titles: steps.map(li => t(li.querySelector('strong'))), states: steps.map(li => t(li.querySelector('.scan-step-s'))),
-            badge2: t(steps[1]?.querySelector('.status-badge.status-unavailable')),
+            badge2: t(steps[1]?.querySelector('.status-badge')), tag2: t(steps[1]?.querySelector('.scan-step-tag')),
             prim: prim.map(t), primIn1: prim.length === 1 && !!steps[0]?.contains(prim[0]),
             detOpen: det ? det.open : null, detSum: t(det?.querySelector('summary')), detCmd: /node scanner\\/scan\\.mjs/.test(det?.textContent || ''),
             link: link ? link.getAttribute('href') : null, lede: t(document.querySelector('main .page-lede')) + ' ' + t(document.querySelector('main .page-note')),
@@ -2855,11 +2855,14 @@ const JOURNEYS = [
         const want = ['Create a rule setup', 'Price history', 'Run locally', 'Review recorded results'];
         if (JSON.stringify(got.titles) !== JSON.stringify(want)) throw new StepError(`the steps read ${JSON.stringify(got.titles)}, not ${want.join(' → ')}`);
         if (!/^None yet\b/.test(got.states[0])) throw new StepError(`step 1 reads “${got.states[0]}”, not “None yet” on a fresh browser`);
-        if (!/^unavailable$/i.test(got.badge2) || !/None supplied/.test(got.states[1]) || /\b0\b/.test(got.states[1])) throw new StepError(`step 2 reads “${got.states[1]}”, not Unavailable and “None supplied” — and never a 0`);
+        /* The 30 Oct 2026 audit: step 2 is "You supply it · None supplied —
+           this site ships no prices" with a line on what the worker reads,
+           and no red Unavailable badge (it was one). */
+        if (got.badge2 || got.tag2 !== 'You supply it' || !/None supplied — this site ships no prices/.test(got.states[1]) || /\b0\b/.test(got.states[1].replace('YYYY-MM-DD', ''))) throw new StepError(`step 2 reads “${got.states[1]}” (tag “${got.tag2}”, badge “${got.badge2}”), not “You supply it” and “None supplied — this site ships no prices” with no badge — and never a 0`);
         if (!/Not available to download yet/.test(got.states[2])) throw new StepError(`step 3 reads “${got.states[2]}”`);
         if (!/^No scan recorded\b/.test(got.states[3])) throw new StepError(`step 4 reads “${got.states[3]}”, not “No scan recorded”`);
         if (got.prim.length !== 1 || got.prim[0] !== 'Create a setup' || !got.primIn1) throw new StepError(`the page’s primary buttons are ${JSON.stringify(got.prim)}: not one, “Create a setup”, in step 1`);
-        if (got.detOpen !== false || got.detSum !== 'Run locally' || !got.detCmd) throw new StepError(`“Run locally” is ${JSON.stringify({ open: got.detOpen, summary: got.detSum, commands: got.detCmd })}: not a closed details holding the commands`);
+        if (got.detOpen !== false || got.detSum !== 'Advanced: run the worker on your computer — not available to download yet' || !got.detCmd) throw new StepError(`“Advanced: run the worker on your computer” is ${JSON.stringify({ open: got.detOpen, summary: got.detSum, commands: got.detCmd })}: not a closed details holding the commands`);
         if (got.link !== '#scan-run') throw new StepError(`step 3 links to ${got.link}, not #scan-run`);
         if (!/does not run scans or supply prices/.test(got.lede) || !/not available to download yet/.test(got.lede)) throw new StepError(`the lede reads “${got.lede.slice(0, 120)}”`);
         if (!got.before) throw new StepError('the four steps do not come before “Run locally” and the example');
