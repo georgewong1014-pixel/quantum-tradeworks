@@ -1905,10 +1905,11 @@ const HOME_PAGE = read(HOME);
      field, a slider or a choice), at most 228 of them in blocks of eight
      words or more;
    - before that control, in this order: the identity line, naming the
-     property or "Sample deal", then four tiles labelled Cash required,
-     Monthly position, Net yield and Next step, each with a kind tag;
+     property or "Sample deal", then four tiles labelled Purchase price,
+     Monthly position, Cash required and Net yield, each with a kind tag;
    - "They are not a property valuation or investment recommendation"
-     visible before it, and "Not an official property valuation" (the
+     visible before it (the tiles now Purchase price, Monthly position,
+     Cash required, Net yield: the 30 Oct 2026 audit), and "Not an official property valuation" (the
      registered valuer's line) whole inside the closed "Why this is not a
      valuation" (the Day-15 review, QT-D15-02, 28 Oct 2026: it was visible,
      in a longer paragraph); and the
@@ -2028,7 +2029,8 @@ const HOME_PAGE = read(HOME);
       said.identity = name;
       if (!/^(Sample deal|“[^”]+”)/.test(name)) p.push(`/property: the identity line names "${name.slice(0, 60)}", not the property or "Sample deal"`);
     }
-    const WANT = ['Cash required', 'Monthly position', 'Net yield', 'Next step'];
+    /* The 30 Oct 2026 audit's order; the Next step tile went (a4-lab-served). */
+    const WANT = ['Purchase price', 'Monthly position', 'Cash required', 'Net yield'];
     const tiles = L.tags.filter(t => attr(t.raw, 'data-tile') !== null && / lab-tile /.test(` ${attr(t.raw, 'class') || ''} `));
     const labels = tiles.map(t => L.textOf(L.tags.find(x => x.at > t.at && / lab-tile-label /.test(` ${attr(x.raw, 'class') || ''} `))?.at ?? -1));
     const kinds = tiles.map((t, i) => { const k = L.tags.find(x => x.at > t.at && (i + 1 >= tiles.length || x.at < tiles[i + 1].at) && attr(x.raw, 'data-kind') !== null); return k ? [attr(k.raw, 'data-kind'), L.textOf(k.at)] : null; });
@@ -3349,6 +3351,113 @@ const HOME_PAGE = read(HOME);
     'the Lab\'s phase 2 inputs, chain rows or export button are not served');
 }
 /* ---- end lab-phase2-served ---- */
+/* ---- a4-lab-served ---- */
+/* THE SCENARIO LAB, SIMPLIFIED, AS SERVED (the 30 Oct 2026 audit: "exposes the
+   five-stage process, financial summaries, scenario controls and detailed
+   assumptions together"; asked to prioritise the purchase price, the monthly
+   position, the cash required, the assumptions, then compare and save).
+   /property/lab, as a fetch reads it:
+   - four tiles, in that order — Purchase price (tagged Default, with
+     "Replace with your price" to the calculator's box), Monthly position,
+     Cash required, Net yield — and no "Next step" tile;
+   - one "What these figures rest on" block with one "Review the defaults"
+     link, and neither the alert bar ("… sample inputs need evidence") nor
+     the grade's "N gates; the most serious …" sentence;
+   - the four rows the answer stands on — Monthly position, Cash required,
+     Net yield, Monthly repayment — and the other four in one closed
+     "4 more figures", all eight still in the page;
+   - one sentence over the boxes and a "Default" tag on each of the nine, the
+     eight-times-said "Illustrative default — not yours …" gone;
+   - below the figures: Scenarios side by side, Columns, Keep B, then the
+     closed "Check the price against your evidence".
+   Fails on d8b209a37: tiles Cash required, Monthly position, Net yield, Next
+   step; the alert bar and the grade's long sentence; eight rows in sight; the
+   line under each box; the price's card above the comparison, open. */
+{
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const p = [], said = {};
+  const got = await getAll(['/property/lab']);
+  const r = got.get('/property/lab');
+  if (!r || r.status !== 200) p.push(`/property/lab: ${r ? described(r) : 'not fetched'}`);
+  else {
+    const tree = all(B.htmlTree(r.body));
+    const views = tree.find(n => attr(n, 'id') === 'views');
+    const inside = views ? all(views) : [];
+    const rawText = (n) => (n.kids || []).map(k => (k.tag === '#text' ? k.text : rawText(k))).join(' ').replace(/\s+/g, ' ').trim();
+    const at = (n) => inside.indexOf(n);
+    /* The tiles, in order. */
+    const tiles = inside.filter(n => attr(n, 'data-tile') !== null && B.hasClass(n, 'lab-tile'));
+    const labels = tiles.map(n => sight(all(n).find(x => B.hasClass(x, 'lab-tile-label')) || n).trim());
+    said.tiles = labels.join(' · ');
+    if (JSON.stringify(tiles.map(n => attr(n, 'data-tile'))) !== JSON.stringify(['price', 'cashflowMonthly', 'safeCashRequired', 'netYield'])) p.push(`/property/lab: its tiles are ${JSON.stringify(tiles.map(n => attr(n, 'data-tile')))}, not price, cashflowMonthly, safeCashRequired, netYield`);
+    if (JSON.stringify(labels) !== JSON.stringify(['Purchase price', 'Monthly position', 'Cash required', 'Net yield'])) p.push(`/property/lab: its tiles read ${JSON.stringify(labels)}, not Purchase price, Monthly position, Cash required, Net yield`);
+    if (inside.some(n => B.hasClass(n, 'lab-tile-next')) || /Next step/.test(views ? rawText(views) : '')) p.push('/property/lab: still serves a "Next step" tile');
+    const price = tiles[0];
+    if (price) {
+      const tag = all(price).find(n => attr(n, 'data-own') !== null);
+      const go = all(price).find(n => n.tag === 'a' && B.hasClass(n, 'lab-price-go'));
+      if (!tag || attr(tag, 'data-own') !== 'default' || rawText(tag) !== 'Default') p.push(`/property/lab: the price tile's tag reads "${tag ? rawText(tag) : 'nothing'}", not "Default"`);
+      if (!go || attr(go, 'href') !== '/property/calculator#d-price' || !/^Replace with your price/.test(sight(go).trim())) p.push('/property/lab: the price tile has no "Replace with your price" link to the calculator\'s price box');
+      if (!/^RM\s?572,000$/.test(sight(all(price).find(n => B.hasClass(n, 'ls-card-value')) || price).trim())) p.push('/property/lab: the price tile does not show the sample\'s RM572,000');
+    }
+    /* What the figures rest on, once. */
+    const rests = inside.filter(n => B.hasClass(n, 'pc-rests'));
+    const links = inside.filter(n => n.tag === 'a' && /^Review the defaults/.test(rawText(n)));
+    said.rests = rests.length;
+    if (rests.length !== 1) p.push(`/property/lab: ${rests.length} "What these figures rest on" blocks, not one`);
+    else {
+      const t = rawText(rests[0]);
+      if (!/^What these figures rest on 10 inputs are still the tool’s illustrative defaults, not yours: .*hold back the research grade\./.test(t)) p.push(`/property/lab: the rests block reads "${t.slice(0, 160)}"`);
+      if (!rests[0].kids || !all(rests[0]).some(n => n.tag === 'details' && /Why these are defaults/.test(rawText(n)) && attr(n, 'open') === null)) p.push('/property/lab: no closed "Why these are defaults" in the rests block');
+      if (inside.some(n => B.hasClass(n, 'lab-grade')) && at(rests[0]) < at(inside.find(n => B.hasClass(n, 'lab-grade')))) p.push('/property/lab: the rests block stands above the grade');
+    }
+    if (links.length !== 1 || links[0] && attr(links[0], 'href') !== '/property/calculator#d-price') p.push(`/property/lab: "Review the defaults" is served ${links.length} times${links[0] ? ` to ${attr(links[0], 'href')}` : ''}, not once to /property/calculator#d-price`);
+    const text = views ? rawText(views) : '';
+    if (inside.some(n => B.hasClass(n, 'lab-alert')) || /sample inputs? needs? evidence/.test(text)) p.push('/property/lab: still serves the alert bar "… sample inputs need evidence"');
+    if (/gates?; the most serious/.test(text)) p.push('/property/lab: the grade still says "N gates; the most serious: …"');
+    const grade = inside.find(n => B.hasClass(n, 'lab-grade'));
+    if (!grade || !/^Research grade\s*U\b/.test(rawText(grade))) p.push(`/property/lab: the grade card reads "${grade ? rawText(grade).slice(0, 60) : 'nothing'}", the letter is not in it`);
+    /* The rows. */
+    const rowKeys = (n) => all(n).filter(x => x.tag === 'details' && B.hasClass(x, 'lab-row')).map(x => attr(x, 'data-row'));
+    const chain = inside.find(n => B.hasClass(n, 'lab-chain'));
+    const more = inside.find(n => n.tag === 'details' && B.hasClass(n, 'lab-chain-more'));
+    const direct = chain ? (chain.kids || []).filter(x => x.tag === 'details' && B.hasClass(x, 'lab-row')).map(x => attr(x, 'data-row')) : [];
+    said.rows = direct.length;
+    if (JSON.stringify(direct) !== JSON.stringify(['cashflowMonthly', 'safeCashRequired', 'netYield', 'instalment'])) p.push(`/property/lab: the rows in sight are ${JSON.stringify(direct)}, not Monthly position, Cash required, Net yield, Monthly repayment`);
+    if (!more || attr(more, 'open') !== null) p.push('/property/lab: "4 more figures" is not served closed');
+    else {
+      const sum = all(more).find(x => x.tag === 'summary');
+      if (!sum || !/^4 more figures$/.test(rawText(sum))) p.push(`/property/lab: the fold's summary reads "${sum ? rawText(sum) : 'nothing'}", not "4 more figures"`);
+      if (JSON.stringify(rowKeys(more)) !== JSON.stringify(['monthlyCommitment', 'breakEvenOccupancy', 'valueLessLoanAtExit', 'irrPct'])) p.push(`/property/lab: the folded rows are ${JSON.stringify(rowKeys(more))}`);
+    }
+    /* The boxes: one sentence, a tag on each, the eight lines gone. */
+    const SENT = 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.';
+    if (text.split(SENT).length !== 2) p.push('/property/lab: the sentence over the boxes is not served exactly once');
+    if (/Illustrative default — not yours/.test(r.body)) p.push('/property/lab: still serves "Illustrative default — not yours, and not from any market"');
+    const knobs = inside.filter(n => B.hasClass(n, 'lab-knob'));
+    const untagged = knobs.filter(n => !all(n).some(x => x.tag === 'span' && /^lab-ev-/.test(attr(x, 'id') || '') && rawText(x) === 'Default')).map(n => attr(n, 'data-k'));
+    said.knobs = knobs.length - untagged.length;
+    if (knobs.length !== 9 || untagged.length) p.push(`/property/lab: ${knobs.length - untagged.length} of ${knobs.length} boxes carry a "Default" tag (without: ${untagged.join(', ')})`);
+    const noteAt = inside.findIndex(n => B.hasClass(n, 'lab-default-note')), knobAt = inside.findIndex(n => B.hasClass(n, 'lab-knob'));
+    if (noteAt < 0 || noteAt > knobAt) p.push('/property/lab: the sentence over the boxes does not come before the first box');
+    /* The order: compare, then save, then the price check. */
+    const head = (s) => inside.findIndex(n => ['h2', 'h3', 'summary', 'span'].includes(n.tag) && rawText(n).trim() === s);
+    const order = ['Scenarios side by side', 'Columns', 'Keep B', 'Check the price against your evidence'].map(head);
+    said.order = order.every(i => i >= 0) && order.every((i, k) => !k || i > order[k - 1]);
+    if (!said.order) p.push(`/property/lab: its sections do not run Scenarios side by side, Columns, Keep B, Check the price against your evidence (positions ${order.join(', ')})`);
+    const pe = inside.find(n => n.tag === 'details' && B.hasClass(n, 'lab-pe'));
+    if (!pe || attr(pe, 'open') !== null) p.push('/property/lab: "Check the price against your evidence" is not a closed <details>');
+    else if (!/Enter them in the calculator|Needs the asking price/.test(rawText(pe)) || !/Set a target/.test(rawText(pe))) p.push('/property/lab: the price check\'s contents are not in the page, closed');
+    if (head('The price, against your evidence') >= 0) p.push('/property/lab: still serves "The price, against your evidence" as a heading');
+    const claim = inside.find(n => n.tag === 'details' && /Why this is not a valuation/.test(rawText(all(n).find(x => x.tag === 'summary') || n)));
+    if (!claim || attr(claim, 'open') !== null || !/registered valuer/.test(rawText(claim))) p.push('/property/lab: "Why this is not a valuation" is not served closed with the registered valuer\'s line');
+    if (!inside.some(n => n.tag === 'span' && /Not a valuation/.test(rawText(n)) && B.hasClass(n, 'chip')) && !/Not a valuation/.test(text)) p.push('/property/lab: no "Not a valuation" chip');
+  }
+  judge(p, `the Scenario Lab, simplified, as served: tiles ${said.tiles}; one "What these figures rest on" (${said.rests}) with one "Review the defaults" link, no alert bar or gate sentence; ${said.rows} rows in sight and four more in a closed fold; one sentence over ${said.knobs} tagged boxes; Scenarios, Columns, Keep B, then the closed price check`,
+    'the Scenario Lab is not served simplified (the 30 Oct 2026 audit)');
+}
+/* ---- end a4-lab-served ---- */
 /* ---- d11-renames-served ---- */
 /* THE RENAMES, AS SERVED (plan item 6.1(a); the owner's 16 Oct 2026
    decision, D11 "(a) renames only"). Reports no longer read as the

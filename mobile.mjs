@@ -2347,8 +2347,11 @@ for (const w of [360, 390]) {
      - at 360, 390 and 430 every control the reader can reach in the panel
        is a 44px target both ways (a radio's whole label is its target);
      - at 360×640, the panel's inputs at the top of the screen, the slider
-       being moved and all eight results sit on that one screen, below the
-       topbar, with one knob drawn; at 1024 and 1440 all five;
+       being moved and the results in sight sit on that one screen, below the
+       topbar, with one knob drawn — since the 30 Oct 2026 audit four of the
+       eight (Monthly position, Cash required, Net yield, Monthly repayment)
+       and "4 more figures", a 44px line, the other four being folded under it
+       and all eight in the page; at 1024 and 1440 all five;
      - at 360, under each of the six comparisons, nothing scrolls sideways;
      - in light and in dark, every bar's fill is 3:1 against its track and
        its card, every figure 4.5:1 against its card, a column's letter
@@ -2405,14 +2408,17 @@ for (const w of [360, 390]) {
         const knobs = [...document.querySelectorAll('.lab-knob')].filter(n => n.getClientRects().length);
         const range = document.querySelector('.lab-knob.is-on .lab-range');
         const rb = range ? range.getBoundingClientRect() : null;
-        const vals = [...document.querySelectorAll('.lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => ({ k: n.dataset.lab, b: n.getBoundingClientRect() }));
-        return { knobs: knobs.length, under: Math.round(under), range: rb && [Math.round(rb.top), Math.round(rb.bottom)], vals: vals.map(x => [x.k, Math.round(x.b.top), Math.round(x.b.bottom)]), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })() };
+        /* The 30 Oct 2026 audit: four of the eight stand, four are in the closed "4 more figures", whose summary stands under them. */
+        const vals = [...document.querySelectorAll('.lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => ({ k: n.dataset.lab, b: n.getBoundingClientRect(), seen: n.checkVisibility() }));
+        const fold = document.getElementById('lab-chain-more-btn'), fb = fold ? fold.getBoundingClientRect() : null;
+        return { knobs: knobs.length, under: Math.round(under), range: rb && [Math.round(rb.top), Math.round(rb.bottom)], fold: fb && [Math.round(fb.top), Math.round(fb.bottom), Math.round(fb.height)], seen: vals.filter(x => x.seen).map(x => x.k).join(), vals: vals.filter(x => x.seen).map(x => [x.k, Math.round(x.b.top), Math.round(x.b.bottom)]), all: vals.length, vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })() };
       })()`);
       said.oneScreen = r;
       if (r.knobs !== 1) fails.push(`360×640: ${r.knobs} knobs drawn, not one`);
       if (!r.range || r.range[0] < r.under || r.range[1] > r.vh) fails.push(`360×640: the slider sits at ${JSON.stringify(r.range)}, the screen below the topbar is ${r.under}–${r.vh}`);
-      if (r.vals.length !== 8) fails.push(`360×640: ${r.vals.length} results, not eight`);
+      if (r.all !== 8 || r.seen !== 'cashflowMonthly,safeCashRequired,netYield,instalment') fails.push(`360×640: ${r.all} results in the page and ${r.seen || 'none'} in sight, not eight with Monthly position, Cash required, Net yield and Monthly repayment standing`);
       r.vals.filter(([, t, b]) => t < r.under || b > r.vh).forEach(([k, t, b]) => fails.push(`360×640: ${k} sits at ${t}–${b}, off the screen`));
+      if (!r.fold || r.fold[0] < r.under || r.fold[1] > r.vh || r.fold[2] < 43.5) fails.push(`360×640: "4 more figures" sits at ${JSON.stringify(r.fold)}, not a whole 44px line on the screen`);
     }
     /* No sideways scroll at 360 under any comparison. */
     for (const id of ['yield', 'cashflow', 'entry', 'appreciation', 'risk', 'location']) {
@@ -2571,7 +2577,7 @@ for (const w of [360, 390]) {
         await ${frames};
         const at = () => {
           const range = document.getElementById('lab-r-${k}').getBoundingClientRect();
-          const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
+          const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade' && n.checkVisibility()).map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
           return { range: [Math.round(range.top), Math.round(range.bottom)], vals };
         };
         const before = at();
@@ -2915,7 +2921,7 @@ for (const w of [360, 390]) {
         await frames();
         const warn = document.querySelector('#lab-knob-ratePct .lab-note-warn');
         const w = warn && warn.getClientRects().length ? warn.getBoundingClientRect() : null;
-        const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
+        const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade' && n.checkVisibility()).map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
         return { under: Math.round(under), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), rate: nb.value, warn: w ? [Math.round(w.top), Math.round(w.bottom), warn.textContent] : null, vals };
       })()`);
       said.lab.push([font ? 'Verdana' : 'page font', Math.max(...r.vals.map(v => v[2]))]);
@@ -2966,11 +2972,16 @@ for (const w of [360, 390]) {
    Property's landing opens the Scenario Lab on the calculator's deal, and a
    first visit sees, without scrolling, at 1440×900 and at 390×844, in the
    page's font and in Verdana (CI's Linux sans is as wide): the identity line,
-   the four tiles — Cash required, Monthly position, Net yield, Next step —
-   and the first slider, each whole inside the window. /property served the
+   the four tiles — Purchase price, Monthly position, Cash required, Net yield
+   (the 30 Oct 2026 audit’s order; the Next step tile went, its link is in
+   "What these figures rest on") — and the first slider, each whole inside the
+   window. /property served the
    calculator, whose first field sat about 2,400px down at 1440 and 3,650px
    at 390. On a phone the identity line's Save and the next step are 44px
-   targets, and nothing scrolls sideways.
+   targets, and nothing scrolls sideways (the price’s "Replace with your price"
+   being the one that was the next step’s). The sentence over the boxes, "Fields
+   marked Default…", follows the slider on a phone so the slider stays on this
+   screen.
    ON THE LAYOUT SYSTEM (7 Oct 2026): on a phone Save is the sticky action
    bar's (Analyse · Compare · Save this), and "the first screen" ends where
    the bar begins — the slider must be whole above it, not under it. The
@@ -3027,7 +3038,7 @@ for (const w of [360, 390]) {
           change: box(document.getElementById('lab-q-change')), folded: document.getElementById('lab-q-change')?.getAttribute('aria-expanded') === 'false',
           tiles: [...document.querySelectorAll('#views .lab-tile')].map(n => ({ label: n.querySelector('.lab-tile-label')?.textContent.trim(), at: box(n) })),
           slider: box(range), sliderOf: range?.id || null,
-          save: box(document.getElementById(innerWidth < 640 ? 'ls-act-save' : 'lab-id-save')), next: box(document.querySelector('#views .lab-tile-next')),
+          save: box(document.getElementById(innerWidth < 640 ? 'ls-act-save' : 'lab-id-save')), next: box(document.querySelector('#views .lab-tile-price .lab-price-go')),
           face: getComputedStyle(document.querySelector('#views .lab-tile-val') || document.body).fontFamily };
       })()`);
       const whole = (b) => !!b && b.t >= 0 && b.b <= r.vh && b.l >= 0 && b.r <= r.vw;
@@ -3043,7 +3054,7 @@ for (const w of [360, 390]) {
       if (r.assume && r.tiles[0]?.at && r.assume.b > r.tiles[0].at.t) fails.push(`${at}: the sample's line under its name stands below the figures`);
       if (!r.described) fails.push(`${at}: the identity section is not named "Sample deal" and described by the line under it (aria-labelledby, aria-describedby)`);
       const labels = r.tiles.map(t => t.label);
-      if (JSON.stringify(labels) !== JSON.stringify(['Cash required', 'Monthly position', 'Net yield', 'Next step'])) fails.push(`${at}: the tiles are ${JSON.stringify(labels)}`);
+      if (JSON.stringify(labels) !== JSON.stringify(['Purchase price', 'Monthly position', 'Cash required', 'Net yield'])) fails.push(`${at}: the tiles are ${JSON.stringify(labels)}`);
       r.tiles.forEach(t => { if (!whole(t.at)) fails.push(`${at}: the "${t.label}" tile ${t.at ? `(${t.at.t}–${t.at.b}px)` : ''} is not whole in the first ${r.vh}px`); });
       if (w >= 600) {
         r.questions.forEach((q, i) => { if (!whole(q)) fails.push(`${at}: "${['What are you buying?', 'How are you buying?'][i]}" ${q ? `(${q.t}–${q.b}px)` : '(none)'} is not whole in the first ${r.vh}px`); });
@@ -3058,7 +3069,7 @@ for (const w of [360, 390]) {
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
       if (w < 600) {
         if (!r.save || r.save.h < 43.5 || r.save.w < 43.5) fails.push(`${at}: Save (the action bar's, on a phone) is ${r.save ? `${r.save.w}×${r.save.h}px` : 'not there'}, not a 44px target`);
-        if (!r.next || r.next.h < 43.5) fails.push(`${at}: the next step is ${r.next ? `${r.next.w}×${r.next.h}px` : 'not there'}, not a 44px target`);
+        if (!r.next || r.next.h < 43.5) fails.push(`${at}: the price’s "Replace with your price" is ${r.next ? `${r.next.w}×${r.next.h}px` : 'not there'}, not a 44px target`);
       }
       said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b} (the sample's line ${r.assume?.t}–${r.assume?.b}), ${w >= 600 ? `questions to ${r.questions[1]?.b}` : `summary ${r.summary?.t}–${r.summary?.b}`}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
     }
@@ -3067,7 +3078,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL n3-first-view — /property's first screen (N3, D18): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, the two questions (at 1440 whole; on a phone their 44px summary line, folded), its four tiles and its first slider whole on the first screen — ${said.join('; ')}; on a phone Save and the next step are 44px targets and nothing scrolls sideways`);
+  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, the two questions (at 1440 whole; on a phone their 44px summary line, folded), its four tiles and its first slider whole on the first screen — ${said.join('; ')}; on a phone Save and the price’s Replace link are 44px targets and nothing scrolls sideways`);
 }
 /* ---- end n3-first-view ---- */
 /* ---- layout-system ---- */
@@ -4273,16 +4284,17 @@ for (const w of [360, 390]) {
       /* Two figures lead on a phone. */
       const t = r.tiles;
       if (w < 640) {
-        const [a, b, ...rest] = t;
-        if (!a || !b || a.level !== '1' || b.level !== '1') fails.push(`${at}: the first two tiles are ${JSON.stringify(t.slice(0, 2).map(x => `${x.label} (L${x.level})`))}, not the decision's two (L1)`);
+        /* The 30 Oct 2026 audit's order: the purchase price (context, a compact row) first, then the decision's two side by side, then the yield. */
+        const [a, b] = t.filter(x => x.level === '1'), rest = t.filter(x => x.level !== '1');
+        if (!a || !b || t.filter(x => x.level === '1').length !== 2) fails.push(`${at}: the tiles are ${JSON.stringify(t.map(x => `${x.label} (L${x.level})`))}, not the decision's two (L1) with the others of context`);
         else {
           if (Math.abs(a.at.t - b.at.t) > 1) fails.push(`${at}: the two lead tiles are not side by side (${a.at.t}px and ${b.at.t}px)`);
           for (const x of rest) {
-            if (!x.at || x.at.t < Math.max(a.at.b, b.at.b) - 1) fails.push(`${at}: "${x.label}" does not stand under the two lead figures`);
+            if (!x.at || (x.label === 'Purchase price' ? x.at.b > Math.min(a.at.t, b.at.t) + 1 : x.at.t < Math.max(a.at.b, b.at.b) - 1)) fails.push(`${at}: "${x.label}" does not stand ${x.label === 'Purchase price' ? 'above' : 'under'} the two lead figures`);
             if (x.at && x.at.h > 0.8 * Math.min(a.at.h, b.at.h)) fails.push(`${at}: "${x.label}" is ${x.at.h}px tall, not a compact row under the lead tiles (${Math.min(a.at.h, b.at.h)}px; at most 80% of it)`);
             if (x.level === '2' && !(x.value <= 0.75 * a.value)) fails.push(`${at}: "${x.label}"'s figure is ${x.value}px, not a step under the lead figures' ${a.value}px (at most 75% of it)`);
           }
-          if (JSON.stringify([a.label, b.label]) !== JSON.stringify(['Cash required', 'Monthly position'])) fails.push(`${at}: the lead tiles are ${a.label} and ${b.label}, not Cash required and Monthly position`);
+          if (JSON.stringify(t.map(x => x.label)) !== JSON.stringify(['Purchase price', 'Monthly position', 'Cash required', 'Net yield'])) fails.push(`${at}: the tiles are ${JSON.stringify(t.map(x => x.label))}, not Purchase price, Monthly position, Cash required, Net yield`);
         }
         if (w === 390 && (!r.slider || r.slider.t < 0 || r.slider.b > r.barTop)) fails.push(`${at}: the first slider ${r.slider ? `(${r.slider.t}–${r.slider.b}px)` : '(none in sight)'} is not whole above the action bar (from ${r.barTop}px)`);
       }
@@ -4300,7 +4312,8 @@ for (const w of [360, 390]) {
       /* The disclosures in sight, nothing opened. */
       const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.beta, 'Beta', 'the Beta badge beside the title'], [r.page, 'Not a valuation', 'the chip'],
         [r.page, 'They are not a property valuation or investment recommendation', 'the claim'],
-        [r.page, 'on estimated lines', 'the cash required\'s estimated lines'], [r.firstKnob, 'Illustrative default', 'the first knob\'s evidence tag']];
+        [r.page, 'on estimated lines', 'the cash required\'s estimated lines'], [r.firstKnob, 'Default', 'the first knob\'s Default tag'],
+        [r.page, 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.', 'the one sentence over the boxes']];
       for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
       /* The registered valuer's line, whole and one tap away (QT-D15-02). */
       if (!r.claimMore || r.claimMore.tag !== 'DETAILS' || r.claimMore.open || r.claimMore.sum !== 'Why this is not a valuation' || !r.claimMore.text.includes('Not an official property valuation') || !r.claimMore.text.includes('registered valuer')) fails.push(`${at}: "Why this is not a valuation" is ${JSON.stringify(r.claimMore)}, not a closed <details> holding the registered valuer's line`);
@@ -4335,7 +4348,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL lab-words — the Scenario Lab's words before its figures (the 9 Oct audit, #5): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, the sample's assumptions line word for word (not counted), the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
+  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 138/485 at 390); on a phone Monthly position and Cash required lead, side by side, the purchase price a compact row above them and the yield one under them, each with its tag or badge, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, the sample's assumptions line word for word (not counted), the one sentence over the boxes and each box's Default tag, and the unverified lines, in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
 }
 /* ---- end lab-words ---- */
 /* ---- lab-row-kinds ---- */

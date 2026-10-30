@@ -2196,7 +2196,7 @@ function labChain(P, lab, col) {
   card.append(grade);
   P.els.grade = { letter, verdict, gate, seeWhy };
   /* What the figures rest on, once, under the grade (labRests). */
-  const rests = P.compact ? null : labRests(P, lab, col);
+  const rests = P.compact ? null : labRests(P, lab);
   if (rests) card.append(rests);
   return card;
 }
@@ -2308,11 +2308,12 @@ function labShowFormula(P, key) {
    "Next step" tile was: the first figure still the tool's, entered where
    figures become the reader's — the calculator, at its box — and only for
    the calculator's own deal, as the next step was: another deal is not the
-   one there. Counted on the column's own figures, which a move does not
-   change (a move marks nothing as the reader's), so it is drawn with the
-   panel, not at a tick. */
-function labRests(P, lab, col) {
-  const d = col.work;
+   one there. Counted on the subject’s own figures — the deal on the
+   calculator, or a saved property as saved — as the next step and the bar
+   were, never a column’s what-ifs: a move marks nothing as the reader’s, so
+   it is drawn with the panel, not at a tick. */
+function labRests(P, lab) {
+  const d = labSubjectInputs(lab);
   const q = d ? propertyReviewQueue(d) : [];
   const go = q.length && labOnCalc(lab) ? { path: `/property/calculator#d-${q[0].k}`, id: labId(P, 'review') } : null;
   return (d && pcQuickRests(d, q, { go, id: labId(P, 'rests-box') })) || null;
