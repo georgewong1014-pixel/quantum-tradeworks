@@ -2997,8 +2997,24 @@ function pcTypePause(n) {
   pcTypeTimer = setTimeout(() => { pcTypeTimer = 0; document.getElementById(id)?.pcCommit?.(true); }, PC_TYPE_PAUSE);
 }
 
-/* One box of the deal, as the full model and the Quick model both draw it. */
-function pcDealField(d, k) {
+/* WHOSE A BOX'S FIGURE IS (Quick model only; B3, fix 8, 30 Oct 2026): 'default'
+   while it is the tool's own illustrative figure, 'yours' once the reader
+   has changed it (or the deal was started blank or saved with its own
+   figures), null where the class does not use the figure. A review-queue
+   figure is judged by inputIsSeeded, the calculator's own test; the others
+   (the fee, the renovation, the other running costs) by isTouched, as the
+   Scenario Lab's "Refine" count does. */
+function pcFieldOwn(d, k) {
+  if (PROPERTY_REVIEW.some(f => f.k === k)) {
+    if (!propertyInputApplies(d, k)) return null;
+    return inputIsSeeded(d, k) ? 'default' : 'yours';
+  }
+  return d?.userStarted || isTouched(d, k) ? 'yours' : 'default';
+}
+/* One box of the deal, as the full model and the Quick model both draw it.
+   `quick`: the Quick model's — no per-box sentence, a small "Default" or
+   "Yours" tag instead, part of the box's description. */
+function pcDealField(d, k, { quick = false } = {}) {
   const [, defLabel, step] = PC_FIELD_DEF[k];
   /* The loan's deposit is the down payment on the auction route, beside the
      Proclamation's own "Deposit (%)" (auction-9). */
@@ -3058,8 +3074,11 @@ function pcDealField(d, k) {
     d[k] = v;
     markTouched(d, k); saveDeal(); renderAfterTyping();
   };
+  const own = quick ? pcFieldOwn(d, k) : null;
+  const describedBy = [linesOn ? 'pc-cl-renovation-sum' : null, own ? `d-${k}-own` : null].filter(Boolean).join(' ') || null;
+  if (own) f.classList.add('has-own');
   const box = el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
-    value: d[k] ?? 0, style: 'text-align:right', readonly: linesOn ? '' : null, 'aria-describedby': linesOn ? 'pc-cl-renovation-sum' : null,
+    value: d[k] ?? 0, style: 'text-align:right', readonly: linesOn ? '' : null, 'aria-describedby': describedBy,
     ...(k === 'holdYears' ? { min: 1, max: HOLD_YEARS_MAX } : {}),
     onchange: e => commit(e.target, false),
     oninput: e => { if (!linesOn) pcTypePause(e.target); },
@@ -3072,7 +3091,12 @@ function pcDealField(d, k) {
      a figure this class has: a parcel's rent is used by nothing. All ten
      seeded figures, not the four evidence drivers only (inputIsSeeded,
      70-property.js). */
-  if (inputIsSeeded(d, k))
+  if (quick) {
+    /* Fields marked Default hold the tool's illustrative figures (said once,
+       at the top of the inputs); the tag says it beside the box, in words as
+       well as colour, and is the box's description. */
+    if (own) f.append(el('span', { class: `lab-tag pc-own${own === 'default' ? ' is-default' : ''}`, id: `d-${k}-own`, 'data-own': own }, own === 'default' ? 'Default' : 'Yours'));
+  } else if (inputIsSeeded(d, k))
     f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
       'Illustrative default — not yours, and not from any market'));
   /* The exit's legal costs have a floor the percentage does not say. */
@@ -3207,7 +3231,15 @@ function pcReviewCard(d, queue, { sub }) {
     el('span', { class: 'ls-cta ls-card-cta' }, [`Review ${n} sample input${s}`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]),
   ]);
   det.append(sum);
-
+  det.append(...pcReviewRows(d, queue));
+  q.append(det);
+  return q;
+}
+/* The list under the review's summary — each figure still the sample's, its
+   value, what it moves and "Go to it" — and the line on how one leaves the
+   list. The full model's alert card and the Quick model's "What these
+   figures rest on" both open it. */
+function pcReviewRows(d, queue) {
   const list = el('div', { style: 'margin-top:var(--md);display:flex;flex-direction:column;gap:2px' });
   queue.forEach(f => {
     const row = el('div', { class: 'row row-wrap',
@@ -3221,12 +3253,9 @@ function pcReviewCard(d, queue, { sub }) {
       onclick: () => pcGoToField(`d-${f.k}`) }, 'Go to it'));
     list.append(row);
   });
-  det.append(list);
-  det.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+  return [list, el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'A figure leaves this list when you change it, or when you grade it under Evidence quality. '
-    + 'Typing the same number yourself still counts — that is a decision about it.'));
-  q.append(det);
-  return q;
+    + 'Typing the same number yourself still counts — that is a decision about it.')];
 }
 /* To a box, the keyboard in it: its section chosen first (on a phone one
    section shows, #6), or the drawer it is in opened — and, from the Quick
@@ -3236,6 +3265,9 @@ function pcGoToField(id) {
   if (!input && !pcViewIsFull()) { pcSwitchView(true); input = document.getElementById(id); }
   if (!input) return;
   pcShowFor(input);
+  /* A box in the Quick model's "Refine the assumptions" opens it first. */
+  const refine = input.closest('details.pc-refine');
+  if (refine && !refine.open) { refine.open = true; pcQuickRefineOpen = true; }
   input.closest('.assumption')?.scrollIntoView({ block: 'center' });
   input.focus(); input.select?.();
 }
@@ -3297,12 +3329,37 @@ function pcArrivalView() {
    had the box and not the tick, changed no figure and nothing said so. The
    full model's own tick sits under the fee box here: the fee's state is in
    sight and can be changed where the fee is typed. */
-const PC_QUICK_GROUPS = [
-  ['Purchase and loan', ['price', 'downPct', 'ratePct', 'tenureYears']],
-  ['Rent and running costs', ['rent', 'vacancyPct', 'maintenance', 'mgmtPct', 'selfManaged']],
-];
+/* THE ESSENTIALS STAND FIRST, THE REST IN "Refine the assumptions" (B3, fix
+   7 of the owner's quick wins, 30 Oct 2026 — the Scenario Lab's pattern,
+   Day 15, LAB_MORE_KEYS): the price, the deposit, the rate and the rent are
+   what the cash required and the monthly position are asked from; the loan's
+   tenure, the running costs and the renovation sit in one closed group
+   under them, named in three parts, and its summary says how many of them
+   are the reader's own — so nothing is hidden silently. */
+const PC_QUICK_ESSENTIAL = ['price', 'downPct', 'ratePct', 'rent'];
 const PC_QUICK_OTHER = ['sinkingFund', 'assessment', 'quitRent', 'insurance', 'repairReservePct'];
-const PC_QUICK_KEYS = new Set([...PC_QUICK_GROUPS.flatMap(([, ks]) => ks), ...PC_QUICK_OTHER, 'renovation']);
+const PC_QUICK_GROUPS = [
+  ['Loan', ['tenureYears']],
+  ['Running costs', ['vacancyPct', 'maintenance', 'mgmtPct', 'selfManaged', 'other']],
+  ['Renovation', ['renovation']],
+];
+const PC_QUICK_KEYS = new Set([...PC_QUICK_ESSENTIAL, ...PC_QUICK_GROUPS.flatMap(([, ks]) => ks).filter(k => k !== 'other'), ...PC_QUICK_OTHER]);
+/* What the group's summary counts: six inputs (the fee and who manages are
+   one, the five other running costs are one), each the reader's own once
+   touched — or all of them, on a deal started blank or saved with its own
+   figures (the Lab's labRefineCount, on the calculator's own test). */
+const PC_REFINE_UNITS = [['tenureYears'], ['vacancyPct'], ['maintenance'], ['mgmtPct', 'selfManaged'], PC_QUICK_OTHER, ['renovation']];
+function pcRefineCount(d) {
+  const own = PC_REFINE_UNITS.filter(ks => !!d.userStarted || ks.some(k => isTouched(d, k))).length;
+  const total = PC_REFINE_UNITS.length;
+  return { own, total, words: own ? `${own} of ${total} changed` : 'all illustrative defaults' };
+}
+/* Whether the group stands open, across a redraw: true or false once the
+   reader has chosen (the summary's press, "Go to it", an address that names
+   one of its boxes), nothing before — until then it follows the figures and
+   opens by itself when any of its inputs is the reader's own. In memory, as
+   the other running costs'. */
+let pcQuickRefineOpen = null;
 /* Whether the other running costs stand open, across a redraw — every box
    in it redraws the page. In memory, as the page's other drawers. */
 let pcQuickOtherOpen = false;
@@ -3315,6 +3372,43 @@ function pcQuickCard(key, level, label, value, sub, badge, tone = null) {
     statTile(label, value, { sub, tone }));
   card.append(badge);
   return card;
+}
+/* "WHAT THESE FIGURES REST ON" (B3, fix 8, 30 Oct 2026): the Quick model's
+   one statement of which inputs are still the tool's, in place of three — a
+   "Blocking" chip ("4 of the 10 sample inputs…"), an "Illustrative defaults"
+   box (four named, "Replace them…") and a review bar under the card ("10
+   sample inputs need your evidence") — that gave two counts and said it
+   thrice. One count, the review queue's (the dock's, the list's and the
+   rows'), names every one; the second clause, with its own count and the
+   word "of" the first, says which of them hold back the research grade (the
+   gate's drivers: price, rent, maintenance, built-up area). The list of
+   them, with "Go to it" on each, opens in place under "Review the defaults";
+   "Why these are defaults" stays folded. The address #review lands on it.
+   Null when nothing is left to review. */
+const PC_DRIVER_SAY = { price: 'price', rent: 'rent', maintenance: 'maintenance', sqft: 'built-up area' };
+function pcQuickRests(d, queue) {
+  const drivers = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
+  const keys = [...new Set([...queue.map(f => f.k), ...drivers])];
+  if (!keys.length) return null;
+  const n = keys.length, s = n === 1 ? '' : 's';
+  const say = (k) => (PROPERTY_REVIEW.find(f => f.k === k)?.label || k).toLowerCase();
+  const box = el('div', { class: 'pc-rests', id: 'review', 'aria-labelledby': 'pc-rests-h' });
+  box.append(el('h3', { class: 'pc-rests-h', id: 'pc-rests-h' }, 'What these figures rest on'));
+  const lead = el('p', { class: 'pc-rests-text', id: 'pc-rests-text' }, [
+    el('strong', { 'data-n': String(n) }, `${n} input${s}`), ` ${n === 1 ? 'is' : 'are'} still the tool’s illustrative default${s}, not yours: ${feeList(keys.map(say))}.`]);
+  if (drivers.length) lead.append(' ', drivers.length === n
+    ? `${n === 1 ? 'It holds' : 'All hold'} back the research grade.`
+    : `${drivers.length} of the ${n} — ${feeList(drivers.map(k => PC_DRIVER_SAY[k] || k))} — hold${drivers.length === 1 ? 's' : ''} back the research grade.`);
+  box.append(lead);
+  const det = el('details', { class: 'pc-rests-list', id: 'pc-review-list' });
+  det.append(el('summary', { class: 'pc-rests-sum' }, [`Review the defaults`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]));
+  det.append(...pcReviewRows(d, queue));
+  box.append(det);
+  box.append(el('details', { class: 'explain' }, [el('summary', {}, 'Why these are defaults'),
+    el('p', { class: 'metaline' }, `Nobody chose ${n === 1 ? 'it' : 'them'} for this property and no market was consulted. The sample deal is not a real listing.`)]));
+  if (d.city !== 'kuching') box.append(el('p', { class: 'metaline' },
+    `These defaults were written around a Kuching condominium. They are not a starting point for ${(SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || 'this location'}, and this tool holds no transacted price or rent for it.`));
+  return box;
 }
 function pcQuickView(d, m, g, DK) {
   const sec = el('section', { class: 'pc-quick', id: 'pc-quick', 'aria-label': 'Quick model' });
@@ -3331,10 +3425,11 @@ function pcQuickView(d, m, g, DK) {
       toast(store.read('dealBeforeLink', null) ? 'Your previous deal is restored — the one it replaced is kept aside; restore again to swap back' : 'Your previous deal is restored');
       render(); focusAfterRedraw('#pc-q-restore', '#d-price');
     } }, 'Restore my previous deal')));
-  PC_QUICK_GROUPS.forEach(([heading, keys], i) => {
-    inputs.append(el('p', { class: 'eyebrow', style: i ? 'margin:var(--md) 0 8px' : 'margin:var(--sm) 0 8px' }, heading));
-    keys.forEach(k => inputs.append(pcDealField(d, k)));
-  });
+  /* Said once, here, instead of under every box (fix 8): the tag beside a
+     box says whose its figure is. */
+  if ([...PC_QUICK_KEYS].some(k => pcFieldOwn(d, k) === 'default'))
+    inputs.append(el('p', { class: 'metaline pc-q-default-note', id: 'pc-q-default-note' }, 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.'));
+  PC_QUICK_ESSENTIAL.forEach(k => inputs.append(pcDealField(d, k, { quick: true })));
   /* What the model counts of the five a year (dealModel): a bare parcel's
      sinking fund and a class with no tenancy's repair reserve count
      nothing, and the line says what is counted. */
@@ -3347,17 +3442,42 @@ function pcQuickView(d, m, g, DK) {
        fund, and a class with no tenancy no repair reserve. */
     el('span', {}, `${fmtMoney(otherY, 'MYR', 0)} a year: ${feeList([m.strataCharges !== false ? 'sinking fund' : null, 'assessment', 'quit rent', 'insurance', m.letsToTenant !== false ? 'repair reserve' : null].filter(Boolean))}`)]));
   const otherBoxes = el('div', { class: 'pc-q-other-boxes' });
-  PC_QUICK_OTHER.forEach(k => otherBoxes.append(pcDealField(d, k)));
+  PC_QUICK_OTHER.forEach(k => otherBoxes.append(pcDealField(d, k, { quick: true })));
   other.append(otherBoxes);
-  inputs.append(other);
-  inputs.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, 'Renovation'));
-  inputs.append(pcDealField(d, 'renovation'));
-  /* Itemised in the full model, the box holds the lines' total. */
-  if (costLinesExplicit(d, 'renovation')) {
-    const s = costLinesSummary(costLinesOf(d, 'renovation'));
-    inputs.append(el('p', { class: 'metaline', id: 'pc-cl-renovation-sum' },
-      `The total of ${s.n} cost line${s.n === 1 ? '' : 's'} — change them in the full model.`));
-  }
+
+  /* "Refine the assumptions": a <details>, closed on a first visit (so a
+     served page carries the boxes, closed), kept as the reader left it. */
+  const cnt = pcRefineCount(d);
+  /* An address that names one of its boxes (#d-maintenance, the Lab's "Next step") opens it: the arrival is read where the page took it
+     (pcArrivalWant, 71-property-models.js), the address itself being rewritten by now. */
+  const hashK = (String(typeof pcArrivalWant === 'string' ? pcArrivalWant : '').match(/^d-(w+)$/) || [])[1];
+  if (hashK && PC_QUICK_KEYS.has(hashK) && !PC_QUICK_ESSENTIAL.includes(hashK)) pcQuickRefineOpen = true;
+  const refine = el('details', { class: 'pc-refine', id: 'pc-q-more', open: (typeof pcQuickRefineOpen === 'boolean' ? pcQuickRefineOpen : cnt.own > 0) ? '' : null });
+  const rsum = el('summary', { class: 'btn btn-quiet lab-more-btn pc-refine-sum', id: 'pc-q-more-btn' }, [
+    el('span', { class: 'lab-more-name' }, 'Refine the assumptions'), ' ',
+    el('span', { class: 'lab-more-state', id: 'pc-q-more-state' }, cnt.words),
+    el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
+  /* What the reader chose is kept — by the summary's press alone. */
+  rsum.addEventListener('click', () => { pcQuickRefineOpen = !refine.open; });
+  refine.append(rsum);
+  const rbody = el('div', { class: 'pc-refine-body', id: 'pc-q-more-body' });
+  PC_QUICK_GROUPS.forEach(([heading, keys]) => {
+    const grp = el('div', { class: 'pc-refine-group', role: 'group', 'aria-label': heading });
+    grp.append(el('p', { class: 'eyebrow' }, heading));
+    keys.forEach(k => {
+      if (k === 'other') { grp.append(other); return; }
+      grp.append(pcDealField(d, k, { quick: true }));
+      /* Itemised in the full model, the box holds the lines' total. */
+      if (k === 'renovation' && costLinesExplicit(d, 'renovation')) {
+        const s = costLinesSummary(costLinesOf(d, 'renovation'));
+        grp.append(el('p', { class: 'metaline', id: 'pc-cl-renovation-sum' },
+          `The total of ${s.n} cost line${s.n === 1 ? '' : 's'} — change them in the full model.`));
+      }
+    });
+    rbody.append(grp);
+  });
+  refine.append(rbody);
+  inputs.append(refine);
 
   /* The answer. */
   const res = el('div', { class: 'pc-q-results' });
@@ -3383,32 +3503,27 @@ function pcQuickView(d, m, g, DK) {
     kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
     PC_GRADE_TONE[g.grade]));
   ans.append(cards);
-  /* The assumption it depends on most, from the model's own sensitivity,
-     straight under the figures; then what is missing, then the next step. */
+  /* THE ANSWER'S ORDER (B3, fix 8): the four figures; what they rest on,
+     once; the assumption they depend on most; the limit, once. The old
+     "Blocking" chip, "Illustrative defaults" box and review bar said the
+     same thing three times, with three counts. */
+  const queue = propertyReviewQueue(d);
+  const rests = pcQuickRests(d, queue);
+  if (rests) ans.append(rests);
+  /* A blocker that is not the defaults' (the sample's own is said in the
+     block above) keeps its line. */
+  const worst = pcGatesOrdered(g)[0];
+  if (worst && worst.id !== 'illustrative') ans.append(pcWorstLine(worst));
+  /* The assumption it depends on most, from the model's own sensitivity. */
   const driver = propertyDriverLine(d, { long: true });
   if (driver) ans.append(driver);
-  const worst = pcGatesOrdered(g)[0];
-  if (worst) ans.append(pcWorstLine(worst));
-  /* The sample label and the limitations, beside the figures they qualify. */
-  const untouched = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
-  if (untouched.length) {
-    const warn = pcDefaultsWarn(d, untouched, { after: 'these figures' });
-    /* And what the full model's Start here says of the sample, which the
-       Quick model does not carry (startHereFor, 36-layouts.js). */
-    if (propertyStatus(d).kind === 'sample') warn.querySelector('p.body')?.append(' The sample deal is not a real listing.');
-    ans.append(warn);
-  }
+  /* The limitation, once, beside the figures it qualifies. */
   ans.append(el('p', { class: 'metaline pc-q-limits' }, [
     el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
     'Arithmetic on the figures entered — not advice, not a forecast, not a bank decision and not legal clearance. The grade is a research grade on the evidence entered.']));
   res.append(ans);
   const flags = pcModelFlags(m);
   if (flags) res.append(flags);
-  const queue = propertyReviewQueue(d);
-  /* No line under the count here: "Illustrative defaults", in the answer
-     above, already says these are the tool's numbers and that the answer
-     is arithmetic on them (16 Oct 2026, one note beside the output). */
-  if (queue.length) res.append(pcReviewCard(d, queue, { sub: null }));
 
   /* The rest of the calculator, one step away. */
   const open = el('div', { class: 'pc-q-open' }, lsActionCard({ title: 'The full model',
@@ -3462,15 +3577,16 @@ VIEWS.property = () => {
      qualifying detail follows in a span that collapses on a phone — the part a
      reader must not miss is the first sentence, and burying that to win fold
      space would be trading the wrong thing for it. */
-  const disc = el('div', { class: 'ls-disclosure', style: 'margin-bottom:var(--md)' });
-  disc.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
-    el('span', { class: 'chip chip-bronze' }, 'Not a valuation'),
-    el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px' }, [
-      'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.',
-      el('span', { class: 'fold-phone' },
-        ' This is an investment estimate built from your inputs and sample transaction data. Figures are scenarios, not predictions.'),
-    ]),
-  ]));
+  /* B3, fix 8 (30 Oct 2026), as the Scenario Lab's header has it since Day 15
+     (QT-D15-02): the short chip and the one sentence a first visit needs
+     stand here, the registered-valuer sentence and the rest whole and one
+     tap away under "Why this is not a valuation" — the words unchanged
+     (LAB_CLAIM_VISIBLE, LAB_NOT_OFFICIAL, 82-property-lab.js). In both views. */
+  const disc = el('div', { class: 'pc-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
+    el('span', {}, LAB_CLAIM_VISIBLE), ' ',
+    el('details', { class: 'pc-more ls-l3 lab-claim-more', id: 'pc-claim-more' }, [
+      el('summary', { class: 'pc-more-sum' }, 'Why this is not a valuation'),
+      el('p', { class: 'pc-more-body' }, `${LAB_NOT_OFFICIAL} This is an investment estimate built from your inputs and sample transaction data. Figures are scenarios, not predictions.`)])]);
   wrap.append(disc);
 
   /* WHICH PROPERTY THIS IS, AND THE PAGE'S ONE PRIMARY ACTION.

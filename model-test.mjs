@@ -9581,10 +9581,14 @@ try {
       State.deal.price = 480000; State.deal.rent = 2600; State.deal.touched = { price: true, rent: true };
       saveDeal();
       const t = (n) => (n ? n.textContent.replace(/\\s+/g, ' ').trim() : '');
+      /* B3 (30 Oct 2026): the Quick model's review is one block, "What these
+         figures rest on" — the count in its sentence, "Review the defaults"
+         its link — and the full model's is the alert card and the defaults box. */
       const read = () => ({ quick: !!document.getElementById('pc-quick'),
-        title: t(document.querySelector('#review .ls-card-title')), cta: t(document.querySelector('#review .ls-card-cta')),
+        title: document.getElementById('pc-quick') ? t(document.querySelector('#pc-rests-text > strong')) + ' to review' : t(document.querySelector('#review .ls-card-title')),
+        cta: document.getElementById('pc-quick') ? t(document.querySelector('#pc-review-list > summary')) : t(document.querySelector('#review .ls-card-cta')),
         rows: document.querySelectorAll('#pc-review-list > div > div.row').length,
-        defaults: t(document.querySelector('.pc-defaults p.body')).replace(/ The sample deal is not a real listing\\.$/, ''),
+        defaults: t(document.querySelector(document.getElementById('pc-quick') ? '#pc-rests-text' : '.pc-defaults p.body')).replace(/ The sample deal is not a real listing\\.$/, ''),
         queue: propertyReviewQueue(State.deal).length,
         gate: (propertyGrade(State.deal, dealModel(State.deal)).gates.find(g => g.id === 'illustrative') || {}).text || '' });
       const to = async (id) => { document.getElementById(id)?.click(); await w(600); };
@@ -9602,20 +9606,123 @@ try {
     if (!r.quick.quick || r.full.quick || !r.back.quick) p.push(`the views drawn: Quick ${r.quick.quick}, Full ${!r.full.quick}, back ${r.back.quick}`);
     for (const [v, c] of [['Quick', r.quick], ['Full', r.full], ['back in Quick', r.back]]) {
       const gateOf = Number((c.gate.match(/of the (\d+) sample input/) || [])[1]);
-      if (!(n(c.title) === c.queue && n(c.cta) === c.queue && c.rows === c.queue && gateOf === c.queue)) p.push(`${v}: title "${c.title}", button "${c.cta}", ${c.rows} rows, blocker "${c.gate.slice(0, 50)}", the queue ${c.queue}`);
+      const isQ = v !== 'Full';
+      if (!(n(c.title) === c.queue && (isQ ? /^Review the defaults/.test(c.cta) : n(c.cta) === c.queue) && c.rows === c.queue && gateOf === c.queue)) p.push(`${v}: title "${c.title}", button "${c.cta}", ${c.rows} rows, blocker "${c.gate.slice(0, 50)}", the queue ${c.queue}`);
       /* The defaults name the inputs by their labels, the blocker sentence by
          their short names: the same inputs, so the same number of them. */
       const listed = ((c.gate.match(/still to review — (.*) — drive/) || [])[1] || '').split(', ').filter(Boolean);
-      const named = ((c.defaults.match(/^(.*?) (?:is|are) still the number/) || [])[1] || '').split(', ').filter(Boolean);
+      /* Quick names every default, then the drivers that hold back the grade, by their own count. */
+      const named = isQ ? ((c.defaults.match(/ — (.*?) — hold/) || [])[1] || '').split(/, | and /).filter(Boolean)
+        : ((c.defaults.match(/^(.*?) (?:is|are) still the number/) || [])[1] || '').split(', ').filter(Boolean);
       if (!listed.length || named.length !== listed.length) p.push(`${v}: the defaults name ${named.length} ("${named.join(', ')}"), the blocker sentence ${listed.length} ("${listed.join(', ')}")`);
     }
     /* The defaults' last words differ by design ("these figures" in Quick,
        "anything below" in Full): the inputs they name must not. */
-    for (const c of [r.quick, r.full, r.back]) c.named = (c.defaults.match(/^(.*?) (?:is|are) still the number/) || [])[1] || '';
-    for (const k of ['title', 'cta', 'rows', 'named', 'gate']) if (r.quick[k] !== r.full[k] || r.quick[k] !== r.back[k]) p.push(`${k}: Quick "${r.quick[k]}", Full "${r.full[k]}", back "${r.back[k]}"`);
+    for (const k of ['rows', 'gate']) if (r.quick[k] !== r.full[k] || r.quick[k] !== r.back[k]) p.push(`${k}: Quick "${r.quick[k]}", Full "${r.full[k]}", back "${r.back[k]}"`);
     if (r.deal.price !== 480000 || r.deal.rent !== 2600) p.push(`the deal moved between the views: ${JSON.stringify(r.deal)}`);
     if (p.length) fail('qt-day3: the Quick and full models count the same review, defaults and blockers', p);
-    else ok(`qt-day3: with the price and the rent replaced, Quick, Full and Quick again each read "${r.quick.title}", "${r.quick.cta}", ${r.quick.rows} rows, the defaults "${r.quick.defaults.slice(0, 40)}…" and "${r.quick.gate.slice(0, 45)}…", the deal unmoved`);
+    else ok(`qt-day3: with the price and the rent replaced, Quick, Full and Quick again each count the same review (Quick "${r.quick.title}", "${r.quick.cta}"; Full "${r.full.title}", "${r.full.cta}"), ${r.quick.rows} rows, the defaults "${r.quick.defaults.slice(0, 40)}…" and "${r.quick.gate.slice(0, 45)}…", the deal unmoved`);
+  }
+  /* C-REFINE — THE QUICK MODEL ASKS FOR THE ESSENTIALS FIRST (B3, fix 7 of the
+     owner's quick wins, 30 Oct 2026; the Scenario Lab's L19 on the
+     calculator). The price, the deposit, the rate and the rent stand in
+     sight, each tagged "Default" with one sentence above them saying what
+     that is; the loan's tenure, the running costs and the renovation sit in
+     a closed "Refine the assumptions" saying "all illustrative defaults". A
+     vacancy typed opens it, counts "1 of 6 changed", and its tag reads
+     "Yours"; the group the reader closed stays closed across a redraw; a
+     deal that arrives with its own figure opens it. Each essential moves the
+     figure it should, and the answer's tile is dealModel's. Fails on
+     7e090ae37, which drew all eight boxes in sight, each under "Illustrative
+     default — not yours, and not from any market". */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = JSON.stringify(State.deal);
+      const t = (n) => (n ? n.textContent.replace(/\\s+/g, ' ').trim() : '');
+      const out = { moved: [] };
+      try {
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+        saveDeal(); pcQuickRefineOpen = null;
+        navigate('/property/calculator'); await w(500);
+        if (!document.getElementById('pc-quick')) { document.getElementById('pc-view-quick')?.click(); await w(500); }
+        const det = () => document.getElementById('pc-q-more');
+        const vis = (k) => { const n = document.getElementById('d-' + k); return !!n && n.checkVisibility(); };
+        const tag = (k) => t(document.getElementById('d-' + k + '-own'));
+        if (!det()) { out.noGroup = true; out.eight = ['price', 'downPct', 'ratePct', 'rent', 'tenureYears', 'vacancyPct', 'maintenance', 'renovation'].filter(k => vis(k)).length; return JSON.stringify(out); }
+        const ESS = ['price', 'downPct', 'ratePct', 'rent'], REF = ['tenureYears', 'vacancyPct', 'maintenance', 'mgmtPct', 'renovation', 'insurance'];
+        out.first = { quick: !!document.getElementById('pc-quick'), essHidden: ESS.filter(k => !vis(k)), essInside: ESS.filter(k => det().contains(document.getElementById('d-' + k))),
+          refOutside: REF.filter(k => !det().contains(document.getElementById('d-' + k))), refVisible: REF.filter(k => vis(k)), open: det().open,
+          sum: t(document.getElementById('pc-q-more-btn')), tags: ESS.map(tag).join('|'), note: t(document.getElementById('pc-q-default-note')),
+          described: ESS.filter(k => !(document.getElementById('d-' + k).getAttribute('aria-describedby') || '').split(' ').includes('d-' + k + '-own')),
+          oldLine: (document.querySelector('main')?.textContent || '').includes('Illustrative default — not yours'),
+          groups: [...det().querySelectorAll('.pc-refine-group')].map(g => g.getAttribute('aria-label')).join('|') };
+        const set = async (k, v) => { const i = document.getElementById('d-' + k); i.value = String(v); i.dispatchEvent(new Event('change', { bubbles: true })); await w(300); };
+        /* A vacancy typed (the group opened by its summary, as a reader does). */
+        det().querySelector('summary').click(); await w(50);
+        out.opened = det().open && vis('vacancyPct');
+        await set('vacancyPct', 12);
+        out.flip = { open: det().open, sum: t(document.getElementById('pc-q-more-btn')), tag: tag('vacancyPct'), essTags: ESS.map(tag).join('|'), tenure: tag('tenureYears'), vacancy: State.deal.vacancyPct };
+        /* Closed by the reader: a redraw keeps it closed, the count still said. */
+        det().querySelector('summary').click(); await w(50);
+        render(); await w(400);
+        out.kept = { closed: !det().open, sum: t(document.getElementById('pc-q-more-btn')) };
+        /* Reopened, a box in it focused, a redraw keeps the group open and the box focused. */
+        det().querySelector('summary').click(); await w(50);
+        document.getElementById('d-vacancyPct').focus();
+        renderKeepFocus(); await w(400);
+        out.focus = { open: det().open, active: document.activeElement && document.activeElement.id };
+        /* Each essential moves the figure it should; the tile is the model's. */
+        const tile = (k) => t(document.querySelector('[data-quick="' + k + '"]'));
+        const KEYS = { safe: 'safeCashRequired', monthly: 'cashflowMonthly' };
+        const TO = { price: [520000, ['safe', 'monthly']], rent: [2300, ['monthly']], ratePct: [5.5, ['monthly']], downPct: [25, ['safe', 'monthly']] };
+        for (const [k, [v, must]] of Object.entries(TO)) {
+          const was = { safe: tile('safe'), monthly: tile('monthly') };
+          await set(k, v);
+          const m = dealModel(State.deal);
+          if (State.deal[k] !== v) out.moved.push(k + ' did not take ' + v);
+          for (const x of must) if (tile(x) === was[x]) out.moved.push(k + ' moved to ' + v + ' and the ' + x + ' tile stayed');
+          for (const [x, mk] of Object.entries(KEYS)) if (!tile(x).includes(fmtAmount(m[mk], 'MYR'))) out.moved.push(k + ' at ' + v + ': the ' + x + ' tile is not ' + fmtAmount(m[mk], 'MYR'));
+        }
+        out.tagsAfter = ESS.map(tag).join('|');
+        /* A deal that arrives with its own vacancy opens the group, counting it. */
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { vacancyPct: true }, vacancyPct: 14 };
+        saveDeal(); pcQuickRefineOpen = null; render(); await w(400);
+        out.saved = { open: det().open, sum: t(document.getElementById('pc-q-more-btn')), tag: tag('vacancyPct') };
+        /* An address that names a box in the group (the Lab's "Next step" → #d-maintenance) opens it and puts the keyboard there. */
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+        saveDeal(); pcQuickRefineOpen = null; navigate('/property/calculator'); await w(400);
+        navigate('/property/calculator#d-maintenance'); await w(1800);
+        out.arrive = { open: !!det() && det().open, active: document.activeElement && document.activeElement.id };
+      } finally {
+        State.deal = JSON.parse(keep); pcQuickRefineOpen = null; saveDeal(); navigate('/property/calculator?view=full'); await w(300);
+      }
+      return JSON.stringify(out); })()`));
+    const p = [];
+    const f = r.first || {};
+    if (r.noGroup) p.push(`no "Refine the assumptions" (#pc-q-more): ${r.eight} of the eight boxes stand in sight, each under its own line`);
+    else if (!f.quick) p.push('the Quick model was not drawn');
+    if (f.essHidden?.length) p.push(`essential inputs not in sight on a first visit: ${f.essHidden.join(', ')}`);
+    if (f.essInside?.length) p.push(`essentials drawn inside "Refine the assumptions": ${f.essInside.join(', ')}`);
+    if (f.refOutside?.length) p.push(`not inside "Refine the assumptions": ${f.refOutside.join(', ')}`);
+    if (f.refVisible?.length) p.push(`refine inputs in sight with the group closed: ${f.refVisible.join(', ')}`);
+    if (f.open) p.push('"Refine the assumptions" is open on a first visit');
+    if (f.sum !== 'Refine the assumptions · all illustrative defaults' && f.sum !== 'Refine the assumptions all illustrative defaults') p.push(`its summary reads "${f.sum}"`);
+    if (f.groups !== 'Loan|Running costs|Renovation') p.push(`its parts are "${f.groups}", not Loan, Running costs, Renovation`);
+    if (f.tags !== 'Default|Default|Default|Default') p.push(`the four essentials' tags read "${f.tags}"`);
+    if (f.note !== 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.') p.push(`the sentence above the inputs reads "${f.note}"`);
+    if (f.described?.length) p.push(`tag not in the description of: ${f.described.join(', ')}`);
+    if (f.oldLine) p.push('"Illustrative default — not yours, and not from any market" is still said under the boxes');
+    if (!r.opened) p.push('pressing "Refine the assumptions" did not bring its boxes into sight');
+    if (!r.flip || !r.flip.open || !/1 of 6 changed$/.test(r.flip.sum) || r.flip.tag !== 'Yours' || r.flip.tenure !== 'Default' || r.flip.vacancy !== 12 || r.flip.essTags !== 'Default|Default|Default|Default') p.push(`a vacancy typed: ${JSON.stringify(r.flip)}`);
+    if (!r.kept || !r.kept.closed || !/1 of 6 changed$/.test(r.kept.sum)) p.push(`the group the reader closed, after a redraw: ${JSON.stringify(r.kept)}`);
+    if (!r.focus || !r.focus.open || r.focus.active !== 'd-vacancyPct') p.push(`a box in the group, focused, across a redraw: ${JSON.stringify(r.focus)}`);
+    if (!r.arrive || !r.arrive.open || r.arrive.active !== 'd-maintenance') p.push(`an address naming #d-maintenance: ${JSON.stringify(r.arrive)}`);
+    r.moved.forEach(x => p.push(x));
+    if (r.tagsAfter !== 'Yours|Yours|Yours|Yours') p.push(`the essentials' tags after each was changed: "${r.tagsAfter}"`);
+    if (!r.saved || !r.saved.open || !/1 of 6 changed$/.test(r.saved.sum) || r.saved.tag !== 'Yours') p.push(`a deal that arrives with its own vacancy: ${JSON.stringify(r.saved)}`);
+    if (p.length) fail('C-REFINE: the Quick model\'s essentials first, the rest under "Refine the assumptions"', p);
+    else ok('C-REFINE: on a first visit the price, deposit, rate and rent stand in sight, each tagged "Default" under one sentence saying what that is, and the tenure, vacancy, maintenance, fee, other running costs and renovation sit in a closed "Refine the assumptions" (Loan, Running costs, Renovation) saying "all illustrative defaults"; a vacancy typed reads "1 of 6 changed" and its tag "Yours", the group kept closed across a redraw when the reader closed it, a focused box in it kept across one, and open from the start for a deal with its own vacancy; the price, rent, rate and deposit each move the tiles they should, the tiles dealModel\'s, and each turns its tag to "Yours"');
   }
   /* EDITED FIGURES AND THE RESERVE ACROSS THE TWO VIEWS (the 17 Oct Day-4
      report, Quantum task: "Change purchase price, rent and renovation

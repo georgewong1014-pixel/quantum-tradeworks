@@ -827,7 +827,8 @@ const DOCKS = {
       next: queue.length ? {
         label: `Review ${queue.length} sample input${queue.length === 1 ? '' : 's'}`,
         onclick: () => {
-          const det = [...document.querySelectorAll('details')]
+          /* The list is #pc-review-list in both views (the Quick model's "Review the defaults", the full model's "Review N sample inputs"). */
+          const det = document.getElementById('pc-review-list') || [...document.querySelectorAll('details')]
             .find(x => /Review \d+ sample input/.test(x.querySelector('summary')?.textContent || ''));
           if (!det) return;
           det.open = true;

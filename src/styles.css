@@ -447,14 +447,6 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   .disclosure-more { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .disclosure-more::after { transition: none; } }
-/* The Property calculator's phone-only qualifier (75-property-grade.js)
-   folds on a phone, and opens with the strip's Details — by the strip's own
-   state, so it needs no script. */
-@media (max-width: 760px) {
-  .fold-phone { display: none; }
-  body:has(#disclosure[open]) .fold-phone { display: inline; }
-}
-
 /* ------------------------------------------------------------------ chips */
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -7172,6 +7164,43 @@ input.au-in[type="text"] { text-align: left; }
    longer assumption must not push the sliders below it (CI, Verdana, 20 Oct).
    The full text stays in the page for a screen reader. */
 @media (min-width: 1024px) { .pc-driver.lab-driver { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } }
+/* B3 (30 Oct 2026): the Quick model's inputs and answer, on the Scenario Lab's
+   pattern. The page head's claim, as the Lab's. */
+/* The claim as the Lab's header draws it (.lab-claim.lab-id-claim) but on the calculator's own class: the Lab's phone rules are keyed to its container
+   (and, served, to :root[data-served]), which this page has no counterpart of — they would set the served claim a step tighter than the drawn one. */
+.pc-claim { display: block; max-width: var(--ls-measure); margin: 0 0 var(--md); font-size: var(--ls-meta); line-height: 20px; color: var(--ink-2); text-wrap: pretty; }
+.pc-claim > .chip { margin-right: 4px; vertical-align: 1px; }
+.pc-q-default-note { margin: 0 0 var(--xs); }
+/* The tag under a box's label, the box spanning both rows: "Default" while the
+   figure is the tool's, "Yours" once changed. */
+.pc-q-inputs .assumption.has-own > label { grid-column: 1; grid-row: 1; }
+.pc-q-inputs .assumption.has-own > .input { grid-column: 2; grid-row: 1 / span 2; }
+.pc-q-inputs .assumption.has-own > .pc-own { grid-column: 1; grid-row: 2; justify-self: start; margin-top: -4px; }
+/* "Refine the assumptions": the Lab's group (.lab-more-name, .lab-more-state),
+   a <details> closed on a first visit. */
+.pc-refine { margin-top: var(--md); padding-top: var(--xs); border-top: 1px solid var(--grid); }
+.pc-refine > .pc-refine-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; justify-content: flex-start; width: 100%; min-height: 44px; padding: 4px var(--xs); cursor: pointer; list-style: none; text-align: left; }
+.pc-refine > .pc-refine-sum::-webkit-details-marker { display: none; }
+.pc-refine > .pc-refine-sum > .lab-about-chev { margin-left: auto; transition: transform 160ms ease; }
+.pc-refine[open] > .pc-refine-sum > .lab-about-chev { transform: rotate(180deg); }
+.pc-refine > .pc-refine-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.pc-refine-body { display: flex; flex-direction: column; gap: var(--md); padding-top: var(--xs); }
+.pc-refine-group { min-width: 0; }
+.pc-refine-group > .eyebrow { margin: 0 0 var(--xs); }
+.pc-refine-group > .assumption:first-of-type { padding-top: 0; }
+/* "What these figures rest on": the answer's one statement of what is still
+   the tool's, with the list of them one tap away. */
+.pc-rests { margin-top: var(--md); padding: 12px 14px; border-left: 3px solid var(--bronze); border-radius: 0 var(--r-sm) var(--r-sm) 0; background: var(--surface-2); }
+.pc-rests-h { margin: 0 0 4px; font-size: var(--ls-support); font-weight: var(--weight-semibold); line-height: 20px; color: var(--ink); }
+.pc-rests-text { margin: 0; max-width: var(--ls-measure); font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
+.pc-rests-text > strong { color: var(--ink); font-weight: var(--weight-semibold); }
+.pc-rests-list { margin-top: var(--xs); }
+.pc-rests-sum { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--brand); cursor: pointer; list-style: none; text-decoration: underline; text-underline-offset: 3px; }
+.pc-rests-sum::-webkit-details-marker { display: none; }
+.pc-rests-sum:hover { color: var(--brand-hi); }
+.pc-rests-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+.pc-rests > .explain { margin-top: var(--xs); padding-top: var(--xs); }
+.pc-rests > p.metaline { margin-top: var(--xs); }
 .pc-q-limits { margin-top: var(--md); }
 .pc-q-limits > .chip { margin-right: 4px; }
 @media (max-width: 620px) {

@@ -1859,6 +1859,9 @@ const HOME_PAGE = read(HOME);
   const hd = /<div class="page-hd-title">\s*<h1>([^<]*)<\/h1>\s*<span class="status-badge status-beta"[^>]*>([^<]*)<\/span>\s*<\/div>/.exec(lab);
   if (!hd) p.push('/property/lab: no status badge beside its h1 — its only visible state is the product\'s');
   else if (hd[1].trim() !== 'Scenario Lab' || hd[2].trim() !== 'Beta') p.push(`/property/lab: the heading reads "${hd[1]}" beside "${hd[2]}", not "Scenario Lab" beside "Beta"`);
+  /* B3 (30 Oct 2026): the eight lines "Illustrative default — not yours, and
+     not from any market" became one sentence over the boxes and a "Default"
+     tag beside each box still at its default, the box's description. */
   const TAG = 'Illustrative default — not yours, and not from any market';
   const SEEDED = ['price', 'rent', 'maintenance', 'ratePct', 'vacancyPct', 'downPct', 'tenureYears'];
   const FULL_ONLY = ['sqft', 'apprecPct', 'holdYears'];
@@ -1868,10 +1871,13 @@ const HOME_PAGE = read(HOME);
   const untagged = SEEDED.filter(k => {
     const at = calc.indexOf(`id="d-${k}"`);
     if (at < 0) return true;
-    const row = calc.slice(at, calc.indexOf('</div>', at));
-    return !row.includes(`>${TAG}</span>`) || /class="sr-only"|hidden/.test(row.slice(row.lastIndexOf('<span', row.indexOf(TAG)), row.indexOf(TAG)));
+    const tag = new RegExp(`<span[^>]*id="d-${k}-own"[^>]*>Default</span>`).exec(calc.slice(at, calc.indexOf('</div>', at)));
+    /* The served box is an inert span, which carries no description: the drawn box's aria-describedby is held by model-test C-REFINE. */
+    return !tag || /class="[^"]*sr-only|hidden/.test(tag[0]);
   });
-  if (untagged.length) p.push(`/property/calculator: ${SEEDED.length - untagged.length} of the ${SEEDED.length} seeded inputs carry the "${TAG}" tag in their row; ${untagged.join(', ')} do not`);
+  if (calc.includes(TAG)) p.push(`/property/calculator: still serves "${TAG}" — the Quick model says it once, over the boxes, and tags each box "Default"`);
+  if (calc.split('Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.').length !== 2) p.push('/property/calculator: the sentence over the boxes, "Fields marked Default hold the tool’s illustrative figures…", is not served exactly once');
+  if (untagged.length) p.push(`/property/calculator: ${SEEDED.length - untagged.length} of the ${SEEDED.length} seeded inputs carry a "Default" tag in their row; ${untagged.join(', ')} do not`);
   const status = got.get('/status').body || '';
   if (/Property map and area observations/.test(status)) p.push('/status: still lists "Property map and area observations"');
   const row = /<tr>(?:(?!<\/tr>)[\s\S])*Locality diagram and area observations(?:(?!<\/tr>)[\s\S])*<\/tr>/.exec(status)?.[0] || '';
@@ -1880,7 +1886,7 @@ const HOME_PAGE = read(HOME);
     if (!row.includes('<a href="/property/areas">/property/areas</a>')) p.push('/status: the locality diagram\'s row does not give /property/areas as where it is');
     if (!/no basemap/.test(row) || !/8 locality points per town/.test(row)) p.push(`/status: the locality diagram's row does not say "8 locality points per town" and "no basemap": ${row.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 200)}`);
   }
-  judge(p, `/property/lab serves "Beta" beside its h1 "Scenario Lab"; /property/calculator, served in the Quick model, serves the illustrative-default tag in the row of each of the ${SEEDED.length} seeded inputs it shows (the full model's other ${FULL_ONLY.length}: model-test qt-quick-full); /status lists the "Locality diagram and area observations" at /property/areas, 8 locality points per town with no basemap, and no property map`,
+  judge(p, `/property/lab serves "Beta" beside its h1 "Scenario Lab"; /property/calculator, served in the Quick model, serves the "Default" tag in the row of each of the ${SEEDED.length} seeded inputs it shows (the full model's other ${FULL_ONLY.length}: model-test qt-quick-full); /status lists the "Locality diagram and area observations" at /property/areas, 8 locality points per town with no basemap, and no property map`,
     'a Property page serves its readiness other than as it is');
 }
 /* ---- end readiness-served ---- */
@@ -2043,9 +2049,33 @@ const HOME_PAGE = read(HOME);
   if (pillar && !pillar.closed) p.push('/property/calculator: the pillar table is served outside a closed <details>');
   const gates = C.tags.filter(t => t.tag === 'li' && / evidence counter /.test(` ${attr(t.raw, 'class') || ''} `));
   if (gates.some(t => !t.closed)) p.push(`/property/calculator: ${gates.filter(t => !t.closed).length} of its ${gates.length} blockers stand outside a closed <details>`);
-  const worst = C.tags.find(t => / pc-worst /.test(` ${attr(t.raw, 'class') || ''} `));
-  if (!worst || !worst.visible) p.push('/property/calculator: the worst blocker is not in sight on its own line (.pc-worst)');
-  else said.worst = C.textOf(worst.at).slice(0, 60);
+  /* The blocker is said in the one block "What these figures rest on" (B3,
+     30 Oct 2026), as its second clause, not in a "Blocking" chip of its own. */
+  const restsText = C.tags.find(t => attr(t.raw, 'id') === 'pc-rests-text');
+  if (!restsText || !restsText.visible || !/hold back the research grade/.test(C.textOf(restsText.at))) p.push('/property/calculator: the blocker is not in sight, in "What these figures rest on", as "… hold back the research grade"');
+  else said.worst = C.textOf(restsText.at).slice(0, 60);
+  /* THE ANSWER SAYS WHAT IT RESTS ON ONCE AND ITS LIMIT ONCE (B3, fix 8,
+     30 Oct 2026): exactly one defaults block, with its one link; none of the
+     old "Illustrative defaults" box, "Blocking" chip or review bar under the
+     card; "Not a valuation" once in the answer; the registered valuer's
+     sentence whole, in a closed "Why this is not a valuation" in the page's
+     head, said once on the page. Fails on 7e090ae37. */
+  {
+    const cls = (t, c) => ` ${attr(t.raw, 'class') || ''} `.includes(` ${c} `);
+    const answer = C.tags.find(t => attr(t.raw, 'id') === 'pc-q-answer'), open = C.tags.find(t => cls(t, 'pc-q-open'));
+    const rests = C.tags.filter(t => cls(t, 'pc-rests'));
+    if (rests.length !== 1 || !rests[0].visible || (answer && (rests[0].at < answer.at || (open && rests[0].at > open.at)))) p.push(`/property/calculator: the answer holds ${rests.length} "What these figures rest on" blocks, not exactly one in sight`);
+    if (!C.runs.some(r => r.visible && r.s.trim() === 'What these figures rest on')) p.push('/property/calculator: no visible "What these figures rest on"');
+    const links = C.runs.filter(r => r.s.includes('Review the defaults'));
+    if (links.length !== 1 || !links[0].visible) p.push(`/property/calculator: "Review the defaults" is served ${links.length} times, not once in sight`);
+    const old = ['pc-review', 'pc-defaults', 'pc-worst'].filter(c => C.tags.some(t => cls(t, c)));
+    if (old.length || C.runs.some(r => /sample inputs? needs? your evidence|Review \d+ sample input|^Illustrative defaults$|^Blocking$/.test(r.s.trim()))) p.push(`/property/calculator: the answer still serves the old defaults box, "Blocking" chip or review bar (${old.join(', ') || 'by their words'})`);
+    const chips = C.tags.filter(t => cls(t, 'chip') && answer && t.at > answer.at && (!open || t.at < open.at) && C.textOf(t.at) === 'Not a valuation');
+    if (chips.length !== 1) p.push(`/property/calculator: "Not a valuation" is said ${chips.length} times in the answer, not once`);
+    const official = C.runs.filter(r => r.s.includes('Not an official property valuation'));
+    if (official.length !== 1 || !official[0].closed || !official[0].s.includes('registered valuer')) p.push('/property/calculator: "Not an official property valuation — … registered valuer" is not served once, inside the closed "Why this is not a valuation"');
+    if (!C.runs.some(r => r.visible && r.s.trim() === 'Why this is not a valuation')) p.push('/property/calculator: no visible "Why this is not a valuation"');
+  }
   /* Each said once: the capstrip and the Summary table said the cash and
      the monthly position again. */
   const top = C.runs.filter(r => r.visible).map(r => r.s).join(' ').replace(/\s+/g, ' ');
@@ -4247,7 +4277,7 @@ const HOME_PAGE = read(HOME);
     said.push(`${path} ${here}`);
   }
   const calc = got.get('/property/calculator');
-  if (calc?.status === 200) { const m = /(\d+) sample inputs? needs? your evidence/.exec(pageText(calc.body)); if (!m || m[1] !== '10') p.push(`/property/calculator's review counts ${m ? m[1] : 'nothing'}, its line 10`); }
+  if (calc?.status === 200) { /* The Quick model's one count is the sentence of "What these figures rest on" (B3, 30 Oct 2026), not a review bar. */ const m = /(\d+) inputs? (?:is|are) still the tool’s illustrative default/.exec(pageText(calc.body)); if (!m || m[1] !== '10') p.push(`/property/calculator's review counts ${m ? m[1] : 'nothing'}, its line 10`); }
   judge(p, `the property journey bar as served: ${said.length} Property pages each serve Explore · Analyse · Evidence · Compare · Save with their own step marked (${said.join(', ')}); the context line under them — "The sample deal · Residential · Subsale · Sample figures: 10 of 10" on six, "Sample figures: 10 of 10 · No unsaved moves" on the Lab's two (its heading names the rest) and beside its sliders — a count and no figure, the calculator's count its review's; each render read the deal and the saved work`,
     'the property journey bar is not served as it is drawn for a fresh visitor');
 }

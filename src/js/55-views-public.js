@@ -934,7 +934,7 @@ VIEWS.launcher = () => {
       navigate('/property/calculator');
       if (kept) toast('Your previous deal is kept — “Restore my previous deal” puts it back');
       if (mode === 'own') setTimeout(() => {
-        const det = [...document.querySelectorAll('details')]
+        const det = document.getElementById('pc-review-list') || [...document.querySelectorAll('details')]
           .find(x => /Review \d+ sample input/.test(x.querySelector('summary')?.textContent || ''));
         if (det) { det.open = true; det.scrollIntoView({ block: 'center' }); }
       }, 400);
