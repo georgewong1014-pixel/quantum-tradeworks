@@ -5314,7 +5314,9 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
    the summary, over the claim's own lines and the gap under them. */
 .lab-claim-more > .pc-more-sum { position: relative; }
 .lab-claim-more > .pc-more-sum::after { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 44px; transform: translateY(-50%); }
-.lab-claim-more[open] > .pc-more-sum { white-space: normal; }
+/* The summary keeps nowrap open as closed: when opening let it wrap, a tight
+   line re-broke and the summary jumped 20px (the calculator at 390 on CI's
+   fonts, d8b209a37's layout-system check). */
 .lab-claim-more > .pc-more-body { display: block; margin: 4px 0 0; }
 
 /* The four tiles: on the layout system (layout-system, at the end). */
