@@ -613,8 +613,12 @@ VIEWS.scannerDashboard = () => {
      the long "Whether each setup is active…" note, which the answers below
      give themselves, is gone. The layout system holds a lede to one line, so
      the first sentence is the lede and the rest the note under it. */
-  const head = pageHead({ title: 'Scanner dashboard', lede: 'Create and save your scanning rules here.', cls: 'scan-hd-full',
-    note: 'Scanning needs price history and the local worker on your own computer, which is not available to download yet. This website does not run scans or supply prices.' });
+  /* QT-D18-02 (31 Oct 2026): the lede says what the page is for, in the
+     owner's words, and the limitation is stated once, plainly and darker
+     than a note (.scan-hd-full), where it read twice over in a longer,
+     greyer sentence. */
+  const head = pageHead({ title: 'Scanner dashboard', lede: 'Create and save rules for checking price history you supply.', cls: 'scan-hd-full',
+    note: 'The website does not run scans or supply prices. The local worker is not available to download yet.' });
   wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
@@ -655,7 +659,7 @@ VIEWS.scannerDashboard = () => {
        engine reads it (scanBars, 24-market-engine.js: series {SYM: {date:
        close}}, and each optional: volume, ohlc [open, high, low]) and where
        the worker reads it (scanner/scan.mjs, data/price-history.json; the
-       file's name stays inside "Advanced: run the worker", where served-check
+       file's name stays inside "Advanced: run locally", where served-check
        keeps the data files). The tab bar's badges are the shared register's
        and stay. */
     step(2, 'Price history', hist ? 'Needed' : 'You supply it',
@@ -801,8 +805,9 @@ VIEWS.scannerDashboard = () => {
   const files = el('section', { class: 'scan-run-part' }, [cardHead('Your files', 'Open the worker’s files from your own disk to read them on these pages.'), scanOpsOpenFiles()]);
   wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
     /* The 30 Oct 2026 audit: worker commands belong in an advanced section.
-       The body says there is nothing to download yet, as step 3 does; the summary stays short because the first view's main holds 300 words or fewer in sight (served-check). */
-    el('summary', { class: 'scan-run-sum' }, 'Advanced: run the worker on your computer'),
+       QT-D18-02 (31 Oct) words the summary "Advanced: run locally". The
+       body says there is nothing to download yet, as the head and step 3 do. */
+    el('summary', { class: 'scan-run-sum' }, 'Advanced: run locally'),
     el('div', { class: 'scan-run-body' }, [
       el('p', { class: 'body' }, 'The worker is not distributed yet; setups can be tested here on prices you supply. If you hold its files, open them below.'),
       run, files, mon,

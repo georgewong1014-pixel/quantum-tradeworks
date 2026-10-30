@@ -2658,7 +2658,7 @@ const HOME_PAGE = read(HOME);
    [hidden], not inside a closed <details> but its summary — build.mjs's
    sightText, the measure homeBudgets uses; a word is wordsIn's):
    N5a  "node scanner/scan.mjs" and every data/*.json name are served only
-        inside the closed <details> "Advanced: run the worker on your computer",
+        inside the closed <details> "Advanced: run locally",
         which also holds the three commands and the eight file names — but
         for an Unavailable badge's own note (.tool-off: its title and its
         screen-reader words name the file it lacks, and the badge stays as
@@ -2769,11 +2769,11 @@ const HOME_PAGE = read(HOME);
     if (!main) p.push('/app/scanner: no <main>');
     else {
       figureProblems('/app/scanner', main);
-      const run = all(main).filter(n => n.tag === 'details' && attr(n, 'open') === null && /^Advanced: run the worker on your computer/.test(sight(n.kids.find(k => k.tag === 'summary') || { kids: [] })));
+      const run = all(main).filter(n => n.tag === 'details' && attr(n, 'open') === null && /^Advanced: run locally/.test(sight(n.kids.find(k => k.tag === 'summary') || { kids: [] })));
       /* The 30 Oct 2026 audit: the fold's summary reads "Advanced: run the
          worker on your computer" (it read
          "Run locally"). */
-      if (run.length !== 1) p.push(`/app/scanner: ${run.length} closed <details> "Advanced: run the worker on your computer", not one`);
+      if (run.length !== 1) p.push(`/app/scanner: ${run.length} closed <details> "Advanced: run locally", not one`);
       const fold = run[0] ? rawText(run[0]) : '';
       for (const want of ['How the scan runs', 'node scanner/scan.mjs', 'node ingest/daily.mjs', 'node scanner/scan.mjs --status',
         'scan-runs, scan-alerts, scan-setups, price-history, price-adjustments, scan-control, scan-deliveries, ingest-runs'])
@@ -2803,7 +2803,7 @@ const HOME_PAGE = read(HOME);
     else figureProblems('/how-it-works#hiw-scanner', sec);
     if (/No example match is shown here/.test(hw.body)) p.push('/how-it-works: still says "No example match is shown here"');
   }
-  judge(p, `the Scanner's first view (N5a, N5b, D14c): /app/scanner ${said.words} words in sight (≤300), the commands and the data files only in the closed "Advanced: run the worker" fold or an Unavailable badge's note, "No scan recorded" and "by design, not by fault" in sight with ${said.unavailable} Unavailable badges; one example figure there and on /how-it-works#hiw-scanner — "Example — generated series, not a market’s prices", Illustrative to /data-sources#kinds, ${said['/app/scanner points']} points, the engine's three conditions at bar 66 word for word, series B Not held for RSI on a flat series, the caption — with no date, currency, registry symbol, banned word or other state in it; no "N match" on either page`,
+  judge(p, `the Scanner's first view (N5a, N5b, D14c): /app/scanner ${said.words} words in sight (≤300), the commands and the data files only in the closed "Advanced: run locally" fold or an Unavailable badge's note, "No scan recorded" and "by design, not by fault" in sight with ${said.unavailable} Unavailable badges; one example figure there and on /how-it-works#hiw-scanner — "Example — generated series, not a market’s prices", Illustrative to /data-sources#kinds, ${said['/app/scanner points']} points, the engine's three conditions at bar 66 word for word, series B Not held for RSI on a flat series, the caption — with no date, currency, registry symbol, banned word or other state in it; no "N match" on either page`,
     'the Scanner\'s first view and its example (N5a, N5b) are not served as accepted');
 }
 /* ---- end scanner-first-view ---- */
@@ -2819,8 +2819,7 @@ const HOME_PAGE = read(HOME);
        reads: the 30 Oct 2026 audit), "Not available to download yet", "No
        scan recorded";
    (b) one .btn-primary in <main>, "Create a setup", in step 1;
-   (c) the closed <details id="scan-run"> "Advanced: run the worker on your
-       computer", and step 3 links to it;
+   (c) the closed <details id="scan-run"> "Advanced: run locally", and step 3 links to it;
    (d) the lede says the site does not run scans or supply prices and the
        worker is not available to download;
    and the four steps come before the example figure and the details. */
@@ -2863,18 +2862,23 @@ const HOME_PAGE = read(HOME);
         if (prim.length !== 1 || rawText(prim[0]) !== 'Create a setup' || !all(steps[0]).includes(prim[0])) p.push(`/app/scanner: ${prim.length} .btn-primary in <main> (${prim.map(rawText).join(', ')}), not one "Create a setup" in step 1`);
         const det = nodes.find(n => n.tag === 'details' && attr(n, 'id') === 'scan-run');
         const sum = det && det.kids.find(k => k.tag === 'summary');
-        if (!det || attr(det, 'open') !== null || !sum || rawText(sum) !== 'Advanced: run the worker on your computer') p.push('/app/scanner: no closed <details id="scan-run"> headed "Advanced: run the worker on your computer"');
-        else if (!rawText(det).includes('node scanner/scan.mjs')) p.push('/app/scanner: the "Advanced: run the worker" fold does not hold the worker\'s commands');
+        if (!det || attr(det, 'open') !== null || !sum || rawText(sum) !== 'Advanced: run locally') p.push('/app/scanner: no closed <details id="scan-run"> headed "Advanced: run locally"');
+        else if (!rawText(det).includes('node scanner/scan.mjs')) p.push('/app/scanner: the "Advanced: run locally" fold does not hold the worker\'s commands');
         const at = (n) => nodes.indexOf(n);
         const fig = nodes.find(n => n.tag === 'figure' && has(n, 'scan-ex'));
         if (!fig || at(fig) < at(steps[3]) || (det && at(det) < at(steps[3]))) p.push('/app/scanner: the four steps do not come before "Run locally" and the example figure');
         const lede = rawText(nodes.find(n => has(n, 'page-lede')) || { kids: [] }) + ' ' + rawText(nodes.find(n => has(n, 'page-note')) || { kids: [] });
         said.lede = lede.length;
+        /* QT-D18-02 (31 Oct 2026): the lede and the one limitation, in the owner's words, and the limitation once in the page's sight. */
+        const ledeOnly = rawText(nodes.find(n => has(n, 'page-lede')) || { kids: [] }), noteOnly = rawText(nodes.find(n => has(n, 'page-note')) || { kids: [] });
+        if (ledeOnly !== 'Create and save rules for checking price history you supply.' || noteOnly !== 'The website does not run scans or supply prices. The local worker is not available to download yet.') p.push(`/app/scanner: the head reads "${ledeOnly}" / "${noteOnly}", not the owner's lede and single limitation`);
+        const said2 = (rawText(main).match(/does not run scans or supply prices/g) || []).length;
+        if (said2 !== 1) p.push(`/app/scanner: "does not run scans or supply prices" is in the page ${said2} times, not once`);
         if (!/does not run scans or supply prices/.test(lede) || !/not available to download yet/.test(lede)) p.push(`/app/scanner: the lede reads "${lede.slice(0, 120)}", not that this website runs no scans and supplies no prices and the worker is not available to download`);
       }
     }
   }
-  judge(p, `the Scanner's four steps (QT-D15-03): ${said.steps} steps in order (Create a rule setup → Price history → Run locally → Review recorded results), None yet · You supply it, "None supplied — this site ships no prices" · Not available to download yet · No scan recorded, step 3 linking the closed "Advanced: run the worker" fold, ${said.primaries} .btn-primary in <main> (Create a setup, in step 1), the lede and the note under it saying the site runs no scans and supplies no prices and the worker is not available to download`,
+  judge(p, `the Scanner's four steps (QT-D15-03): ${said.steps} steps in order (Create a rule setup → Price history → Run locally → Review recorded results), None yet · You supply it, "None supplied — this site ships no prices" · Not available to download yet · No scan recorded, step 3 linking the closed "Advanced: run locally" fold, ${said.primaries} .btn-primary in <main> (Create a setup, in step 1), the lede and the note under it saying the site runs no scans and supplies no prices and the worker is not available to download`,
     'the Scanner\'s four steps (QT-D15-03) are not served as accepted');
 }
 /* ---- end scanner-four-steps ---- */

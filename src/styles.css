@@ -2303,6 +2303,9 @@ table.scan-dt td { vertical-align: top; }
 .scan-first-ex { max-width: 46rem; }
 /* The head's note is a claim — no scan here, no prices — so a phone shows it whole, not in the two lines a note is clamped to. */
 @media (max-width: 760px) { .page-hd.scan-hd-full .page-note { display: block; -webkit-line-clamp: unset; overflow: visible; } }
+/* QT-D18-02: the one limitation near the top of the first view reads as the
+   page's main caution, not a grey note. */
+.page-hd.scan-hd-full .page-note { color: var(--ink); font-size: var(--ls-support); font-weight: var(--weight-semibold); }
 
 .scan-ex {
   margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--ls-related);

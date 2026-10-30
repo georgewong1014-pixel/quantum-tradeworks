@@ -7653,6 +7653,7 @@ try {
           badge: !!step2()?.querySelector('.status-badge'), whole: t(step2()) };
         out.runSum = t(main().querySelector('details#scan-run > summary'));
         out.runLink = t(main().querySelector('ol.scan-steps > li:nth-child(3) a'));
+        out.head = [t(main().querySelector('.page-lede')), t(main().querySelector('.page-note'))];
         main().querySelector('ol.scan-steps > li:nth-child(3) a').click(); await w(150);
         out.runOpened = main().querySelector('details#scan-run')?.open;
         scanHistoryFile = { generated: '2026-09-25T22:00:00Z', series: { AAA: { '2026-09-24': 10, '2026-09-25': 11 } }, volume: {} };
@@ -7680,10 +7681,11 @@ try {
     const s2 = r.step2 || {};
     if (s2.tag !== 'You supply it' || s2.state !== 'None supplied — this site ships no prices' || s2.badge || /Unavailable/i.test(s2.whole || '')) pf.push(`step 2 reads tag "${s2.tag}", state "${s2.state}", badge ${s2.badge}: "${s2.whole}"`);
     if (!/^The worker reads your price history on your own computer: for each symbol, a close for each date, and optionally open, high, low and volume\.$/.test(s2.note || '')) pf.push(`step 2's note reads "${s2.note}"`);
-    if (!/^Advanced: run the worker on your computer/.test(r.runSum || '') || r.runOpened !== true) pf.push(`"Run locally": summary "${r.runSum}", link "${r.runLink}" opened it ${r.runOpened}`);
+    if (JSON.stringify(r.head) !== JSON.stringify(['Create and save rules for checking price history you supply.', 'The website does not run scans or supply prices. The local worker is not available to download yet.'])) pf.push(`the dashboard's head reads ${JSON.stringify(r.head)}`);
+    if (!/^Advanced: run locally$/.test(r.runSum || '') || r.runOpened !== true) pf.push(`"Run locally": summary "${r.runSum}", link "${r.runLink}" opened it ${r.runOpened}`);
     if (r.step2Loaded?.tag !== 'Needed' || !/^1 series, newest bar 2026-09-25$/.test(r.step2Loaded?.state || '') || r.step2Loaded?.notes) pf.push(`step 2 with a history loaded: ${JSON.stringify(r.step2Loaded)}`);
     if (pf.length) fail('scanner first use: the setups page leads with its setups or "Create a setup" and keeps the worker, the TradingView import and "Evaluate now" in one closed Advanced; step 2 explains the price history without an alarm', pf);
-    else ok('scanner first use: /app/scanner/setups leads with the empty state ("Create a setup") or the setups and their export, "What this will and will not do" last; the worker\'s file with nothing saved, the TradingView import and "Evaluate now" sit in one Advanced details that is closed on arrival, keeps its state across redraws and is opened by #scan-bot or #scan-evaluate; step 2 says "You supply it · None supplied — this site ships no prices" with a line on what the worker reads; "Advanced: run the worker on your computer" opens from step 3');
+    else ok('scanner first use: /app/scanner/setups leads with the empty state ("Create a setup") or the setups and their export, "What this will and will not do" last; the worker\'s file with nothing saved, the TradingView import and "Evaluate now" sit in one Advanced details that is closed on arrival, keeps its state across redraws and is opened by #scan-bot or #scan-evaluate; step 2 says "You supply it · None supplied — this site ships no prices" with a line on what the worker reads; "Advanced: run locally" opens from step 3');
   }
   /* ---- end scanner: first use ---- */
 

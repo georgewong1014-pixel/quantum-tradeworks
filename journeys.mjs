@@ -2862,7 +2862,7 @@ const JOURNEYS = [
         if (!/Not available to download yet/.test(got.states[2])) throw new StepError(`step 3 reads “${got.states[2]}”`);
         if (!/^No scan recorded\b/.test(got.states[3])) throw new StepError(`step 4 reads “${got.states[3]}”, not “No scan recorded”`);
         if (got.prim.length !== 1 || got.prim[0] !== 'Create a setup' || !got.primIn1) throw new StepError(`the page’s primary buttons are ${JSON.stringify(got.prim)}: not one, “Create a setup”, in step 1`);
-        if (got.detOpen !== false || got.detSum !== 'Advanced: run the worker on your computer' || !got.detCmd) throw new StepError(`“Advanced: run the worker on your computer” is ${JSON.stringify({ open: got.detOpen, summary: got.detSum, commands: got.detCmd })}: not a closed details holding the commands`);
+        if (got.detOpen !== false || got.detSum !== 'Advanced: run locally' || !got.detCmd) throw new StepError(`“Advanced: run locally” is ${JSON.stringify({ open: got.detOpen, summary: got.detSum, commands: got.detCmd })}: not a closed details holding the commands`);
         if (got.link !== '#scan-run') throw new StepError(`step 3 links to ${got.link}, not #scan-run`);
         if (!/does not run scans or supply prices/.test(got.lede) || !/not available to download yet/.test(got.lede)) throw new StepError(`the lede reads “${got.lede.slice(0, 120)}”`);
         if (!got.before) throw new StepError('the four steps do not come before “Run locally” and the example');
