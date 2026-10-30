@@ -5879,6 +5879,11 @@ await sleep(2500);
       /* Focused, brought into view as a phone does, then again once any
          redraw the focus set off has landed: a box the page keeps pushing
          away still fails. */
+      /* Renovation sits in Refine the assumptions, closed on a first visit
+         (the owner's quick-wins brief, fix 7): a reader opens it before the
+         box can take focus, so the check does too. */
+      const shut = i.closest('details:not([open])');
+      if (shut) { shut.querySelector('summary')?.click(); await w(400); }
       i.focus(); i.scrollIntoView({ block: 'nearest' }); await w(400);
       i.scrollIntoView({ block: 'nearest' }); await w(300);
       const at = () => { const b = i.getBoundingClientRect(), d = dock && dock.getBoundingClientRect();
