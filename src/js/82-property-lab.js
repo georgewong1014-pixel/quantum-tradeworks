@@ -907,21 +907,29 @@ function labDraw(P, focusId = null) {
   grid.append(inputs, outputs);
   inputs.append(labColumnPicker(P, lab), labInputPicker(P, lab));
   const col = labActive(lab);
+  /* Said once, over the boxes, instead of under each (the 30 Oct 2026 audit): the tag beside a box says whose its figure is. */
+  P.els.defaultNote = el('p', { class: 'metaline lab-default-note', id: labId(P, 'default-note') }, 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.');
+  P.els.defaultNote.hidden = !LAB_INPUTS.some(inp => labApplies(col.work, inp.k) && labOwn(col.work, inp.k) === 'default');
+  inputs.append(P.els.defaultNote);
   LAB_INPUTS.filter(inp => !LAB_MORE_KEYS.includes(inp.k)).forEach(inp => inputs.append(labKnob(P, lab, col, inp)));
   inputs.append(labMoreInputs(P, lab, col));
   P.els.colsCard = labColumnsCard(P, lab);
   P.els.commitCard = labCommits(P, lab, col);
   P.cardSig = labCardSig(lab);
-  /* The chain, what needs evidence, the evidence itself (L3: under the
-     chain, collapsed; from 1440px the drawer on the right), then A, B and
-     C side by side and keeping one. */
+  /* The chain (with what its figures rest on, once), the evidence itself (L3:
+     under the chain, collapsed; from 1440px the drawer on the right), then A,
+     B and C side by side and keeping one — compare, then save — and, last,
+     the price against the reader's evidence, a closed disclosure (the 30 Oct
+     2026 audit). */
   const chain = labChain(P, lab, col);
-  const alert = P.compact ? null : labAlert(P, lab);
   /* The price against the reader's evidence (the decision layer, P2) —
      or, answered Auction, the auction risk mode in its place (P3), or,
-     answered New development, the developer premium model (P4). */
+     answered New development, the developer premium model (P4). Those two
+     are the route's own working and stay under the chain, where they
+     were; the price against the evidence is the disclosure at the foot. */
   const route = dealRoute(labAnswerInputs(lab));
-  const price = P.compact ? null : route === 'auction' ? labAuctionSection(P, lab) : route === 'newdev' ? labNewDevSection(P, lab) : labPriceSection(P, lab);
+  const routePrice = P.compact ? null : route === 'auction' ? labAuctionSection(P, lab) : route === 'newdev' ? labNewDevSection(P, lab) : null;
+  const price = P.compact || routePrice ? null : labPriceSection(P, lab);
   /* Answered Commercial, of any subtype and on any route: the four rents,
      their sustainability and the lease-down (P5), after the price. */
   const commercial = !P.compact && propertyClassOf(labAnswerInputs(lab)) === 'commercial' ? labCommercialSection(P, lab) : null;
@@ -933,7 +941,7 @@ function labDraw(P, focusId = null) {
   const refurb = !P.compact && lab.model ? labRefurbCard(P, lab) : null;
   /* On a saved property, what it actually did beside what was modelled (QT-06). */
   const actuals = !P.compact && lab.model ? labActualsCard(P, lab) : null;
-  outputs.append(...[chain, alert, price, commercial, evidence, cross, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  outputs.append(...[chain, routePrice, commercial, evidence, cross, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard, price].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
@@ -1198,7 +1206,12 @@ const LAB_TILE_RESTS = {
    (L2). With none chosen, the three /property has always opened on. The
    objective decides what leads and nothing else: the columns below keep
    their order, and nothing is ranked. */
-const labTileSet = (d) => dealObjective(d).tiles.map((key, i) => ({ key, level: i < 2 ? 1 : 2, rests: LAB_TILE_RESTS[key] }));
+/* THE 30 OCT 2026 AUDIT'S ORDER — purchase price, monthly position, cash
+   required, net yield: with no objective chosen the Lab leads with the month
+   and then the cash (the calculator's answer keeps its own order). A chosen
+   objective keeps its own, as it decides what leads and nothing else. */
+const LAB_TILES_UNCHOSEN = ['cashflowMonthly', 'safeCashRequired', 'netYield'];
+const labTileSet = (d) => { const o = dealObjective(d); return (o.id ? o.tiles : LAB_TILES_UNCHOSEN).map((key, i) => ({ key, level: i < 2 ? 1 : 2, rests: LAB_TILE_RESTS[key] })); };
 /* A tile's label where the chain's is a sentence long. */
 const LAB_TILE_LABEL = { valueLessLoanAtExit: (d) => `Value less loan, ${labSaleWhen(d)}` };
 const LAB_TILE_NOTE = { valueLessLoanAtExit: (m) => (isNum(m.valueLessLoanAtExit) ? 'before selling costs' : null) };
@@ -1259,6 +1272,7 @@ function labTiles(P, lab) {
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
   const rec = lab.model ? pmFind(lab.model) : null;
   const grid = el('div', { class: 'lab-tiles', role: 'list', 'aria-label': rec ? `“${rec.name}” as saved` : 'The deal on the calculator' });
+  grid.append(labPriceTile(P, lab, d));
   for (const t of labTileSet(labAnswerInputs(lab) || d)) {
     const f = LAB_FIGURES.find(x => x.key === t.key);
     const v = run ? f.read(run.m, d) : null;
@@ -1274,54 +1288,38 @@ function labTiles(P, lab) {
     card.querySelector('.ls-card-sub').classList.add('lab-tile-sub');
     grid.append(card);
   }
-  grid.append(labNextTile(P, lab, d));
   return grid;
 }
-/* NEXT STEP: the first figure still the tool's (the review queue's order,
-   the one that moves the most first), entered where figures become the
-   reader's — the calculator, at its box; then Save; then Compare. Only for
-   the calculator's own deal: a saved property opened by a link while
-   another deal is on the calculator would open the wrong one there. */
-/* The figure in a word or two: the tile is half a phone's width. */
-const LAB_NEXT_NOUN = { price: 'price', rent: 'rent', sqft: 'built-up area', maintenance: 'maintenance', ratePct: 'rate', vacancyPct: 'vacancy',
-  downPct: 'deposit', apprecPct: 'growth rate', tenureYears: 'loan tenure', holdYears: 'holding period' };
-function labNextTile(P, lab, d) {
-  const onCalc = !lab.model || State.deal?.modelId === lab.model;
-  const q = d && onCalc ? propertyReviewQueue(d) : [];
-  const id = labId(P, 'next-go');
-  let kind, act, sub;
-  if (q.length) {
-    const f = q[0], path = `/property/calculator#d-${f.k}`;
-    kind = { kind: 'illustrative_default', words: evidenceOf('illustrative_default').label };
-    act = el('a', { class: 'lab-next-go', id, href: href(path), onclick: (e) => {
+/* THE PURCHASE PRICE LEADS (the 30 Oct 2026 audit: price, then the monthly
+   position, the cash and the yield). It is the deal's own price, as the other
+   three tiles are the deal's figures, with the calculator's own tag beside
+   it — "Default" while it is the tool's figure, "Yours" once it is the
+   reader's (pcFieldOwn) — and, while it is the tool's, the one action: to
+   replace it, in the calculator, at its box, with the keyboard in it. That
+   is what the "Next step" tile did for the first figure still the tool's;
+   that figure's link is now the one in "What these figures rest on"
+   (labRests). Only for the calculator's own deal: a saved property opened by
+   a link while another deal is on the calculator would open the wrong one
+   there. */
+const labOnCalc = (lab) => !lab.model || State.deal?.modelId === lab.model;
+function labPriceTile(P, lab, d) {
+  const has = !!d && num0(d.price) > 0;
+  const own = has ? pcFieldOwn(d, 'price') : null;
+  const tag = own ? el('span', { class: `lab-tag lab-tile-kind ls-badge pc-own${own === 'default' ? ' is-default' : ''}`, id: labId(P, 'price-own'),
+    'data-own': own, 'data-kind': own === 'default' ? 'illustrative_default' : 'user' }, own === 'default' ? 'Default' : 'Yours') : null;
+  let act = null;
+  if (own === 'default' && labOnCalc(lab)) {
+    const path = '/property/calculator#d-price';
+    act = el('a', { class: 'lab-price-go', id: labId(P, 'price-go'), href: href(path), onclick: (e) => {
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path);
-    } }, [`Replace the ${LAB_NEXT_NOUN[f.k] || f.label.toLowerCase()}`, el('span', { class: 'sr-only' }, ` — the sample ${f.label.toLowerCase()}, in the calculator`)]);
-    sub = `The sample’s: ${isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'}`;
-  } else if (!lab.model) {
-    kind = { kind: 'unsaved', words: 'Not saved' };
-    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, 'Save this property');
-    sub = 'Then compare its scenarios';
-  } else {
-    kind = { kind: 'saved', words: 'Saved' };
-    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => {
-      const r = P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`);
-      if (!r) return;
-      r.closest('.lab-cmp-card')?.scrollIntoView({ block: 'start' });
-      r.focus({ preventScroll: true });
-    } }, 'Compare scenarios');
-    sub = 'Scenarios side by side, below';
+    } }, ['Replace with your price', el('span', { class: 'sr-only' }, ' — the sample price, in the calculator')]);
   }
-  /* THE SYSTEM'S ACTION CARD: a title, one line, one call to action. */
-  /* "Not saved" and "Saved" are the property's state, not a figure's kind:
-     they keep the plain tag. */
-  const tag = EVIDENCE.some(e => e.id === kind.kind) ? labTag(kind)
-    : el('span', { class: 'lab-tag lab-tile-kind ls-badge', 'data-kind': kind.kind }, kind.words);
-  const card = lsActionCard({ title: 'Next step', line: sub, cta: act, badge: tag, cls: 'lab-tile lab-tile-next',
-    attrs: { role: 'listitem', 'data-tile': 'next', 'data-kind': kind.kind } });
+  const card = lsMetricCard({ label: 'Purchase price', value: has ? labMoney(num0(d.price)) : '—', badge: tag, level: 2,
+    sub: act || (has ? null : 'Needs a purchase price'), cls: 'lab-tile lab-tile-price', attrs: { role: 'listitem', 'data-tile': 'price' },
+    valueAttrs: { class: 'lab-tile-val', 'data-value': has ? String(num0(d.price)) : '' } });
   card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
   card.querySelector('.ls-card-label').classList.add('lab-tile-label');
-  card.querySelector('.ls-card-act').classList.add('lab-tile-val', 'lab-next-what');
-  card.querySelector('.ls-card-sub').classList.add('lab-tile-sub');
+  card.querySelector('.ls-card-sub')?.classList.add('lab-tile-sub');
   return card;
 }
 
@@ -1408,7 +1406,7 @@ function labSaveAnswers(P, lab) {
   for (const col of lab.cols) if (col.source === 'variant' && !col.prop) labFact(col, write);
   lab.answers = {};
   if (!labRebase(lab)) return false;
-  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, [labId(Q, 'id-save'), labId(Q, 'next-go'), labId(Q, 'rf-h')]);
+  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, [labId(Q, 'id-save'), labId(Q, 'rf-h')]);
   labAfterStructure(P, lab, { address: true });
   toast(rfOnly ? `Saved the refurbish-or-not figures to “${rec.name}”.` : `Saved what and how you are buying to “${rec.name}”: ${pqSummaryText(pmInputsOf(pmFind(rec.id)))}.`);
   return true;
@@ -1427,8 +1425,15 @@ function labFact(col, write) {
    inputs it reads are the property's (the asking price, the comparables
    named, the target), entered in the calculator and, for the target, here. */
 function labPriceSection(P, lab) {
-  const card = el('section', { class: 'card ls-section lab-pe', id: labId(P, 'pe'), 'aria-labelledby': labId(P, 'pe-h') });
-  card.append(el('h2', { class: 'h-card', id: labId(P, 'pe-h') }, 'The price, against your evidence'));
+  /* A CLOSED DISCLOSURE AFTER THE COMPARE-AND-SAVE CARDS (the 30 Oct 2026
+     audit: price, month, cash, assumptions, then compare and save): the
+     same contents, under "Check the price against your evidence", open as
+     the reader left it across a redraw (P.peOpen) and its summary kept in
+     focus (labDraw, by id). */
+  const card = el('details', { class: 'card ls-section lab-pe lab-disc', id: labId(P, 'pe'), open: P.peOpen ? '' : null });
+  card.addEventListener('toggle', () => { P.peOpen = card.open; });
+  card.append(el('summary', { class: 'lab-disc-sum', id: labId(P, 'pe-h') }, [el('span', { class: 'h-card lab-disc-h' }, 'Check the price against your evidence'),
+    el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]));
   const route = el('p', { class: 'metaline pe-route', id: labId(P, 'pe-route') });
   const cards = el('div', { class: 'pe-cards-wrap', id: labId(P, 'pe-cards') });
   const d = labAnswerInputs(lab);
@@ -1850,6 +1855,12 @@ function labSpan(col, inp) {
    is — inputIsSeeded, the calculator's own test (the Day-10 pre-audit,
    CL-02): the deposit, rate, tenure, vacancy, growth and hold read
    "Evidence: Assumed" here and "Illustrative default" on the calculator. */
+/* THE 30 OCT 2026 AUDIT: the same line said under each of the boxes. A box now
+   carries the calculator’s own tag — "Default" while its figure is the
+   tool’s, "Yours" once it is the reader’s (pcFieldOwn) — and the sentence that
+   says what Default is stands once above them (P.els.defaultNote, labDraw). The longer
+   words stay as the tag’s title. */
+const labOwn = (d, k) => pcFieldOwn(d, k) || 'yours';
 function labEvidenceWords(d, k) {
   if (inputIsSeeded(d, k)) return 'Illustrative default — not yours, and not from any market';
   return `Evidence: ${evidenceOf(shownEvidence(d, k)).label}`;
@@ -1945,7 +1956,8 @@ function labKnob(P, lab, col, inp) {
   ctl.append(knob.reset);
   const ft = el('div', { class: 'lab-knob-ft' });
   const tags = el('div', { class: 'lab-tags' });
-  knob.ev = el('span', { class: 'lab-tag', id: eid }, labEvidenceWords(col.work, k));
+  const own0 = labOwn(col.work, k);
+  knob.ev = el('span', { class: `lab-tag${own0 === 'default' ? ' is-default' : ''}`, id: eid, title: labEvidenceWords(col.work, k), 'data-own': own0 }, own0 === 'default' ? 'Default' : 'Yours');
   knob.whatIf = el('span', { class: 'lab-tag lab-tag-whatif is-idle', id: knob.ids.wid }, 'What-if — not saved, no evidence attached');
   tags.append(knob.ev, knob.whatIf);
   /* COMPUTED, NOT APPROVED, IN SIGHT ON A PHONE (the release re-check of
@@ -2104,7 +2116,14 @@ function labWireRange(P, lab, range, k) {
   });
 }
 
-/* THE CHAIN: seven rows in the owner's order, and the grade. */
+/* THE CHAIN: the rows, and the grade. THE FOUR THAT STAND (the 30 Oct 2026
+   audit asked for the monthly position, the cash required and the yield
+   before the detail, the repayment being what the month is made of): the
+   other four — the commitment, the break-even occupancy, the value less loan
+   and the rate of return if sold — are folded under "N more figures", in the
+   page whole and closed (a served page and the coverage frames read them
+   there), open as the reader left them (P.chainMoreOpen). */
+const LAB_CHAIN_SHOWN = ['cashflowMonthly', 'safeCashRequired', 'netYield', 'instalment'];
 function labChain(P, lab, col) {
   const card = el('section', { class: 'card ls-section lab-chain-card', 'aria-labelledby': labId(P, 'chain-h') });
   const bl = labBaseline(lab, col);
@@ -2114,7 +2133,9 @@ function labChain(P, lab, col) {
   ]));
   const list = el('div', { class: 'lab-chain' });
   const d = col.work;
-  for (const f of LAB_FIGURES) {
+  const folded = LAB_FIGURES.filter(f => !LAB_CHAIN_SHOWN.includes(f.key));
+  const moreBody = el('div', { class: 'lab-chain-more-body' });
+  for (const f of [...LAB_CHAIN_SHOWN.map(k => LAB_FIGURES.find(x => x.key === k)), ...folded]) {
     const det = el('details', { class: 'lab-row', data: { row: f.key } });
     const value = el('span', { class: 'lab-val num', data: { lab: f.key, labFmt: f.fmt }, 'data-value': '' }, '—');
     const deltaEye = el('span', { class: 'lab-delta-mark', 'aria-hidden': 'true' }, '');
@@ -2135,7 +2156,7 @@ function labChain(P, lab, col) {
     const where = labWhereEntered(lab, col, f.key);
     if (where) { body.append(where); (P.els.where ||= []).push(where); }
     det.append(body);
-    list.append(det);
+    (LAB_CHAIN_SHOWN.includes(f.key) ? list : moreBody).append(det);
     P.els.chain[f.key] = { value, deltaEye, deltaEar, note, label, formula, fmt: f.fmt, paidBox, sum, det, kind, kindWord: kind.lastChild };
     /* A row's formula is written while it is open, and when it opens. */
     det.addEventListener('toggle', () => { if (det.open) labPaintPanel(P); });
@@ -2147,6 +2168,12 @@ function labChain(P, lab, col) {
       labShowFormula(P, f.key);
     });
   }
+  const more = el('details', { class: 'lab-chain-more', id: labId(P, 'chain-more'), open: P.chainMoreOpen ? '' : null });
+  more.addEventListener('toggle', () => { P.chainMoreOpen = more.open; });
+  more.append(el('summary', { class: 'lab-chain-more-sum', id: labId(P, 'chain-more-btn') }, [
+    el('span', { class: 'lab-chain-more-name' }, `${folded.length} more figures`),
+    el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]), moreBody);
+  list.append(more);
   card.append(list);
   if (labPaid(d)) {
     const paid = el('div', { class: 'lab-paid-figs', id: labId(P, 'paid') });
@@ -2168,6 +2195,9 @@ function labChain(P, lab, col) {
   seeWhy.setAttribute('aria-controls', labId(P, 'grade-why'));
   card.append(grade);
   P.els.grade = { letter, verdict, gate, seeWhy };
+  /* What the figures rest on, once, under the grade (labRests). */
+  const rests = P.compact ? null : labRests(P, lab, col);
+  if (rests) card.append(rests);
   return card;
 }
 
@@ -2268,22 +2298,24 @@ function labShowFormula(P, key) {
   const f = LAB_FIGURES.find(x => x.key === key);
   if (f) liveSay(`How ${f.label(labActive(LAB[P.key]).work).toLowerCase().replace(/\bvp\b/g, 'VP')} is worked out, in the evidence beside the figures.`);
 }
-/* THE SYSTEM'S ALERT CARD: how many of the figures behind these results
-   are still the tool's, and where they are reviewed — the calculator's
-   review list (/property/calculator#review). Only for the calculator's own
-   deal, as the next step: another deal is not the one there. */
-function labAlert(P, lab) {
-  const onCalc = !lab.model || State.deal?.modelId === lab.model;
-  const d = labSubjectInputs(lab);
-  const q = d && onCalc ? propertyReviewQueue(d) : [];
-  if (!q.length) return null;
-  /* Named as the calculator names them (CL-02): "sample inputs". Without
-     the list of three it carried: the grade beside it names the four the
-     answer rests on, and the review it opens lists all of them — the
-     words the evidence tags took (the Day-10 pre-audit, CL-02: the
-     lab-words count stays where it was). */
-  return lsAlertCard({ text: `${q.length} sample input${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
-    cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
+/* "WHAT THESE FIGURES REST ON", ONCE (the 30 Oct 2026 audit): the grade card's
+   long sentence ("4 gates; the most serious: 4 of the 10 sample inputs…")
+   and the alert bar under it ("10 sample inputs need evidence · Review →")
+   gave two counts and said it twice. It is the calculator's own block
+   (pcQuickRests, 75-property-grade.js): one count of the inputs still the
+   tool's, which of them hold back the research grade, one "Review the
+   defaults →" and a closed "Why these are defaults". Its link is what the
+   "Next step" tile was: the first figure still the tool's, entered where
+   figures become the reader's — the calculator, at its box — and only for
+   the calculator's own deal, as the next step was: another deal is not the
+   one there. Counted on the column's own figures, which a move does not
+   change (a move marks nothing as the reader's), so it is drawn with the
+   panel, not at a tick. */
+function labRests(P, lab, col) {
+  const d = col.work;
+  const q = d ? propertyReviewQueue(d) : [];
+  const go = q.length && labOnCalc(lab) ? { path: `/property/calculator#d-${q[0].k}`, id: labId(P, 'review') } : null;
+  return (d && pcQuickRests(d, q, { go, id: labId(P, 'rests-box') })) || null;
 }
 /* Where a figure is entered, only while the column IS the calculator's
    deal and unmoved: a plain link from any other column would open a
@@ -2831,7 +2863,7 @@ function labNameForm(P, lab, col) {
     el('div', { class: 'lab-name-acts' }, [
       el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: labId(P, 'name-save') }, 'Save'),
       el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, 'name-cancel'), onclick: () => {
-        const back = lab.naming?.at === 'identity' ? ['id-save', 'next-go'] : [isOpp ? 'save-opp' : isProp ? 'save-first' : 'save'];
+        const back = lab.naming?.at === 'identity' ? ['id-save'] : [isOpp ? 'save-opp' : isProp ? 'save-first' : 'save'];
         lab.naming = null; labDraw(P, back.map(x => labId(P, x)));
       } }, 'Cancel'),
     ]));
@@ -2884,7 +2916,7 @@ function labSaveProperty(P, lab, name, scenario = null) {
   /* The keyboard on the next thing to do with the column, which the
      property's save leaves enabled — beside the identity line where the
      save was asked for there. */
-  labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'save'), labId(P, 'open')]);
+  labDraw(P, [...(fromId ? [labId(P, 'id-save')] : []), labId(P, 'save'), labId(P, 'open')]);
   labAfterStructure(P, next, { address: true });
 }
 function labCommitScenario(P, lab, name, { withProperty = null } = {}) {
@@ -2913,7 +2945,7 @@ function labCommitScenario(P, lab, name, { withProperty = null } = {}) {
   lab.naming = null;
   /* Saved, the button that saved it is disabled: the keyboard goes to the
      next thing to do with the column, not to <body>. */
-  labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'open'), labId(P, `col-${col.key}`)]);
+  labDraw(P, [...(fromId ? [labId(P, 'id-save')] : []), labId(P, 'open'), labId(P, `col-${col.key}`)]);
   labAfterStructure(P, lab, { address: true });
   toast(withProperty
     ? `Saved “${rec.name}” and ${col.key} as its scenario “${sc.name}” — both are listed in My properties${yours}.${labGateWords(next)}`
@@ -3724,12 +3756,13 @@ function labPaintPanel(P, { initial = false } = {}) {
       labAttr(kn.range, 'aria-describedby', desc);
       labAttr(kn.num, 'aria-describedby', desc);
     }
-    if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', inputIsSeeded(d, inp.k)); }
+    if (kn.ev) { const own = labOwn(d, inp.k); labText(kn.ev, own === 'default' ? 'Default' : 'Yours'); labAttr(kn.ev, 'data-own', own); labAttr(kn.ev, 'title', labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', own === 'default'); }
     if (kn.zero) kn.zero.hidden = !(m && m.zeroRateModelled);
     if (kn.recover) labText(kn.recover, num0(d.renoValueRecoveryPct) > 0
       ? `Moves the cash required and, through the ${labPctIn(num0(d.renoValueRecoveryPct))} of it recovered at the sale, the sale value — not the rent you entered.`
       : 'Moves the cash required, and the gains tax it is allowed against — none of it is recovered at the sale (0%, set in the calculator), and it does not change the rent you entered.');
   }
+  if (P.els.defaultNote) P.els.defaultNote.hidden = !LAB_INPUTS.some(inp => labApplies(d, inp.k) && labOwn(d, inp.k) === 'default');
   /* What the group says is the reader's own, as a slider moves (QT-D15-02). */
   if (P.els.refineState) labText(P.els.refineState, labRefineCount(P, lab, col).words);
   /* The chain. */
@@ -3794,7 +3827,10 @@ function labPaintPanel(P, { initial = false } = {}) {
     labText(P.els.grade.letter, LAB_FORMATS.grade(g?.grade));
     labAttr(P.els.grade.letter, 'data-value', g?.grade || '');
     labText(P.els.grade.verdict, g ? g.verdict : 'Needs a purchase price');
-    labText(P.els.grade.gate, worst ? `${g.gates.length} gate${g.gates.length === 1 ? '' : 's'}; the most serious: ${worst.text}` : g ? 'No gate is open.' : '');
+    /* The grade's one line is a blocker that is not the defaults' — those are said once, in the block below (labRests); every gate is under "See why". */
+    const gateSay = worst && worst.id !== 'illustrative' ? `Most serious: ${worst.text}` : '';
+    labText(P.els.grade.gate, gateSay);
+    P.els.grade.gate.hidden = !gateSay;
     labText(P.els.grade.whyLetter, g?.grade || 'there is no grade');
     if (initial || P.els.grade.why.open) {
       const rank = { critical: 0, serious: 1, warning: 2 };

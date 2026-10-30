@@ -3386,13 +3386,19 @@ function pcQuickCard(key, level, label, value, sub, badge, tone = null) {
    "Why these are defaults" stays folded. The address #review lands on it.
    Null when nothing is left to review. */
 const PC_DRIVER_SAY = { price: 'price', rent: 'rent', maintenance: 'maintenance', sqft: 'built-up area' };
-function pcQuickRests(d, queue) {
+/* THE SCENARIO LAB SAYS IT THE SAME WAY (the 30 Oct 2026 audit): the one
+   block, the same count and the same second clause. `go`, where the figures
+   are replaced in the calculator rather than listed in place — { first, id,
+   onclick? } — makes "Review the defaults →" a link to the first figure
+   still the tool's (the Lab's old "Next step"), in place of the list; `id`
+   names the block where it is not the calculator's #review. */
+function pcQuickRests(d, queue, { go = null, id = 'review' } = {}) {
   const drivers = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
   const keys = [...new Set([...queue.map(f => f.k), ...drivers])];
   if (!keys.length) return null;
   const n = keys.length, s = n === 1 ? '' : 's';
   const say = (k) => (PROPERTY_REVIEW.find(f => f.k === k)?.label || k).toLowerCase();
-  const box = el('div', { class: 'pc-rests', id: 'review', 'aria-labelledby': 'pc-rests-h' });
+  const box = el('div', { class: 'pc-rests', id, 'aria-labelledby': 'pc-rests-h' });
   box.append(el('h3', { class: 'pc-rests-h', id: 'pc-rests-h' }, 'What these figures rest on'));
   const lead = el('p', { class: 'pc-rests-text', id: 'pc-rests-text' }, [
     el('strong', { 'data-n': String(n) }, `${n} input${s}`), ` ${n === 1 ? 'is' : 'are'} still the tool’s illustrative default${s}, not yours: ${feeList(keys.map(say))}.`]);
@@ -3400,10 +3406,18 @@ function pcQuickRests(d, queue) {
     ? `${n === 1 ? 'It holds' : 'All hold'} back the research grade.`
     : `${drivers.length} of the ${n} — ${feeList(drivers.map(k => PC_DRIVER_SAY[k] || k))} — hold${drivers.length === 1 ? 's' : ''} back the research grade.`);
   box.append(lead);
-  const det = el('details', { class: 'pc-rests-list', id: 'pc-review-list' });
-  det.append(el('summary', { class: 'pc-rests-sum' }, [`Review the defaults`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]));
-  det.append(...pcReviewRows(d, queue));
-  box.append(det);
+  if (go) {
+    const first = queue[0] || null;
+    if (first) box.append(el('p', { class: 'pc-rests-go-p' }, el('a', { class: 'pc-rests-go', id: go.id, href: href(go.path), onclick: (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(go.path);
+    } }, ['Review the defaults', el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →'),
+      el('span', { class: 'sr-only' }, ` — starting with the ${first.label.toLowerCase()}, in the calculator`)])));
+  } else {
+    const det = el('details', { class: 'pc-rests-list', id: 'pc-review-list' });
+    det.append(el('summary', { class: 'pc-rests-sum' }, [`Review the defaults`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]));
+    det.append(...pcReviewRows(d, queue));
+    box.append(det);
+  }
   box.append(el('details', { class: 'explain' }, [el('summary', {}, 'Why these are defaults'),
     el('p', { class: 'metaline' }, `Nobody chose ${n === 1 ? 'it' : 'them'} for this property and no market was consulted. The sample deal is not a real listing.`)]));
   if (d.city !== 'kuching') box.append(el('p', { class: 'metaline' },
