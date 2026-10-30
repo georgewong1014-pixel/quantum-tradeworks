@@ -7897,6 +7897,8 @@ try {
      side; and no preview draws a count, a date, a symbol or a word that leans
      toward a trade. */
   {
+    /* At 1440 the three cards sit side by side, which is where their height is judged. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
     const r = await evaluate(`(async () => {
       const w = (ms) => new Promise(res => setTimeout(res, ms));
       navigate('/'); await w(250);
@@ -7911,7 +7913,7 @@ try {
       const h = cards.map(c => Math.round(c.getBoundingClientRect().height));
       return {
         captions: cards.map(c => { const f = c.querySelector('figure'); const e = f?.firstElementChild; return e && e.classList.contains('pub-vis-eg') ? e.textContent.trim() : (e ? e.className : null); }),
-        side: cards.length > 1 && Math.abs(cards[0].getBoundingClientRect().top - cards[1].getBoundingClientRect().top) < 2,
+        side: cards.length === 3 && cards.every(c => Math.abs(c.getBoundingClientRect().top - cards[0].getBoundingClientRect().top) < 2) && getComputedStyle(m.querySelector('.pub-cards')).display !== 'flex',
         h,
         mock: fig ? fig.querySelectorAll('.pub-record, .pub-record-row, .pub-chip, .pub-rule, .pub-vis-empty').length : -1,
         rows, engine: eng.conditions.map(c => ({ text: c.text, state: c.state, word: { MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' }[c.state] })), engineState: eng.state,
@@ -7924,6 +7926,7 @@ try {
         overflow: document.documentElement.scrollWidth - innerWidth,
       };
     })()`);
+    await send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
     const p = [];
     if (r.captions.length !== 3 || r.captions.some(c => c !== 'Example output')) p.push(`the previews open with ${JSON.stringify(r.captions)}, not "Example output" on each of three`);
     if (r.mock !== 0) p.push(`the Scanner preview still draws the mock-up (${r.mock} chips, placeholder rows or empty-record parts)`);
@@ -7934,7 +7937,8 @@ try {
     if (Number(r.points) !== r.closes || r.closes !== 66) p.push(`the series has ${r.points} points, the generated series ${r.closes} (66)`);
     if (r.badge !== 'Illustrative' || !/Generated series, not a market’s prices/.test(r.label || '')) p.push(`the Scanner preview's label is "${r.label}" (badge "${r.badge}")`);
     if (/\b(matched|approaching|watching|signal|buy|sell|live|works)\b/i.test(r.text) || /[0-9]{4}-[0-9]{2}-[0-9]{2}|RM|US\$/.test(r.text)) p.push(`the Scanner preview says something a market's page would: "${r.text.replace(/\s+/g, ' ').slice(0, 160)}"`);
-    if (r.side && new Set(r.h).size !== 1) p.push(`the three cards sit side by side at ${JSON.stringify(r.h)}px, not one height`);
+    if (!r.side) p.push(`at 1440 the three cards do not sit side by side (${JSON.stringify(r.h)}px)`);
+    else if (new Set(r.h).size !== 1) p.push(`the three cards sit side by side at ${JSON.stringify(r.h)}px, not one height`);
     if (p.length) fail('home: the three previews are example output, the Scanner\'s the engine\'s own evaluation', p);
     else ok(`home: each of the three previews opens with "Example output"; the Scanner's is scanExample's evaluation at bar ${r.closes} — "${r.verdict}" and ${r.rows.length} conditions as the engine words them — labelled Illustrative, with no placeholder rows${r.side ? `; the cards are ${r.h[0]}px each` : ''}`);
   }
