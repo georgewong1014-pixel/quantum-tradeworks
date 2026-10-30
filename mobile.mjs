@@ -4384,6 +4384,8 @@ for (const w of [360, 390]) {
   const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
   const read = `(async () => {
     await document.fonts.ready;
+    /* Four of the eight rows sit in the closed "4 more figures" (the 30 Oct 2026 audit): the reader opens it, and all eight are laid out as before. */
+    const fold = document.getElementById('lab-chain-more'); if (fold) fold.open = true;
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const lines = (n) => { if (!n || !n.firstChild) return 0; const r = document.createRange(); r.selectNodeContents(n); return new Set([...r.getClientRects()].filter(q => q.width > 1).map(q => Math.round(q.top))).size; };
     const box = (n) => { const b = n.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, w: b.width, h: b.height }; };

@@ -6398,8 +6398,9 @@ try {
         document.querySelector('#views .lab-tile-price .lab-price-go').click();
         for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await w(150);
         out.go = { view: State.view, path: location.pathname, focus: document.activeElement?.id || null };
-        /* The rests block's one link, the same way. */
+        /* The rests block's one link, the same way. The calculator reads an address once per arrival, so the same address twice running is not read again (pcArrivalSeen): the second click is a fresh arrival. */
         navigate('/property'); await w(400);
+        pcArrivalSeen = null;
         document.getElementById('lab-review').click();
         for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await w(150);
         out.goRests = { view: State.view, path: location.pathname, focus: document.activeElement?.id || null };
@@ -6498,7 +6499,7 @@ try {
           const knobs = [...document.querySelectorAll('#views .lab-knob')];
           out.boxes = { note: t(document.getElementById('lab-default-note')), old: knobs.some(k => t(k).includes('Illustrative default — not yours')),
             tags: knobs.map(k => t(k.querySelector('.lab-tag[id^="lab-ev-"]'))).join('|'),
-            described: knobs.filter(k => { const n = k.querySelector('input.lab-num'); const ev = k.querySelector('.lab-tag[id^="lab-ev-"]'); return !n || !ev || !(n.getAttribute('aria-describedby') || '').split(' ').includes(ev.id); }).length };
+            described: knobs.filter(k => { const n = k.querySelector('input.lab-num'); const ev = k.querySelector('.lab-tag[id^="lab-ev-"]'), wi = k.querySelector('.lab-tag-whatif'); const d = (n && n.getAttribute('aria-describedby') || '').split(' '); return !n || !ev || !(d.includes(ev.id) || (wi && d.includes(wi.id))); }).length };
           /* The order below the figures. */
           const heads = ['Scenarios side by side', 'Columns', 'Keep B', 'Check the price against your evidence'].map(s => [...document.querySelectorAll('#views h2, #views summary')].find(x => t(x).startsWith(s)));
           out.order = heads.map(n => !!n);
@@ -6514,10 +6515,13 @@ try {
           navigate('/property/calculator'); await w(200); navigate('/property'); await w(500);
           const pt2 = document.querySelector('#views .lab-tile[data-tile="price"]');
           out.own = { value: t(pt2?.querySelector('.lab-tile-val')), tag: t(pt2?.querySelector('[data-own]')), go: !!pt2?.querySelector('.lab-price-go'), restsN: document.querySelectorAll('#views .pc-rests').length };
-          /* A chosen objective keeps its own order after the price. */
-          State.deal = { ...State.deal, objective: 'growth' }; saveDeal();
-          navigate('/property/calculator'); await w(200); navigate('/property'); await w(500);
+          /* A chosen objective keeps its own order after the price (answered in the Lab, as a reader does, and put back). */
+          navigate('/property'); await w(500);
+          const P2 = [...LAB_PANELS].find(x => x.address), L2 = LAB[P2.key];
+          labAnswer(P2, L2, 'objective', 'growth'); await w(300);
           out.growth = tileKeys();
+          labAnswer(P2, L2, 'objective', null); await w(300);
+          out.unchosen = tileKeys();
         } finally {
           State.deal = JSON.parse(JSON.stringify(kept)); saveDeal();
         }
@@ -6542,7 +6546,7 @@ try {
       if (r.pe.tag !== 'DETAILS' || !r.pe.closed || r.pe.old || !r.pe.inside) p.push(`the price check: ${JSON.stringify(r.pe)}`);
       if (!r.peKept.open || r.peKept.focus !== 'lab-pe-h') p.push(`the price check, opened and focused, after a redraw: ${JSON.stringify(r.peKept)}`);
       if (r.own.value !== 'RM610,000' || r.own.tag !== 'Yours' || r.own.go) p.push(`with the reader's own price: ${JSON.stringify(r.own)}`);
-      if (!eq(r.growth, ['price', 'valueLessLoanAtExit', 'safeCashRequired', 'cashflowMonthly'])) p.push(`with the growth objective the tiles are ${JSON.stringify(r.growth)}`);
+      if (!eq(r.growth, ['price', 'valueLessLoanAtExit', 'safeCashRequired', 'cashflowMonthly']) || !eq(r.unchosen, r.tiles)) p.push(`with the growth objective the tiles are ${JSON.stringify(r.growth)}, with none ${JSON.stringify(r.unchosen)}`);
       if (p.length) fail('a4-lab: the Scenario Lab leads with the price, month and cash, folds the detail and compares before it checks the price', p);
       else ok('a4-lab: the Lab\'s tiles run Purchase price (Default, "Replace with your price"; Yours with no action once it is the reader\'s), Monthly position, Cash required, Net yield — an objective keeping its own order after the price — with no Next step; one "What these figures rest on" (one count, the review queue\'s, one link) and no alert bar or gate sentence; Monthly position, Cash required, Net yield and Monthly repayment stand and the other four sit in a closed "4 more figures" kept open or closed, with the keyboard on it, across a redraw; one sentence over nine boxes tagged Default, each in its description; Scenarios side by side, Columns, Keep B, then the closed "Check the price against your evidence", kept across a redraw');
     } catch (e) {

@@ -6125,26 +6125,28 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    body size, its kind badge kept, and the next step its call alone (the
    sample's figure it replaces is the slider's, just below). */
 @container lab (max-width: 599px) {
-  .lab-tile.ls-l2 { grid-column: 1 / -1; padding: 3px 10px 4px; background: var(--surface-sunk); box-shadow: none; }
+  .lab-tile.ls-l2 { grid-column: 1 / -1; padding: 2px 10px 3px; background: var(--surface-sunk); box-shadow: none; }
   .lab-tile.ls-l2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: baseline; align-content: start; }
   .lab-tile.ls-l2 > .ls-card-hd { display: contents; }
   .lab-tile.ls-l2 .ls-card-label { grid-column: 1; grid-row: 1; min-width: 0; }
-  .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 16px; }
+  .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 15px; }
   /* The tag and what follows it share the second row — the price's action, the yield's gross — so a tile of context is two lines, not three. */
   .lab-tile.ls-l2 .ls-badge { grid-column: 1; grid-row: 2; justify-self: start; }
-  .lab-tile.ls-l2 .lab-tag.ls-badge { padding: 0 8px; line-height: 15px; }
-  .lab-tile.ls-l2 .kind-badge { height: 17px; }
+  .lab-tile.ls-l2 .lab-tag.ls-badge { padding: 0 8px; line-height: 13px; }
+  .lab-tile.ls-l2 .kind-badge { height: 15px; line-height: 13px; }
+  .lab-tiles { gap: 3px; }
   .lab-tile.ls-l2 .ls-card-sub { grid-column: 2; grid-row: 2; justify-self: end; text-align: right; }
 }
 @media (max-width: 662px) {
-  :root[data-served] .lab-tile.ls-l2 { grid-column: 1 / -1; padding: 3px 10px 4px; background: var(--surface-sunk); box-shadow: none; }
+  :root[data-served] .lab-tile.ls-l2 { grid-column: 1 / -1; padding: 2px 10px 3px; background: var(--surface-sunk); box-shadow: none; }
   :root[data-served] .lab-tile.ls-l2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: baseline; align-content: start; }
   :root[data-served] .lab-tile.ls-l2 > .ls-card-hd { display: contents; }
   :root[data-served] .lab-tile.ls-l2 .ls-card-label { grid-column: 1; grid-row: 1; min-width: 0; }
-  :root[data-served] .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 16px; }
+  :root[data-served] .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 15px; }
   :root[data-served] .lab-tile.ls-l2 .ls-badge { grid-column: 1; grid-row: 2; justify-self: start; }
-  :root[data-served] .lab-tile.ls-l2 .lab-tag.ls-badge { padding: 0 8px; line-height: 15px; }
-  :root[data-served] .lab-tile.ls-l2 .kind-badge { height: 17px; }
+  :root[data-served] .lab-tile.ls-l2 .lab-tag.ls-badge { padding: 0 8px; line-height: 13px; }
+  :root[data-served] .lab-tile.ls-l2 .kind-badge { height: 15px; line-height: 13px; }
+  :root[data-served] .lab-tiles { gap: 3px; }
   :root[data-served] .lab-tile.ls-l2 .ls-card-sub { grid-column: 2; grid-row: 2; justify-self: end; text-align: right; }
 }
 
