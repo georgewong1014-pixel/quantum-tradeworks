@@ -3471,6 +3471,44 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end backup-served ---- */
 
+/* ---- saved-protect-served ---- */
+/* SAVED IN THIS BROWSER, AND THE WAY BACK, SERVED (the owner's quick-wins
+   brief, fix 9, 30 Oct 2026). My properties and Saved work carry one block
+   above their list (savedProtection, 55-views-public.js): the label, and the
+   sentence that says how a cleared browser or a new device is recovered, its
+   "Your data & settings" a link to /my/data. Served, they are a fresh
+   visitor's, who has nothing of their own to export: the block is there once,
+   with the label and the sentence exactly, and offers no Export backup and
+   no "Never backed up" about nothing. The strips it replaced ("No account, no
+   sync", "Back up everything" on the workspace) are gone. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const SAY = 'If this browser is cleared or you change device, open Your data & settings and choose Restore from a file with your backup.';
+  const got = await getAll(['/property/models', '/my/workspace']);
+  for (const path of ['/property/models', '/my/workspace']) {
+    const r = got.get(path);
+    if (!r || r.status !== 200) { p.push(`${path}: ${r?.status || 'no answer'}, not 200`); continue; }
+    const tree = B.htmlTree(r.body);
+    const views = all(tree).find(n => attr(n, 'id') === 'views');
+    if (!views) { p.push(`${path}: no #views`); continue; }
+    const blocks = all(views).filter(n => attr(n, 'data-saved-protect') !== null);
+    if (blocks.length !== 1) { p.push(`${path}: ${blocks.length} saved-in-this-browser blocks in the served page, not one`); continue; }
+    const text = sight(views).replace(/\s+/g, ' ').replace(/ ([.,])/g, '$1');
+    const count = (s) => text.split(s).length - 1;
+    if (count('Saved in this browser') !== 1) p.push(`${path}: "Saved in this browser" is said ${count('Saved in this browser')} times, not once`);
+    if (count(SAY) !== 1) p.push(`${path}: the recovery sentence is not served exactly once`);
+    if (/Export backup|Never backed up|Last backed up/.test(text)) p.push(`${path}: a fresh visitor is offered an export or a backup state for nothing of theirs`);
+    if (/No account, no sync|Back up everything|The export on Your data/.test(text)) p.push(`${path}: the strip the block replaced is still served`);
+    const links = all(blocks[0]).filter(n => n.tag === 'a' && attr(n, 'href') === '/my/data' && /Your data & settings/.test(sight(n)));
+    if (links.length !== 1) p.push(`${path}: "Your data & settings" is ${links.length} links to /my/data in the block, not one`);
+  }
+  judge(p, 'the saved-in-this-browser block, served (fix 9): /property/models and /my/workspace each carry it once, with the label and the recovery sentence exactly, "Your data & settings" linked to /my/data, and nothing to export for a fresh visitor',
+    'the saved-in-this-browser block is not served as it should be');
+}
+/* ---- end saved-protect-served ---- */
+
 /* ---- claims-cash-required ---- */
 /* ONE DEFINITION OF "CASH REQUIRED" (the claims audit of 11 Oct 2026, rank
    2: F-06, R-12). /how-it-works's deal check said "Cash required upfront

@@ -1201,14 +1201,6 @@ VIEWS.propertyModels = () => {
 
   const props = pmAll().sort((a, b) => String(pmUpdated(b) || '').localeCompare(String(pmUpdated(a) || '')));
   const st = propertyStatus(State.deal);
-  const lim = el('div', { class: 'card pm-limits' });
-  lim.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [
-    el('span', { class: 'chip' }, 'Stored in this browser'),
-    el('span', { class: 'chip' }, 'No account, no sync'),
-    el('p', { class: 'metaline', style: 'flex:1 1 280px;margin:0' },
-      'A cleared browser or another device starts empty. The export on Your data carries every property here, with its scenarios.'),
-  ]));
-  wrap.append(lim);
 
   /* Work that exists nowhere else comes first: it is what a cleared tab loses. */
   const loose = [];
@@ -1245,6 +1237,14 @@ VIEWS.propertyModels = () => {
     lc.append(ul);
     wrap.append(lc);
   }
+
+  /* WHERE THEY LIVE, AND HOW TO KEEP THEM (the owner's quick-wins brief, fix 9,
+     30 Oct 2026): directly above the list, the block Saved work carries too
+     (savedProtection, 55-views-public.js). It replaced a strip of two chips
+     and a sentence that sent the reader to Your data for the export; the
+     export is on this page now. With no property of the reader's own — none,
+     or only the sample — it offers no export. */
+  wrap.append(savedProtection({ cls: 'pm-limits', own: props.some(r => !workIsSample(r)) }));
 
   /* pm-saved: the list's own width decides when a row's actions go to a
      line of their own (styles.css, property-proposal). */

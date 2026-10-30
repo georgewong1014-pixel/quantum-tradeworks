@@ -181,21 +181,21 @@ VIEWS.workspace = () => {
      item #7: this page is served pre-rendered, as a first visit sees it). */
   appendSampleBanner(wrap);
 
-  /* The limits, before the list: where this lives, and what "moved" means. */
-  const lim = el('div', { class: 'card ws-limits' });
-  /* The surface's status is the registry's (TOOLS, 'saved'), with its
-     sentence as the title — the one badge the sidebar, the dashboard and
-     How it works read. It was a chip written here by hand. */
-  lim.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:8px' }, [
-    toolBadge('saved'),
-    el('span', { class: 'chip' }, 'Stored in this browser'),
-    el('span', { class: 'chip' }, 'No account, no sync, no sharing'),
-  ]));
-  lim.append(el('p', { class: 'body', style: 'font-size:13px;max-width:72ch' },
-    `Nothing here leaves this device. A cleared browser, private mode or a second machine starts empty; the export on Your data & settings is the only copy that travels, and it carries every kind listed here. “Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`));
-  lim.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', href: href('/my/data'),
-    onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/data'); } },
-    'Back up everything'));
+  /* WHERE THIS LIVES, AND HOW TO KEEP IT (the owner's quick-wins brief, fix 9,
+     30 Oct 2026): the one block the list of properties carries too
+     (savedProtection, 55-views-public.js) — saved here, whether a file of it
+     has left, Export backup in place, and the way back. It replaced two
+     chips, a paragraph that said the same in other words and a "Back up
+     everything" link to the page the export is now on. What the two
+     version flags mean stays, closed, inside it. The surface's status is the
+     registry's (TOOLS, 'saved'), the one badge the sidebar, the dashboard and
+     How it works read. */
+  const lim = savedProtection({ cls: 'ws-limits', own: all.some(i => !i.sample), badge: toolBadge('saved'),
+    extra: all.length ? [el('details', { class: 'explain', 'data-version-flags': '' }, [
+      el('summary', {}, 'What “Model moved” and “Data moved” mean'),
+      el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--xs);max-width:72ch' },
+        `“Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`),
+    ])] : [] });
   wrap.append(lim);
 
   if (!all.length) {
