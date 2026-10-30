@@ -966,6 +966,7 @@ const HOME_PAGE = read(HOME);
      button beside it, outside the list); the Help panel holds exactly its
      seven links; and the footer, where Plans, Build status, About, Privacy,
      Terms and Contact are still reached, still links all six. */
+  let headerPages = 0;
   {
     const topLevel = (list) => {
       const out = []; let depth = 0, from = -1;
@@ -997,6 +998,7 @@ const HOME_PAGE = read(HOME);
       for (const h of FOOT6) if (!fh.has(h)) p.push(`${path}: the footer no longer links ${h}`);
     }
     if (seen < 20) p.push(`only ${seen} served pages wear the public header, where there are dozens — the header check looked at too few`);
+    headerPages = seen;
   }
   /* The renders' own files are not pages for an index (2026-10-04): served
      at /prerender/…, each was a page's content as a document of its own, no
@@ -1011,7 +1013,7 @@ const HOME_PAGE = read(HOME);
   const SEARCH_WORDS = /The down arrow moves into the results|<span class="kbd">Enter<\/span> open/;
   /* As text: index.html's inline script, which writes them, may name them. */
   for (const [path, r] of [...got, ...others]) if (SEARCH_WORDS.test(r.body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, ''))) p.push(`${path}: carries the search box's keys as text`);
-  judge(p, `${carrying} static routes are served their page's own render in #views exactly (each with its own h1 — one per canonical address — its tab row and its chrome), My Workspace's among them, and ${empty} none; the renders' own files are noindex and disallowed; every page's header, sidebar and footer lists are NAV_MARKUP's links — every product with a path and every resource a link, Business Intelligence text — marked as the page's render marked them; no page carries the search box's keys`,
+  judge(p, `(quick-wins fix 5, 30 Oct 2026) the ${headerPages} pages that wear the public header read Products, Saved work, How it works, Help, Help holds its seven links and each footer still links /pricing, /status, /about, /privacy, /terms and /contact; ${carrying} static routes are served their page's own render in #views exactly (each with its own h1 — one per canonical address — its tab row and its chrome), My Workspace's among them, and ${empty} none; the renders' own files are noindex and disallowed; every page's header, sidebar and footer lists are NAV_MARKUP's links — every product with a path and every resource a link, Business Intelligence text — marked as the page's render marked them; no page carries the search box's keys`,
     'a page is not served its own content or its navigation');
 }
 /* ---- end prerender ---- */
@@ -2507,7 +2509,8 @@ const HOME_PAGE = read(HOME);
   said.views = pagesToCheck.length;
   if (late.length) p.push(`<div id="views"> is not within the first 16kB of ${late.length} served page(s): ${late.slice(0, 6).join(', ')}${late.length > 6 ? ' …' : ''}`);
   const beforeH1 = pageText(home.slice(0, home.indexOf('<h1')));
-  for (const w of ['My Dashboard', 'Saved work', 'Saved Models']) if (beforeH1.includes(w)) p.push(`/: "${w}" in its text before the h1`);
+  /* 'Saved work' is the public header's own link since 30 Oct 2026 (quick-wins fix 5), before the h1 by design; the sidebar's other names still are not. */
+  for (const w of ['My Dashboard', 'Saved Models']) if (beforeH1.includes(w)) p.push(`/: "${w}" in its text before the h1`);
   if (pageText(got.get('/about')?.body || '').includes('My workspace')) p.push('/about: its text holds "My workspace"');
   const allowed = [P.title, P.oneLiner, P.description, P.lede, P.kicker].filter(Boolean);
   const variants = [];
