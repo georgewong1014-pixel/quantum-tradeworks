@@ -20,7 +20,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -46,10 +46,8 @@
       "h1": "About",
       "tabs": false,
       "nav": {
-        "pubnav": [
-          13
-        ],
-        "resources": "Current page: About",
+        "pubnav": [],
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -76,7 +74,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -105,7 +103,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -134,7 +132,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -163,7 +161,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -192,7 +190,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           0
         ]
@@ -209,8 +207,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "670b8684fdf12342",
-      "changed": "2026-10-28"
+      "digest": "e82105639b2f9b16",
+      "changed": "2026-10-30"
     },
     "pages/app/equities.html": {
       "path": "/app/equities",
@@ -221,7 +219,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -250,7 +248,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -279,7 +277,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -308,7 +306,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -337,7 +335,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -366,7 +364,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -395,7 +393,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -424,7 +422,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -453,7 +451,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -482,7 +480,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -511,7 +509,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -540,7 +538,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -570,7 +568,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -599,7 +597,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -628,7 +626,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -658,7 +656,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -687,7 +685,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -717,7 +715,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -746,7 +744,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -776,7 +774,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -806,7 +804,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -836,7 +834,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -866,7 +864,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -896,7 +894,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -925,7 +923,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -955,7 +953,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -985,7 +983,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1014,7 +1012,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1044,7 +1042,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1073,7 +1071,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1103,7 +1101,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1132,7 +1130,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1161,7 +1159,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1190,7 +1188,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1220,7 +1218,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1249,7 +1247,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1279,7 +1277,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1309,7 +1307,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1339,7 +1337,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1369,7 +1367,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1398,7 +1396,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1428,7 +1426,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1458,7 +1456,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1488,7 +1486,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1518,7 +1516,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1547,7 +1545,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1576,7 +1574,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1605,7 +1603,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1635,7 +1633,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1665,7 +1663,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1694,7 +1692,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1724,7 +1722,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1753,7 +1751,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1783,7 +1781,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1812,7 +1810,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1841,7 +1839,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1870,7 +1868,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1899,7 +1897,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1929,7 +1927,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1959,7 +1957,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -1988,7 +1986,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2018,7 +2016,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2048,7 +2046,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2077,7 +2075,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2106,7 +2104,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2136,7 +2134,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2165,7 +2163,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2195,7 +2193,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2224,7 +2222,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2253,7 +2251,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2283,7 +2281,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2312,7 +2310,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2341,7 +2339,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2370,7 +2368,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2399,7 +2397,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2429,7 +2427,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2458,7 +2456,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2488,7 +2486,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2518,7 +2516,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2547,7 +2545,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2576,7 +2574,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2606,7 +2604,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2636,7 +2634,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2665,7 +2663,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2694,7 +2692,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2723,7 +2721,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2753,7 +2751,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2783,7 +2781,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2813,7 +2811,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2842,7 +2840,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2872,7 +2870,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2902,7 +2900,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2932,7 +2930,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2962,7 +2960,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -2992,7 +2990,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3021,7 +3019,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3050,7 +3048,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3079,7 +3077,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3108,7 +3106,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3137,7 +3135,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3166,7 +3164,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3196,7 +3194,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3225,7 +3223,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3254,7 +3252,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3283,7 +3281,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3313,7 +3311,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3342,7 +3340,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3371,7 +3369,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3400,7 +3398,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3429,7 +3427,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3459,7 +3457,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3488,7 +3486,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3518,7 +3516,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3547,7 +3545,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3577,7 +3575,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3607,7 +3605,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3636,7 +3634,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3666,7 +3664,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3695,7 +3693,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3725,7 +3723,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3755,7 +3753,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3784,7 +3782,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3814,7 +3812,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3843,7 +3841,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3873,7 +3871,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3903,7 +3901,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3932,7 +3930,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3961,7 +3959,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -3991,7 +3989,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -4021,7 +4019,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -4051,7 +4049,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -4080,9 +4078,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          14
+          6
         ],
-        "resources": "Current page: Contact",
+        "help": "Current page: Contact",
         "appnav": []
       },
       "inert": {
@@ -4109,9 +4107,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          10
+          7
         ],
-        "resources": "Current page: Corrections",
+        "help": "Current page: Corrections",
         "appnav": []
       },
       "inert": {
@@ -4138,9 +4136,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          7
+          10
         ],
-        "resources": "Current page: Data sources",
+        "help": "Current page: Data sources",
         "appnav": []
       },
       "inert": {
@@ -4167,7 +4165,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           7
         ]
@@ -4196,7 +4194,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -4225,7 +4223,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -4254,7 +4252,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -4283,7 +4281,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -4312,9 +4310,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          4
+          5
         ],
-        "resources": null,
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -4341,9 +4339,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          9
+          12
         ],
-        "resources": "Current page: Learn",
+        "help": "Current page: Learn",
         "appnav": []
       },
       "inert": {
@@ -4370,9 +4368,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          8
+          11
         ],
-        "resources": "Current page: Glossary",
+        "help": "Current page: Glossary",
         "appnav": []
       },
       "inert": {
@@ -4399,9 +4397,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          11
+          8
         ],
-        "resources": "Current page: What this product will not do",
+        "help": "Current page: What this product will not do",
         "appnav": []
       },
       "inert": {
@@ -4428,7 +4426,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -4457,9 +4455,9 @@
       "tabs": false,
       "nav": {
         "pubnav": [
-          6
+          9
         ],
-        "resources": "Current page: Methodology",
+        "help": "Current page: Methodology",
         "appnav": []
       },
       "inert": {
@@ -4486,7 +4484,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -4513,7 +4511,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -4540,7 +4538,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           2
         ]
@@ -4569,7 +4567,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           8
         ]
@@ -4598,7 +4596,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           3
         ]
@@ -4627,7 +4625,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           4
         ]
@@ -4656,7 +4654,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -4685,7 +4683,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           3
         ]
@@ -4714,7 +4712,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           1
         ]
@@ -4743,7 +4741,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           1
         ]
@@ -4772,7 +4770,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -4800,8 +4798,10 @@
       "h1": "Everything you have saved",
       "tabs": true,
       "nav": {
-        "pubnav": [],
-        "resources": null,
+        "pubnav": [
+          4
+        ],
+        "help": null,
         "appnav": [
           3
         ]
@@ -4829,10 +4829,8 @@
       "h1": "What is free now, and what paid plans would add",
       "tabs": false,
       "nav": {
-        "pubnav": [
-          5
-        ],
-        "resources": null,
+        "pubnav": [],
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -4858,10 +4856,8 @@
       "h1": "Privacy",
       "tabs": false,
       "nav": {
-        "pubnav": [
-          15
-        ],
-        "resources": "Current page: Privacy",
+        "pubnav": [],
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -4888,7 +4884,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -4915,7 +4911,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           7
         ]
@@ -4944,7 +4940,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           7
         ]
@@ -4973,7 +4969,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           7
         ]
@@ -5002,7 +4998,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           7
         ]
@@ -5031,7 +5027,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           7
         ]
@@ -5060,7 +5056,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           7
         ]
@@ -5089,7 +5085,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           7
         ]
@@ -5118,7 +5114,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           7
         ]
@@ -5147,7 +5143,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -5176,7 +5172,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -5205,7 +5201,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           6
         ]
@@ -5234,7 +5230,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           0
         ]
@@ -5262,10 +5258,8 @@
       "h1": "Checks and status",
       "tabs": false,
       "nav": {
-        "pubnav": [
-          12
-        ],
-        "resources": "Current page: Build status",
+        "pubnav": [],
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -5291,10 +5285,8 @@
       "h1": "Terms",
       "tabs": false,
       "nav": {
-        "pubnav": [
-          16
-        ],
-        "resources": "Current page: Terms",
+        "pubnav": [],
+        "help": null,
         "appnav": []
       },
       "inert": {
@@ -5321,7 +5313,7 @@
       "tabs": true,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           5
         ]
@@ -5350,7 +5342,7 @@
       "tabs": false,
       "nav": {
         "pubnav": [],
-        "resources": null,
+        "help": null,
         "appnav": [
           0
         ]

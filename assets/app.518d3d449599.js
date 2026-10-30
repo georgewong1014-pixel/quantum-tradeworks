@@ -13146,8 +13146,9 @@ const PUBLIC_VIEWS = new Set(['marketing', 'howItWorks', 'propertyInvesting', 'p
   'learn', 'boundaries', 'status', 'ips', 'notfound']);
 const chromeOf = (view) => (PUBLIC_VIEWS.has(view) ? 'public' : 'app');
 
-/* The Resources menu, and the footer's Resources column less the four that
-   sit under Company there. */
+/* Every method and company page: the footer's Resources column (the method
+   links and Build status) and its Company column, and the labels the header's
+   Help menu and the phone sheet's foot row draw from (HELP_GROUPS, SHEET_FOOT). */
 const RESOURCES = [
   { label: 'Methodology',                   path: '/methodology',               group: 'method' },
   { label: 'Data sources',                  path: '/data-sources',              group: 'method' },
@@ -13160,6 +13161,25 @@ const RESOURCES = [
   { label: 'Contact',                       path: '/contact',                   group: 'company' },
   { label: 'Privacy',                       path: '/privacy',                   group: 'company' },
   { label: 'Terms',                         path: '/terms',                     group: 'company' },
+];
+
+/* THE HEADER'S HELP MENU (the owner's quick-wins brief, fix 5, 30 Oct 2026).
+   The public header's top level is four destinations: Products, Saved work,
+   How it works and Help. The Resources menu (eleven links in two groups) and
+   the Plans link left the header: technical and secondary links sit in
+   Help's two groups, and Plans, Build status, About, Privacy and Terms are
+   reached from the footer, where they already were (the footer's columns are
+   unchanged). Labels are RESOURCES's, so a page is named once. */
+const HELP_GROUPS = [
+  { id: 'get',     label: 'Get help',               paths: ['/contact', '/corrections', '/learn/product-boundaries'] },
+  { id: 'figures', label: 'Understand the figures', paths: ['/methodology', '/data-sources', '/learn/glossary', '/learn'] },
+];
+const HELP_PATHS = new Set(HELP_GROUPS.flatMap(g => g.paths));
+/* The phone sheet's quiet foot row: what the header lost, so a phone reader
+   loses nothing (the sheet used to carry Plans and every Resources link). */
+const SHEET_FOOT = [
+  { label: 'Plans', path: '/pricing', pub: 'plans' },
+  ...['/status', '/about', '/privacy', '/terms'].map(p => RESOURCES.find(r => r.path === p)),
 ];
 
 /* The sidebar. My Workspace, then the products (from PRODUCTS), then the
@@ -14297,13 +14317,12 @@ const productsLegendLink = () => el('p', { class: 'pp-foot' },
   shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Available, Beta and Coming soon mean'));
 /* Drawn twice — the menu and the phone sheet — so each copy's labels carry
    their own ids. */
-function resourceLists(prefix) {
-  const group = (g, label) => el('div', { class: 'rs-group' }, [
-    el('p', { class: 'rs-label', id: `${prefix}-rs-${g}` }, label),
-    el('ul', { class: 'rs-list', 'aria-labelledby': `${prefix}-rs-${g}` },
-      RESOURCES.filter(r => r.group === g).map(r => el('li', {}, shellLink(r.path, { class: 'rs-link' }, r.label)))),
-  ]);
-  return [group('method', 'Method and data'), group('company', 'This build and its terms')];
+function helpLists(prefix) {
+  return HELP_GROUPS.map(g => el('div', { class: 'rs-group' }, [
+    el('p', { class: 'rs-label', id: `${prefix}-rs-${g.id}` }, g.label),
+    el('ul', { class: 'rs-list', 'aria-labelledby': `${prefix}-rs-${g.id}` },
+      g.paths.map(p => el('li', {}, shellLink(p, { class: 'rs-link' }, RESOURCES.find(r => r.path === p).label)))),
+  ]));
 }
 
 /* A disclosure menu of the public header: a button that says whether it is
@@ -14358,12 +14377,18 @@ function sidebarItem(n, extra = []) {
    opens it, and every link in it is in the header's menus and the footer.
    Business Intelligence, which is not built, is text in all of them. */
 const NAV_MARKUP = {
-  /* The public header: Products, How it works, Pricing, Resources. */
+  /* The public header: Products, Saved work, How it works, Help (the owner's
+     quick-wins brief, fix 5, 30 Oct 2026). Saved work is new, the sidebar's
+     own page. The Resources menu became Help: Contact, Corrections and the
+     product boundaries under "Get help", Methodology, Data sources, the
+     Glossary and Learn under "Understand the figures". Plans, Build status,
+     About, Privacy and Terms left the header; every one is still in the
+     footer (unchanged), and on a phone in the sheet's foot row. */
   pubnav: () => el('ul', { class: 'pubnav-list' }, [
     pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows()), productsLegendLink()], 'pubpanel-products'),
+    el('li', {}, shellLink('/my/workspace', { class: 'publink', 'data-pub': 'workspace' }, 'Saved work')),
     el('li', {}, shellLink('/how-it-works', { class: 'publink', 'data-pub': 'howItWorks' }, 'How it works')),
-    el('li', {}, shellLink('/pricing', { class: 'publink', 'data-pub': 'plans' }, 'Plans')),
-    pubMenu('menuResources', 'Resources', resourceLists('menu'), 'pubpanel-resources'),
+    pubMenu('menuHelp', 'Help', helpLists('menu'), 'pubpanel-help'),
   ]),
   /* The sidebar: My Workspace, Products, then the reader's data and plans. */
   appnav: () => [
@@ -14374,7 +14399,9 @@ const NAV_MARKUP = {
       PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => sidebarItem({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path, note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
     el('ul', { class: 'sb-list sb-list-foot' }, APP_NAV_FOOT.map(n => sidebarItem(n))),
   ],
-  /* The footer's Products and Resources, from the same tables. */
+  /* The footer's Products and Resources, from the same tables. Unchanged by
+     the header's list of 30 Oct 2026: every link the header gave up is here
+     or in the Company column (index.template.html). */
   footProducts: () => PRODUCTS.map(p => el('li', {}, p.path
     ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))),
@@ -14533,7 +14560,7 @@ function buildShell() {
   addEventListener('scroll', askPlaceSidebar, { passive: true });
   addEventListener('resize', askPlaceSidebar);
   if (strip && typeof ResizeObserver === 'function') new ResizeObserver(askPlaceSidebar).observe(strip);
-  /* The public header: Products, How it works, Pricing, Resources — drawn
+  /* The public header: Products, Saved work, How it works, Help — drawn
      in place of the served copy of the same markup (NAV_MARKUP). */
   if (shellEl.pubnav) shellEl.pubnav.replaceChildren(NAV_MARKUP.pubnav());
   /* The same items, as the phone's sheet. The theme lives here below 1024px,
@@ -14544,10 +14571,13 @@ function buildShell() {
       el('ul', { class: 'pp-list', 'aria-labelledby': 'sheet-products' }, productRows()),
       productsLegendLink(),
       el('ul', { class: 'sheet-links' }, [
+        el('li', {}, shellLink('/my/workspace', { class: 'sheet-link', 'data-pub': 'workspace' }, 'Saved work')),
         el('li', {}, shellLink('/how-it-works', { class: 'sheet-link', 'data-pub': 'howItWorks' }, 'How it works')),
-        el('li', {}, shellLink('/pricing', { class: 'sheet-link', 'data-pub': 'plans' }, 'Plans')),
       ]),
-      el('div', { class: 'sheet-resources' }, resourceLists('sheet')),
+      el('div', { class: 'sheet-resources' }, helpLists('sheet')),
+      /* What the header gave up (30 Oct 2026), kept one press away on a phone. */
+      el('ul', { class: 'sheet-foot', 'aria-label': 'About this site' }, SHEET_FOOT.map(r =>
+        el('li', {}, shellLink(r.path, { class: 'sheet-foot-link', ...(r.pub ? { 'data-pub': r.pub } : {}) }, r.label)))),
       el('button', { type: 'button', class: 'sheet-link sheet-theme', 'data-theme-toggle': '', 'aria-label': 'Switch colour theme' }, [
         el('span', { class: 'sb-ico', 'aria-hidden': 'true', 'data-theme-icon': '', html: '' }),
         el('span', { 'data-theme-label': '' }, 'Theme'),
@@ -14639,10 +14669,11 @@ function buildNav() {
   });
   /* The mark on a closed menu is drawn, and said: the underline alone told
      assistive technology nothing until the menu was opened. */
-  const resBtn = $('#menuResourcesBtn');
-  if (resBtn) {
-    resBtn.toggleAttribute('data-current', !!res);
-    if (res) resBtn.setAttribute('aria-description', `Current page: ${res.label}`); else resBtn.removeAttribute('aria-description');
+  const helpRes = res && HELP_PATHS.has(res.path) ? res : null;
+  const helpBtn = $('#menuHelpBtn');
+  if (helpBtn) {
+    helpBtn.toggleAttribute('data-current', !!helpRes);
+    if (helpRes) helpBtn.setAttribute('aria-description', `Current page: ${helpRes.label}`); else helpBtn.removeAttribute('aria-description');
   }
   placeSidebar();
 }
@@ -17473,7 +17504,7 @@ const MYDASH_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 function myDashTools(o, first) {
   const cards = myDashSteps(o).filter(s => s.tool);
   const sec = el('section', { class: `card ls-section dash-tools${first ? ' dash-start' : ''}`, 'aria-labelledby': 'dash-tools-hd' });
-  sec.append(el('h2', { id: 'dash-tools-hd', class: 'h-section' }, 'Three tools, each on its own'));
+  sec.append(el('h2', { id: 'dash-tools-hd', class: 'h-section' }, 'Choose a tool'));
   sec.append(el('p', { class: 'caption dash-start-lede' }, 'Pick the one for what you want to do. Each works without the others.'));
   sec.append(el('ul', { class: 'dash-tool-list' }, cards.map(s => {
     const li = el('li', { class: 'dash-tool', data: { done: s.done ? '1' : '0', step: s.k } });
@@ -17774,7 +17805,7 @@ function myDashMatches(o, st) {
 function myDashContinue(o) {
   const card = el('section', { class: 'card ls-section dash-cont-card', 'aria-labelledby': 'dash-cont-hd' });
   card.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
-    el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue where you left off'),
+    el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue your work'),
     el('p', { class: 'caption', style: 'margin-top:2px' }, 'Your most recent work in this browser, newest first.'),
   ])));
   const t = (v) => { const n = Date.parse(String(v || '').replace(' ', 'T') + (/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(String(v || '')) ? 'Z' : '')); return Number.isFinite(n) ? n : -Infinity; };

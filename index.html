@@ -2623,17 +2623,17 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
   transition: opacity 180ms ease, transform 180ms ease;
 }
 .pubpanel[data-open="1"] { opacity: 1; transform: none; }
-/* The resources panel is a grid, and an author display outranks the
+/* The Help panel is a grid, and an author display outranks the
    browser's own [hidden] rule: closed, it stayed laid out, invisible, in the
    tab order and under the pointer. */
 .pubpanel[hidden] { display: none; }
 .pubpanel-products { width: 440px; }
-.pubpanel-resources { width: 500px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--md); padding: 14px 10px 10px; }
-/* The resources panel opens from its button's right edge, leftwards over the
+.pubpanel-help { width: 500px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--md); padding: 14px 10px 10px; }
+/* The Help panel opens from its button's right edge, leftwards over the
    header: from the left edge it ran past the viewport at 1024px (11px with
    the page's font and a scrollbar, 38px on CI's wider fallback font, 75px on
    the widest). No panel is ever wider than the viewport less its gutters. */
-.pubpanel-resources { left: auto; right: -8px; }
+.pubpanel-help { left: auto; right: -8px; }
 .pubpanel { max-width: calc(100vw - 32px); }
 
 /* Product rows: the menu's and the phone sheet's. */
@@ -2708,6 +2708,15 @@ a.pp-row:active { transform: translateY(1px); }
 .sheet-link[aria-current="page"] { font-weight: var(--weight-semibold); background: var(--brand-wash); }
 .sheet-resources { display: grid; grid-template-columns: 1fr; gap: var(--xs); }
 @media (min-width: 560px) { .sheet-resources { grid-template-columns: 1fr 1fr; } }
+/* The sheet's quiet foot row (30 Oct 2026): Plans, Build status, About, Privacy,
+   Terms, which the header no longer carries. Small and grey, 44px to press. */
+.sheet-foot { list-style: none; padding: var(--xs) 0 0; margin: var(--xs) 0 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 0 var(--xs); }
+.sheet-foot-link {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; border-radius: var(--r-md);
+  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-3); text-decoration: none;
+}
+.sheet-foot-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.sheet-foot-link[aria-current="page"] { color: var(--ink); font-weight: var(--weight-semibold); background: var(--brand-wash); }
 .sheet-theme { margin-top: var(--xs); border-top: 1px solid var(--line); border-radius: 0; padding-top: 6px; color: var(--ink-2); font-size: var(--text-body); }
 .sheet-theme .sb-ico { color: var(--ink-3); }
 
@@ -2981,7 +2990,7 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 
 /* ------------------------------------------------------- states */
 @media (forced-colors: active) {
-  .sb-link[aria-current="page"], .rs-link[aria-current="page"], .sheet-link[aria-current="page"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .sb-link[aria-current="page"], .rs-link[aria-current="page"], .sheet-link[aria-current="page"], .sheet-foot-link[aria-current="page"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .publink[aria-current="page"], .publink[data-current] { text-decoration: underline; }
   .status-badge { border-color: CanvasText; }
 }
@@ -4868,7 +4877,7 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   #views :is(.segmented, .subnav):has(> [data-inert]) { background: none; border-color: transparent; box-shadow: none; }
   #views table.dt.screener-table { display: table; }
   #views [data-now]:empty::before { content: none; }
-  #menuProductsBtn, #menuResourcesBtn, #pubMenuBtn, #navOpen, #navClose, [data-open-search], [data-theme-toggle],
+  #menuProductsBtn, #menuHelpBtn, #pubMenuBtn, #navOpen, #navClose, [data-open-search], [data-theme-toggle],
   #footResources li:has(> [data-action="report-error"]) { display: none !important; }
   :root:not([data-chrome]) .disclosure, :root:not([data-chrome]) .footer { display: block; }
   :root[data-chrome="app"] .footer-grid > :nth-child(2) { display: block; }
@@ -7368,7 +7377,7 @@ input.au-in[type="text"] { text-align: left; }
       <span class="brand-name">Quantum <span>Tradeworks</span></span>
     </a>
 
-    <nav class="pubnav" id="pubnav" aria-label="Primary"><ul class="pubnav-list"><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuProductsBtn" aria-expanded="false" aria-controls="menuProducts">Products<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-products" id="menuProducts" hidden=""><ul class="pp-list"><li><a href="/research" data-path="/research" class="pp-row pub-acc-equities" data-product="equities" aria-description="Beta: Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Equities Research</span><span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span></span><span class="pp-blurb">Financial statements, ratios and valuation models.</span></span></a></li><li><a href="/app/scanner" data-path="/app/scanner" class="pp-row pub-acc-scanner" data-product="scanner" aria-description="Beta: Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Quantum Scanner</span><span class="status-badge status-beta" title="Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Beta</span></span><span class="pp-blurb">Your own rules, checked against each daily close in your price history, with a record of every match.</span></span></a></li><li><a href="/property" data-path="/property" class="pp-row pub-acc-property" data-product="property" aria-description="Available: Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Property Intelligence</span><span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Available</span><span class="pbadge-q">Your figures, sample to start</span></span></span><span class="pp-blurb">Financing, cash flow, rental yield and ROI.</span></span></a></li><li><div class="pp-row pp-row-off" data-product="business"><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Business Intelligence</span><span class="status-badge status-soon" title="Not built yet — nothing to open.">Coming soon</span></span><span class="pp-blurb">Cash flow, profitability and financing scenarios.</span></span></div></li></ul><p class="pp-foot"><a href="/how-it-works" data-path="/how-it-works" class="pp-foot-link">What Available, Beta and Coming soon mean</a></p></div></li><li><a href="/how-it-works" data-path="/how-it-works" class="publink" data-pub="howItWorks">How it works</a></li><li><a href="/pricing" data-path="/pricing" class="publink" data-pub="plans">Plans</a></li><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuResourcesBtn" aria-expanded="false" aria-controls="menuResources">Resources<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-resources" id="menuResources" hidden=""><div class="rs-group"><p class="rs-label" id="menu-rs-method">Method and data</p><ul class="rs-list" aria-labelledby="menu-rs-method"><li><a href="/methodology" data-path="/methodology" class="rs-link">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources" class="rs-link">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary" class="rs-link">Glossary</a></li><li><a href="/learn" data-path="/learn" class="rs-link">Learn</a></li><li><a href="/corrections" data-path="/corrections" class="rs-link">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries" class="rs-link">What this product will not do</a></li></ul></div><div class="rs-group"><p class="rs-label" id="menu-rs-company">This build and its terms</p><ul class="rs-list" aria-labelledby="menu-rs-company"><li><a href="/status" data-path="/status" class="rs-link">Build status</a></li><li><a href="/about" data-path="/about" class="rs-link">About</a></li><li><a href="/contact" data-path="/contact" class="rs-link">Contact</a></li><li><a href="/privacy" data-path="/privacy" class="rs-link">Privacy</a></li><li><a href="/terms" data-path="/terms" class="rs-link">Terms</a></li></ul></div></div></li></ul></nav>
+    <nav class="pubnav" id="pubnav" aria-label="Primary"><ul class="pubnav-list"><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuProductsBtn" aria-expanded="false" aria-controls="menuProducts">Products<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-products" id="menuProducts" hidden=""><ul class="pp-list"><li><a href="/research" data-path="/research" class="pp-row pub-acc-equities" data-product="equities" aria-description="Beta: Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Equities Research</span><span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span></span><span class="pp-blurb">Financial statements, ratios and valuation models.</span></span></a></li><li><a href="/app/scanner" data-path="/app/scanner" class="pp-row pub-acc-scanner" data-product="scanner" aria-description="Beta: Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Quantum Scanner</span><span class="status-badge status-beta" title="Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.">Beta</span></span><span class="pp-blurb">Your own rules, checked against each daily close in your price history, with a record of every match.</span></span></a></li><li><a href="/property" data-path="/property" class="pp-row pub-acc-property" data-product="property" aria-description="Available: Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Property Intelligence</span><span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Available</span><span class="pbadge-q">Your figures, sample to start</span></span></span><span class="pp-blurb">Financing, cash flow, rental yield and ROI.</span></span></a></li><li><div class="pp-row pp-row-off" data-product="business"><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Business Intelligence</span><span class="status-badge status-soon" title="Not built yet — nothing to open.">Coming soon</span></span><span class="pp-blurb">Cash flow, profitability and financing scenarios.</span></span></div></li></ul><p class="pp-foot"><a href="/how-it-works" data-path="/how-it-works" class="pp-foot-link">What Available, Beta and Coming soon mean</a></p></div></li><li><a href="/my/workspace" data-path="/my/workspace" class="publink" data-pub="workspace">Saved work</a></li><li><a href="/how-it-works" data-path="/how-it-works" class="publink" data-pub="howItWorks">How it works</a></li><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuHelpBtn" aria-expanded="false" aria-controls="menuHelp">Help<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-help" id="menuHelp" hidden=""><div class="rs-group"><p class="rs-label" id="menu-rs-get">Get help</p><ul class="rs-list" aria-labelledby="menu-rs-get"><li><a href="/contact" data-path="/contact" class="rs-link">Contact</a></li><li><a href="/corrections" data-path="/corrections" class="rs-link">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries" class="rs-link">What this product will not do</a></li></ul></div><div class="rs-group"><p class="rs-label" id="menu-rs-figures">Understand the figures</p><ul class="rs-list" aria-labelledby="menu-rs-figures"><li><a href="/methodology" data-path="/methodology" class="rs-link">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources" class="rs-link">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary" class="rs-link">Glossary</a></li><li><a href="/learn" data-path="/learn" class="rs-link">Learn</a></li></ul></div></div></li></ul></nav>
 
     <div class="bar-actions">
       <button type="button" class="iconbtn pub-theme" id="themeToggle" data-theme-toggle aria-label="Switch colour theme" title="Switch colour theme">
@@ -20718,8 +20727,9 @@ const PUBLIC_VIEWS = new Set(['marketing', 'howItWorks', 'propertyInvesting', 'p
   'learn', 'boundaries', 'status', 'ips', 'notfound']);
 const chromeOf = (view) => (PUBLIC_VIEWS.has(view) ? 'public' : 'app');
 
-/* The Resources menu, and the footer's Resources column less the four that
-   sit under Company there. */
+/* Every method and company page: the footer's Resources column (the method
+   links and Build status) and its Company column, and the labels the header's
+   Help menu and the phone sheet's foot row draw from (HELP_GROUPS, SHEET_FOOT). */
 const RESOURCES = [
   { label: 'Methodology',                   path: '/methodology',               group: 'method' },
   { label: 'Data sources',                  path: '/data-sources',              group: 'method' },
@@ -20732,6 +20742,25 @@ const RESOURCES = [
   { label: 'Contact',                       path: '/contact',                   group: 'company' },
   { label: 'Privacy',                       path: '/privacy',                   group: 'company' },
   { label: 'Terms',                         path: '/terms',                     group: 'company' },
+];
+
+/* THE HEADER'S HELP MENU (the owner's quick-wins brief, fix 5, 30 Oct 2026).
+   The public header's top level is four destinations: Products, Saved work,
+   How it works and Help. The Resources menu (eleven links in two groups) and
+   the Plans link left the header: technical and secondary links sit in
+   Help's two groups, and Plans, Build status, About, Privacy and Terms are
+   reached from the footer, where they already were (the footer's columns are
+   unchanged). Labels are RESOURCES's, so a page is named once. */
+const HELP_GROUPS = [
+  { id: 'get',     label: 'Get help',               paths: ['/contact', '/corrections', '/learn/product-boundaries'] },
+  { id: 'figures', label: 'Understand the figures', paths: ['/methodology', '/data-sources', '/learn/glossary', '/learn'] },
+];
+const HELP_PATHS = new Set(HELP_GROUPS.flatMap(g => g.paths));
+/* The phone sheet's quiet foot row: what the header lost, so a phone reader
+   loses nothing (the sheet used to carry Plans and every Resources link). */
+const SHEET_FOOT = [
+  { label: 'Plans', path: '/pricing', pub: 'plans' },
+  ...['/status', '/about', '/privacy', '/terms'].map(p => RESOURCES.find(r => r.path === p)),
 ];
 
 /* The sidebar. My Workspace, then the products (from PRODUCTS), then the
@@ -21869,13 +21898,12 @@ const productsLegendLink = () => el('p', { class: 'pp-foot' },
   shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Available, Beta and Coming soon mean'));
 /* Drawn twice — the menu and the phone sheet — so each copy's labels carry
    their own ids. */
-function resourceLists(prefix) {
-  const group = (g, label) => el('div', { class: 'rs-group' }, [
-    el('p', { class: 'rs-label', id: `${prefix}-rs-${g}` }, label),
-    el('ul', { class: 'rs-list', 'aria-labelledby': `${prefix}-rs-${g}` },
-      RESOURCES.filter(r => r.group === g).map(r => el('li', {}, shellLink(r.path, { class: 'rs-link' }, r.label)))),
-  ]);
-  return [group('method', 'Method and data'), group('company', 'This build and its terms')];
+function helpLists(prefix) {
+  return HELP_GROUPS.map(g => el('div', { class: 'rs-group' }, [
+    el('p', { class: 'rs-label', id: `${prefix}-rs-${g.id}` }, g.label),
+    el('ul', { class: 'rs-list', 'aria-labelledby': `${prefix}-rs-${g.id}` },
+      g.paths.map(p => el('li', {}, shellLink(p, { class: 'rs-link' }, RESOURCES.find(r => r.path === p).label)))),
+  ]));
 }
 
 /* A disclosure menu of the public header: a button that says whether it is
@@ -21930,12 +21958,18 @@ function sidebarItem(n, extra = []) {
    opens it, and every link in it is in the header's menus and the footer.
    Business Intelligence, which is not built, is text in all of them. */
 const NAV_MARKUP = {
-  /* The public header: Products, How it works, Pricing, Resources. */
+  /* The public header: Products, Saved work, How it works, Help (the owner's
+     quick-wins brief, fix 5, 30 Oct 2026). Saved work is new, the sidebar's
+     own page. The Resources menu became Help: Contact, Corrections and the
+     product boundaries under "Get help", Methodology, Data sources, the
+     Glossary and Learn under "Understand the figures". Plans, Build status,
+     About, Privacy and Terms left the header; every one is still in the
+     footer (unchanged), and on a phone in the sheet's foot row. */
   pubnav: () => el('ul', { class: 'pubnav-list' }, [
     pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows()), productsLegendLink()], 'pubpanel-products'),
+    el('li', {}, shellLink('/my/workspace', { class: 'publink', 'data-pub': 'workspace' }, 'Saved work')),
     el('li', {}, shellLink('/how-it-works', { class: 'publink', 'data-pub': 'howItWorks' }, 'How it works')),
-    el('li', {}, shellLink('/pricing', { class: 'publink', 'data-pub': 'plans' }, 'Plans')),
-    pubMenu('menuResources', 'Resources', resourceLists('menu'), 'pubpanel-resources'),
+    pubMenu('menuHelp', 'Help', helpLists('menu'), 'pubpanel-help'),
   ]),
   /* The sidebar: My Workspace, Products, then the reader's data and plans. */
   appnav: () => [
@@ -21946,7 +21980,9 @@ const NAV_MARKUP = {
       PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => sidebarItem({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path, note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
     el('ul', { class: 'sb-list sb-list-foot' }, APP_NAV_FOOT.map(n => sidebarItem(n))),
   ],
-  /* The footer's Products and Resources, from the same tables. */
+  /* The footer's Products and Resources, from the same tables. Unchanged by
+     the header's list of 30 Oct 2026: every link the header gave up is here
+     or in the Company column (index.template.html). */
   footProducts: () => PRODUCTS.map(p => el('li', {}, p.path
     ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))),
@@ -22105,7 +22141,7 @@ function buildShell() {
   addEventListener('scroll', askPlaceSidebar, { passive: true });
   addEventListener('resize', askPlaceSidebar);
   if (strip && typeof ResizeObserver === 'function') new ResizeObserver(askPlaceSidebar).observe(strip);
-  /* The public header: Products, How it works, Pricing, Resources — drawn
+  /* The public header: Products, Saved work, How it works, Help — drawn
      in place of the served copy of the same markup (NAV_MARKUP). */
   if (shellEl.pubnav) shellEl.pubnav.replaceChildren(NAV_MARKUP.pubnav());
   /* The same items, as the phone's sheet. The theme lives here below 1024px,
@@ -22116,10 +22152,13 @@ function buildShell() {
       el('ul', { class: 'pp-list', 'aria-labelledby': 'sheet-products' }, productRows()),
       productsLegendLink(),
       el('ul', { class: 'sheet-links' }, [
+        el('li', {}, shellLink('/my/workspace', { class: 'sheet-link', 'data-pub': 'workspace' }, 'Saved work')),
         el('li', {}, shellLink('/how-it-works', { class: 'sheet-link', 'data-pub': 'howItWorks' }, 'How it works')),
-        el('li', {}, shellLink('/pricing', { class: 'sheet-link', 'data-pub': 'plans' }, 'Plans')),
       ]),
-      el('div', { class: 'sheet-resources' }, resourceLists('sheet')),
+      el('div', { class: 'sheet-resources' }, helpLists('sheet')),
+      /* What the header gave up (30 Oct 2026), kept one press away on a phone. */
+      el('ul', { class: 'sheet-foot', 'aria-label': 'About this site' }, SHEET_FOOT.map(r =>
+        el('li', {}, shellLink(r.path, { class: 'sheet-foot-link', ...(r.pub ? { 'data-pub': r.pub } : {}) }, r.label)))),
       el('button', { type: 'button', class: 'sheet-link sheet-theme', 'data-theme-toggle': '', 'aria-label': 'Switch colour theme' }, [
         el('span', { class: 'sb-ico', 'aria-hidden': 'true', 'data-theme-icon': '', html: '' }),
         el('span', { 'data-theme-label': '' }, 'Theme'),
@@ -22211,10 +22250,11 @@ function buildNav() {
   });
   /* The mark on a closed menu is drawn, and said: the underline alone told
      assistive technology nothing until the menu was opened. */
-  const resBtn = $('#menuResourcesBtn');
-  if (resBtn) {
-    resBtn.toggleAttribute('data-current', !!res);
-    if (res) resBtn.setAttribute('aria-description', `Current page: ${res.label}`); else resBtn.removeAttribute('aria-description');
+  const helpRes = res && HELP_PATHS.has(res.path) ? res : null;
+  const helpBtn = $('#menuHelpBtn');
+  if (helpBtn) {
+    helpBtn.toggleAttribute('data-current', !!helpRes);
+    if (helpRes) helpBtn.setAttribute('aria-description', `Current page: ${helpRes.label}`); else helpBtn.removeAttribute('aria-description');
   }
   placeSidebar();
 }
@@ -25045,7 +25085,7 @@ const MYDASH_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 function myDashTools(o, first) {
   const cards = myDashSteps(o).filter(s => s.tool);
   const sec = el('section', { class: `card ls-section dash-tools${first ? ' dash-start' : ''}`, 'aria-labelledby': 'dash-tools-hd' });
-  sec.append(el('h2', { id: 'dash-tools-hd', class: 'h-section' }, 'Three tools, each on its own'));
+  sec.append(el('h2', { id: 'dash-tools-hd', class: 'h-section' }, 'Choose a tool'));
   sec.append(el('p', { class: 'caption dash-start-lede' }, 'Pick the one for what you want to do. Each works without the others.'));
   sec.append(el('ul', { class: 'dash-tool-list' }, cards.map(s => {
     const li = el('li', { class: 'dash-tool', data: { done: s.done ? '1' : '0', step: s.k } });
@@ -25346,7 +25386,7 @@ function myDashMatches(o, st) {
 function myDashContinue(o) {
   const card = el('section', { class: 'card ls-section dash-cont-card', 'aria-labelledby': 'dash-cont-hd' });
   card.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
-    el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue where you left off'),
+    el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue your work'),
     el('p', { class: 'caption', style: 'margin-top:2px' }, 'Your most recent work in this browser, newest first.'),
   ])));
   const t = (v) => { const n = Date.parse(String(v || '').replace(' ', 'T') + (/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(String(v || '')) ? 'Z' : '')); return Number.isFinite(n) ? n : -Infinity; };
