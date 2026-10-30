@@ -9666,6 +9666,11 @@ try {
         det().querySelector('summary').click(); await w(50);
         render(); await w(400);
         out.kept = { closed: !det().open, sum: t(document.getElementById('pc-q-more-btn')) };
+        /* Reopened, a box in it focused, a redraw keeps the group open and the box focused. */
+        det().querySelector('summary').click(); await w(50);
+        document.getElementById('d-vacancyPct').focus();
+        renderKeepFocus(); await w(400);
+        out.focus = { open: det().open, active: document.activeElement && document.activeElement.id };
         /* Each essential moves the figure it should; the tile is the model's. */
         const tile = (k) => t(document.querySelector('[data-quick="' + k + '"]'));
         const KEYS = { safe: 'safeCashRequired', monthly: 'cashflowMonthly' };
@@ -9704,11 +9709,12 @@ try {
     if (!r.opened) p.push('pressing "Refine the assumptions" did not bring its boxes into sight');
     if (!r.flip || !r.flip.open || !/1 of 6 changed$/.test(r.flip.sum) || r.flip.tag !== 'Yours' || r.flip.tenure !== 'Default' || r.flip.vacancy !== 12 || r.flip.essTags !== 'Default|Default|Default|Default') p.push(`a vacancy typed: ${JSON.stringify(r.flip)}`);
     if (!r.kept || !r.kept.closed || !/1 of 6 changed$/.test(r.kept.sum)) p.push(`the group the reader closed, after a redraw: ${JSON.stringify(r.kept)}`);
+    if (!r.focus || !r.focus.open || r.focus.active !== 'd-vacancyPct') p.push(`a box in the group, focused, across a redraw: ${JSON.stringify(r.focus)}`);
     r.moved.forEach(x => p.push(x));
     if (r.tagsAfter !== 'Yours|Yours|Yours|Yours') p.push(`the essentials' tags after each was changed: "${r.tagsAfter}"`);
     if (!r.saved || !r.saved.open || !/1 of 6 changed$/.test(r.saved.sum) || r.saved.tag !== 'Yours') p.push(`a deal that arrives with its own vacancy: ${JSON.stringify(r.saved)}`);
     if (p.length) fail('C-REFINE: the Quick model\'s essentials first, the rest under "Refine the assumptions"', p);
-    else ok('C-REFINE: on a first visit the price, deposit, rate and rent stand in sight, each tagged "Default" under one sentence saying what that is, and the tenure, vacancy, maintenance, fee, other running costs and renovation sit in a closed "Refine the assumptions" (Loan, Running costs, Renovation) saying "all illustrative defaults"; a vacancy typed reads "1 of 6 changed" and its tag "Yours", the group kept closed across a redraw when the reader closed it and open from the start for a deal with its own vacancy; the price, rent, rate and deposit each move the tiles they should, the tiles dealModel\'s, and each turns its tag to "Yours"');
+    else ok('C-REFINE: on a first visit the price, deposit, rate and rent stand in sight, each tagged "Default" under one sentence saying what that is, and the tenure, vacancy, maintenance, fee, other running costs and renovation sit in a closed "Refine the assumptions" (Loan, Running costs, Renovation) saying "all illustrative defaults"; a vacancy typed reads "1 of 6 changed" and its tag "Yours", the group kept closed across a redraw when the reader closed it, a focused box in it kept across one, and open from the start for a deal with its own vacancy; the price, rent, rate and deposit each move the tiles they should, the tiles dealModel\'s, and each turns its tag to "Yours"');
   }
   /* EDITED FIGURES AND THE RESERVE ACROSS THE TWO VIEWS (the 17 Oct Day-4
      report, Quantum task: "Change purchase price, rent and renovation

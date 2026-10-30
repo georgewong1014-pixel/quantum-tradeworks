@@ -3583,7 +3583,7 @@ VIEWS.property = () => {
      stand here, the registered-valuer sentence and the rest whole and one
      tap away under "Why this is not a valuation" — the words unchanged
      (LAB_CLAIM_VISIBLE, LAB_NOT_OFFICIAL, 82-property-lab.js). In both views. */
-  const disc = el('div', { class: 'lab-claim lab-id-claim pc-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
+  const disc = el('div', { class: 'pc-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
     el('span', {}, LAB_CLAIM_VISIBLE), ' ',
     el('details', { class: 'pc-more ls-l3 lab-claim-more', id: 'pc-claim-more' }, [
       el('summary', { class: 'pc-more-sum' }, 'Why this is not a valuation'),
