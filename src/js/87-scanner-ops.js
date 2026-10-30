@@ -640,7 +640,7 @@ VIEWS.scannerDashboard = () => {
     if (target.tagName === 'DETAILS') target.open = true;
     target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     (target.querySelector('summary') || target).focus?.({ preventScroll: true });
-  } }, 'Run locally');
+  } }, 'Run locally (advanced)');
   /* The layout system's section names itself with a heading; this one is for
      a screen reader — the steps are their own heading to a sighted reader. */
   wrap.append(el('section', { class: 'card scan-steps-card ls-section', 'aria-labelledby': 'scan-steps-hd' }, [el('h2', { id: 'scan-steps-hd', class: 'sr-only' }, 'From a rule to a recorded result'), el('ol', { class: 'scan-steps', role: 'list' }, [
@@ -648,10 +648,21 @@ VIEWS.scannerDashboard = () => {
       browserSetups.length ? `${browserSetups.length} saved in this browser` : 'None yet',
       [createPath ? scanOpsLink(createPath, sc.action, { class: 'btn btn-primary' }) : null,
        browserSetups.length ? scanOpsLink('/app/scanner/setups', 'Your setups', { class: 'scan-step-link' }) : null]),
-    step(2, 'Price history', 'Needed',
+    /* THE 30 OCT 2026 AUDIT: a red "Unavailable" badge beside "None supplied"
+       read as a fault, when the price history is the reader's to supply and
+       this site is not meant to hold any. The state is a plain sentence, the
+       tag says whose it is, and one line says what the file holds, as the
+       engine reads it (scanBars, 24-market-engine.js: series {SYM: {date:
+       close}}, and each optional: volume, ohlc [open, high, low]) and where
+       the worker reads it (scanner/scan.mjs, data/price-history.json; the
+       file's name stays inside "Advanced: run the worker", where served-check
+       keeps the data files). The tab bar's badges are the shared register's
+       and stay. */
+    step(2, 'Price history', hist ? 'Needed' : 'You supply it',
       hist ? `${scanOpsPlural(hist.symbols.length, 'series', 'series')}, newest bar ${hist.newestBar || '—'}`
-           : [el('span', { class: 'status-badge status-unavailable', title: 'This site ships no prices; the worker reads the history you supply.' }, 'Unavailable'), ' None supplied'],
-      null),
+           : 'None supplied — this site ships no prices',
+      null,
+      hist ? null : 'The worker reads your price history on your own computer: for each symbol, a close for each date (YYYY-MM-DD), and optionally open, high, low and volume — conditions that read highs and lows need them.'),
     step(3, 'Run locally', 'Needs the worker on your computer', 'Not available to download yet', runLink),
     step(4, 'Review recorded results', 'Recorded by the worker',
       lastRun ? `Last scan ${scanOpsDay(lastRun.finishedAt || lastRun.startedAt)}` : lastTry ? `No scan has succeeded; latest attempt ${scanOpsDay(lastTry.startedAt)}` : 'No scan recorded',
@@ -789,7 +800,9 @@ VIEWS.scannerDashboard = () => {
      follows it, last. */
   const files = el('section', { class: 'scan-run-part' }, [cardHead('Your files', 'Open the worker’s files from your own disk to read them on these pages.'), scanOpsOpenFiles()]);
   wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
-    el('summary', { class: 'scan-run-sum' }, 'Run locally'),
+    /* The 30 Oct 2026 audit: worker commands belong in an advanced section.
+       The summary says so, and that there is nothing to download yet. */
+    el('summary', { class: 'scan-run-sum' }, 'Advanced: run the worker on your computer — not available to download yet'),
     el('div', { class: 'scan-run-body' }, [
       el('p', { class: 'body' }, 'The worker is not distributed yet; setups can be tested here on prices you supply. If you hold its files, open them below.'),
       run, files, mon,

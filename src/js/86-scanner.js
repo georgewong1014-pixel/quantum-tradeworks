@@ -1222,7 +1222,7 @@ function scanBotResultText(r) {
   return `${head}${extra.length ? `; ${extra.join('; ')}` : ''}.${tail}`;
 }
 function scanBotCard() {
-  const det = el('details', { class: 'card scan-bot', open: scanBotState.open ? '' : null });
+  const det = el('details', { class: 'card scan-bot', id: 'scan-bot', open: scanBotState.open ? '' : null });
   det.append(el('summary', {}, [el('span', { class: 'h-card' }, 'Add a TradingView bot’s signals'),
     el('span', { class: 'caption scan-bot-sub' }, 'The “Multi-Timeframe Trading Bot” script’s alerts, as setups: entries on the daily bar, the trade timeframe on the last closed weekly and monthly bar.')]));
   const body = el('div', { class: 'scan-bot-body' });
@@ -1230,9 +1230,62 @@ function scanBotCard() {
   let built = false;
   const fill = () => { built = true; body.replaceChildren(...scanBotForm()); };
   if (scanBotState.open) fill();
-  det.addEventListener('toggle', () => { scanBotState.open = det.open; if (det.open && !built) fill(); });
+  /* A details drawn with its open attribute fires "toggle" once as it is
+     inserted; only a change is the reader opening it. */
+  let was = det.open;
+  det.addEventListener('toggle', () => {
+    scanBotState.open = det.open;
+    if (det.open && !built) fill();
+    /* Opened by the reader, it is in an open Advanced. */
+    if (det.open && !was) scanAdvOpenAround(det);
+    was = det.open;
+  });
   return det;
 }
+
+/* THE ADVANCED DETAILS OF THE SETUPS PAGE (the 30 Oct 2026 audit: "place
+   local-worker commands in an advanced section"). One closed details holds
+   what a first setup does not need — the TradingView import, "Evaluate now"
+   and, with nothing saved anywhere, the worker's file. Its open state is
+   kept here, as the bot card's is, because every save redraws the page. */
+const scanAdvState = { open: false };
+const SCAN_ADV_IDS = ['scan-advanced', 'scan-bot', 'scan-export', 'scan-evaluate'];
+function scanAdvOpenAround(node) {
+  scanAdvState.open = true;
+  const adv = node.closest?.('details.scan-adv');
+  if (adv) adv.open = true;
+}
+function scanAdvancedCard(cards) {
+  const det = el('details', { class: 'scan-run-d scan-adv', id: 'scan-advanced', open: scanAdvState.open ? '' : null });
+  det.append(el('summary', { class: 'scan-run-sum' }, 'Advanced — the local worker, TradingView signals and “Evaluate now”'));
+  det.append(el('div', { class: 'scan-run-body' }, [
+    el('p', { class: 'body' }, 'You do not need any of this to write and save a setup. It is for running the worker on your own computer, which is not available to download yet, and for adding a TradingView script’s alerts as setups.'),
+    ...cards,
+  ]));
+  det.addEventListener('toggle', () => { scanAdvState.open = det.open; });
+  return det;
+}
+/* An address that names something inside Advanced opens it first, once per
+   arrival (the page redraws on every save, and a reader who has closed it
+   keeps it closed), and scrolls to it. Returns the id it names, or null. */
+let scanAdvKey = null;
+function scanAdvLeft() { scanAdvKey = null; }
+function scanAdvancedAddress() {
+  let id = '';
+  try { id = decodeURIComponent(location.hash.replace(/^#/, '')); } catch { /* a malformed escape names nothing */ }
+  if (!SCAN_ADV_IDS.includes(id)) return null;
+  const key = location.pathname + location.hash;
+  if (key === scanAdvKey) return null;
+  scanAdvKey = key;
+  scanAdvState.open = true;
+  if (id === 'scan-bot') scanBotState.open = true;
+  return id;
+}
+/* The address changed while the page is open (a link to a card, or the
+   reader editing the address). */
+window.addEventListener('hashchange', () => {
+  if (State.view === 'scannerSetups') { scanAdvLeft(); render(); }
+});
 function scanBotForm() {
   const out = [];
   const signals = scanBotSignals();
@@ -1374,6 +1427,7 @@ function scanBoundaryDetails() {
    ===================================================================== */
 VIEWS.scannerSetups = () => {
   const wrap = scanPage();
+  const addressed = scanAdvancedAddress();
   wrap.append(scanSubnav('setups'));
   const st = scanStoreRead();
   const setups = scanBrowserSetups({ st });
@@ -1433,17 +1487,25 @@ VIEWS.scannerSetups = () => {
   const exp = scanExportControls({ primary: off.some(r => r.state === 'NOT_EXPORTED' || r.state === 'BROWSER_ONLY') });
   exp.style.marginTop = 'var(--md)';
   dc.append(exp);
-  wrap.append(dc);
-  /* The reader's TradingView bot's alerts, as setups — below the export,
-     which is what makes them run. */
-  wrap.append(scanBotCard());
+  dc.id = 'scan-export';
+  /* THE 30 OCT 2026 AUDIT: the page opened on the worker's file, the
+     TradingView import and "Evaluate now", and its first sight of a way to
+     start — "Create a setup" — came fourth. The reader's setups, or the empty
+     state with "Create a setup", now follow the header; the worker's file
+     (the reader's backup, which is also where "Adopt from file" lives) follows
+     them as soon as there is anything in either copy to keep in step, and
+     with nothing saved anywhere it goes into the Advanced details below. */
+  const dcShown = !!(setups.length || drift.length || fileCheck?.problems.length);
+  /* The reader's TradingView bot's alerts, as setups: in Advanced, below the
+     export, which is what makes them run. */
+  const botCard = scanBotCard();
 
   /* ---- the setups ---- */
   if (!setups.length) {
     const e = el('div', { class: 'card scan-empty' });
     e.append(el('h2', { class: 'h-card' }, 'No setups saved in this browser'));
     e.append(el('p', { class: 'body', style: 'margin:6px auto 0' }, fileOnly.length
-      ? `The worker’s file holds ${scanPlural(fileOnly.length, 'setup')} this browser has not adopted. Adopt them above to see their versions here and edit them in the builder, or write a new one.`
+      ? `The worker’s file holds ${scanPlural(fileOnly.length, 'setup')} this browser has not adopted. Adopt them below to see their versions here and edit them in the builder, or write a new one.`
       : 'Write a setup from conditions you choose — the builder offers every indicator and operator the engine evaluates, and refuses a comparison of two unrelated scales.'));
     /* One primary action on the page (Release B, B5): the head's "New setup"
        is it, and this, the same address, stays quiet beside the words. */
@@ -1481,6 +1543,7 @@ VIEWS.scannerSetups = () => {
     });
     wrap.append(list);
   }
+  if (dcShown) wrap.append(dc);
   if (deleted.length) {
     const det = el('details', { class: 'card' });
     det.append(el('summary', { class: 'h-card' }, `Deleted — ${scanPlural(deleted.length, 'setup')}`));
@@ -1496,7 +1559,7 @@ VIEWS.scannerSetups = () => {
   /* ---- evaluate now, on either copy ---- */
   const history = scanHistoryFile;
   const haveHistory = !!(history?.series && Object.keys(history.series).length);
-  const ev = el('div', { class: 'card' });
+  const ev = el('div', { class: 'card', id: 'scan-evaluate' });
   ev.append(cardHead('Evaluate now — nothing recorded', haveHistory
     ? 'Runs the engine the worker runs, here, on data/price-history.json as the worker reads it. The worker writes the record; this writes nothing.'
     : 'No price history is loaded, so there is nothing to evaluate. This site ships none: no price it could ship is licensed for redistribution.', null, haveHistory ? { kind: 'yours', fine: 'From your own closes' } : { kind: 'unavailable', fine: 'No price history loaded' }));
@@ -1511,8 +1574,9 @@ VIEWS.scannerSetups = () => {
     el('button', { class: 'btn btn-ghost btn-sm', disabled: haveHistory && fileSetups.length ? null : '', onclick: () => run(fileSetups, 'the setups in data/scan-setups.json, as the worker would') }, 'Evaluate the file’s setups'),
   ]));
   ev.append(host);
-  wrap.append(ev);
+  wrap.append(scanAdvancedCard([...(dcShown ? [] : [dc]), botCard, ev]));
   wrap.append(scanBoundaryDetails());
+  if (addressed) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(addressed)?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })));
   return wrap;
 };
 
