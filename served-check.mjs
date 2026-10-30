@@ -2771,7 +2771,7 @@ const HOME_PAGE = read(HOME);
       figureProblems('/app/scanner', main);
       const run = all(main).filter(n => n.tag === 'details' && attr(n, 'open') === null && /^Advanced: run the worker on your computer/.test(sight(n.kids.find(k => k.tag === 'summary') || { kids: [] })));
       /* The 30 Oct 2026 audit: the fold's summary reads "Advanced: run the
-         worker on your computer — not available to download yet" (it read
+         worker on your computer" (it read
          "Run locally"). */
       if (run.length !== 1) p.push(`/app/scanner: ${run.length} closed <details> "Advanced: run the worker on your computer", not one`);
       const fold = run[0] ? rawText(run[0]) : '';
@@ -2820,7 +2820,7 @@ const HOME_PAGE = read(HOME);
        scan recorded";
    (b) one .btn-primary in <main>, "Create a setup", in step 1;
    (c) the closed <details id="scan-run"> "Advanced: run the worker on your
-       computer — not available to download yet", and step 3 links to it;
+       computer", and step 3 links to it;
    (d) the lede says the site does not run scans or supply prices and the
        worker is not available to download;
    and the four steps come before the example figure and the details. */
@@ -2852,7 +2852,7 @@ const HOME_PAGE = read(HOME);
         /* What the worker reads, as the engine reads it (scanBars: a close
            per date, each of volume and open, high, low optional) — and no
            file name, no "Live", no promise of an import. */
-        if (!s2.includes('The worker reads your price history on your own computer: for each symbol, a close for each date (YYYY-MM-DD), and optionally open, high, low and volume')) p.push(`/app/scanner: step 2 does not say what the worker reads: "${s2}"`);
+        if (!s2.includes('The worker reads your price history on your own computer: for each symbol, a close for each date, and optionally open, high, low and volume')) p.push(`/app/scanner: step 2 does not say what the worker reads: "${s2}"`);
         if (/\bdata\/[\w.-]+\.json\b|\bLive\b|\b(import|upload|download) (your|a|the) /i.test(s2)) p.push(`/app/scanner: step 2 names a data file, says "Live", or promises an import: "${s2}"`);
         if (!/Not available to download yet/.test(state(steps[2]))) p.push(`/app/scanner: step 3 reads "${state(steps[2])}", not "Not available to download yet"`);
         if (!/^No scan recorded\b/.test(state(steps[3]))) p.push(`/app/scanner: step 4 reads "${state(steps[3])}", not "No scan recorded"`);
@@ -2863,7 +2863,7 @@ const HOME_PAGE = read(HOME);
         if (prim.length !== 1 || rawText(prim[0]) !== 'Create a setup' || !all(steps[0]).includes(prim[0])) p.push(`/app/scanner: ${prim.length} .btn-primary in <main> (${prim.map(rawText).join(', ')}), not one "Create a setup" in step 1`);
         const det = nodes.find(n => n.tag === 'details' && attr(n, 'id') === 'scan-run');
         const sum = det && det.kids.find(k => k.tag === 'summary');
-        if (!det || attr(det, 'open') !== null || !sum || rawText(sum) !== 'Advanced: run the worker on your computer — not available to download yet') p.push('/app/scanner: no closed <details id="scan-run"> headed "Advanced: run the worker on your computer — not available to download yet"');
+        if (!det || attr(det, 'open') !== null || !sum || rawText(sum) !== 'Advanced: run the worker on your computer') p.push('/app/scanner: no closed <details id="scan-run"> headed "Advanced: run the worker on your computer"');
         else if (!rawText(det).includes('node scanner/scan.mjs')) p.push('/app/scanner: the "Advanced: run the worker" fold does not hold the worker\'s commands');
         const at = (n) => nodes.indexOf(n);
         const fig = nodes.find(n => n.tag === 'figure' && has(n, 'scan-ex'));

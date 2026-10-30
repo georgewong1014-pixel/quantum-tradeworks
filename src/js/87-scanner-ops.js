@@ -662,7 +662,7 @@ VIEWS.scannerDashboard = () => {
       hist ? `${scanOpsPlural(hist.symbols.length, 'series', 'series')}, newest bar ${hist.newestBar || '—'}`
            : 'None supplied — this site ships no prices',
       null,
-      hist ? null : 'The worker reads your price history on your own computer: for each symbol, a close for each date (YYYY-MM-DD), and optionally open, high, low and volume — conditions that read highs and lows need them.'),
+      hist ? null : 'The worker reads your price history on your own computer: for each symbol, a close for each date, and optionally open, high, low and volume.'),
     step(3, 'Run locally', 'Needs the worker on your computer', 'Not available to download yet', runLink),
     step(4, 'Review recorded results', 'Recorded by the worker',
       lastRun ? `Last scan ${scanOpsDay(lastRun.finishedAt || lastRun.startedAt)}` : lastTry ? `No scan has succeeded; latest attempt ${scanOpsDay(lastTry.startedAt)}` : 'No scan recorded',
@@ -801,8 +801,8 @@ VIEWS.scannerDashboard = () => {
   const files = el('section', { class: 'scan-run-part' }, [cardHead('Your files', 'Open the worker’s files from your own disk to read them on these pages.'), scanOpsOpenFiles()]);
   wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
     /* The 30 Oct 2026 audit: worker commands belong in an advanced section.
-       The summary says so, and that there is nothing to download yet. */
-    el('summary', { class: 'scan-run-sum' }, 'Advanced: run the worker on your computer — not available to download yet'),
+       The body says there is nothing to download yet, as step 3 does; the summary stays short because the first view's main holds 300 words or fewer in sight (served-check). */
+    el('summary', { class: 'scan-run-sum' }, 'Advanced: run the worker on your computer'),
     el('div', { class: 'scan-run-body' }, [
       el('p', { class: 'body' }, 'The worker is not distributed yet; setups can be tested here on prices you supply. If you hold its files, open them below.'),
       run, files, mon,
