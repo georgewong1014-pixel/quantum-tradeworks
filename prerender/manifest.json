@@ -4818,8 +4818,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "1139e8f0c7ab72ce",
-      "changed": "2026-10-24"
+      "digest": "940b1e261f258010",
+      "changed": "2026-10-30"
     },
     "pages/pricing.html": {
       "path": "/pricing",
@@ -5015,8 +5015,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "64eaeab90c201e44",
-      "changed": "2026-10-27"
+      "digest": "e76114d170d7e964",
+      "changed": "2026-10-30"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -5102,8 +5102,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c071c5d35c3673d8",
-      "changed": "2026-10-27"
+      "digest": "3455a494b0515f4c",
+      "changed": "2026-10-30"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
