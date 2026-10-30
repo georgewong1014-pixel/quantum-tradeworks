@@ -6426,7 +6426,7 @@ try {
       if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`the price tile's link: ${JSON.stringify(r.go)}`);
       if (r.goRests.view !== 'property' || r.goRests.path !== '/property/calculator' || r.goRests.focus !== 'd-price') p.push(`the rests block's link: ${JSON.stringify(r.goRests)}`);
       if (p.length) fail('n3 T1: /property\'s tiles are the model\'s figures of the deal on the calculator, and the next step leads on', p);
-      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; the price tile ("Default", "Replace with your price") and the rests block's "Review the defaults" open the calculator with the keyboard in #d-price, and with every figure the reader's both are gone; "Why" holds all ${W.gates} gates`);
+      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; the price tile ("Illustrative default", "Replace with your price") and the rests block's "Review the defaults" open the calculator with the keyboard in #d-price, and with every figure the reader's both are gone; "Why" holds all ${W.gates} gates`);
     } catch (e) {
       fail('n3 T1: /property\'s tiles could not be read', e.message);
     }
@@ -6441,8 +6441,9 @@ try {
      and save). Drawn:
        - the four tiles run Purchase price, Monthly position, Cash required,
          Net yield (a chosen objective keeps its own order after the price);
-         the price tile is tagged Default with "Replace with your price"
-         until the price is the reader's, then Yours with no action; there is
+         the price tile wears the kind badge "Illustrative default" with
+         "Replace with your price" until the price is the reader's, then
+         "Yours" with no action; there is
          no Next step tile;
        - one "What these figures rest on" block, and neither the alert bar
          nor the grade card's "N gates; the most serious" sentence; the
@@ -6529,7 +6530,7 @@ try {
       })()`));
       const p = [], eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
       if (!eq(r.tiles, ['price', 'cashflowMonthly', 'safeCashRequired', 'netYield']) || !eq(r.labels, ['Purchase price', 'Monthly position', 'Cash required', 'Net yield'])) p.push(`the tiles are ${JSON.stringify(r.labels)} (${JSON.stringify(r.tiles)}), not Purchase price, Monthly position, Cash required, Net yield`);
-      if (r.price.value !== 'RM572,000' || r.price.tag !== 'Default' || r.price.own !== 'default' || r.price.go !== 'Replace with your price') p.push(`the price tile on the sample: ${JSON.stringify(r.price)}`);
+      if (r.price.value !== 'RM572,000' || r.price.tag !== 'Illustrative default' || r.price.own !== 'default' || r.price.go !== 'Replace with your price') p.push(`the price tile on the sample: ${JSON.stringify(r.price)}`);
       if (!r.noNext) p.push('a Next step tile is still drawn');
       if (r.rests.n !== 1 || r.rests.head !== 'What these figures rest on' || r.rests.links !== 1) p.push(`the rests block: ${JSON.stringify(r.rests)}`);
       if (r.rests.bar || r.rests.gateLine) p.push(`the alert bar or the grade's gate sentence is still said: ${JSON.stringify({ bar: r.rests.bar, gate: r.rests.gateLine })}`);
@@ -6545,10 +6546,10 @@ try {
       if (!r.orderOk || r.order.includes(false)) p.push(`the sections do not run Scenarios side by side, Columns, Keep B, Check the price against your evidence (found ${JSON.stringify(r.order)})`);
       if (r.pe.tag !== 'DETAILS' || !r.pe.closed || r.pe.old || !r.pe.inside) p.push(`the price check: ${JSON.stringify(r.pe)}`);
       if (!r.peKept.open || r.peKept.focus !== 'lab-pe-h') p.push(`the price check, opened and focused, after a redraw: ${JSON.stringify(r.peKept)}`);
-      if (r.own.value !== 'RM610,000' || r.own.tag !== 'Yours' || r.own.go) p.push(`with the reader's own price: ${JSON.stringify(r.own)}`);
+      if (r.own.value !== 'RM610,000' || !/^Yours/.test(r.own.tag) || r.own.go) p.push(`with the reader's own price: ${JSON.stringify(r.own)}`);
       if (!eq(r.growth, ['price', 'valueLessLoanAtExit', 'safeCashRequired', 'cashflowMonthly']) || !eq(r.unchosen, r.tiles)) p.push(`with the growth objective the tiles are ${JSON.stringify(r.growth)}, with none ${JSON.stringify(r.unchosen)}`);
       if (p.length) fail('a4-lab: the Scenario Lab leads with the price, month and cash, folds the detail and compares before it checks the price', p);
-      else ok('a4-lab: the Lab\'s tiles run Purchase price (Default, "Replace with your price"; Yours with no action once it is the reader\'s), Monthly position, Cash required, Net yield — an objective keeping its own order after the price — with no Next step; one "What these figures rest on" (one count, the review queue\'s, one link) and no alert bar or gate sentence; Monthly position, Cash required, Net yield and Monthly repayment stand and the other four sit in a closed "4 more figures" kept open or closed, with the keyboard on it, across a redraw; one sentence over nine boxes tagged Default, each in its description; Scenarios side by side, Columns, Keep B, then the closed "Check the price against your evidence", kept across a redraw');
+      else ok('a4-lab: the Lab\'s tiles run Purchase price (Illustrative default, "Replace with your price"; Yours with no action once it is the reader\'s), Monthly position, Cash required, Net yield — an objective keeping its own order after the price — with no Next step; one "What these figures rest on" (one count, the review queue\'s, one link) and no alert bar or gate sentence; Monthly position, Cash required, Net yield and Monthly repayment stand and the other four sit in a closed "4 more figures" kept open or closed, with the keyboard on it, across a redraw; one sentence over nine boxes tagged Default, each in its description; Scenarios side by side, Columns, Keep B, then the closed "Check the price against your evidence", kept across a redraw');
     } catch (e) {
       fail('a4-lab: the simplified Lab could not be read', e.message);
     }

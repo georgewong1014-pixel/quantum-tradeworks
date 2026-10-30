@@ -1292,9 +1292,9 @@ function labTiles(P, lab) {
 }
 /* THE PURCHASE PRICE LEADS (the 30 Oct 2026 audit: price, then the monthly
    position, the cash and the yield). It is the deal's own price, as the other
-   three tiles are the deal's figures, with the calculator's own tag beside
-   it — "Default" while it is the tool's figure, "Yours" once it is the
-   reader's (pcFieldOwn) — and, while it is the tool's, the one action: to
+   three tiles are the deal's figures, with its tag beside it — default while
+   it is the tool's figure, Yours once it is the reader's (pcFieldOwn, whose
+   word the boxes below carry) — and, while it is the tool's, the one action: to
    replace it, in the calculator, at its box, with the keyboard in it. That
    is what the "Next step" tile did for the first figure still the tool's;
    that figure's link is now the one in "What these figures rest on"
@@ -1305,8 +1305,9 @@ const labOnCalc = (lab) => !lab.model || State.deal?.modelId === lab.model;
 function labPriceTile(P, lab, d) {
   const has = !!d && num0(d.price) > 0;
   const own = has ? pcFieldOwn(d, 'price') : null;
-  const tag = own ? el('span', { class: `lab-tag lab-tile-kind ls-badge pc-own${own === 'default' ? ' is-default' : ''}`, id: labId(P, 'price-own'),
-    'data-own': own, 'data-kind': own === 'default' ? 'illustrative_default' : 'user' }, own === 'default' ? 'Default' : 'Yours') : null;
+  /* The tile’s tag is the system’s kind badge, as the other three wear (a metric card holds one — build --check): "Illustrative default" while the price is the tool’s, "Yours · you supplied" once it is the reader’s. */
+  const tag = own ? labTag(labTileKind(d, ['price'])) : null;
+  if (tag) { tag.setAttribute('data-own', own); tag.id = labId(P, 'price-own'); }
   let act = null;
   if (own === 'default' && labOnCalc(lab)) {
     const path = '/property/calculator#d-price';

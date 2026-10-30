@@ -3357,7 +3357,7 @@ const HOME_PAGE = read(HOME);
    assumptions together"; asked to prioritise the purchase price, the monthly
    position, the cash required, the assumptions, then compare and save).
    /property/lab, as a fetch reads it:
-   - four tiles, in that order — Purchase price (tagged Default, with
+   - four tiles, in that order — Purchase price (wearing "Illustrative default", with
      "Replace with your price" to the calculator's box), Monthly position,
      Cash required, Net yield — and no "Next step" tile;
    - one "What these figures rest on" block with one "Review the defaults"
@@ -3397,7 +3397,7 @@ const HOME_PAGE = read(HOME);
     if (price) {
       const tag = all(price).find(n => attr(n, 'data-own') !== null);
       const go = all(price).find(n => n.tag === 'a' && B.hasClass(n, 'lab-price-go'));
-      if (!tag || attr(tag, 'data-own') !== 'default' || rawText(tag) !== 'Default') p.push(`/property/lab: the price tile's tag reads "${tag ? rawText(tag) : 'nothing'}", not "Default"`);
+      if (!tag || attr(tag, 'data-own') !== 'default' || rawText(tag) !== 'Illustrative default') p.push(`/property/lab: the price tile's tag reads "${tag ? rawText(tag) : 'nothing'}", not the kind badge "Illustrative default"`);
       if (!go || attr(go, 'href') !== '/property/calculator#d-price' || !/^Replace with your price/.test(sight(go).trim())) p.push('/property/lab: the price tile has no "Replace with your price" link to the calculator\'s price box');
       if (!/^RM\s?572,000$/.test(sight(all(price).find(n => B.hasClass(n, 'ls-card-value')) || price).trim())) p.push('/property/lab: the price tile does not show the sample\'s RM572,000');
     }
