@@ -3360,7 +3360,6 @@ function pcRefineCount(d) {
    opens by itself when any of its inputs is the reader's own. In memory, as
    the other running costs'. */
 let pcQuickRefineOpen = null;
-let pcQuickRefineArrival = '';
 /* Whether the other running costs stand open, across a redraw — every box
    in it redraws the page. In memory, as the page's other drawers. */
 let pcQuickOtherOpen = false;
@@ -3449,10 +3448,10 @@ function pcQuickView(d, m, g, DK) {
   /* "Refine the assumptions": a <details>, closed on a first visit (so a
      served page carries the boxes, closed), kept as the reader left it. */
   const cnt = pcRefineCount(d);
-  const arrivalAt = location.pathname + location.search + location.hash;
-  const hashK = (location.hash.match(/^#d-(\w+)$/) || [])[1];
-  if (hashK && PC_QUICK_KEYS.has(hashK) && !PC_QUICK_ESSENTIAL.includes(hashK) && pcQuickRefineArrival !== arrivalAt) pcQuickRefineOpen = true;
-  pcQuickRefineArrival = arrivalAt;
+  /* An address that names one of its boxes (#d-maintenance, the Lab's "Next step") opens it: the arrival is read where the page took it
+     (pcArrivalWant, 71-property-models.js), the address itself being rewritten by now. */
+  const hashK = (String(typeof pcArrivalWant === 'string' ? pcArrivalWant : '').match(/^d-(w+)$/) || [])[1];
+  if (hashK && PC_QUICK_KEYS.has(hashK) && !PC_QUICK_ESSENTIAL.includes(hashK)) pcQuickRefineOpen = true;
   const refine = el('details', { class: 'pc-refine', id: 'pc-q-more', open: (typeof pcQuickRefineOpen === 'boolean' ? pcQuickRefineOpen : cnt.own > 0) ? '' : null });
   const rsum = el('summary', { class: 'btn btn-quiet lab-more-btn pc-refine-sum', id: 'pc-q-more-btn' }, [
     el('span', { class: 'lab-more-name' }, 'Refine the assumptions'), ' ',

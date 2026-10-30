@@ -9689,6 +9689,11 @@ try {
         State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { vacancyPct: true }, vacancyPct: 14 };
         saveDeal(); pcQuickRefineOpen = null; render(); await w(400);
         out.saved = { open: det().open, sum: t(document.getElementById('pc-q-more-btn')), tag: tag('vacancyPct') };
+        /* An address that names a box in the group (the Lab's "Next step" → #d-maintenance) opens it and puts the keyboard there. */
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+        saveDeal(); pcQuickRefineOpen = null; navigate('/property/calculator'); await w(400);
+        navigate('/property/calculator#d-maintenance'); await w(1800);
+        out.arrive = { open: !!det() && det().open, active: document.activeElement && document.activeElement.id };
       } finally {
         State.deal = JSON.parse(keep); pcQuickRefineOpen = null; saveDeal(); navigate('/property/calculator?view=full'); await w(300);
       }
@@ -9712,6 +9717,7 @@ try {
     if (!r.flip || !r.flip.open || !/1 of 6 changed$/.test(r.flip.sum) || r.flip.tag !== 'Yours' || r.flip.tenure !== 'Default' || r.flip.vacancy !== 12 || r.flip.essTags !== 'Default|Default|Default|Default') p.push(`a vacancy typed: ${JSON.stringify(r.flip)}`);
     if (!r.kept || !r.kept.closed || !/1 of 6 changed$/.test(r.kept.sum)) p.push(`the group the reader closed, after a redraw: ${JSON.stringify(r.kept)}`);
     if (!r.focus || !r.focus.open || r.focus.active !== 'd-vacancyPct') p.push(`a box in the group, focused, across a redraw: ${JSON.stringify(r.focus)}`);
+    if (!r.arrive || !r.arrive.open || r.arrive.active !== 'd-maintenance') p.push(`an address naming #d-maintenance: ${JSON.stringify(r.arrive)}`);
     r.moved.forEach(x => p.push(x));
     if (r.tagsAfter !== 'Yours|Yours|Yours|Yours') p.push(`the essentials' tags after each was changed: "${r.tagsAfter}"`);
     if (!r.saved || !r.saved.open || !/1 of 6 changed$/.test(r.saved.sum) || r.saved.tag !== 'Yours') p.push(`a deal that arrives with its own vacancy: ${JSON.stringify(r.saved)}`);
