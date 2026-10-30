@@ -1871,13 +1871,13 @@ const HOME_PAGE = read(HOME);
   const untagged = SEEDED.filter(k => {
     const at = calc.indexOf(`id="d-${k}"`);
     if (at < 0) return true;
-    const input = calc.slice(calc.lastIndexOf('<input', at), calc.indexOf('>', at));
     const tag = new RegExp(`<span[^>]*id="d-${k}-own"[^>]*>Default</span>`).exec(calc.slice(at, calc.indexOf('</div>', at)));
-    return !tag || /class="[^"]*sr-only|hidden/.test(tag[0]) || !/aria-describedby="[^"]*d-[A-Za-z]+-own/.test(input);
+    /* The served box is an inert span, which carries no description: the drawn box's aria-describedby is held by model-test C-REFINE. */
+    return !tag || /class="[^"]*sr-only|hidden/.test(tag[0]);
   });
   if (calc.includes(TAG)) p.push(`/property/calculator: still serves "${TAG}" — the Quick model says it once, over the boxes, and tags each box "Default"`);
   if (calc.split('Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.').length !== 2) p.push('/property/calculator: the sentence over the boxes, "Fields marked Default hold the tool’s illustrative figures…", is not served exactly once');
-  if (untagged.length) p.push(`/property/calculator: ${SEEDED.length - untagged.length} of the ${SEEDED.length} seeded inputs carry a "Default" tag described by their box in their row; ${untagged.join(', ')} do not`);
+  if (untagged.length) p.push(`/property/calculator: ${SEEDED.length - untagged.length} of the ${SEEDED.length} seeded inputs carry a "Default" tag in their row; ${untagged.join(', ')} do not`);
   const status = got.get('/status').body || '';
   if (/Property map and area observations/.test(status)) p.push('/status: still lists "Property map and area observations"');
   const row = /<tr>(?:(?!<\/tr>)[\s\S])*Locality diagram and area observations(?:(?!<\/tr>)[\s\S])*<\/tr>/.exec(status)?.[0] || '';
@@ -1886,7 +1886,7 @@ const HOME_PAGE = read(HOME);
     if (!row.includes('<a href="/property/areas">/property/areas</a>')) p.push('/status: the locality diagram\'s row does not give /property/areas as where it is');
     if (!/no basemap/.test(row) || !/8 locality points per town/.test(row)) p.push(`/status: the locality diagram's row does not say "8 locality points per town" and "no basemap": ${row.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 200)}`);
   }
-  judge(p, `/property/lab serves "Beta" beside its h1 "Scenario Lab"; /property/calculator, served in the Quick model, serves the "Default" tag, the box's description, in the row of each of the ${SEEDED.length} seeded inputs it shows (the full model's other ${FULL_ONLY.length}: model-test qt-quick-full); /status lists the "Locality diagram and area observations" at /property/areas, 8 locality points per town with no basemap, and no property map`,
+  judge(p, `/property/lab serves "Beta" beside its h1 "Scenario Lab"; /property/calculator, served in the Quick model, serves the "Default" tag in the row of each of the ${SEEDED.length} seeded inputs it shows (the full model's other ${FULL_ONLY.length}: model-test qt-quick-full); /status lists the "Locality diagram and area observations" at /property/areas, 8 locality points per town with no basemap, and no property map`,
     'a Property page serves its readiness other than as it is');
 }
 /* ---- end readiness-served ---- */
@@ -4277,7 +4277,7 @@ const HOME_PAGE = read(HOME);
     said.push(`${path} ${here}`);
   }
   const calc = got.get('/property/calculator');
-  if (calc?.status === 200) { const m = /(\d+) sample inputs? needs? your evidence/.exec(pageText(calc.body)); if (!m || m[1] !== '10') p.push(`/property/calculator's review counts ${m ? m[1] : 'nothing'}, its line 10`); }
+  if (calc?.status === 200) { /* The Quick model's one count is the sentence of "What these figures rest on" (B3, 30 Oct 2026), not a review bar. */ const m = /(\d+) inputs? (?:is|are) still the tool’s illustrative default/.exec(pageText(calc.body)); if (!m || m[1] !== '10') p.push(`/property/calculator's review counts ${m ? m[1] : 'nothing'}, its line 10`); }
   judge(p, `the property journey bar as served: ${said.length} Property pages each serve Explore · Analyse · Evidence · Compare · Save with their own step marked (${said.join(', ')}); the context line under them — "The sample deal · Residential · Subsale · Sample figures: 10 of 10" on six, "Sample figures: 10 of 10 · No unsaved moves" on the Lab's two (its heading names the rest) and beside its sliders — a count and no figure, the calculator's count its review's; each render read the deal and the saved work`,
     'the property journey bar is not served as it is drawn for a fresh visitor');
 }
