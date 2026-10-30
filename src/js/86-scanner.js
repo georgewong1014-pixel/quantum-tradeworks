@@ -1256,13 +1256,14 @@ function scanAdvOpenAround(node) {
   if (adv) adv.open = true;
 }
 function scanAdvancedCard(cards) {
-  const det = el('details', { class: 'scan-run-d scan-adv', id: 'scan-advanced', open: scanAdvState.open ? '' : null });
+  const det = el('details', { class: 'scan-run-d scan-adv', id: 'scan-advanced', open: scanAdvState.open || scanBotState.open ? '' : null });
   det.append(el('summary', { class: 'scan-run-sum' }, 'Advanced — the local worker, TradingView signals and “Evaluate now”'));
   det.append(el('div', { class: 'scan-run-body' }, [
     el('p', { class: 'body' }, 'You do not need any of this to write and save a setup. It is for running the worker on your own computer, which is not available to download yet, and for adding a TradingView script’s alerts as setups.'),
     ...cards,
   ]));
-  det.addEventListener('toggle', () => { scanAdvState.open = det.open; });
+  /* Closed by the reader, the TradingView card inside it is closed too: an open card in a closed Advanced is a button nobody can reach, and the page would reopen Advanced for it at the next redraw. */
+  det.addEventListener('toggle', () => { scanAdvState.open = det.open; if (!det.open) scanBotState.open = false; });
   return det;
 }
 /* An address that names something inside Advanced opens it first, once per
