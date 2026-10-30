@@ -5394,7 +5394,9 @@ for (const w of [360, 390]) {
     return { all, cards, small, controls, sw, bar, secs: document.querySelectorAll('.pc-page .pc-sec').length, quick: !!document.getElementById('pc-quick'),
       dockTop: dock && shown(dock) ? Math.round(dock.getBoundingClientRect().top) : null, inner: innerHeight, firstInputTop: firstInput ? Math.round(firstInput.top) : null,
       other: other ? { open: other.open, h: otherSum ? Math.round(otherSum.height) : 0 } : null,
-      review: (document.querySelector('#review .ls-card-title')?.textContent || '').trim(),
+      review: (document.querySelector('#pc-rests-text > strong')?.textContent || '').trim(),
+      rests: { n: document.querySelectorAll('#review').length, defaults: document.querySelectorAll('.pc-rests').length, bar: document.querySelectorAll('.pc-q-results .pc-review, #pc-quick .pc-defaults').length, chips: [...document.querySelectorAll('#pc-q-answer .chip')].map(c => c.textContent.trim()).join('|') },
+      claim: (() => { const c = document.querySelector('.pc-claim details'); return c ? { open: c.open, text: c.textContent } : null; })(),
       over: document.documentElement.scrollWidth - document.documentElement.clientWidth, height: document.documentElement.scrollHeight,
       strip: (() => { const s = document.getElementById('disclosureText'); return s ? seenText(s) : ''; })(), page: seenText(main) };
   })()`;
@@ -5416,9 +5418,12 @@ for (const w of [360, 390]) {
       const keys = r.cards.map(c => c.key).join();
       if (keys !== 'safe,monthly,netYield,grade') fails.push(`${at}: the results in sight are ${keys || 'none'}, not the cash required, the monthly position, the net yield and the grade`);
       r.cards.forEach(c => { if (!c.badge || !/^Illustrative/.test(c.badge)) fails.push(`${at}: the "${c.label}" result shows ${c.badge ? `"${c.badge}"` : 'no kind badge'}, not Illustrative`); });
-      if (!/^10 sample inputs need your evidence$/.test(r.review)) fails.push(`${at}: the review alert reads "${r.review}"`);
-      const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.page, 'Not a valuation', 'the chip'], [r.page, 'Not an official property valuation', 'the regulated claim'],
-        [r.page, 'Illustrative defaults', 'the sample label'], [r.page, 'not advice', 'the limitations line'], [r.cards.find(c => c.key === 'safe')?.text || '', 'estimated lines', 'the cash required\'s estimated lines']];
+      if (!/^10 inputs$/.test(r.review)) fails.push(`${at}: the answer’s defaults line counts "${r.review}", not "10 inputs"`);
+      /* B3: one defaults block, no review bar, the limit once in the answer, the valuer text whole in a closed disclosure. */
+      if (r.rests.defaults !== 1 || r.rests.bar || r.rests.chips !== 'Not a valuation') fails.push(`${at}: the answer holds ${r.rests.defaults} defaults blocks, ${r.rests.bar} review bars, chips "${r.rests.chips}"`);
+      if (!r.claim || r.claim.open || !/registered valuer/.test(r.claim.text)) fails.push(`${at}: "Why this is not a valuation" is ${r.claim ? (r.claim.open ? 'open' : 'without the registered-valuer text') : 'not drawn'}`);
+      const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.page, 'Not a valuation', 'the chip'], [r.page, 'Why this is not a valuation', 'the way to the regulated claim'],
+        [r.page, 'illustrative defaults', 'the sample label'], [r.page, 'not advice', 'the limitations line'], [r.cards.find(c => c.key === 'safe')?.text || '', 'estimated lines', 'the cash required\'s estimated lines']];
       for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
       if (!r.other || r.other.open) fails.push(`${at}: the other running costs ${r.other ? 'stand open' : 'are not drawn'}`);
       if (w >= 640) continue;

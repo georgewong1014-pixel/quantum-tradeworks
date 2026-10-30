@@ -1644,6 +1644,10 @@ const JOURNEYS = [
            reserve"), so either reads as the five a let condominium counts. */
         if (!/^Other running costs RM[\d,]+ a year: sinking fund, assessment, quit rent, insurance(?:,| and) repair reserve$/.test(line)) throw new StepError(`the other running costs read “${line}”`);
         if (await tab.eval(`document.getElementById('pc-q-other').open || !!document.getElementById('d-insurance')?.checkVisibility()`)) throw new StepError('the other running costs stand open before they are opened');
+        /* They are in "Refine the assumptions" (B3, 30 Oct 2026), closed on a first visit: opened first. */
+        if (await tab.eval(`document.getElementById('pc-q-more').open`)) throw new StepError('"Refine the assumptions" stands open on a first visit');
+        await tab.click(`document.querySelector('#pc-q-more > summary')`, 'Refine the assumptions');
+        await tab.expect(`document.getElementById('pc-q-more').open && !!document.getElementById('pc-q-other')?.checkVisibility()`, 'pressing "Refine the assumptions" did not open it');
         await tab.click(sum, 'Other running costs');
         await tab.expect(`document.getElementById('pc-q-other').open && !!document.getElementById('d-insurance')?.checkVisibility()`, 'pressing the other running costs did not open their boxes in place');
         const was = await tab.eval('State.deal.insurance');
@@ -2638,19 +2642,20 @@ const JOURNEYS = [
         await tab.expect(`State.view === 'property' && document.getElementById('pc-review-list')?.open && document.activeElement === document.querySelector('#pc-review-list > summary')`,
           async () => `Evidence opened ${await tab.eval('State.view')}, the review ${await tab.eval(`document.getElementById('pc-review-list')?.open ? 'open' : 'closed'`)}, focus on ${await tab.eval(`document.activeElement?.id || document.activeElement?.tagName`)}`, 8000);
         const r = await line();
-        const review = await tab.eval(`(document.querySelector('#pc-review-list > summary')?.textContent || '').replace(/\\s+/g, ' ')`);
+        /* The review is "Review the defaults" under "What these figures rest on" (B3, 30 Oct 2026), the count in the sentence above it. */
+        const review = await tab.eval(`((document.getElementById('pc-rests-text')?.textContent || '').match(/^(\\d+) inputs? /) || ['', ''])[1] + '|' + (document.querySelector('#pc-review-list > summary')?.textContent || '').replace(/\\s+/g, ' ')`);
         if (r.here !== 'evidence') throw new StepError(`the calculator marks ${r.here}, not Evidence`);
         if (r.where !== 'calc' || r.what !== 'The sample deal' || r.route !== 'Residential · Subsale' || r.ev !== 'Sample figures: 10 of 10'
           || !/^In the Lab: \d+ moves not saved — lost on reload or close$/.test(r.state || '') || !r.resume) throw new StepError(`the calculator's line reads ${said(r)}`);
-        if (!new RegExp(`Review ${r.n} sample inputs`).test(review)) throw new StepError(`the line counts ${r.n}, the review “${review.trim().slice(0, 90)}”`);
+        if (!new RegExp(`^${r.n}\\|Review the defaults`).test(review)) throw new StepError(`the line counts ${r.n}, the review “${review.trim().slice(0, 90)}”`);
         if (await snap() !== before) throw new StepError('Evidence wrote to storage');
       });
       await step(j, tab, 'Replace the rent on the calculator: the count follows the review, 9 of 10', BUDGET.action * 3, async () => {
         await tab.fill(`document.getElementById('d-rent')`, '2000', 'Expected monthly rent', { commit: true });
         await tab.expect(`document.getElementById('pf-ctx-ev')?.textContent.trim() === 'Sample figures: 9 of 10'`, async () => `after the rent the line counts “${await tab.eval(`document.getElementById('pf-ctx-ev')?.textContent`)}”`);
         const r = await line();
-        const review = await tab.eval(`(document.querySelector('#pc-review-list > summary')?.textContent || '').replace(/\\s+/g, ' ')`);
-        if (!/Review 9 sample inputs/.test(review) || r.what !== 'The deal on the calculator') throw new StepError(`the review reads “${review.trim().slice(0, 90)}”, the line names “${r.what}”`);
+        const review = await tab.eval(`((document.getElementById('pc-rests-text')?.textContent || '').match(/^(\\d+) inputs? /) || ['', ''])[1] + '|' + (document.querySelector('#pc-review-list > summary')?.textContent || '').replace(/\\s+/g, ' ')`);
+        if (!/^9\|Review the defaults/.test(review) || r.what !== 'The deal on the calculator') throw new StepError(`the review reads “${review.trim().slice(0, 90)}”, the line names “${r.what}”`);
         if (await snap() !== before) throw new StepError('a figure typed on the calculator wrote to the saved work');
       });
       await step(j, tab, 'Resume in the Lab: the moves intact, the evidence 9 of 10, Save in the line gives the keyboard to the Lab’s Save', BUDGET.load + BUDGET.action, async () => {
