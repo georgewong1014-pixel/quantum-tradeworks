@@ -645,7 +645,7 @@ function capturePage(servedCopy, servedText, { origin, site }) {
   const tabs = host && !host.hidden && host.children.length ? servedCopy(host, counts) : null;
   const local = (html) => html.split(origin).join(site);
   const indices = (sel) => [...document.querySelectorAll(sel)].flatMap((x, i) => (x.getAttribute('aria-current') === 'page' ? [i] : []));
-  const resBtn = document.getElementById('menuResourcesBtn');
+  const helpBtn = document.getElementById('menuHelpBtn');
   return {
     path: location.pathname, view: State.view, waits: !!(typeof viewWaits === 'function' ? viewWaits() : UNIVERSE_VIEWS.has(State.view)),
     /* What a page that waits was drawn from (SERVED_READS, 35-ui.js), and
@@ -657,7 +657,7 @@ function capturePage(servedCopy, servedText, { origin, site }) {
     h1: (views.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim() || null,
     views: local(views.innerHTML), tabs: tabs ? local(tabs.innerHTML) : null,
     text: servedText(views),
-    nav: { pubnav: indices('#pubnav a'), resources: resBtn?.hasAttribute('data-current') ? resBtn.getAttribute('aria-description') : null, appnav: indices('#appnav a') },
+    nav: { pubnav: indices('#pubnav a'), help: helpBtn?.hasAttribute('data-current') ? helpBtn.getAttribute('aria-description') : null, appnav: indices('#appnav a') },
     counts,
   };
 }

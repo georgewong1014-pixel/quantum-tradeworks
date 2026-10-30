@@ -58,14 +58,14 @@
      chromeOf() in 35-ui.js and written to <html data-chrome>; the stylesheet
      shows one and hides the other, so the hidden one is out of the tab order
      and the accessibility tree. The navigation inside both is drawn from the
-     same tables (PRODUCTS, RESOURCES, APP_NAV), never written twice here:
+     same tables (PRODUCTS, RESOURCES, HELP_GROUPS, APP_NAV), never written twice here:
      build.mjs fills #pubnav, #appnav and the footer's two lists in every page
      it writes with what the app's own NAV_MARKUP (35-ui.js) makes of them,
      so a reader that runs no script still finds the links, and the script
      draws the same markup in their place.
 
      PUBLIC: the front door, How it works, pricing and the trust and method
-     pages. Brand, Products, How it works, Pricing, Resources, the theme and
+     pages. Brand, Products, Saved work, How it works, Help, the theme and
      one action. No Sign In — there are no accounts; what a visitor saves
      lives in their browser. No search box either: "/" and Ctrl/Cmd+K still
      open the search from every page. -->

@@ -697,7 +697,7 @@ export function routePlan(template) {
    fall out of step; Business Intelligence, which has no path, is text in
    both. The phone's sheet is not served (NAV_MARKUP says why).
 
-   The page's own current item — the header link, the Resources menu, the
+   The page's own current item — the header link, the Help menu, the
    sidebar item buildNav marks once the page is drawn — is marked as the
    page's render marked it (prerender/manifest.json), so the served header is
    the drawn one; a page with no render committed is served unmarked. */
@@ -775,6 +775,9 @@ export function navMarkup() {
     cut(UI, '35-ui.js', 'function productBadge(', '\n}\n'),
     cut(UI, '35-ui.js', 'const productNote = ', ';\n'),
     cut(UI, '35-ui.js', 'const RESOURCES = [', '\n];'),
+    cut(UI, '35-ui.js', 'const HELP_GROUPS = [', '\n];'),
+    cut(UI, '35-ui.js', 'const HELP_PATHS = ', ';\n'),
+    cut(UI, '35-ui.js', 'const SHEET_FOOT = [', '\n];'),
     cut(UI, '35-ui.js', 'const APP_NAV_WORKSPACE = [', '\n];'),
     cut(UI, '35-ui.js', 'const APP_NAV_FOOT = [', '\n];'),
     cut(UI, '35-ui.js', 'const PRODUCT_ICON = ', ';\n'),
@@ -782,7 +785,7 @@ export function navMarkup() {
     cut(UI, '35-ui.js', 'const shellIcon = ', ';\n'),
     cut(UI, '35-ui.js', 'function productRows(', '\n}\n'),
     cut(UI, '35-ui.js', 'const productsLegendLink = ', ';\n'),
-    cut(UI, '35-ui.js', 'function resourceLists(', '\n}\n'),
+    cut(UI, '35-ui.js', 'function helpLists(', '\n}\n'),
     cut(UI, '35-ui.js', 'function pubMenu(', '\n}\n'),
     cut(UI, '35-ui.js', 'function sidebarItem(', '\n}\n'),
     cut(UI, '35-ui.js', 'const NAV_MARKUP = {', '\n};'),
@@ -795,7 +798,7 @@ export function navMarkup() {
   const unbuilt = api.PRODUCTS.filter(p => !p.path).map(p => p.name);
   /* marks: what buildNav marked on the page's render — the indices of the
      current links among #pubnav's and #appnav's links, in document order,
-     and the Resources menu's mark — or null for none. */
+     and the Help menu's mark — or null for none. */
   /* chrome: the chrome the page is served in (servedChrome, below). The
      other chrome's list is served empty — its header is hidden, after the
      page — and the app draws it when the reader enters that chrome
@@ -813,11 +816,11 @@ export function navMarkup() {
       };
       if (chrome !== 'app') mark([pubnav], marks.pubnav, '#pubnav');
       if (chrome === 'app') mark(appnav, marks.appnav, '#appnav');
-      if (marks.resources && chrome !== 'app') {
-        const btn = walk(pubnav).find(n => n.getAttribute('id') === 'menuResourcesBtn');
-        if (!btn) throw new Error('the public header has no Resources menu to mark');
+      if (marks.help && chrome !== 'app') {
+        const btn = walk(pubnav).find(n => n.getAttribute('id') === 'menuHelpBtn');
+        if (!btn) throw new Error('the public header has no Help menu to mark');
         btn.toggleAttribute('data-current', true);
-        btn.setAttribute('aria-description', marks.resources);
+        btn.setAttribute('aria-description', marks.help);
       }
     }
     const out = {

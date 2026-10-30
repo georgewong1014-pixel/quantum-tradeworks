@@ -3020,7 +3020,7 @@ for (const route of ROUTES) {
         rows: [...v.querySelectorAll('table.plan-table tbody tr th')].map(x => x.textContent.trim()),
         reports: [...v.querySelectorAll('table.dt-stack tbody tr')].length,
         reportHead: [...v.querySelectorAll('table.dt-stack thead th')].map(x => x.textContent.trim()),
-        nav: [...document.querySelectorAll('#pubnav a, #pubSheet a')].filter(a => (a.dataset.path || a.getAttribute('href')) === '/pricing').map(a => a.textContent.trim()) };
+        nav: [...document.querySelectorAll('.footer a, #pubSheet a')].filter(a => (a.dataset.path || a.getAttribute('href')) === '/pricing').map(a => a.textContent.trim()) };
     })()`);
   }
   if (!r) p.push('/pricing did not draw its plan cards');

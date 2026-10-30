@@ -1024,7 +1024,7 @@ for (const w of [360, 390]) {
        Escape closes and returns focus, ArrowDown opens onto the first link,
        Tab out of the panel closes it, a click outside closes it. */
     await load('/', 1440);
-    for (const id of ['menuProducts', 'menuResources']) {
+    for (const id of ['menuProducts', 'menuHelp']) {
       await ev(`document.getElementById('${id}Btn').focus(); true`);
       await press('Enter');
       const opened = await ev(`({ exp: document.getElementById('${id}Btn').getAttribute('aria-expanded'), shown: !document.getElementById('${id}').hidden && document.getElementById('${id}').getClientRects().length > 0 })`);
@@ -1053,7 +1053,7 @@ for (const w of [360, 390]) {
     const sheet = await ev(`({ exp: document.getElementById('pubMenuBtn').getAttribute('aria-expanded'), shown: document.getElementById('pubSheet').getClientRects().length > 0,
       over: document.documentElement.scrollWidth - innerWidth })`);
     /* release-a fixes: the open sheet is a finger's list — every link and
-       button in it 44px tall (its Resources links were 36px) — the page behind
+       button in it 44px tall (its Resources links were 36px; Help's since 30 Oct 2026) — the page behind
        it is inert, and the menu button keeps its name while its icon turns
        to a cross. */
     await sleep(250);
@@ -1099,14 +1099,14 @@ for (const w of [360, 390]) {
 
     /* 5. Nothing the chrome opens pushes the page sideways. */
     for (const [w, path, open] of [[360, '/', 'pubMenuBtn'], [360, '/app/scanner', 'navOpen'], [768, '/', 'pubMenuBtn'], [768, '/discover/screener', 'navOpen'],
-      [1024, '/', 'menuResourcesBtn'], [1024, '/discover/screener', null], [1440, '/', 'menuProductsBtn'], [1440, '/property/areas', null]]) {
+      [1024, '/', 'menuHelpBtn'], [1024, '/discover/screener', null], [1440, '/', 'menuProductsBtn'], [1440, '/property/areas', null]]) {
       await load(path, w);
       if (open) { await ev(`document.getElementById('${open}').click(); true`); await sleep(350); }
       const over = await ev(`document.documentElement.scrollWidth - innerWidth`);
       if (typeof over !== 'number' || over > 2) fails.push(`${w}px ${path}${open ? ` with #${open} open` : ''}: overflow ${over}px`);
     }
     /* 6. Each menu panel sits inside the viewport, measured on the panel itself
-       and not only as page overflow — at 1024px the resources panel ran 11px
+       and not only as page overflow — at 1024px the Help (then Resources) panel ran 11px
        past a viewport narrowed by a scrollbar, 38px on CI, whose Linux runner
        has neither Inter nor Segoe and lays the header out in a wider font. So
        the check runs with the page's font AND with Verdana forced, which gives
@@ -1119,7 +1119,7 @@ for (const w of [360, 390]) {
           document.getElementById('probeFont')?.remove();
           ${font ? `const st = document.createElement('style'); st.id = 'probeFont'; st.textContent = 'body, button, a { font-family: ${font} !important; }'; document.head.append(st); await wait(120);` : ''}
           const out = [];
-          for (const id of ['menuProductsBtn', 'menuResourcesBtn']) {
+          for (const id of ['menuProductsBtn', 'menuHelpBtn']) {
             const btn = document.getElementById(id);
             if (!btn || !btn.offsetParent) { out.push(id + ' not shown'); continue; }
             btn.click(); await wait(300);

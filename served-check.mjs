@@ -955,10 +955,49 @@ const HOME_PAGE = read(HOME);
     if (list.some(l => /Business Intelligence/.test(l.text))) p.push(`${where} links Business Intelligence, which is not built`);
   }
   if (!/Business Intelligence/.test(words(sample.pubnav)) || !/Business Intelligence/.test(words(sample.footProducts))) p.push('Business Intelligence is not in the header\'s and the footer\'s Products as text');
-  for (const href of ['/how-it-works', '/pricing', '/methodology', '/data-sources', '/learn/glossary', '/status', '/about', '/contact', '/privacy', '/terms'])
+  /* The header's links since 30 Oct 2026 (quick-wins fix 5): Plans, Build status, About, Privacy and Terms are the footer's. */
+  for (const href of ['/how-it-works', '/my/workspace', '/contact', '/corrections', '/learn/product-boundaries', '/methodology', '/data-sources', '/learn/glossary', '/learn'])
     if (!pub.some(l => l.href === href)) p.push(`#pubnav has no link to ${href}`);
   for (const href of ['/methodology', '/data-sources', '/learn/glossary', '/learn', '/corrections', '/status'])
     if (!res.some(l => l.href === href)) p.push(`#footResources has no link to ${href}`);
+  /* THE HEADER'S FOUR DESTINATIONS (quick-wins fix 5, 30 Oct 2026). On every
+     served page that wears the public header, its top level is exactly
+     Products, Saved work, How it works and Help (and the "Open workspace"
+     button beside it, outside the list); the Help panel holds exactly its
+     seven links; and the footer, where Plans, Build status, About, Privacy,
+     Terms and Contact are still reached, still links all six. */
+  {
+    const topLevel = (list) => {
+      const out = []; let depth = 0, from = -1;
+      for (const m of list.matchAll(/<(\/?)li\b[^>]*>/g)) {
+        if (!m[1]) { if (depth++ === 0) from = m.index; } else if (--depth === 0) out.push(list.slice(from, m.index + m[0].length));
+      }
+      return out;
+    };
+    const hrefsOf = (html) => [...html.matchAll(/<a\b[^>]*\bhref="([^"]*)"/g)].map(m => m[1]);
+    const labelOf = (li) => words((/<button\b[\s\S]*?<\/button>/.exec(li) || /<a\b[\s\S]*?<\/a>/.exec(li) || [''])[0]);
+    const HELP7 = ['/contact', '/corrections', '/learn/product-boundaries', '/methodology', '/data-sources', '/learn/glossary', '/learn'];
+    const FOOT6 = ['/pricing', '/status', '/about', '/privacy', '/terms', '/contact'];
+    let seen = 0;
+    for (const [path, r] of [...got, ...others]) {
+      const x = parts(r.body);
+      if (!x.slots.pubnav) continue;
+      seen++;
+      const tops = topLevel(x.slots.pubnav), labels = tops.map(labelOf);
+      if (labels.join(' | ') !== 'Products | Saved work | How it works | Help') p.push(`${path}: the public header's top level is ${JSON.stringify(labels)}, not Products, Saved work, How it works, Help`);
+      const saved = tops[1] ? hrefsOf(tops[1]) : [];
+      if (saved.join() !== '/my/workspace') p.push(`${path}: the header's Saved work links ${JSON.stringify(saved)}, not /my/workspace`);
+      const help = tops[3] || '';
+      if (!/<button\b[^>]*\bid="menuHelpBtn"/.test(help) || !/<div\b[^>]*\bid="menuHelp"/.test(help)) p.push(`${path}: the header's Help menu has no #menuHelpBtn and #menuHelp`);
+      const got7 = hrefsOf(help);
+      if ([...got7].sort().join() !== [...HELP7].sort().join()) p.push(`${path}: the Help panel links ${JSON.stringify(got7)}, not exactly ${HELP7.join(', ')}`);
+      if (!/<a class="btn btn-primary pub-cta" href="\/app"[^>]*>Open<span class="pub-cta-more"> workspace<\/span><\/a>/.test(r.body)) p.push(`${path}: the "Open workspace" button is not beside the header's list`);
+      const foot = /<footer class="footer">([\s\S]*?)<\/footer>/.exec(r.body)?.[1] || '';
+      const fh = new Set(hrefsOf(foot));
+      for (const h of FOOT6) if (!fh.has(h)) p.push(`${path}: the footer no longer links ${h}`);
+    }
+    if (seen < 20) p.push(`only ${seen} served pages wear the public header, where there are dozens — the header check looked at too few`);
+  }
   /* The renders' own files are not pages for an index (2026-10-04): served
      at /prerender/…, each was a page's content as a document of its own, no
      head, no canonical, no disclosure. */

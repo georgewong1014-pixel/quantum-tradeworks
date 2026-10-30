@@ -232,8 +232,8 @@ listed company's name — is the owner's decision, not the build's, and
 
 ### Public header (public chrome)
 
-Brand (→ `/`) · **Products** (menu) · **How it works** (`/how-it-works`) ·
-**Pricing** (`/pricing`) · **Resources** (menu) · theme toggle ·
+Brand (→ `/`) · **Products** (menu) · **Saved work** (`/my/workspace`) ·
+**How it works** (`/how-it-works`) · **Help** (menu) · theme toggle ·
 **Open workspace** (→ `/app`, the one primary action). No Sign In — there are
 no accounts, and everything a visitor saves lives in their browser. No
 search box: `/` and Ctrl/Cmd+K open the search from every page.
@@ -242,16 +242,19 @@ search box: `/` and Ctrl/Cmd+K open the search from every page.
   Equities Research (Beta, → `/research`), Quantum Scanner (Beta, →
   `/app/scanner`), Property Intelligence (Live, → `/property`), Business
   Intelligence (Coming soon — a row of text, not a link).
-- **Resources** — Methodology (`/methodology`), Data sources
-  (`/data-sources`), Glossary (`/learn/glossary`), Learn (`/learn`),
-  Corrections (`/corrections`), What this product will not do
-  (`/learn/product-boundaries`) · Build status (`/status`), About (`/about`),
-  Contact (`/contact`), Privacy (`/privacy`), Terms (`/terms`).
+- **Help** (30 Oct 2026, the quick-wins brief, fix 5) — Get help: Contact
+  (`/contact`), Corrections (`/corrections`), What this product will not do
+  (`/learn/product-boundaries`) · Understand the figures: Methodology
+  (`/methodology`), Data sources (`/data-sources`), Glossary
+  (`/learn/glossary`), Learn (`/learn`). Plans (`/pricing`), Build status
+  (`/status`), About, Privacy and Terms left the header; they are the
+  footer's (and the phone sheet's foot row).
 - Both menus are disclosure menus: a button with `aria-expanded`; Escape
   closes and returns focus to it; ArrowDown opens onto the first link and the
   arrows walk the links; Tab out of the panel, or a click outside, closes it.
 - Below 1024px the header is brand · **Open workspace** · a menu button that
-  opens a sheet holding the same items (the theme toggle among them).
+  opens a sheet holding the same items (the theme toggle among them), and a
+  quiet foot row of Plans, Build status, About, Privacy and Terms.
 
 ### App sidebar (app chrome)
 

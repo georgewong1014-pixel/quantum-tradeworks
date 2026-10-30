@@ -768,7 +768,7 @@ try {
       out.learn = State.learnTab;
       out.nav = {};
       /* Release A: the app's sidebar or, on a public page, the header's
-         Resources menu — whichever chrome the page wears marks it. */
+         Help menu — whichever chrome the page wears marks it. */
       for (const p of ['/app/equities', '/discover/sarawak', '/property/areas', '/learn/product-boundaries', '/my/scanner']) {
         navigate(p);
         out.nav[p] = (document.querySelector('#appnav a[aria-current=page] .sb-text') || document.querySelector('#pubnav a[aria-current=page]'))?.textContent.trim() || null;
@@ -8991,7 +8991,7 @@ try {
     const active = () => evaluate(`${DESC}(document.activeElement)`);
     const focusOn = (expr) => evaluate(`(() => { const n = ${expr}; if (!n) return false; n.scrollIntoView({ block: 'center' }); n.focus(); return document.activeElement === n; })()`);
     const visit = async (path, ms = 350) => { await evaluate(`(() => { navigate(${JSON.stringify(path)}); return true; })()`); await sleep(ms); };
-    const CASES = 12;
+    const CASES = 13;
     let broke = null;
     const snapshot = await evaluate(`JSON.stringify(Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])))`);
     try {
@@ -9188,6 +9188,26 @@ try {
       await waitFiled(); await sleep(300);
       const door = await evaluate(`({ view: State.view, path: location.pathname, canon: document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '') })`);
       say(door.view === 'marketing' && door.path === '/' && door.canon === '/', `SHELL-12 /index.html → ${door.view} at ${door.path}, canonical ${door.canon}`);
+
+      /* SHELL-13 — the header's Help menu (quick-wins fix 5, 30 Oct 2026):
+         the header's top level is Products, Saved work, How it works, Help;
+         opening Help from the keyboard shows its seven links, and Escape
+         closes it and returns focus to its button. */
+      await visit('/', 500);
+      const top = await evaluate(`[...document.querySelectorAll('#pubnav .pubnav-list > li')].map(li => (li.querySelector('.pubmenu-btn') || li.querySelector('a')).textContent.trim()).join(' | ')`);
+      await focusOn(`document.getElementById('menuHelpBtn')`);
+      await key('Enter'); await sleep(350);
+      const helpOpen = await evaluate(`({ exp: document.getElementById('menuHelpBtn').getAttribute('aria-expanded'), shown: !document.getElementById('menuHelp').hidden && document.getElementById('menuHelp').getClientRects().length > 0,
+        links: [...document.querySelectorAll('#menuHelp a')].filter(a => a.getClientRects().length).map(a => a.dataset.path).join(','),
+        groups: [...document.querySelectorAll('#menuHelp .rs-label')].map(n => n.textContent.trim()).join(' | ') })`);
+      await key('Escape'); await sleep(350);
+      const helpShut = await evaluate(`({ exp: document.getElementById('menuHelpBtn').getAttribute('aria-expanded'), hidden: document.getElementById('menuHelp').hidden, focus: document.activeElement?.id })`);
+      await visit('/my/workspace', 500);
+      const savedNow = await evaluate(`[...document.querySelectorAll('#pubnav a[aria-current=page]')].map(a => a.dataset.path).join(',')`);
+      say(top === 'Products | Saved work | How it works | Help' && helpOpen.exp === 'true' && helpOpen.shown
+        && helpOpen.links === '/contact,/corrections,/learn/product-boundaries,/methodology,/data-sources,/learn/glossary,/learn'
+        && helpOpen.groups === 'Get help | Understand the figures' && helpShut.exp === 'false' && helpShut.hidden && helpShut.focus === 'menuHelpBtn' && savedNow === '/my/workspace',
+        `SHELL-13 the header reads ${top}; Saved work is current on /my/workspace (${savedNow || 'nothing marked'}); Enter on Help showed ${helpOpen.links.split(',').length} links under ${helpOpen.groups}; Escape left it ${helpShut.hidden ? 'closed' : 'open'} with focus on #${helpShut.focus}`);
     } catch (err) {
       broke = `the checks stopped: ${String(err.message).split('\n')[0]}`;
     } finally {
@@ -10767,9 +10787,9 @@ try {
       const free = cta(PLANS.free.name);
       free?.focus(); free?.click(); await w(200);
       out.planBack = State.plan; out.toastFree = document.getElementById('toast')?.textContent || '';
-      out.header = [...document.querySelectorAll('#pubnav a, #pubSheet a')].some(a => (a.dataset.path || a.getAttribute('href')) === '/pricing');
+      out.header = [...document.querySelectorAll('.footer a')].some(a => (a.dataset.path || a.getAttribute('href')) === '/pricing'); out.headerTop = [...document.querySelectorAll('#pubnav a')].some(a => (a.dataset.path || a.getAttribute('href')) === '/pricing');
       out.meta = document.querySelector('meta[name=description]')?.content || '';
-      out.navLabels = [...document.querySelectorAll('#pubnav a, #pubSheet a')].filter(a => (a.dataset.path || a.getAttribute('href')) === '/pricing').map(a => a.textContent.trim());
+      out.navLabels = [...document.querySelectorAll('.footer a, #pubSheet a')].filter(a => (a.dataset.path || a.getAttribute('href')) === '/pricing').map(a => a.textContent.trim());
       out.freeMark = [...main().querySelectorAll('.plan-free .chip')].some(c => c.textContent.trim() === 'Free now');
       State.plan = keep; store.write('plan', keep);
       return out;
@@ -10796,14 +10816,15 @@ try {
     const back = r.cardsAfter.find(c => c.name === r.free)?.cta || '';
     if (!/in this browser/.test(back)) p.push(`with a paid plan previewed, Free's button reads "${back}"`);
     if (r.planBack !== 'free' || /Switched to/.test(r.toastFree)) p.push(`back to Free: plan ${r.planBack}, toast "${r.toastFree}"`);
-    if (!r.header) p.push('the header has no link to the plans page');
-    if (!r.navLabels.length || r.navLabels.some(t => t !== 'Plans')) p.push(`the header and sheet links to /pricing read ${JSON.stringify(r.navLabels)}, not "Plans"`);
+    if (!r.header) p.push('the footer has no link to the plans page');
+    if (r.headerTop) p.push("the header top level still links the plans page (it left on 30 Oct 2026, quick-wins fix 5: Plans is the footer and the phone sheet foot row)");
+    if (!r.navLabels.length || r.navLabels.some(t => t !== 'Plans')) p.push(`the footer and sheet links to /pricing read ${JSON.stringify(r.navLabels)}, not "Plans"`);
     if (/prices/i.test(r.meta)) p.push(`the page's description says "prices": "${r.meta}"`);
     if (!r.freeMark) p.push('the Free card is not marked "Free now"');
     if (!/<loc>[^<]*\/pricing<\/loc>/.test(sitemap)) p.push('sitemap.xml does not list /pricing');
     if (!/not on sale/i.test(r.meta)) p.push(`the page's description reads "${r.meta}"`);
     if (p.length) fail('audit content C1: /pricing says the plans are not on sale and no control on it reads as a purchase', p);
-    else ok(`audit content C1: /pricing reads "${r.h1}", its lead says everything is free during the beta and paid plans are not on sale and have no prices yet; each paid plan is marked not on sale with no price, its button previews it in this browser, and it stays in the header (as "Plans") and the sitemap`);
+    else ok(`audit content C1: /pricing reads "${r.h1}", its lead says everything is free during the beta and paid plans are not on sale and have no prices yet; each paid plan is marked not on sale with no price, its button previews it in this browser, and it stays in the footer and the phone sheet (as "Plans", not in the header since 30 Oct 2026) and the sitemap`);
   }
   /* THE SUPPORT ROUTE (Day-10 F3; the owner's decisions of 23 Oct 2026).
      Support is an address the owner monitors, and the owner supplied it:

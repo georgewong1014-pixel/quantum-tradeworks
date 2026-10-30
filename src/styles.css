@@ -2554,17 +2554,17 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
   transition: opacity 180ms ease, transform 180ms ease;
 }
 .pubpanel[data-open="1"] { opacity: 1; transform: none; }
-/* The resources panel is a grid, and an author display outranks the
+/* The Help panel is a grid, and an author display outranks the
    browser's own [hidden] rule: closed, it stayed laid out, invisible, in the
    tab order and under the pointer. */
 .pubpanel[hidden] { display: none; }
 .pubpanel-products { width: 440px; }
-.pubpanel-resources { width: 500px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--md); padding: 14px 10px 10px; }
-/* The resources panel opens from its button's right edge, leftwards over the
+.pubpanel-help { width: 500px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--md); padding: 14px 10px 10px; }
+/* The Help panel opens from its button's right edge, leftwards over the
    header: from the left edge it ran past the viewport at 1024px (11px with
    the page's font and a scrollbar, 38px on CI's wider fallback font, 75px on
    the widest). No panel is ever wider than the viewport less its gutters. */
-.pubpanel-resources { left: auto; right: -8px; }
+.pubpanel-help { left: auto; right: -8px; }
 .pubpanel { max-width: calc(100vw - 32px); }
 
 /* Product rows: the menu's and the phone sheet's. */
@@ -2639,6 +2639,15 @@ a.pp-row:active { transform: translateY(1px); }
 .sheet-link[aria-current="page"] { font-weight: var(--weight-semibold); background: var(--brand-wash); }
 .sheet-resources { display: grid; grid-template-columns: 1fr; gap: var(--xs); }
 @media (min-width: 560px) { .sheet-resources { grid-template-columns: 1fr 1fr; } }
+/* The sheet's quiet foot row (30 Oct 2026): Plans, Build status, About, Privacy,
+   Terms, which the header no longer carries. Small and grey, 44px to press. */
+.sheet-foot { list-style: none; padding: var(--xs) 0 0; margin: var(--xs) 0 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 0 var(--xs); }
+.sheet-foot-link {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; border-radius: var(--r-md);
+  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-3); text-decoration: none;
+}
+.sheet-foot-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.sheet-foot-link[aria-current="page"] { color: var(--ink); font-weight: var(--weight-semibold); background: var(--brand-wash); }
 .sheet-theme { margin-top: var(--xs); border-top: 1px solid var(--line); border-radius: 0; padding-top: 6px; color: var(--ink-2); font-size: var(--text-body); }
 .sheet-theme .sb-ico { color: var(--ink-3); }
 
@@ -2912,7 +2921,7 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 
 /* ------------------------------------------------------- states */
 @media (forced-colors: active) {
-  .sb-link[aria-current="page"], .rs-link[aria-current="page"], .sheet-link[aria-current="page"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .sb-link[aria-current="page"], .rs-link[aria-current="page"], .sheet-link[aria-current="page"], .sheet-foot-link[aria-current="page"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .publink[aria-current="page"], .publink[data-current] { text-decoration: underline; }
   .status-badge { border-color: CanvasText; }
 }
@@ -4799,7 +4808,7 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   #views :is(.segmented, .subnav):has(> [data-inert]) { background: none; border-color: transparent; box-shadow: none; }
   #views table.dt.screener-table { display: table; }
   #views [data-now]:empty::before { content: none; }
-  #menuProductsBtn, #menuResourcesBtn, #pubMenuBtn, #navOpen, #navClose, [data-open-search], [data-theme-toggle],
+  #menuProductsBtn, #menuHelpBtn, #pubMenuBtn, #navOpen, #navClose, [data-open-search], [data-theme-toggle],
   #footResources li:has(> [data-action="report-error"]) { display: none !important; }
   :root:not([data-chrome]) .disclosure, :root:not([data-chrome]) .footer { display: block; }
   :root[data-chrome="app"] .footer-grid > :nth-child(2) { display: block; }

@@ -617,7 +617,7 @@ const MYDASH_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 function myDashTools(o, first) {
   const cards = myDashSteps(o).filter(s => s.tool);
   const sec = el('section', { class: `card ls-section dash-tools${first ? ' dash-start' : ''}`, 'aria-labelledby': 'dash-tools-hd' });
-  sec.append(el('h2', { id: 'dash-tools-hd', class: 'h-section' }, 'Three tools, each on its own'));
+  sec.append(el('h2', { id: 'dash-tools-hd', class: 'h-section' }, 'Choose a tool'));
   sec.append(el('p', { class: 'caption dash-start-lede' }, 'Pick the one for what you want to do. Each works without the others.'));
   sec.append(el('ul', { class: 'dash-tool-list' }, cards.map(s => {
     const li = el('li', { class: 'dash-tool', data: { done: s.done ? '1' : '0', step: s.k } });
@@ -918,7 +918,7 @@ function myDashMatches(o, st) {
 function myDashContinue(o) {
   const card = el('section', { class: 'card ls-section dash-cont-card', 'aria-labelledby': 'dash-cont-hd' });
   card.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
-    el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue where you left off'),
+    el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue your work'),
     el('p', { class: 'caption', style: 'margin-top:2px' }, 'Your most recent work in this browser, newest first.'),
   ])));
   const t = (v) => { const n = Date.parse(String(v || '').replace(' ', 'T') + (/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(String(v || '')) ? 'Z' : '')); return Number.isFinite(n) ? n : -Infinity; };
