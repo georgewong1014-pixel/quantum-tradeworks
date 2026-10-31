@@ -2592,8 +2592,13 @@ function tabMoat(r) {
   [['Moat type', c.moat.kind], ['Durability horizon', c.moat.dur], ['Confidence', c.moat.conf],
    /* A company with no moat assessment has no review date and no review
       status; printing one for it described a review that did not happen. */
-   ['Evidence date', c.moat?.kind === 'Not assessed' ? 'Not assessed — no review has been made' : `FY${latestFy(c)} reported · reviewed ${AS_OF}`],
-   ['Review status', c.moat?.kind === 'Not assessed' ? 'Not assessed' : 'Analyst-reviewed template']]
+   /* The owner's Day 18 instructions, 31 Oct 2026 (item 4, no internal review
+      timestamps in primary presentation): this read "reviewed ${AS_OF}" and
+      "Analyst-reviewed template". The moat text is written into the illustrative
+      set (10-dataset.js) by the tool's authors; no analyst reviewed it, and
+      AS_OF is that set's own date. It now says so, as data. */
+   ['Evidence date', c.moat?.kind === 'Not assessed' ? 'Not assessed — no review has been made' : `FY${latestFy(c)} reported · illustrative set ${AS_OF}`],
+   ['Review status', c.moat?.kind === 'Not assessed' ? 'Not assessed' : 'Illustrative template — not an analyst’s review']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
   card.append(kv);
 
@@ -2653,7 +2658,7 @@ function tabRisks(r) {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   const hd = el('div', { class: 'card' });
   hd.append(cardHead(`Risk grade — ${r.risk.band}`,
-    'Flags are computed from the reported statements against published thresholds, then a qualitative analyst note is added. A grade is not a probability.', null, { kind: kindFor(r.c, 'modelled'), fine: 'The risk grade' }));
+    'Flags are computed from the reported statements against published thresholds, then a qualitative note is added — written text for an illustrative company, a statement that none has been researched for a filed one. A grade is not a probability.', null, { kind: kindFor(r.c, 'modelled'), fine: 'The risk grade' }));
   const meter = el('div', { class: 'meter', style: 'height:8px' });
   meter.append(el('i', { style: `width:${r.risk.raw}%;background:var(${r.risk.band === 'High' ? '--critical' : r.risk.band === 'Medium' ? '--warn' : '--ok'})` }));
   hd.append(meter);

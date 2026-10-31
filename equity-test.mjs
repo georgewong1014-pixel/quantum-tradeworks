@@ -406,6 +406,43 @@ try {
     else ok('every research tab labels MSFT-SEC with its own fiscal years — no FY2016 anywhere, FY2026 where the latest year is named');
   }
 
+  /* 10b — NO INTERNAL REVIEW CLAIM ON A COMPANY PAGE (the owner's Day 18
+          instructions, 31 Oct 2026, item 4). The Moat tab of every
+          illustrative company read "reviewed 30 Jul 2026" and "Analyst-reviewed
+          template", and the Snapshot's flag "Qualitative risk (analyst review)":
+          the text is written into the illustrative set by the tool's authors and
+          no analyst reviewed it. A company with a moat assessment dates its
+          evidence by the data ("FY… reported · illustrative set <date>") and says
+          what the template is; neither tab claims a review or a reviewer. */
+  {
+    const r = await evaluate(`(() => {
+      const bad = [], seen = [];
+      const claim = /analyst[- ]reviewed|analyst review|reviewed by an analyst|\\breviewed\\s+\\d/i;
+      const rows = U.filter(x => !x.c.real && x.c.moat && x.c.moat.kind !== 'Not assessed');
+      for (const x of rows) {
+        for (const tab of ['snapshot', 'moat', 'risks']) {
+          openResearch(x.c.id, tab);
+          const t = document.querySelector('main')?.textContent || '';
+          const m = t.match(claim);
+          if (m) bad.push(x.c.id + ' ' + tab + ': "' + m[0] + '"');
+          if (tab === 'moat') {
+            const dd = [...document.querySelectorAll('main dt')].find(d => d.textContent === 'Evidence date')?.nextElementSibling?.textContent || '';
+            const rs = [...document.querySelectorAll('main dt')].find(d => d.textContent === 'Review status')?.nextElementSibling?.textContent || '';
+            if (!dd.includes('illustrative set ' + AS_OF) || !/not an analyst/i.test(rs)) bad.push(x.c.id + ' moat: Evidence date "' + dd + '", Review status "' + rs + '"');
+          }
+        }
+        seen.push(x.c.id);
+      }
+      openResearch('MSFT-SEC', 'moat');
+      const f = document.querySelector('main')?.textContent || '';
+      if (claim.test(f)) bad.push('MSFT-SEC moat: ' + f.match(claim)[0]);
+      return { n: seen.length, bad };
+    })()`);
+    if (!r.n) fail('10b: no illustrative company with a moat assessment was found to check', []);
+    else if (r.bad.length) fail('a company page still claims an analyst or a review date on its Moat, Risks or Snapshot tab', r.bad);
+    else ok(`${r.n} illustrative companies and a filed one: the Snapshot, Moat and Risks tabs claim no analyst review and no "reviewed <date>"; the Moat's evidence date is the illustrative set's`);
+  }
+
   /* 11 — the nine methods refuse a missing bridge or share count rather than
           producing a number. */
   {
