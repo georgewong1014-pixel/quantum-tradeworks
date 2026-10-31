@@ -788,17 +788,30 @@ function learnTrust() {
 State.corrections = store.read('corrections', []);
 const saveCorrections = () => store.write('corrections', State.corrections);
 
-/* QT-YYYYMMDD-NNN. The sequence comes from the cases already stored on that
+/* QT-YYYYMMDD-NNN-xxxx. The sequence comes from the cases already stored on that
    date, so two cases raised in the same millisecond cannot collide the way a
    timestamp id would. It is one past the HIGHEST sequence used, not the count
    of cases: counting reissued an id still in use as soon as one case was
-   deleted, and deleting either of the pair then removed both. */
+   deleted, and deleting either of the pair then removed both.
+   The 31 Oct 2026 operational audit, #1: the sequence is this browser's own, so
+   every visitor's first report of a day was ...-001 and the owner, who links
+   reports by case id, would have merged two people's. The last four characters
+   are drawn at random (no 0, o, 1 or l, which are misread in an email), so the
+   ids of two browsers differ. A case stored before this has no suffix
+   (QT-YYYYMMDD-NNN): it still counts toward the sequence and is never renamed. */
+const CASE_ID_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
+function caseIdSuffix() {
+  const out = [];
+  const bytes = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(4)) : null;
+  for (let i = 0; i < 4; i++) out.push(CASE_ID_ALPHABET[(bytes ? bytes[i] : Math.floor(Math.random() * 256)) & 31]);
+  return out.join('');
+}
 function nextCaseId(d = new Date()) {
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-  const used = (State.corrections || []).map(c => String(c.id || ''))
-    .filter(id => id.startsWith(`QT-${stamp}-`)).map(id => parseInt(id.slice(-3), 10)).filter(Number.isFinite);
+  const own = new RegExp(`^QT-${stamp}-(\\d{3,})(?:-[a-z0-9]{4})?$`);
+  const used = (State.corrections || []).map(c => own.exec(String(c.id || ''))).filter(Boolean).map(m => parseInt(m[1], 10));
   const n = (used.length ? Math.max(...used) : 0) + 1;
-  return `QT-${stamp}-${String(n).padStart(3, '0')}`;
+  return `QT-${stamp}-${String(n).padStart(3, '0')}-${caseIdSuffix()}`;
 }
 
 /* The time a case was raised, on the same local clock as its id and labelled

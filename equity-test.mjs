@@ -1549,7 +1549,7 @@ try {
         link: [...drawer.querySelectorAll('a')].some(a => /See my recorded cases/.test(a.textContent)) };
       closeDrawer({ restore: false }); await wait(350);
       await record('two'); closeDrawer({ restore: false }); await wait(350);
-      State.corrections = State.corrections.filter(c => !c.id.endsWith('-001'));
+      State.corrections = State.corrections.filter(c => !/^QT-\\d{8}-001(-|$)/.test(c.id));
       await record('three'); closeDrawer({ restore: false }); await wait(350);
       const ids = State.corrections.map(c => c.id);
       const raised = State.corrections[0].createdAt;
@@ -1564,6 +1564,40 @@ try {
     if (!/ UTC[+−]\d\d:\d\d$/.test(r.raised) || r.raised.slice(0, 10).replace(/-/g, '') !== stamp) p.push(`raised "${r.raised}" against id ${r.id}`);
     if (p.length) fail('a recorded correction case is confirmed, keeps a unique id, and is dated on one labelled clock', p);
     else ok(`a recorded correction case is confirmed, keeps a unique id after a delete (${r.ids.join(', ')}), and is dated on one labelled clock (${r.raised})`);
+  }
+  /* (The 31 Oct 2026 operational audit, #1) TWO BROWSERS' CASE IDS DIFFER. The
+     sequence was this browser's own, so every visitor's first report of a day was
+     QT-YYYYMMDD-001 and the owner's rule "same case ID: link the rows" would have
+     merged two people's. An id now ends in four random characters; a case stored
+     before that (no suffix) still counts toward the sequence and is not renamed. */
+  {
+    const r = await evaluate(`(() => {
+      const saved = State.corrections;
+      const d = new Date(2026, 9, 31, 12, 0);
+      try {
+        const fresh = [];
+        for (let i = 0; i < 40; i++) { State.corrections = []; fresh.push(nextCaseId(d)); }
+        const old = [{ id: 'QT-20261031-001' }, { id: 'QT-20261031-004' }, { id: 'QT-20261030-009' }];
+        State.corrections = old;
+        const afterOld = nextCaseId(d);
+        State.corrections = [{ id: 'QT-20261031-002-k7f2' }, { id: 'QT-20261031-001' }];
+        const afterMixed = nextCaseId(d);
+        State.corrections = [{ id: 'QT-20261031-001-k7f2' }];
+        const second = nextCaseId(d);
+        return { fresh, afterOld, afterMixed, second, oldKept: JSON.stringify(old) };
+      } finally { State.corrections = saved; }
+    })()`);
+    const p = [];
+    const SHAPE = /^QT-20261031-\d{3}-[a-km-np-z2-9]{4}$/;
+    if (r.fresh.some(id => !SHAPE.test(id))) p.push(`an id is not QT-YYYYMMDD-NNN-xxxx: ${r.fresh.find(id => !SHAPE.test(id))}`);
+    if (r.fresh.some(id => !/^QT-20261031-001(-|$)/.test(id))) p.push(`a cleared browser's first case of the day is not -001: ${r.fresh[0]}`);
+    if (new Set(r.fresh).size < 38) p.push(`40 cleared browsers issued only ${new Set(r.fresh).size} different ids for the same first case of a day`);
+    if (!/^QT-20261031-005(-|$)/.test(r.afterOld)) p.push(`with QT-20261031-001 and -004 stored (no suffix), the next id is ${r.afterOld}, not -005`);
+    if (!/^QT-20261031-003(-|$)/.test(r.afterMixed)) p.push(`with -002-k7f2 and an unsuffixed -001 stored, the next id is ${r.afterMixed}, not -003`);
+    if (!/^QT-20261031-002(-|$)/.test(r.second)) p.push(`after -001-k7f2 the next id is ${r.second}`);
+    if (r.oldKept !== '[{"id":"QT-20261031-001"},{"id":"QT-20261031-004"},{"id":"QT-20261030-009"}]') p.push(`an old case id was rewritten: ${r.oldKept}`);
+    if (p.length) fail('case ids from two browsers differ, and a stored id without the suffix still counts toward the sequence', p);
+    else ok(`case ids from two browsers differ (${r.fresh.slice(0, 2).join(', ')} …), and ids stored without the suffix still count toward the sequence and are not renamed (next after -001 and -004: ${r.afterOld})`);
   }
   /* LEARN PUBLISHES WHAT THE PRODUCT DOES. The router table lists every type
      routeModel handles with the pack it routes to; the scoring page carries
@@ -10894,7 +10928,8 @@ try {
       || !/How to reach the site’s owner, who handles support and corrections/.test(r.setContact))
       p.push(`with an address set, /contact does not name the site owner and say that opening the email program is not sending: ${r.setContact.replace(/\s+/g, ' ').slice(0, 300)}`);
     if (/\b(within|hours?|business days?|reply|respond)\b/i.test(r.setContact)) p.push(`with an address set, /contact carries a response-time word: ${/\b(within|hours?|business days?|reply|respond)\b/i.exec(r.setContact)[0]}`);
-    if (!/subject=Data%20error%20report%20\S+?&body=/.test(r.set.mailto || '') || !/Correction%20case%20/.test(r.set.mailto || '')) p.push(`with an address set, the report's email subject or text lacks the case identifier: ${(r.set.mailto || '').slice(0, 160)}`);
+    if (!/subject=Data%20error%20report%20\S+?&body=/.test(r.set.mailto || '') || !/Correction%20case%20/.test(r.set.mailto || '')
+      || !/subject=Data%20error%20report%20QT-\d{8}-\d{3}-[a-km-np-z2-9]{4}&body=Correction%20case%20QT-\d{8}-\d{3}-[a-km-np-z2-9]{4}%0A/.test(r.set.mailto || '')) p.push(`with an address set, the report's email subject or text lacks the case identifier: ${(r.set.mailto || '').slice(0, 160)}`);
     if (r.setContact.split('support@example.test').length !== 2 || !/Do not include confidential or sensitive information\./.test(r.setContact) || /because nobody has received it/.test(r.setContact))
       p.push(`with an address set, /contact says it ${r.setContact.split('support@example.test').length - 1} times, or keeps the no-address lines: ${r.setContact.replace(/\s+/g, ' ').slice(0, 300)}`);
     if (/there is no contact address yet|Until these are supplied there is no one to send a request to|At launch, send requests to/.test(r.setPrivacy)
