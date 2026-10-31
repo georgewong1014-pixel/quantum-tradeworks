@@ -7273,6 +7273,8 @@ input.au-in[type="text"] { text-align: left; }
 .pc-els-acts > a.btn { gap: 6px; }
 .pc-els-status { min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; line-height: 1.5; }
 .pc-q-els, .lab-els { grid-column: 1 / -1; margin: var(--sm) 0 0; min-width: 0; }
+.lab-commit-wrap { min-width: 0; }
+.lab-commit-wrap > .lab-els { margin: var(--xs) var(--md) 0; }
 .pc-q-els-link, .lab-els > a { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; transition: color 160ms ease; }
 .pc-q-els-link:hover, .lab-els > a:hover { color: var(--brand); }
 .pc-q-els-link:focus-visible, .lab-els > a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }

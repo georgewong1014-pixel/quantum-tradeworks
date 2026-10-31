@@ -44892,11 +44892,14 @@ function pcQuickRests(d, queue, { go = null, id = 'review' } = {}) {
   const say = (k) => (PROPERTY_REVIEW.find(f => f.k === k)?.label || k).toLowerCase();
   const box = el('div', { class: 'pc-rests', id, 'aria-labelledby': 'pc-rests-h' });
   box.append(el('h3', { class: 'pc-rests-h', id: 'pc-rests-h' }, 'What these figures rest on'));
+  /* ONE TEXT NODE AFTER THE COUNT, not three (1 Nov 2026, the merged release check, coverage-frames):
+     the served HTML joins adjacent text, so the drawn page's third piece, "4 of the 10 — price, rent… hold
+     back the research grade.", was a run of words the served page did not show on its own. */
+  const holds = !drivers.length ? '' : drivers.length === n
+    ? ` ${n === 1 ? 'It holds' : 'All hold'} back the research grade.`
+    : ` ${drivers.length} of the ${n} — ${feeList(drivers.map(k => PC_DRIVER_SAY[k] || k))} — hold${drivers.length === 1 ? 's' : ''} back the research grade.`;
   const lead = el('p', { class: 'pc-rests-text', id: 'pc-rests-text' }, [
-    el('strong', { 'data-n': String(n) }, `${n} input${s}`), ` ${n === 1 ? 'is' : 'are'} still the tool’s illustrative default${s}, not yours: ${feeList(keys.map(say))}.`]);
-  if (drivers.length) lead.append(' ', drivers.length === n
-    ? `${n === 1 ? 'It holds' : 'All hold'} back the research grade.`
-    : `${drivers.length} of the ${n} — ${feeList(drivers.map(k => PC_DRIVER_SAY[k] || k))} — hold${drivers.length === 1 ? 's' : ''} back the research grade.`);
+    el('strong', { 'data-n': String(n) }, `${n} input${s}`), ` ${n === 1 ? 'is' : 'are'} still the tool’s illustrative default${s}, not yours: ${feeList(keys.map(say))}.${holds}`]);
   box.append(lead);
   if (go) {
     const first = queue[0] || null;
@@ -52974,13 +52977,17 @@ function labCommits(P, lab, col) {
      text link to the calculator's panel (pcElsPanel, 75-property-grade.js). The
      address carries nothing of the deal; nothing is needed from it to compare or keep.
      The brief it opens is the calculator's deal, so the link stands only where A is that
-     deal, and says so where the column kept is another or has moved (the 31 Oct review). */
+     deal, and says so where the column kept is another or has moved (the 31 Oct review).
+     It stands directly UNDER the Keep card, not in it (1 Nov 2026, the merged release
+     check): inside, its words took the card past the 40 its buttons and one line are held
+     to (mobile.mjs lab-words) at every width; the card keeps its id and its words, and the
+     two are drawn, and drawn again, as one. */
   const elsOn = (c) => (c.prop ? !!labColRecId(lab, c) && State.deal?.modelId === labColRecId(lab, c) : !lab.model || State.deal?.modelId === lab.model);
   const elsA = lab.cols.find(c => c.key === 'A');
-  if (elsA && elsOn(elsA)) card.append(el('p', { class: 'metaline lab-els' }, el('a', { id: labId(P, 'els'), href: href(ELS_PLAN_PATH), onclick: (e) => {
+  const els = elsA && elsOn(elsA) ? el('p', { class: 'metaline lab-els' }, el('a', { id: labId(P, 'els'), href: href(ELS_PLAN_PATH), onclick: (e) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(ELS_PLAN_PATH);
-  } }, elsOn(col) && !labMoveCount(col) ? ELS_ACTION_WORDS : `${ELS_ACTION_WORDS} — for the deal on the calculator`)));
-  return card;
+  } }, elsOn(col) && !labMoveCount(col) ? ELS_ACTION_WORDS : `${ELS_ACTION_WORDS} — for the deal on the calculator`)) : null;
+  return el('div', { class: 'lab-commit-wrap', id: labId(P, 'commit-wrap') }, [card, els]);
 }
 /* The column's figures as a commit writes them: the moved ones marked as
    the reader's (markTouched) on a copy, BEFORE anything stores it —
