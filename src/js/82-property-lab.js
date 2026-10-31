@@ -2755,10 +2755,14 @@ function labCommits(P, lab, col) {
   card.append(more);
   /* The optional ELS link (the owner's Day 18 instructions, 31 Oct 2026): one quiet
      text link to the calculator's panel (pcElsPanel, 75-property-grade.js). The
-     address carries nothing of the deal; nothing is needed from it to compare or keep. */
-  card.append(el('p', { class: 'metaline lab-els' }, el('a', { id: labId(P, 'els'), href: href(ELS_PLAN_PATH), onclick: (e) => {
+     address carries nothing of the deal; nothing is needed from it to compare or keep.
+     The brief it opens is the calculator's deal, so the link stands only where A is that
+     deal, and says so where the column kept is another or has moved (the 31 Oct review). */
+  const elsOn = (c) => (c.prop ? !!labColRecId(lab, c) && State.deal?.modelId === labColRecId(lab, c) : !lab.model || State.deal?.modelId === lab.model);
+  const elsA = lab.cols.find(c => c.key === 'A');
+  if (elsA && elsOn(elsA)) card.append(el('p', { class: 'metaline lab-els' }, el('a', { id: labId(P, 'els'), href: href(ELS_PLAN_PATH), onclick: (e) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(ELS_PLAN_PATH);
-  } }, ELS_ACTION_WORDS)));
+  } }, elsOn(col) && !labMoveCount(col) ? ELS_ACTION_WORDS : `${ELS_ACTION_WORDS} — for the deal on the calculator`)));
   return card;
 }
 /* The column's figures as a commit writes them: the moved ones marked as

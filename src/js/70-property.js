@@ -1562,47 +1562,66 @@ const ELS_URL = 'https://els.alumax.pro/';
 const ELS_BRIEF_ID = 'qt-property-brief/1';
 const ELS_REQUIREMENTS_MAX = 1000;
 const ELS_NOT_SET = {
-  location: "Not set: the calculator's sample location is not a choice",
+  location: "Not set — the sample's location is not yours",
   use: 'Not set',
   renovation: "Not set: the calculator's sample figure is not a budget",
 };
 function elsBrief(d, requirements = '') {
   const def = PROPERTY_DEFAULT_DEAL;
-  /* The reader's own: the figure was typed (or the deal was started by the
-     reader), as pcFieldOwn reads it for the boxes. */
-  const own = (k) => !!d?.userStarted || isTouched(d, k);
-
   /* 1. Property type: the deal's. Chosen only when it is not the sample's. */
   const typeChosen = !!d?.propertyType && d.propertyType !== def.propertyType;
   const type = d?.propertyType ? String(d.propertyType) : 'Not set';
 
   /* 2. Location: the city or area the reader selected, as they selected it —
-     never derived, never geocoded, never a sample project. A district that
-     only follows from a town chosen (the first of its list) is not named. */
+     never derived, never geocoded, never a sample project. The first district
+     of a town is never named as chosen: choosing a town sets it (switching to
+     Miri and back leaves Kuching's "City centre"), and the Kuching page's
+     worked example sets it too. Nothing here can tell those from a pick, so a
+     district counts only when it is neither the sample's nor its town's first
+     (the 31 Oct 2026 review). */
   const cityDef = SARAWAK_CITIES.find(c => c.id === d?.city);
   const cityChosen = !!cityDef && d.city !== def.city;
   const districtChosen = !!cityDef && !!d.district && d.district !== def.district
-    && !(cityChosen && d.district === cityDef.districts[0]);
+    && d.district !== cityDef.districts[0];
   const locationChosen = cityChosen || districtChosen;
   const location = locationChosen
     ? `${[cityDef.name, districtChosen ? d.district : null].filter(Boolean).join(', ')} (as you entered it)`
     : ELS_NOT_SET.location;
 
-  /* 3. Intended use: to be used by the owner when the reader has said so (an
-     own-use objective, or weeks of own use); otherwise let to a tenant. A
-     property that earns no rent has no letting to name. */
-  const ownUse = d?.objective === 'ownuse' || num0(d?.ownUseWeeks) > 0;
+  /* 3. Intended use, in the app's own words: the own-use objective reads its
+     label ("Own use + investment"); weeks of own use on a let property read
+     "Let to a tenant, with some own use"; otherwise let to a tenant. A property
+     that earns no rent has no letting to name. It is the reader's choice when
+     they chose the own-use objective, put in weeks of own use, or touched the
+     rent; any other objective (Capital growth, Value add) says nothing of the
+     use, so it does not make "Let to a tenant" theirs (the 31 Oct 2026 review). */
+  const ownObjective = d?.objective === 'ownuse';
+  const weeks = num0(d?.ownUseWeeks) > 0;
   const lets = propertyInputApplies(d, 'rent');
-  const useChosen = ownUse || (lets && (own('rent') || Object.hasOwn(PROPERTY_OBJECTIVES, d?.objective)));
-  const use = ownUse ? 'Own use' : lets ? 'Let to a tenant' : ELS_NOT_SET.use;
+  const useChosen = ownObjective || weeks || (lets && isTouched(d, 'rent'));
+  const use = ownObjective ? PROPERTY_OBJECTIVES.ownuse.label
+    : lets ? (weeks ? 'Let to a tenant, with some own use' : 'Let to a tenant')
+    : weeks ? 'Some own use' : ELS_NOT_SET.use;
 
-  /* 4. Renovation allowance: the reader's figure only once entered; the
-     sample's is never shown as an amount. */
+  /* 4. Renovation allowance: the reader's figure only once they have entered
+     it (isTouched alone: a legacy userStarted deal's untouched figure is still
+     the sample's), and worded from its cost lines: a placeholder is said to be one, lines that
+     are all written quotes are the reader's quotation and not Quantum's to
+     vouch for, anything else is their own figure. Never called verified,
+     approved or confirmed. The sample's figure is never shown as an amount. */
   const reno = d?.renovation;
-  const renoChosen = own('renovation') && isNum(reno) && reno >= 0;
-  const renovation = renoChosen
-    ? `${fmtMoney(reno, 'MYR', 0)}, as you entered it — your own figure, not a quotation or a verified budget`
-    : ELS_NOT_SET.renovation;
+  const renoChosen = isTouched(d, 'renovation') && isNum(reno) && reno >= 0;
+  let renovation = ELS_NOT_SET.renovation;
+  if (renoChosen) {
+    const sum = costLinesSummary(costLinesOf(d, 'renovation'));
+    const amount = fmtMoney(reno, 'MYR', 0);
+    /* A placeholder anywhere is said; "from a quotation" only where every line is one. */
+    renovation = sum.by.placeholder > 0
+      ? `${amount}, ${sum.by.placeholder < sum.total ? 'including ' : ''}a placeholder you entered — not a budget`
+      : sum.n > 0 && sum.by.quoted === sum.total
+        ? `${amount}, from a quotation you entered — not verified by Quantum`
+        : `${amount}, as you entered it — your own figure, not a quotation or a verified budget`;
+  }
 
   /* 5. Their requirements, as typed: one paragraph of their own words. */
   const typed = String(requirements ?? '').replace(/\r\n?/g, '\n').trim().slice(0, ELS_REQUIREMENTS_MAX);
