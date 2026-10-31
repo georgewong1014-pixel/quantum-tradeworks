@@ -296,6 +296,11 @@ try {
           const t = n.data.replace(/\s+/g, ' ').trim();
           const e = n.parentElement;
           if (!t || !e || e.closest('svg, [data-now], .sr-only, [data-inert="field"], [data-inert="choice"], [data-inert="range"], select, textarea')) continue;
+          /* Not words a reader can see (1 Nov 2026): a run inside a closed <details> still reports a box, and is counted by its words and
+             how many came before — so a run that opens beside the figures (a chain row's formula, shown in the drawer, "Monthly position") took
+             the number of a hidden run of the same words further down (the closed "Check the price against your evidence" lists "Monthly
+             position" as a target), and every pair after it read as a move of 1,578px. */
+          if (typeof e.checkVisibility === 'function' && !e.checkVisibility()) continue;
           const line = e.closest('p, li, h1, h2, h3, h4, h5, h6, td, th, dt, dd, label, summary');
           if (line && line.querySelector('[data-now]')) continue;
           const range = document.createRange();
