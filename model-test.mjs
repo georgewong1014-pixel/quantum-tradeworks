@@ -6395,7 +6395,8 @@ try {
         /* The next step's link opens the calculator at its box. */
         State.deal = JSON.parse(JSON.stringify(kept)); newPropertyDeal({ show: false });
         navigate('/property'); await w(300);
-        document.getElementById('lab-enter').click(); await w(150);
+        document.getElementById('lab-enter').click();
+        for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await w(150);
         out.go = { view: State.view, path: location.pathname, focus: document.activeElement?.id || null };
         navigate('/property'); await w(400);
         /* The rests block's one link, the same way. The calculator reads an address once per arrival, so the same address twice running is not read again (pcArrivalSeen): the second click is a fresh arrival. */
@@ -6423,11 +6424,11 @@ try {
          is the guided save of the property and B (8 Oct 2026). */
       if (r.touched.price?.go || r.touched.price?.kind === 'illustrative_default' || r.touchedRests.block || r.touchedRests.go || r.save !== 'Save this property and B as a scenario') p.push(`with nothing left to replace, the price tile is ${JSON.stringify(r.touched.price)}, the rests block ${JSON.stringify(r.touchedRests)} and the identity line's Save "${r.save}"`);
       if (r.saved.price?.go || !/^“N3 tiles” · saved /.test(r.savedName)) p.push(`once saved: the price tile ${JSON.stringify(r.saved.price)}, the identity "${r.savedName}"`);
-      /* Day 18 (QT-D18-01): "Enter your property figures" takes the reader to the Lab's own price box, on the Lab's page. */
-      if (r.go.view !== 'propertyLab' || r.go.focus !== 'lab-n-price') p.push(`"Enter your property figures": ${JSON.stringify(r.go)}`);
+      /* Day 18 (QT-D18-01), as answered on 31 Oct 2026: "Enter your property figures" is a link to the calculator's price box, so the figure typed is the deal's own (it was a button into the Lab's box, a what-if on B, until then). */
+      if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`"Enter your property figures": ${JSON.stringify(r.go)}`);
       if (r.goRests.view !== 'property' || r.goRests.path !== '/property/calculator' || r.goRests.focus !== 'd-price') p.push(`the rests block's link: ${JSON.stringify(r.goRests)}`);
       if (p.length) fail('n3 T1: /property\'s tiles are the model\'s figures of the deal on the calculator, and the next step leads on', p);
-      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; "Enter your property figures" puts the keyboard in the Lab's price box and the rests block's "Review the defaults" opens the calculator with it in #d-price, and with every figure the reader's the price tile reads Yours and the block is gone; "Why" holds all ${W.gates} gates`);
+      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; "Enter your property figures" and the rests block's "Review the defaults" opens the calculator with it in #d-price, and with every figure the reader's the price tile reads Yours and the block is gone; "Why" holds all ${W.gates} gates`);
     } catch (e) {
       fail('n3 T1: /property\'s tiles could not be read', e.message);
     }
@@ -6490,10 +6491,8 @@ try {
             closed: more ? !more.open : null, sum: t(more?.querySelector('summary')), hiddenWhileClosed: more ? ![...more.querySelectorAll('.lab-row')].some(n => n.checkVisibility()) : null };
           const figs = [...document.querySelectorAll('#views .lab-chain [data-lab]')].map(n => n.dataset.lab);
           out.figs = figs.length;
-          /* Enter your property figures: the keyboard in the price box, from another chip too. */
-          document.getElementById('lab-enter').click(); await w(100);
-          out.enter = document.activeElement?.id;
-          if (document.getElementById('lab-in-deposit')) { const r = document.getElementById('lab-in-deposit'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); await w(200); document.getElementById('lab-enter').click(); await w(200); out.enterFromDeposit = document.activeElement?.id; }
+          /* Enter your property figures is a link to the calculator's price box, described by "Opens the calculator". */
+          { const a = document.getElementById('lab-enter'); out.enter = { tag: a?.tagName, href: a?.getAttribute('href'), why: t(document.getElementById(a?.getAttribute('aria-describedby') || '')) }; }
           /* The fold: opened by its summary, kept, with the keyboard on it, across a redraw. */
           more.querySelector('summary').click(); await w(80);
           out.opened = more.open && [...more.querySelectorAll('.lab-row')].every(n => n.checkVisibility());
@@ -6530,6 +6529,17 @@ try {
           out.growth = tileKeys();
           labAnswer(P2, L2, 'objective', null); await w(300);
           out.unchosen = tileKeys();
+          /* The reader's journey (31 Oct 2026): the link, a price typed in the calculator, back to the Lab. The calculator reads an address once per arrival (pcArrivalSeen), so the earlier visits are forgotten first. */
+          State.deal = JSON.parse(JSON.stringify(kept)); newPropertyDeal({ show: false });
+          navigate('/property'); await w(500);
+          pcArrivalSeen = null;
+          document.getElementById('lab-enter').click();
+          for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await w(150);
+          out.arrive = { path: location.pathname, focus: document.activeElement?.id || null };
+          { const b = document.getElementById('d-price'); if (b) { b.value = '612000'; b.dispatchEvent(new Event('change', { bubbles: true })); await w(900); } }
+          navigate('/property'); await w(600);
+          { const pt3 = document.querySelector('#views .lab-tile[data-tile="price"]');
+            out.typed = { value: t(pt3?.querySelector('.lab-tile-val')), tag: t(pt3?.querySelector('[data-own]')), own: pt3?.querySelector('[data-own]')?.dataset.own, rests: !!document.getElementById('lab-rests-box') }; }
         } finally {
           State.deal = JSON.parse(JSON.stringify(kept)); saveDeal();
         }
@@ -6543,7 +6553,10 @@ try {
       const H = r.head;
       if (H.lede !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.' || H.h1 !== 'Scenario Lab' || !/^Beta$/i.test(H.badge)) p.push(`the head: ${JSON.stringify({ h1: H.h1, badge: H.badge, lede: H.lede })}`);
       if (H.cta !== 'Enter your property figures' || H.primaries.join('|') !== 'Enter your property figures' || /btn-primary/.test(H.save)) p.push(`the primary buttons in sight are ${JSON.stringify(H.primaries)} and Save is "${H.save}", not one "Enter your property figures" and a secondary Save`);
-      if (r.enter !== 'lab-n-price' || (r.enterFromDeposit && r.enterFromDeposit !== 'lab-n-price')) p.push(`"Enter your property figures" puts the keyboard on #${r.enter} (from the Deposit chip: #${r.enterFromDeposit}), not the price box`);
+      if (r.enter.tag !== 'A' || r.enter.href !== '/property/calculator#d-price' || r.enter.why !== 'Opens the calculator') p.push(`"Enter your property figures" is ${JSON.stringify(r.enter)}, not a link to /property/calculator#d-price described by "Opens the calculator"`);
+      /* The journey: press the link, type a price in the calculator's box, return to the Lab: the Purchase price tile reads it, "Yours". */
+      if (r.arrive.path !== '/property/calculator' || r.arrive.focus !== 'd-price') p.push(`pressing the link: ${JSON.stringify(r.arrive)}`);
+      if (r.typed.value !== 'RM612,000' || !/^Yours/.test(r.typed.tag) || r.typed.own !== 'yours' || r.typed.rests) p.push(`after typing a price in the calculator and returning, the Purchase price tile reads ${JSON.stringify(r.typed)}, not RM612,000 with its Yours badge`);
       if (H.chip !== 'Not a valuation' || H.claim !== 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.' || H.more !== 'Why this is not a valuation' || H.moreOpen) p.push(`the claim beside the chip: ${JSON.stringify({ chip: H.chip, claim: H.claim, more: H.more, open: H.moreOpen })}`);
       if (r.rests.n !== 1 || r.rests.head !== 'What these figures rest on' || r.rests.links !== 1) p.push(`the rests block: ${JSON.stringify(r.rests)}`);
       if (r.rests.bar || r.rests.gateLine) p.push(`the alert bar or the grade's gate sentence is still said: ${JSON.stringify({ bar: r.rests.bar, gate: r.rests.gateLine })}`);

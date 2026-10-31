@@ -4020,22 +4020,23 @@ function labRefresh() {
    replacing "See how your purchase price, financing and rent affect the cash you need and your
    monthly position. The Scenario Lab is beta." — the Beta badge beside the title says beta. */
 const LAB_LEDE = 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.';
-/* THE PAGE'S ONE PRIMARY ACTION (Day 18): "Enter your property figures" takes the reader to
-   the first input — the purchase price box, scrolled into view with the keyboard in it, on a
-   desk and on a phone (where the Input picker is put on Price first). Save, which was the
-   primary, is a secondary beside the identity line and in the phone's bar. While a name is
-   asked for, that form's Save is the one to press and this is a secondary for the time. */
+/* THE PAGE'S ONE PRIMARY ACTION (Day 18; the coordinator's answer of 31 Oct 2026):
+   "Enter your property figures" is a link to the calculator's purchase price box
+   (/property/calculator#d-price, the address "Review the defaults" opens too, and
+   the calculator's own arrival puts the keyboard in it), so the figure typed is
+   the deal's own — the Lab's boxes only move what-ifs, which no column's tile
+   reads as the reader's. A real link: it works with no script, opens in a new
+   tab, and goes through navigate() on a plain click. Where it goes is said to a
+   screen reader (labEnterWhy), not on the page. Save, which was the primary, is a
+   secondary beside the identity line and in the phone's bar. While a name is
+   asked for, that form's Save is the one to press and this is a secondary for
+   the time (labDraw). */
 const LAB_ENTER_WORDS = 'Enter your property figures';
-function labEnter() {
-  const P = labPagePanel(), lab = P && LAB[P.key];
-  if (!P || !lab) return;
-  const id = labId(P, 'n-price');
-  if (!document.getElementById(id)?.checkVisibility()) { lab.input = 'price'; labDraw(P); }
-  const n = document.getElementById(id);
-  if (!n) return;
-  n.scrollIntoView({ block: 'center', behavior: 'instant' });
-  n.focus({ preventScroll: true });
-  n.select?.();
+const LAB_ENTER_PATH = '/property/calculator#d-price';
+function labEnterLink() {
+  const go = (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(LAB_ENTER_PATH); };
+  return [el('a', { class: 'btn btn-primary lab-enter', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go }, LAB_ENTER_WORDS),
+    el('span', { class: 'sr-only', id: 'lab-enter-why' }, 'Opens the calculator')];
 }
 VIEWS.propertyLab = () => {
   labArrive();
@@ -4048,7 +4049,7 @@ VIEWS.propertyLab = () => {
      itself before it showed anything): where the figures come from — the
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: LAB_LEDE, action: el('button', { type: 'button', class: 'btn btn-primary lab-enter', id: 'lab-enter', onclick: labEnter }, LAB_ENTER_WORDS) }));
+    lede: LAB_LEDE, action: labEnterLink() }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the

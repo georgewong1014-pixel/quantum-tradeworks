@@ -3068,14 +3068,18 @@ for (const w of [360, 390]) {
          price box into it, with the keyboard in it. */
       if (!whole(r.cta) || r.cta.h < 43.5) fails.push(`${at}: "Enter your property figures" ${r.cta ? `(${r.cta.t}–${r.cta.b}px, ${r.cta.h}px high)` : '(none)'} is not a whole 44px target in the first ${r.vh}px`);
       if (!r.ctaPrimary || r.primaries.join('|') !== 'Enter your property figures') fails.push(`${at}: the primary buttons in sight are ${JSON.stringify(r.primaries)}, not the one "Enter your property figures"`);
+      /* As answered on 31 Oct 2026: the call is a real link to the calculator's price box, and pressing it puts the keyboard there. */
       {
         const p = await ev(`(async () => {
-          document.getElementById('lab-enter').click();
-          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-          const n = document.getElementById('lab-n-price'), b = n ? n.getBoundingClientRect() : null;
+          const a = document.getElementById('lab-enter');
+          const out = { tag: a.tagName, href: a.getAttribute('href') };
+          a.click();
+          for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await new Promise(r => setTimeout(r, 150));
+          const n = document.getElementById('d-price'), b = n ? n.getBoundingClientRect() : null;
           const dock = document.querySelector('body > .dock'), foot = dock && dock.getClientRects().length && getComputedStyle(dock).position === 'fixed' ? dock.getBoundingClientRect().top : innerHeight;
-          return { focus: document.activeElement && document.activeElement.id, t: b && Math.round(b.top), b: b && Math.round(b.bottom), foot: Math.round(foot) }; })()`);
-        if (p.focus !== 'lab-n-price' || p.t == null || p.t < 0 || p.b > p.foot) fails.push(`${at}: after "Enter your property figures" the keyboard is on #${p.focus} and the price box at ${p.t}–${p.b}px, not whole above ${p.foot}px`);
+          return { ...out, focus: document.activeElement && document.activeElement.id, t: b && Math.round(b.top), b: b && Math.round(b.bottom), foot: Math.round(foot) }; })()`);
+        if (p.tag !== 'A' || p.href !== '/property/calculator#d-price') fails.push(`${at}: "Enter your property figures" is ${p.tag} to ${p.href}, not a link to /property/calculator#d-price`);
+        if (p.focus !== 'd-price' || p.t == null || p.t < 0 || p.b > p.foot) fails.push(`${at}: after "Enter your property figures" the keyboard is on #${p.focus} and the calculator's price box at ${p.t}–${p.b}px, not whole above ${p.foot}px`);
       }
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
       if (w < 600) {
@@ -3483,7 +3487,7 @@ for (const w of [360, 390]) {
         /* The first screen first: the slider above the bar (the Lab). */
         if (view === 'propertyLab') {
           const top = await ev(read(sec));
-          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call takes the reader to the first slider; n3-first-view presses it)`);
+          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
         }
         await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
@@ -3583,7 +3587,7 @@ for (const w of [360, 390]) {
         if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
         if (view === 'propertyLab') {
           const top = await ev(read(sec));
-          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call takes the reader to the first slider; n3-first-view presses it)`);
+          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
         }
         await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
@@ -3690,7 +3694,7 @@ for (const w of [360, 390]) {
         if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
         if (view === 'propertyLab') {
           const top = await ev(read(sec));
-          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call takes the reader to the first slider; n3-first-view presses it)`);
+          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
         }
         await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
@@ -3793,7 +3797,7 @@ for (const w of [360, 390]) {
       if (got !== 'propertyLab') { fails.push(`${at}: opened ${got}`); continue; }
       if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const top = await ev(read);
-      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call takes the reader to the first slider; n3-first-view presses it)`);
+      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
       await ev(`(() => { const s = document.getElementById('lab-xr'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
       await sleep(200);
       const r = await ev(read);
@@ -3887,7 +3891,7 @@ for (const w of [360, 390]) {
       if (got !== 'propertyLab') { fails.push(`${at}: opened ${got}`); continue; }
       if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const top = await ev(read);
-      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call takes the reader to the first slider; n3-first-view presses it)`);
+      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
       await ev(`(() => { const s = document.getElementById('lab-rf'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
       await sleep(200);
       const r = await ev(read);

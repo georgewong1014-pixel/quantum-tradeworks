@@ -3412,6 +3412,7 @@ const HOME_PAGE = read(HOME);
     const lede2 = headTree ? all(headTree).find(n => B.hasClass(n, 'page-lede')) : null;
     if (!lede2 || rawText(lede2) !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.') p.push(`/property/lab: the introduction reads "${lede2 ? rawText(lede2) : 'nothing'}"`);
     const prim = inside.filter(n => (n.tag === 'button' || n.tag === 'a' || attr(n, 'data-inert') === 'button') && B.hasClass(n, 'btn-primary'));
+    if (prim.length === 1 && (prim[0].tag !== 'a' || attr(prim[0], 'href') !== '/property/calculator#d-price' || attr(prim[0], 'aria-describedby') !== 'lab-enter-why' || !inside.some(n => attr(n, 'id') === 'lab-enter-why' && rawText(n) === 'Opens the calculator'))) p.push('/property/lab: "Enter your property figures" is not a real link to /property/calculator#d-price described by "Opens the calculator"');
     if (prim.length !== 1 || rawText(prim[0]) !== 'Enter your property figures' || attr(prim[0], 'id') !== 'lab-enter') p.push(`/property/lab: its primary buttons are ${JSON.stringify(prim.map(n => rawText(n)))}, not the one "Enter your property figures"`);
     const claimLine = 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.';
     const claimBox = inside.find(n => B.hasClass(n, 'lab-id-claim'));
