@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "83f2b20610f5ef3e",
-      "changed": "2026-10-29"
+      "digest": "7be6e8629364c0e6",
+      "changed": "2026-10-31"
     },
     "pages/about.html": {
       "path": "/about",
@@ -323,8 +323,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3091d781f07a231d",
-      "changed": "2026-10-28"
+      "digest": "f60dd9e3cb002844",
+      "changed": "2026-10-31"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -468,8 +468,8 @@
         "cellStops": 0,
         "emptyDetails": 1
       },
-      "digest": "50900cd5ceea26be",
-      "changed": "2026-10-24"
+      "digest": "dcc32b8c12d5c0c9",
+      "changed": "2026-10-31"
     },
     "pages/app/scanner/setups/new.html": {
       "path": "/app/scanner/setups/new",
@@ -4124,8 +4124,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "566366e8442d439b",
-      "changed": "2026-10-24"
+      "digest": "dc627434cafefb6b",
+      "changed": "2026-10-31"
     },
     "pages/data-sources.html": {
       "path": "/data-sources",
@@ -4671,8 +4671,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3091d781f07a231d",
-      "changed": "2026-10-28"
+      "digest": "f60dd9e3cb002844",
+      "changed": "2026-10-31"
     },
     "pages/my/theses.html": {
       "path": "/my/theses",
@@ -4899,8 +4899,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "43debf509bcc9a5b",
-      "changed": "2026-10-22"
+      "digest": "68c19d26201f7c28",
+      "changed": "2026-10-31"
     },
     "pages/property.html": {
       "path": "/property",
@@ -4923,13 +4923,13 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 19,
+        "notShown": 20,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4b63745cb6e8a82d",
-      "changed": "2026-10-28"
+      "digest": "49d2666ee06ab5fd",
+      "changed": "2026-10-31"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -5015,8 +5015,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e76114d170d7e964",
-      "changed": "2026-10-30"
+      "digest": "0b1f7f7a92dfc9cb",
+      "changed": "2026-10-31"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -5068,13 +5068,13 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 19,
+        "notShown": 20,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4b63745cb6e8a82d",
-      "changed": "2026-10-28"
+      "digest": "49d2666ee06ab5fd",
+      "changed": "2026-10-31"
     },
     "pages/property/models.html": {
       "path": "/property/models",

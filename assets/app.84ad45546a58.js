@@ -3616,7 +3616,10 @@ function riskFlags(c, d) {
      saying nobody had researched it (the 20 Oct 2026 sweep,
      copy-equities-34). The illustrative set's is written text and keeps
      its name. The flag and its weight are unchanged. */
-  if (c.qrisk) add('warning', c.real ? 'Qualitative risk (not researched)' : 'Qualitative risk (analyst review)', c.qrisk, null);
+  /* Day 18, 31 Oct 2026: "(analyst review)" claimed a reviewer the illustrative
+     set does not have. Its note is the tool's written text, so it says
+     "illustrative". */
+  if (c.qrisk) add('warning', c.real ? 'Qualitative risk (not researched)' : 'Qualitative risk (illustrative)', c.qrisk, null);
   return out;
 }
 
@@ -13874,12 +13877,19 @@ function navigate(path, { push = true, replace = false } = {}) {
      research tab riding onto /discover reached a panel lookup with no such
      panel and threw. It is also dropped when the target route names its own
      tab in the path. A path ending in a bare "?" means "and no query". */
+  /* A hash belongs after the query, never inside it (the 31 Oct 2026 review):
+     "/property/calculator#els-plan" with ?personal=1 kept came out as
+     "#els-plan?personal=1" — the section never opened and the parameter was
+     the hash's. It is split off here, and put back last, for every caller. */
+  const hashAt = path.indexOf('#');
+  const hash = hashAt > -1 ? path.slice(hashAt) : '';
+  const bare = hashAt > -1 ? path.slice(0, hashAt) : path;
   let url;
-  if (path.includes('?')) {
+  if (bare.includes('?')) {
     /* A path that brings its own query (a footer link to /learn?tab=scoring)
        still keeps the two global parameters, as every other route change
        does; one the path names itself wins. */
-    const [p, s0] = path.split('?');
+    const [p, s0] = bare.split('?');
     const q = new URLSearchParams(s0), here = new URLSearchParams(location.search);
     for (const k of GLOBAL_PARAMS) if (here.has(k) && !q.has(k)) q.set(k, here.get(k));
     const s = q.toString();
@@ -13890,13 +13900,13 @@ function navigate(path, { push = true, replace = false } = {}) {
        own view; the property calculator's ?city, ?district and ?d= mean
        nothing on /learn and used to ride there. Leaving a view keeps only the
        two that are global — ?personal=1 and ?real=0, read at boot. */
-    const target = matchRoute(path);
-    const q = keptQuery(path);
+    const target = matchRoute(bare);
+    const q = keptQuery(bare);
     if (target && target.view === State.view && target.tab) q.delete('tab');
     const s = q.toString();
-    url = href(path) + (s ? `?${s}` : '');
+    url = href(bare) + (s ? `?${s}` : '');
   }
-  url = url.replace(/\?$/, '');
+  url = url.replace(/\?$/, '') + hash;
   if (replace) history.replaceState({ path }, '', url);
   else if (push && (location.pathname + location.search) !== url) history.pushState({ path }, '', url);
   const before = State.view;
@@ -14156,6 +14166,9 @@ function applyRoute() {
      page reopened the last goal's questions instead of the menu. Entering the
      view resets it; the answers are kept. */
   if (route.view === 'launcher' && State.view !== 'launcher' && State.launcher) State.launcher.goal = null;
+  /* The setups page's Advanced details opens for an address that names
+     something inside it once per arrival (86-scanner.js, scanAdvancedAddress). */
+  if (State.view !== route.view && typeof scanAdvLeft === 'function') scanAdvLeft();
   State.view = route.view;
   setDocumentMeta(route);
   render();
@@ -23453,8 +23466,13 @@ function tabMoat(r) {
   [['Moat type', c.moat.kind], ['Durability horizon', c.moat.dur], ['Confidence', c.moat.conf],
    /* A company with no moat assessment has no review date and no review
       status; printing one for it described a review that did not happen. */
-   ['Evidence date', c.moat?.kind === 'Not assessed' ? 'Not assessed — no review has been made' : `FY${latestFy(c)} reported · reviewed ${AS_OF}`],
-   ['Review status', c.moat?.kind === 'Not assessed' ? 'Not assessed' : 'Analyst-reviewed template']]
+   /* The owner's Day 18 instructions, 31 Oct 2026 (item 4, no internal review
+      timestamps in primary presentation): this read "reviewed ${AS_OF}" and
+      "Analyst-reviewed template". The moat text is written into the illustrative
+      set (10-dataset.js) by the tool's authors; no analyst reviewed it, and
+      AS_OF is that set's own date. It now says so, as data. */
+   ['Evidence date', c.moat?.kind === 'Not assessed' ? 'Not assessed — no review has been made' : `FY${latestFy(c)} reported · illustrative set ${AS_OF}`],
+   ['Review status', c.moat?.kind === 'Not assessed' ? 'Not assessed' : 'Illustrative template — not an analyst’s review']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
   card.append(kv);
 
@@ -23514,7 +23532,7 @@ function tabRisks(r) {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   const hd = el('div', { class: 'card' });
   hd.append(cardHead(`Risk grade — ${r.risk.band}`,
-    'Flags are computed from the reported statements against published thresholds, then a qualitative analyst note is added. A grade is not a probability.', null, { kind: kindFor(r.c, 'modelled'), fine: 'The risk grade' }));
+    'Flags are computed from the reported statements against published thresholds, then a qualitative note is added — written text for an illustrative company, a statement that none has been researched for a filed one. A grade is not a probability.', null, { kind: kindFor(r.c, 'modelled'), fine: 'The risk grade' }));
   const meter = el('div', { class: 'meter', style: 'height:8px' });
   meter.append(el('i', { style: `width:${r.risk.raw}%;background:var(${r.risk.band === 'High' ? '--critical' : r.risk.band === 'Medium' ? '--warn' : '--ok'})` }));
   hd.append(meter);
@@ -27987,6 +28005,7 @@ function pubQualifier(p, id) {
 function pubVisEquities() {
   const F = HOME_FILED;
   const fig = el('figure', { class: 'pub-vis pub-vis-eq', 'aria-labelledby': 'pub-vis-eq-src' });
+  fig.append(pubVisEg());
   if (!F || !F.years?.length) { fig.append(el('figcaption', { class: 'pub-vis-cap', id: 'pub-vis-eq-src' }, kindBadge('unavailable'), ' Filed example not loaded')); return fig; }
   /* The shared component (filedColumnsSvg, 30-charts.js), as Research's
      examples draw it. */
@@ -28000,30 +28019,32 @@ function pubVisEquities() {
   return fig;
 }
 
-/* SCANNER: the rule the builder starts from, as its condition chips, read
-   from the builder's own blank (scanBlankCondition) and the engine's
-   labels; and where a match is recorded. No chart and no count: no price
-   ships with this site, so nothing here could match. */
+/* "Example output", the one caption at the top of all three previews (the
+   30 Oct 2026 audit: a visitor should see a clearly labelled example of
+   what the tool produces). Each preview keeps its own label below it —
+   Filed, or Illustrative — which says what the example is made of. */
+const pubVisEg = () => el('p', { class: 'pub-vis-eg' }, 'Example output');
+
+/* SCANNER: a rule evaluated by the engine, as the dashboard shows it
+   (scanExample, 87-scanner-ops.js: generated series A, the setup "Trend
+   breakout", read at bar 66). The 30 Oct 2026 audit asked for a real
+   output where there was a mock-up of one — chips and grey rows. The
+   verdict and the three conditions are the engine's own words and values,
+   not written here; the series is generated and labelled so, as on the
+   dashboard. The same on every draw, so the served page and the script's
+   agree. No count, no symbol, no date, and nothing about a market. */
 function pubVisScanner() {
-  const c = typeof scanBlankCondition === 'function' ? scanBlankCondition() : null;
-  /* Each side as the builder names it, short: the price, or the indicator
-     and its period ("EMA 50"). */
-  const side = (s) => {
-    const def = SCAN_INDICATORS[s?.indicator];
-    if (s?.indicator === 'price') return 'Price';
-    const n = def ? scanParams(s).params.n : null;
-    const w = def && isNum(n) ? `${def.label} ${n}` : scanSideLabel(s);
-    return w.charAt(0).toUpperCase() + w.slice(1);
-  };
-  const chips = c ? [side(c.left), SCAN_OPERATORS[scanOpName(c.op)]?.label || c.op, side(c.right)] : [];
-  return el('figure', { class: 'pub-vis pub-vis-scan' }, [
-    el('p', { class: 'pub-vis-k pub-vis-k-top' }, 'Starting rule'),
-    el('p', { class: 'pub-rule', role: 'list', 'aria-label': 'The builder’s starting rule' }, chips.map((t, i) => el('span', { class: `pub-chip${i === 1 ? ' pub-chip-op' : ''}`, role: 'listitem' }, t))),
-    el('div', { class: 'pub-record', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('div', { class: 'pub-record-row' }, [el('i'), el('i'), el('i')]))),
-    el('figcaption', { class: 'pub-vis-cap pub-vis-empty' }, [
-      el('span', { class: 'pub-vis-empty-mark', 'aria-hidden': 'true' }),
-      el('span', {}, 'Matches are recorded by a worker you run, not by this site'),
-    ]),
+  const ex = scanExample();
+  const r = ex.at(ex.n - 1);
+  return el('figure', { class: 'pub-vis pub-vis-scan', 'aria-labelledby': 'pub-vis-scan-src' }, [
+    pubVisEg(),
+    el('div', { class: 'pub-scan-plot', html: scanExSvg(ex, ex.n - 1, { H: 62 }) }),
+    el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, [el('i', { class: 'scan-sw scan-sw-close' }), 'Close', el('i', { class: 'scan-sw scan-sw-ema' }), 'EMA 50']),
+    el('p', { class: 'pub-scan-verdict' }, [el('span', { class: 'scan-ex-k' }, ['The rule at bar ', el('span', { class: 'num' }, String(ex.n))]), ' ',
+      el('strong', { class: 'scan-ex-v', 'data-state': r.state }, SCAN_EX_WORD[r.state])]),
+    el('ol', { class: 'pub-scan-conds', 'aria-label': 'All three must hold on one bar' }, r.conditions.map(c => el('li', { class: 'scan-ex-c', 'data-state': c.state }, [
+      el('span', { class: 'scan-ex-s' }, el('span', { class: 'sr-only' }, SCAN_EX_WORD[c.state])), ' ', el('span', { class: 'scan-ex-x' }, c.text)]))),
+    el('figcaption', { class: 'pub-vis-cap' }, el('p', { class: 'pub-vis-src', id: 'pub-vis-scan-src' }, [kindBadge('illustrative', { fine: 'A generated series' }), el('span', {}, 'Generated series, not a market’s prices')])),
   ]);
 }
 
@@ -28095,6 +28116,7 @@ function pubVisProperty({ badgeLink = true } = {}) {
   });
   paint(at);
   fig.append(
+    pubVisEg(),
     el('div', { class: 'pub-lab-knob' }, [el('label', { class: 'pub-vis-k', for: 'pub-lab-price' }, 'Price'), val, range]),
     figs,
     el('div', { class: 'pub-lab-flow' }, [bars,
@@ -32910,6 +32932,13 @@ function learnTrust() {
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, ['Date', 'Scope', 'What was wrong', 'What changed'].map(h => el('th', {}, h)))));
   t.append(el('tbody', {}, [
+    /* The 31 Oct 2026 operational audit, #4: the 25 Oct fee correction
+       (8f801c309, rulebook 1.5.0) had no row. model-test now holds every
+       rulebook version that changes an amount (FEE_TABLE.changelog, amounts: true)
+       to a row here. */
+    ['25 Oct 2026', 'Fee rulebook',
+      'The valuation fee was charged on the purchase price. The scale’s item is for a valuation on an improved-value basis, and nothing in it charges on the price.',
+      'Rulebook 1.5.0. The fee is charged on the value the valuer finds — your bank or valuer estimate, once you enter one. Until one is entered the price stands in for it, so a deal with no valuation entered is unchanged; a valuation below the price lowers the fee, and one above it raises it. On a price of RM572,000 with a valuation of RM540,000 the fee is RM1,130, not RM1,194.'],
     ['22 Oct 2026', 'Property model — auction',
       'The holding months before the property earns were priced in the effective cost only, as the full month with no rent from the day of the sale, the loan instalment included. The cash required and the rate of return did not count them.',
       'The holding months are priced once and every figure reads that: no rent, the running costs owed with no tenancy, and the instalment only from the day the balance falls due. They are a line of the cash required, and the hold’s years count from when the property earns. With no days to pay the balance entered, the instalment is not priced and the page says so.'],
@@ -33022,17 +33051,30 @@ function learnTrust() {
 State.corrections = store.read('corrections', []);
 const saveCorrections = () => store.write('corrections', State.corrections);
 
-/* QT-YYYYMMDD-NNN. The sequence comes from the cases already stored on that
+/* QT-YYYYMMDD-NNN-xxxx. The sequence comes from the cases already stored on that
    date, so two cases raised in the same millisecond cannot collide the way a
    timestamp id would. It is one past the HIGHEST sequence used, not the count
    of cases: counting reissued an id still in use as soon as one case was
-   deleted, and deleting either of the pair then removed both. */
+   deleted, and deleting either of the pair then removed both.
+   The 31 Oct 2026 operational audit, #1: the sequence is this browser's own, so
+   every visitor's first report of a day was ...-001 and the owner, who links
+   reports by case id, would have merged two people's. The last four characters
+   are drawn at random (no 0, o, 1 or l, which are misread in an email), so the
+   ids of two browsers differ. A case stored before this has no suffix
+   (QT-YYYYMMDD-NNN): it still counts toward the sequence and is never renamed. */
+const CASE_ID_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
+function caseIdSuffix() {
+  const out = [];
+  const bytes = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(4)) : null;
+  for (let i = 0; i < 4; i++) out.push(CASE_ID_ALPHABET[(bytes ? bytes[i] : Math.floor(Math.random() * 256)) & 31]);
+  return out.join('');
+}
 function nextCaseId(d = new Date()) {
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-  const used = (State.corrections || []).map(c => String(c.id || ''))
-    .filter(id => id.startsWith(`QT-${stamp}-`)).map(id => parseInt(id.slice(-3), 10)).filter(Number.isFinite);
+  const own = new RegExp(`^QT-${stamp}-(\\d{3,})(?:-[a-z0-9]{4})?$`);
+  const used = (State.corrections || []).map(c => own.exec(String(c.id || ''))).filter(Boolean).map(m => parseInt(m[1], 10));
   const n = (used.length ? Math.max(...used) : 0) + 1;
-  return `QT-${stamp}-${String(n).padStart(3, '0')}`;
+  return `QT-${stamp}-${String(n).padStart(3, '0')}-${caseIdSuffix()}`;
 }
 
 /* The time a case was raised, on the same local clock as its id and labelled
@@ -35277,6 +35319,110 @@ function readPropertyUrl(d) {
   return changed;
 }
 
+/* THE OPTIONAL ELS DESIGN AND RENOVATION BRIEF
+   ---------------------------------------------------------------------------
+   The owner's Day 18 instructions, 31 Oct 2026 (briefs/README-els-referral.md,
+   built now: it is copy-only and sends nothing). ELS is a separate business.
+   After the results one optional panel shows a short plain-text brief the
+   reader reviews, edits and copies, and links to the ELS home page. This is
+   that brief, as a pure function of the deal: nothing is read from the page,
+   stored, fetched or sent.
+
+   ONLY FOUR FACTS OF THE DEAL LEAVE IT: the property type, the area the
+   reader chose, whether the property is to be let or used by its owner, and
+   the renovation allowance — the last only once the reader has entered it.
+   Never the price, deposit, loan, rate, repayment, rent, income, cash flow,
+   cash required, reserve or returns; never a name, a contact or a saved
+   property's id. A sample figure never appears as an amount, and a figure the
+   reader typed is said to be theirs: editing an assumption does not make it
+   checked by anyone, so the brief never calls it verified, approved or
+   confirmed. ELS does not yet expose a page of its own that receives a brief,
+   so the reader brings the copy to their first contact; nothing here claims
+   that ELS will see, prefill or receive anything. */
+const ELS_URL = 'https://els.alumax.pro/';
+const ELS_BRIEF_ID = 'qt-property-brief/1';
+const ELS_REQUIREMENTS_MAX = 1000;
+const ELS_NOT_SET = {
+  location: "Not set — the sample's location is not yours",
+  use: 'Not set',
+  renovation: "Not set: the calculator's sample figure is not a budget",
+};
+function elsBrief(d, requirements = '') {
+  const def = PROPERTY_DEFAULT_DEAL;
+  /* 1. Property type: the deal's. Chosen only when it is not the sample's. */
+  const typeChosen = !!d?.propertyType && d.propertyType !== def.propertyType;
+  const type = d?.propertyType ? String(d.propertyType) : 'Not set';
+
+  /* 2. Location: the city or area the reader selected, as they selected it —
+     never derived, never geocoded, never a sample project. The first district
+     of a town is never named as chosen: choosing a town sets it (switching to
+     Miri and back leaves Kuching's "City centre"), and the Kuching page's
+     worked example sets it too. Nothing here can tell those from a pick, so a
+     district counts only when it is neither the sample's nor its town's first
+     (the 31 Oct 2026 review). */
+  const cityDef = SARAWAK_CITIES.find(c => c.id === d?.city);
+  const cityChosen = !!cityDef && d.city !== def.city;
+  const districtChosen = !!cityDef && !!d.district && d.district !== def.district
+    && d.district !== cityDef.districts[0];
+  const locationChosen = cityChosen || districtChosen;
+  const location = locationChosen
+    ? `${[cityDef.name, districtChosen ? d.district : null].filter(Boolean).join(', ')} (as you entered it)`
+    : ELS_NOT_SET.location;
+
+  /* 3. Intended use, in the app's own words: the own-use objective reads its
+     label ("Own use + investment"); weeks of own use on a let property read
+     "Let to a tenant, with some own use"; otherwise let to a tenant. A property
+     that earns no rent has no letting to name. It is the reader's choice when
+     they chose the own-use objective, put in weeks of own use, or touched the
+     rent; any other objective (Capital growth, Value add) says nothing of the
+     use, so it does not make "Let to a tenant" theirs (the 31 Oct 2026 review). */
+  const ownObjective = d?.objective === 'ownuse';
+  const weeks = num0(d?.ownUseWeeks) > 0;
+  const lets = propertyInputApplies(d, 'rent');
+  const useChosen = ownObjective || weeks || (lets && isTouched(d, 'rent'));
+  const use = ownObjective ? PROPERTY_OBJECTIVES.ownuse.label
+    : lets ? (weeks ? 'Let to a tenant, with some own use' : 'Let to a tenant')
+    : weeks ? 'Some own use' : ELS_NOT_SET.use;
+
+  /* 4. Renovation allowance: the reader's figure only once they have entered
+     it (isTouched alone: a legacy userStarted deal's untouched figure is still
+     the sample's), and worded from its cost lines: a placeholder is said to be one, lines that
+     are all written quotes are the reader's quotation and not Quantum's to
+     vouch for, anything else is their own figure. Never called verified,
+     approved or confirmed. The sample's figure is never shown as an amount. */
+  const reno = d?.renovation;
+  const renoChosen = isTouched(d, 'renovation') && isNum(reno) && reno >= 0;
+  let renovation = ELS_NOT_SET.renovation;
+  if (renoChosen) {
+    const sum = costLinesSummary(costLinesOf(d, 'renovation'));
+    const amount = fmtMoney(reno, 'MYR', 0);
+    /* A placeholder anywhere is said; "from a quotation" only where every line is one. */
+    renovation = sum.by.placeholder > 0
+      ? `${amount}, ${sum.by.placeholder < sum.total ? 'including ' : ''}a placeholder you entered — not a budget`
+      : sum.n > 0 && sum.by.quoted === sum.total
+        ? `${amount}, from a quotation you entered — not verified by Quantum`
+        : `${amount}, as you entered it — your own figure, not a quotation or a verified budget`;
+  }
+
+  /* 5. Their requirements, as typed: one paragraph of their own words. */
+  const typed = String(requirements ?? '').replace(/\r\n?/g, '\n').trim().slice(0, ELS_REQUIREMENTS_MAX);
+
+  /* 6. Which of the four are still the sample's. */
+  const assumed = [['property type', typeChosen], ['location', locationChosen], ['intended use', useChosen], ['renovation allowance', renoChosen]]
+    .filter(([, chosen]) => !chosen).map(([name]) => name);
+
+  const lines = [
+    `Quantum Tradeworks renovation brief (${ELS_BRIEF_ID})`,
+    `Property type: ${type}`,
+    `Location: ${location}`,
+    `Intended use: ${use}`,
+    `Renovation allowance: ${renovation}`,
+    `Your requirements:${typed ? ` ${typed.replace(/\n/g, '\n  ')}` : ''}`,
+  ];
+  if (assumed.length) lines.push(`Assumptions: Assumed (the sample's): ${assumed.join(', ')}.`);
+  return { text: lines.join('\n'), lines, assumed, renovationEntered: renoChosen };
+}
+
 /* CARRYING A COMPANY INTO A WORKSPACE
    ---------------------------------------------------------------------------
    The Strategy Lens grades a company and then linked to two blank workspaces,
@@ -35558,19 +35704,25 @@ const FEE_TABLE = {
     estimate: 'An approximation the rulebook carries so the total runs, where no rule fixes the amount. Replace it with a quotation.',
   },
   /* What changed, version by version: a reader of /data-sources who sees
-     the figures move is owed the reason. Newest first. */
+     the figures move is owed the reason. Newest first.
+     `amounts` (the 31 Oct 2026 operational audit, #4): true where the entry
+     itself says a figure the tool shows can change, false where it says none
+     does. model-test holds every `amounts: true` version to a row of the
+     corrections log on /corrections that names its version, or its date and
+     the fee rulebook. 1.0.0 is false only because its entry states no
+     amount change; it replaced the unverified 0.1.0 draft. */
   changelog: [
-    { version: '1.5.0', date: '2026-10-25',
+    { version: '1.5.0', date: '2026-10-25', amounts: true,
       what: 'The valuation fee is charged on the value the valuer finds — your bank or valuer estimate, once you enter one — not on the price: the scale’s item is for a valuation on an improved-value basis, and nothing in it charges on the price. Until a valuation is entered the price stands in for it, so a deal with no valuation entered is unchanged; a valuation below the price lowers the fee, and one above it raises it. The scale’s eight bands and its RM400 minimum match the Board of Valuers’ published scale and a consolidated text of the Rules, and the Board’s Circular 3/2009 puts the current scale in force from 1 October 2009. The line stays an estimate until it is read in a gazetted copy. No rate is made up.' },
-    { version: '1.4.0', date: '2026-10-15',
+    { version: '1.4.0', date: '2026-10-15', amounts: false,
       what: 'Re-checked after Budget 2027, tabled on 9 October 2026: the speech and its tax measures annex, read in the Ministry of Finance’s English and Malay texts. No line’s rule or amount changes. The Budget proposes no change to the transfer duty scale or the loan agreement duty this tool charges (on a ringgit loan; its cap on foreign-currency loan agreements does not reach one), the charge’s stamp, service tax on legal or valuation services (its one service-tax change is elderly care, 8% to 6%), a non-citizen’s transfer duty, or gains tax on a sale. It proposes to revise the first-home exemption for sale and purchase agreements executed from 1 January 2027 to 31 December 2030: 100% on a first home priced up to RM500,000, and on one priced up to RM750,000, 100% on the first RM500,000 and 50% on the rest. That is a proposal, not law — no order had been gazetted and no Finance Bill tabled when this was read — so it is held below beside the exemption in force, applied to nothing. No rate is made up.' },
-    { version: '1.3.0', date: '2026-10-13',
+    { version: '1.3.0', date: '2026-10-13', amounts: false,
       what: 'Purchase legal fees by purchase route, read in the gazette (Swk. L.N. (F) 348 of 2022, the First Schedule’s rules 1–4 and 13). For a purchase at auction and a purchase from a developer, the Rules do not settle the purchaser’s advocate’s share by the route alone: it turns on the instruments the advocate handles — an SPA and the transfer, the SPA alone, the transfer alone — and, at auction, rule 13 prices the seller’s side and names the purchaser’s only for several lots bought under one title. So no amount changes: the line stays at rule 1’s full scale, each route says why on its page and below, and your lawyer’s quote takes its place once entered — on a new development as well as at auction now. No rate is made up.' },
-    { version: '1.2.0', date: '2026-10-10',
+    { version: '1.2.0', date: '2026-10-10', amounts: true,
       what: 'Lines whose rule differs by property class, and has not been checked for the class, are no longer charged on a commercial property or on land: they read “Unavailable — not yet checked for commercial property” (or land), and the cash required for those classes is a partial total that names them. Commercial: the loan legal fees (rule 7 prices the charge alone; a commercial financing commonly takes further security priced per instrument), the service tax charged on them, the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. Land: the valuation fee and its service tax (the scale’s item is for a valuation on an improved-value basis), the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. The transfer and loan stamp duties, the charge’s stamp, registration and the purchase legal fees stay for every class: their rules do not turn on the class (each line’s source says why). A quotation you enter stands for any class. No rate is made up for either class; residential figures are unchanged.' },
-    { version: '1.1.0', date: '2026-10-09',
+    { version: '1.1.0', date: '2026-10-09', amounts: true,
       what: 'Mortgage protection (MRTA/MLTA) is an optional line, off by default: left out of the cash required unless you include it or enter a quote, and listed as “Optional: mortgage protection” so its absence is visible — the sample’s cash required falls by its RM8,000 estimate. The ledger is split into five kinds: statutory charges, professional fees on a published scale, quotations, optional products and estimates. Registration of the transfer and the charge (RM10 an instrument, Land and Survey Department, Sarawak) and the stamp duty on the charge (one-fifth of the loan agreement’s duty, at most RM10: Item 27(b)) are verified and taken out of the disbursements estimate, which keeps the rest. The valuation fee, the searches and the firm’s disbursements, and the utility deposits stay estimates: no primary source fixing them was found.' },
-    { version: '1.0.0', date: '2026-10-08',
+    { version: '1.0.0', date: '2026-10-08', amounts: false,
       what: 'Replaced the unverified first draft: the transfer and loan agreement stamp duty, Sarawak’s advocates’ scale for the purchase and loan legal fees, and service tax verified from official texts; the valuation fee carried at the Board of Valuers’ ceiling as an estimate.' },
   ],
 
@@ -38886,7 +39038,7 @@ const PC_FIELD_HASH = /^d-[A-Za-z]+$/;
 function propertyArrivalSection() {
   const want = (h => PC_SECTION_ALIAS[h] || h)(location.hash.replace(/^#/, ''));
   const key = location.pathname + location.search + location.hash;
-  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want) || want === 'review') && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
+  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want) || want === 'review' || want === 'els-plan') && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
   if (!pcArrivalWant) return;
   const go = () => {
     if (!pcArrivalWant || State.view !== 'property') { pcArrivalWant = null; return; }
@@ -38906,6 +39058,9 @@ function propertyArrivalSection() {
       det.querySelector('summary')?.focus({ preventScroll: true });
       return;
     }
+    /* The optional ELS panel (the owner's Day 18 instructions, 31 Oct 2026):
+       opened, in sight, the keyboard on its name (pcOpenElsPanel). */
+    if (id === 'els-plan') { pcOpenElsPanel(); return; }
     if (PC_FIELD_HASH.test(id)) {
       const field = document.getElementById(id);
       if (!field) return;
@@ -44645,10 +44800,12 @@ function pcSwitchView(full, { keep = null } = {}) {
    (#scenarios) or a box the Quick model does not show (#d-holdYears,
    #d-askingPrice) is the full model's; #review and the Quick model's own
    boxes are both views', and keep the view the address names. */
+/* #els-plan is the optional ELS panel's, in the full model (the owner's Day 18
+   instructions, 31 Oct 2026): the Scenario Lab and the Quick model link to it. */
 function pcArrivalView() {
   const want = (h => PC_SECTION_ALIAS[h] || h)(location.hash.replace(/^#/, ''));
   if (!want || pcViewIsFull()) return;
-  const fullOnly = PC_SECTIONS.some(s => s.id === want) || (PC_FIELD_HASH.test(want) && !PC_QUICK_KEYS.has(want.slice(2)));
+  const fullOnly = PC_SECTIONS.some(s => s.id === want) || want === 'els-plan' || (PC_FIELD_HASH.test(want) && !PC_QUICK_KEYS.has(want.slice(2)));
   if (!fullOnly) return;
   const p = new URLSearchParams(location.search);
   p.set('view', 'full');
@@ -44721,13 +44878,19 @@ function pcQuickCard(key, level, label, value, sub, badge, tone = null) {
    "Why these are defaults" stays folded. The address #review lands on it.
    Null when nothing is left to review. */
 const PC_DRIVER_SAY = { price: 'price', rent: 'rent', maintenance: 'maintenance', sqft: 'built-up area' };
-function pcQuickRests(d, queue) {
+/* THE SCENARIO LAB SAYS IT THE SAME WAY (the 30 Oct 2026 audit): the one
+   block, the same count and the same second clause. `go`, where the figures
+   are replaced in the calculator rather than listed in place — { first, id,
+   onclick? } — makes "Review the defaults →" a link to the first figure
+   still the tool's (the Lab's old "Next step"), in place of the list; `id`
+   names the block where it is not the calculator's #review. */
+function pcQuickRests(d, queue, { go = null, id = 'review' } = {}) {
   const drivers = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
   const keys = [...new Set([...queue.map(f => f.k), ...drivers])];
   if (!keys.length) return null;
   const n = keys.length, s = n === 1 ? '' : 's';
   const say = (k) => (PROPERTY_REVIEW.find(f => f.k === k)?.label || k).toLowerCase();
-  const box = el('div', { class: 'pc-rests', id: 'review', 'aria-labelledby': 'pc-rests-h' });
+  const box = el('div', { class: 'pc-rests', id, 'aria-labelledby': 'pc-rests-h' });
   box.append(el('h3', { class: 'pc-rests-h', id: 'pc-rests-h' }, 'What these figures rest on'));
   const lead = el('p', { class: 'pc-rests-text', id: 'pc-rests-text' }, [
     el('strong', { 'data-n': String(n) }, `${n} input${s}`), ` ${n === 1 ? 'is' : 'are'} still the tool’s illustrative default${s}, not yours: ${feeList(keys.map(say))}.`]);
@@ -44735,10 +44898,18 @@ function pcQuickRests(d, queue) {
     ? `${n === 1 ? 'It holds' : 'All hold'} back the research grade.`
     : `${drivers.length} of the ${n} — ${feeList(drivers.map(k => PC_DRIVER_SAY[k] || k))} — hold${drivers.length === 1 ? 's' : ''} back the research grade.`);
   box.append(lead);
-  const det = el('details', { class: 'pc-rests-list', id: 'pc-review-list' });
-  det.append(el('summary', { class: 'pc-rests-sum' }, [`Review the defaults`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]));
-  det.append(...pcReviewRows(d, queue));
-  box.append(det);
+  if (go) {
+    const first = queue[0] || null;
+    if (first) box.append(el('p', { class: 'pc-rests-go-p' }, el('a', { class: 'pc-rests-go', id: go.id, href: href(go.path), onclick: (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(go.path);
+    } }, ['Review the defaults', el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →'),
+      el('span', { class: 'sr-only' }, ` — starting with the ${first.label.toLowerCase()}, in the calculator`)])));
+  } else {
+    const det = el('details', { class: 'pc-rests-list', id: 'pc-review-list' });
+    det.append(el('summary', { class: 'pc-rests-sum' }, [`Review the defaults`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]));
+    det.append(...pcReviewRows(d, queue));
+    box.append(det);
+  }
   box.append(el('details', { class: 'explain' }, [el('summary', {}, 'Why these are defaults'),
     el('p', { class: 'metaline' }, `Nobody chose ${n === 1 ? 'it' : 'them'} for this property and no market was consulted. The sample deal is not a real listing.`)]));
   if (d.city !== 'kuching') box.append(el('p', { class: 'metaline' },
@@ -44869,8 +45040,93 @@ function pcQuickView(d, m, g, DK) {
       sw?.scrollIntoView({ block: 'start' });
       focusAfterRedraw(sw);
     } }) }));
-  sec.append(inputs, res, open);
+  sec.append(inputs, res, open, pcQuickElsLink());
   return sec;
+}
+/* THE OPTIONAL ELS PANEL (the owner's Day 18 instructions, 31 Oct 2026;
+   briefs/README-els-referral.md). One quiet drawer in the full model, after
+   the results and the report actions and never above them: a short brief the
+   reader reviews, edits and copies, then a plain link to the ELS website.
+   Nothing is sent — no request to ELS, no prefill, no tracking, no query or
+   hash on the link. ELS does not yet expose a page of its own that receives a
+   brief, so the reader brings the copy to their first contact. Calculating,
+   comparing and saving need none of it; the brief is a pure function of the
+   deal (elsBrief, 70-property.js) and the panel keeps nothing of its own: it
+   is open or closed and holds the typed requirements in this tab's memory
+   only — not stored, not in any address, not printed. The link opens a new
+   tab, so the model in this one is exactly as it was when the reader returns. */
+let pcElsOpen = false;
+let pcElsReq = '';
+const ELS_LINK_WORDS = 'Open the ELS website';
+const ELS_ACTION_WORDS = 'Explore design and renovation planning with ELS';
+/* Where the panel is addressed from, as a section is (#scenarios): no deal and
+   nothing private in it; the calculator opens the full model for it
+   (pcArrivalView) and keeps the deal it holds. */
+const ELS_PLAN_PATH = '/property/calculator#els-plan';
+/* To the panel: the full model opened first from the Quick model, its section
+   chosen on a phone, the drawer open and in sight, the keyboard on its name. */
+function pcOpenElsPanel() {
+  pcElsOpen = true;
+  if (!pcViewIsFull()) pcSwitchView(true);
+  const det = document.getElementById('els-plan');
+  if (!det) return;
+  pcShowFor(det);
+  det.open = true;
+  det.scrollIntoView({ block: 'start', behavior: 'instant' });
+  det.querySelector(':scope > summary')?.focus({ preventScroll: true });
+}
+function pcElsPanel(d) {
+  const det = el('details', { class: 'pc-more pc-els', id: 'els-plan', open: pcElsOpen ? '' : null });
+  det.addEventListener('toggle', () => { pcElsOpen = det.open; });
+  det.append(el('summary', { class: 'pc-more-sum pc-els-sum', id: 'els-plan-sum' }, ELS_ACTION_WORDS));
+
+  const status = el('span', { class: 'metaline pc-els-status', id: 'els-status', role: 'status' });
+  const brief = el('textarea', { class: 'input pc-els-brief', id: 'els-brief', readonly: '', rows: '12', spellcheck: 'false' });
+  brief.value = elsBrief(d, pcElsReq).text;
+  const requirements = el('textarea', { class: 'input pc-els-requirements', id: 'els-requirements', rows: '4', maxlength: String(ELS_REQUIREMENTS_MAX), autocomplete: 'off', spellcheck: 'true',
+    'aria-describedby': 'els-requirements-note' });
+  requirements.value = pcElsReq;
+  requirements.addEventListener('input', () => {
+    pcElsReq = requirements.value;
+    brief.value = elsBrief(d, pcElsReq).text;
+    status.textContent = '';
+  });
+
+  const copy = async () => {
+    try {
+      if (!navigator.clipboard) throw new Error('no clipboard');
+      await navigator.clipboard.writeText(brief.value);
+      status.textContent = 'Copied';
+    } catch {
+      /* Refused (an insecure page, a policy, a browser that asks first): the
+         brief is selected where the reader can see it, and how to copy it said. */
+      brief.focus(); brief.select();
+      status.textContent = 'Your browser did not allow copying. The brief is selected: press Ctrl+C (Command+C on a Mac) to copy it.';
+    }
+  };
+
+  det.append(el('div', { class: 'pc-els-body' }, [
+    el('p', { class: 'pc-els-lede' }, 'ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.'),
+    el('div', { class: 'pc-els-field' }, [
+      el('label', { for: 'els-requirements' }, 'Your requirements'),
+      requirements,
+      el('p', { class: 'metaline', id: 'els-requirements-note' }, 'In your own words. Not saved and not printed.')]),
+    el('div', { class: 'pc-els-field' }, [
+      el('label', { for: 'els-brief' }, 'Your brief'),
+      brief]),
+    el('p', { class: 'pc-els-before', id: 'els-before' }, 'Review and copy your brief. Nothing is sent to ELS: you paste it there yourself if you want to.'),
+    el('div', { class: 'pc-els-acts' }, [
+      el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'els-copy', onclick: copy }, 'Copy brief'),
+      el('a', { class: 'btn btn-ghost btn-sm', id: 'els-link', href: ELS_URL, target: '_blank', rel: 'noopener noreferrer',
+        html: `${ELS_LINK_WORDS} ${icon('ext', 10)}` }),
+      status]),
+  ]));
+  return det;
+}
+/* The Quick model's one way to it: a text link under "The full model". */
+function pcQuickElsLink() {
+  return el('p', { class: 'pc-q-els' }, el('a', { class: 'pc-q-els-link', id: 'pc-q-els', href: href(ELS_PLAN_PATH),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); pcOpenElsPanel(); } }, ELS_ACTION_WORDS));
 }
 VIEWS.property = () => {
   /* A part of the full model the address names opens the full model
@@ -46807,7 +47063,7 @@ VIEWS.property = () => {
   rnt.outputs.append(...[headline, propertyClassOf(d) === 'commercial' ? pcCommercial(d) : null, ops, rentBuyCard].filter(Boolean));
   scn.outputs.append(propertyScenariosPanel(d), pcL3('sens', 'What actually decides this: each input moved', sensPanel), stressCard,
     pcL3('returns', 'Return, and tax on the rent, year by year', returnsPanel));
-  rpt.outputs.append(checkCard, pcL3('gates', 'Against the methodology: each gate', gatesPanel), demandCard, envCard, pcL3('rests', 'What this rests on: every driving figure', ev), ...reportCards, propertyShareRow(d, paid), regNote);
+  rpt.outputs.append(checkCard, pcL3('gates', 'Against the methodology: each gate', gatesPanel), demandCard, envCard, pcL3('rests', 'What this rests on: every driving figure', ev), ...reportCards, propertyShareRow(d, paid), pcElsPanel(d), regNote);
   [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));
   return wrap;
 };
@@ -50839,21 +51095,29 @@ function labDraw(P, focusId = null) {
   grid.append(inputs, outputs);
   inputs.append(labColumnPicker(P, lab), labInputPicker(P, lab));
   const col = labActive(lab);
+  /* Said once, over the boxes, instead of under each (the 30 Oct 2026 audit): the tag beside a box says whose its figure is. */
+  P.els.defaultNote = el('p', { class: 'metaline lab-default-note', id: labId(P, 'default-note') }, 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.');
+  P.els.defaultNote.hidden = !LAB_INPUTS.some(inp => labApplies(col.work, inp.k) && labOwn(col.work, inp.k) === 'default');
+  inputs.append(P.els.defaultNote);
   LAB_INPUTS.filter(inp => !LAB_MORE_KEYS.includes(inp.k)).forEach(inp => inputs.append(labKnob(P, lab, col, inp)));
   inputs.append(labMoreInputs(P, lab, col));
   P.els.colsCard = labColumnsCard(P, lab);
   P.els.commitCard = labCommits(P, lab, col);
   P.cardSig = labCardSig(lab);
-  /* The chain, what needs evidence, the evidence itself (L3: under the
-     chain, collapsed; from 1440px the drawer on the right), then A, B and
-     C side by side and keeping one. */
+  /* The chain (with what its figures rest on, once), the evidence itself (L3:
+     under the chain, collapsed; from 1440px the drawer on the right), then A,
+     B and C side by side and keeping one — compare, then save — and, last,
+     the price against the reader's evidence, a closed disclosure (the 30 Oct
+     2026 audit). */
   const chain = labChain(P, lab, col);
-  const alert = P.compact ? null : labAlert(P, lab);
   /* The price against the reader's evidence (the decision layer, P2) —
      or, answered Auction, the auction risk mode in its place (P3), or,
-     answered New development, the developer premium model (P4). */
+     answered New development, the developer premium model (P4). Those two
+     are the route's own working and stay under the chain, where they
+     were; the price against the evidence is the disclosure at the foot. */
   const route = dealRoute(labAnswerInputs(lab));
-  const price = P.compact ? null : route === 'auction' ? labAuctionSection(P, lab) : route === 'newdev' ? labNewDevSection(P, lab) : labPriceSection(P, lab);
+  const routePrice = P.compact ? null : route === 'auction' ? labAuctionSection(P, lab) : route === 'newdev' ? labNewDevSection(P, lab) : null;
+  const price = P.compact || routePrice ? null : labPriceSection(P, lab);
   /* Answered Commercial, of any subtype and on any route: the four rents,
      their sustainability and the lease-down (P5), after the price. */
   const commercial = !P.compact && propertyClassOf(labAnswerInputs(lab)) === 'commercial' ? labCommercialSection(P, lab) : null;
@@ -50865,13 +51129,16 @@ function labDraw(P, focusId = null) {
   const refurb = !P.compact && lab.model ? labRefurbCard(P, lab) : null;
   /* On a saved property, what it actually did beside what was modelled (QT-06). */
   const actuals = !P.compact && lab.model ? labActualsCard(P, lab) : null;
-  outputs.append(...[chain, alert, price, commercial, evidence, cross, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  outputs.append(...[chain, routePrice, commercial, evidence, cross, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard, price].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
   P.node.replaceChildren(labHeader(P, lab), grid);
   labPaintPanel(P, { initial: true });
   if (P.address) labBarSync();
+  /* One primary: the name form's Save while a name is asked for. */
+  const enter = P.address ? document.getElementById('lab-enter') : null;
+  if (enter) { enter.classList.toggle('btn-primary', !lab.naming); enter.classList.toggle('btn-ghost', !!lab.naming); }
   for (const id of [].concat(had || [])) {
     const n = document.getElementById(id);
     if (!n || !P.node.contains(n) || n.disabled || !n.getClientRects().length) continue;
@@ -50895,15 +51162,18 @@ const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a forecast — nothing here
    a forecast — nothing here is ranked" are in the closed "Why this is not
    a valuation" under it. */
 const LAB_CLAIM_VISIBLE = 'Results are calculated from your inputs and labelled assumptions. They are not a property valuation or investment recommendation.';
+/* The Lab's own supporting line beside the chip (Day 18, QT-D18-01, 31 Oct 2026; the owner's
+   wording): the sample is illustrative, and the results are calculations. The calculator keeps the sentence above. */
+const LAB_CLAIM_LINE = 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.';
 const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
-/* THE SAMPLE'S ASSUMPTIONS, UNDER ITS NAME (the Day-8 report's QT-D08-02;
-   the owner's decision of 20 Oct 2026): while the sample deal is open, the
-   line under "Sample deal" says which of its figures are assumptions —
-   growth among them, which the tiles' "Illustrative default" does not name.
-   It replaces "— not a real listing". Held word for word, and outside the
-   Lab's word budget, as the homepage's boundary line is (mobile.mjs
-   lab-words and n3-first-view; served-check n3-property-landing). */
-const LAB_SAMPLE_ASSUME = 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.';
+/* THE LINE UNDER "SAMPLE DEAL" WENT (the owner's Day 18 follow-up, QT-D18-01,
+   31 Oct 2026: "remove before adding"). "Illustrative scenario: price, rent,
+   growth and some costs are assumptions, not market evidence." (the Day-8
+   report's QT-D08-02, 20 Oct 2026) said what LAB_CLAIM_LINE now says beside
+   the chip — the sample is illustrative, not market evidence. Growth, the one
+   figure it named that the tiles' badges do not, is named by "What these
+   figures rest on" (appreciation); the name "Sample deal" and the
+   Illustrative badges still say it is a sample. */
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
@@ -51008,16 +51278,15 @@ function labGuidedScenario(lab, col) {
 }
 const labGuidedNaming = (lab, at = null) => ({ kind: 'property', at, value: pmNameOf(State.deal), scenario: labGuidedScenario(lab, labActive(lab)) });
 /* THE IDENTITY LINE. The name — "Sample deal", with the line under it that
-   says its figures are assumptions (LAB_SAMPLE_ASSUME), or the property's —
-   with its place, type and size; Save as the page's one primary button; and
+   or the property's — with its place, type and size; Save, a secondary button since Day 18 (the
+   page's one primary is "Enter your property figures", in its head); and
    the regulated claim and the lab's own, whole at every width: "Not a
    valuation" leads, and the reader is never left to find it under the
    figures. The sample's line describes the section; its name stays the
    name. */
 function labIdentity(P, lab, status, sample = false) {
   const d = labSubjectInputs(lab);
-  const assume = sample ? el('p', { class: 'lab-id-assume', id: labId(P, 'assume') }, el('strong', {}, 'Illustrative scenario:'), LAB_SAMPLE_ASSUME.slice('Illustrative scenario:'.length)) : null;
-  const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status'), 'aria-describedby': assume ? labId(P, 'assume') : null });
+  const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status') });
   P.els.idAct = labIdentityAct(P, lab);
   /* On a phone the place line carries the two questions' summary and its
      Change (83-property-decision.js): one 44px line, the questions opening
@@ -51030,7 +51299,7 @@ function labIdentity(P, lab, status, sample = false) {
   if (act?.prop) sum.textContent = `${act.key}: ${sum.textContent}`;
   const meta = !d ? null : P.compact ? el('p', { class: 'lab-id-meta' }, labPlaceLine(d))
     : el('p', { class: 'lab-id-meta has-sum' }, [el('span', { class: 'lab-id-place' }, labPlaceLine(d)), sum, pqChangeButton(P.idPrefix)]);
-  box.append(el('div', { class: assume ? 'lab-id-top has-assume' : 'lab-id-top' }, [status, assume, P.els.idAct, meta]));
+  box.append(el('div', { class: 'lab-id-top' }, [status, P.els.idAct, meta]));
   P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
   box.append(P.els.idForm);
   /* The registered-valuer sentence and the lab's own limits, whole and one
@@ -51039,7 +51308,7 @@ function labIdentity(P, lab, status, sample = false) {
      phone's first screen, whose first slider has no pixel to spare, does not
      give a 44px row to it. */
   box.append(el('div', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
-    el('span', {}, LAB_CLAIM_VISIBLE), ' ',
+    el('span', {}, LAB_CLAIM_LINE), ' ',
     el('details', { class: 'pc-more ls-l3 lab-claim-more', id: labId(P, 'claim-more') }, [
       el('summary', { class: 'pc-more-sum' }, 'Why this is not a valuation'),
       el('p', { class: 'pc-more-body' }, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM_SHORT}`)])]));
@@ -51055,20 +51324,20 @@ function labIdentityAct(P, lab) {
   /* While its name is asked for, under the line, the form's Save is the
      one to press: one primary, not two. */
   if (lab.naming?.at === 'identity') return box;
-  if (lab.model && labAnswersPending(lab)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  if (lab.model && labAnswersPending(lab)) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labSaveAnswers(P, lab) }, labSaveAnswersWords(lab)));
   /* The sliders on a register record's column (#7): Save keeps it as a
      property of the reader's, tied to the record. */
-  else if (labColOpp(col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  else if (labColOpp(col)) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labNaming(P, lab, labOppNaming(col, 'identity')) }, `Save ${col.key} as a property`));
   /* The sliders on another property's column, moved (P6): Save keeps it as
      a scenario of that property. */
-  else if (col.prop && labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  else if (col.prop && labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
     `Save ${col.key} as a scenario${labMarked(col).length ? ' — the moved figures become yours' : ''}`));
-  else if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  else if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, labGuidedWords(lab, col)));
-  else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
     `Save ${col.key} as a scenario${labMarked(col).length ? ' — the moved figures become yours' : ''}`));
   else box.append(el('span', { class: 'lab-id-saved' }, 'Saved in this browser'));
@@ -51130,6 +51399,10 @@ const LAB_TILE_RESTS = {
    (L2). With none chosen, the three /property has always opened on. The
    objective decides what leads and nothing else: the columns below keep
    their order, and nothing is ranked. */
+/* THE ORDER OF THE FOUR (the 30 Oct 2026 audit, then the owner's Day 18, QT-D18-01,
+   31 Oct 2026): the purchase price first (labPriceTile), then the objective's
+   three — with none chosen, Cash required, Monthly position, Net yield. A
+   chosen objective keeps its own order after the price. */
 const labTileSet = (d) => dealObjective(d).tiles.map((key, i) => ({ key, level: i < 2 ? 1 : 2, rests: LAB_TILE_RESTS[key] }));
 /* A tile's label where the chain's is a sentence long. */
 const LAB_TILE_LABEL = { valueLessLoanAtExit: (d) => `Value less loan, ${labSaleWhen(d)}` };
@@ -51191,6 +51464,7 @@ function labTiles(P, lab) {
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
   const rec = lab.model ? pmFind(lab.model) : null;
   const grid = el('div', { class: 'lab-tiles', role: 'list', 'aria-label': rec ? `“${rec.name}” as saved` : 'The deal on the calculator' });
+  grid.append(labPriceTile(P, lab, d));
   for (const t of labTileSet(labAnswerInputs(lab) || d)) {
     const f = LAB_FIGURES.find(x => x.key === t.key);
     const v = run ? f.read(run.m, d) : null;
@@ -51206,54 +51480,30 @@ function labTiles(P, lab) {
     card.querySelector('.ls-card-sub').classList.add('lab-tile-sub');
     grid.append(card);
   }
-  grid.append(labNextTile(P, lab, d));
   return grid;
 }
-/* NEXT STEP: the first figure still the tool's (the review queue's order,
-   the one that moves the most first), entered where figures become the
-   reader's — the calculator, at its box; then Save; then Compare. Only for
-   the calculator's own deal: a saved property opened by a link while
-   another deal is on the calculator would open the wrong one there. */
-/* The figure in a word or two: the tile is half a phone's width. */
-const LAB_NEXT_NOUN = { price: 'price', rent: 'rent', sqft: 'built-up area', maintenance: 'maintenance', ratePct: 'rate', vacancyPct: 'vacancy',
-  downPct: 'deposit', apprecPct: 'growth rate', tenureYears: 'loan tenure', holdYears: 'holding period' };
-function labNextTile(P, lab, d) {
-  const onCalc = !lab.model || State.deal?.modelId === lab.model;
-  const q = d && onCalc ? propertyReviewQueue(d) : [];
-  const id = labId(P, 'next-go');
-  let kind, act, sub;
-  if (q.length) {
-    const f = q[0], path = `/property/calculator#d-${f.k}`;
-    kind = { kind: 'illustrative_default', words: evidenceOf('illustrative_default').label };
-    act = el('a', { class: 'lab-next-go', id, href: href(path), onclick: (e) => {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path);
-    } }, [`Replace the ${LAB_NEXT_NOUN[f.k] || f.label.toLowerCase()}`, el('span', { class: 'sr-only' }, ` — the sample ${f.label.toLowerCase()}, in the calculator`)]);
-    sub = `The sample’s: ${isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'}`;
-  } else if (!lab.model) {
-    kind = { kind: 'unsaved', words: 'Not saved' };
-    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, 'Save this property');
-    sub = 'Then compare its scenarios';
-  } else {
-    kind = { kind: 'saved', words: 'Saved' };
-    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => {
-      const r = P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`);
-      if (!r) return;
-      r.closest('.lab-cmp-card')?.scrollIntoView({ block: 'start' });
-      r.focus({ preventScroll: true });
-    } }, 'Compare scenarios');
-    sub = 'Scenarios side by side, below';
-  }
-  /* THE SYSTEM'S ACTION CARD: a title, one line, one call to action. */
-  /* "Not saved" and "Saved" are the property's state, not a figure's kind:
-     they keep the plain tag. */
-  const tag = EVIDENCE.some(e => e.id === kind.kind) ? labTag(kind)
-    : el('span', { class: 'lab-tag lab-tile-kind ls-badge', 'data-kind': kind.kind }, kind.words);
-  const card = lsActionCard({ title: 'Next step', line: sub, cta: act, badge: tag, cls: 'lab-tile lab-tile-next',
-    attrs: { role: 'listitem', 'data-tile': 'next', 'data-kind': kind.kind } });
+/* THE PURCHASE PRICE LEADS (the 30 Oct 2026 audit: price, then the monthly
+   position, the cash and the yield). It is the deal's own price, as the other
+   three tiles are the deal's figures, with its tag beside it — default while
+   it is the tool's figure, Yours once it is the reader's (pcFieldOwn, whose
+   word the boxes below carry). It has no action of its own: "Enter your
+   property figures" in the page's head is the one call (labEnter; Day 18,
+   QT-D18-01: only one of it and a "Replace with your price" on the tile),
+   and the first figure still the tool's is linked from "What these figures
+   rest on" (labRests), which is what the "Next step" tile was. */
+const labOnCalc = (lab) => !lab.model || State.deal?.modelId === lab.model;
+function labPriceTile(P, lab, d) {
+  const has = !!d && num0(d.price) > 0;
+  const own = has ? pcFieldOwn(d, 'price') : null;
+  /* The tile’s tag is the system’s kind badge, as the other three wear (a metric card holds one — build --check): "Illustrative default" while the price is the tool’s, "Yours · you supplied" once it is the reader’s. */
+  const tag = own ? labTag(labTileKind(d, ['price'])) : null;
+  if (tag) { tag.setAttribute('data-own', own); tag.id = labId(P, 'price-own'); }
+  const card = lsMetricCard({ label: 'Purchase price', value: has ? labMoney(num0(d.price)) : '—', badge: tag, level: 2,
+    sub: has ? null : 'Needs a purchase price', cls: 'lab-tile lab-tile-price', attrs: { role: 'listitem', 'data-tile': 'price' },
+    valueAttrs: { class: 'lab-tile-val', 'data-value': has ? String(num0(d.price)) : '' } });
   card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
   card.querySelector('.ls-card-label').classList.add('lab-tile-label');
-  card.querySelector('.ls-card-act').classList.add('lab-tile-val', 'lab-next-what');
-  card.querySelector('.ls-card-sub').classList.add('lab-tile-sub');
+  card.querySelector('.ls-card-sub')?.classList.add('lab-tile-sub');
   return card;
 }
 
@@ -51340,7 +51590,7 @@ function labSaveAnswers(P, lab) {
   for (const col of lab.cols) if (col.source === 'variant' && !col.prop) labFact(col, write);
   lab.answers = {};
   if (!labRebase(lab)) return false;
-  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, [labId(Q, 'id-save'), labId(Q, 'next-go'), labId(Q, 'rf-h')]);
+  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, [labId(Q, 'id-save'), labId(Q, 'rf-h')]);
   labAfterStructure(P, lab, { address: true });
   toast(rfOnly ? `Saved the refurbish-or-not figures to “${rec.name}”.` : `Saved what and how you are buying to “${rec.name}”: ${pqSummaryText(pmInputsOf(pmFind(rec.id)))}.`);
   return true;
@@ -51359,8 +51609,15 @@ function labFact(col, write) {
    inputs it reads are the property's (the asking price, the comparables
    named, the target), entered in the calculator and, for the target, here. */
 function labPriceSection(P, lab) {
-  const card = el('section', { class: 'card ls-section lab-pe', id: labId(P, 'pe'), 'aria-labelledby': labId(P, 'pe-h') });
-  card.append(el('h2', { class: 'h-card', id: labId(P, 'pe-h') }, 'The price, against your evidence'));
+  /* A CLOSED DISCLOSURE AFTER THE COMPARE-AND-SAVE CARDS (the 30 Oct 2026
+     audit: price, month, cash, assumptions, then compare and save): the
+     same contents, under "Check the price against your evidence", open as
+     the reader left it across a redraw (P.peOpen) and its summary kept in
+     focus (labDraw, by id). */
+  const card = el('details', { class: 'card ls-section lab-pe lab-disc', id: labId(P, 'pe'), open: P.peOpen ? '' : null });
+  card.addEventListener('toggle', () => { P.peOpen = card.open; });
+  card.append(el('summary', { class: 'lab-disc-sum', id: labId(P, 'pe-h') }, [el('h2', { class: 'h-card lab-disc-h' }, 'Check the price against your evidence'),
+    el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]));
   const route = el('p', { class: 'metaline pe-route', id: labId(P, 'pe-route') });
   const cards = el('div', { class: 'pe-cards-wrap', id: labId(P, 'pe-cards') });
   const d = labAnswerInputs(lab);
@@ -51625,7 +51882,7 @@ function labBarActions() {
   return [
     { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', path: '/property/calculator', aria: 'Analyse this property in the calculator' },
     { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare A, B and C', onclick: () => labGoTo('compare') },
-    { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, aria: s.aria, disabled: s.disabled, said: () => labBarSave().said, onclick: () => labBarSave().run?.() },
+    { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', aria: s.aria, disabled: s.disabled, said: () => labBarSave().said, onclick: () => labBarSave().run?.() },
   ];
 }
 /* Where the bar's Compare, and the property flow's Compare and Save
@@ -51782,6 +52039,12 @@ function labSpan(col, inp) {
    is — inputIsSeeded, the calculator's own test (the Day-10 pre-audit,
    CL-02): the deposit, rate, tenure, vacancy, growth and hold read
    "Evidence: Assumed" here and "Illustrative default" on the calculator. */
+/* THE 30 OCT 2026 AUDIT: the same line said under each of the boxes. A box now
+   carries the calculator’s own tag — "Default" while its figure is the
+   tool’s, "Yours" once it is the reader’s (pcFieldOwn) — and the sentence that
+   says what Default is stands once above them (P.els.defaultNote, labDraw). The longer
+   words stay as the tag’s title. */
+const labOwn = (d, k) => pcFieldOwn(d, k) || 'yours';
 function labEvidenceWords(d, k) {
   if (inputIsSeeded(d, k)) return 'Illustrative default — not yours, and not from any market';
   return `Evidence: ${evidenceOf(shownEvidence(d, k)).label}`;
@@ -51877,7 +52140,8 @@ function labKnob(P, lab, col, inp) {
   ctl.append(knob.reset);
   const ft = el('div', { class: 'lab-knob-ft' });
   const tags = el('div', { class: 'lab-tags' });
-  knob.ev = el('span', { class: 'lab-tag', id: eid }, labEvidenceWords(col.work, k));
+  const own0 = labOwn(col.work, k);
+  knob.ev = el('span', { class: `lab-tag${own0 === 'default' ? ' is-default' : ''}`, id: eid, title: labEvidenceWords(col.work, k), 'data-own': own0 }, own0 === 'default' ? 'Default' : 'Yours');
   knob.whatIf = el('span', { class: 'lab-tag lab-tag-whatif is-idle', id: knob.ids.wid }, 'What-if — not saved, no evidence attached');
   tags.append(knob.ev, knob.whatIf);
   /* COMPUTED, NOT APPROVED, IN SIGHT ON A PHONE (the release re-check of
@@ -52036,7 +52300,14 @@ function labWireRange(P, lab, range, k) {
   });
 }
 
-/* THE CHAIN: seven rows in the owner's order, and the grade. */
+/* THE CHAIN: the rows, and the grade. THE FOUR THAT STAND (the 30 Oct 2026
+   audit asked for the cash required, the monthly position and the yield
+   (Day 18's order) before the detail, the repayment being what the month is made of): the
+   other four — the commitment, the break-even occupancy, the value less loan
+   and the rate of return if sold — are folded under "N more figures", in the
+   page whole and closed (a served page and the coverage frames read them
+   there), open as the reader left them (P.chainMoreOpen). */
+const LAB_CHAIN_SHOWN = ['safeCashRequired', 'cashflowMonthly', 'netYield', 'instalment'];
 function labChain(P, lab, col) {
   const card = el('section', { class: 'card ls-section lab-chain-card', 'aria-labelledby': labId(P, 'chain-h') });
   const bl = labBaseline(lab, col);
@@ -52046,7 +52317,9 @@ function labChain(P, lab, col) {
   ]));
   const list = el('div', { class: 'lab-chain' });
   const d = col.work;
-  for (const f of LAB_FIGURES) {
+  const folded = LAB_FIGURES.filter(f => !LAB_CHAIN_SHOWN.includes(f.key));
+  const moreBody = el('div', { class: 'lab-chain-more-body' });
+  for (const f of [...LAB_CHAIN_SHOWN.map(k => LAB_FIGURES.find(x => x.key === k)), ...folded]) {
     const det = el('details', { class: 'lab-row', data: { row: f.key } });
     const value = el('span', { class: 'lab-val num', data: { lab: f.key, labFmt: f.fmt }, 'data-value': '' }, '—');
     const deltaEye = el('span', { class: 'lab-delta-mark', 'aria-hidden': 'true' }, '');
@@ -52067,7 +52340,7 @@ function labChain(P, lab, col) {
     const where = labWhereEntered(lab, col, f.key);
     if (where) { body.append(where); (P.els.where ||= []).push(where); }
     det.append(body);
-    list.append(det);
+    (LAB_CHAIN_SHOWN.includes(f.key) ? list : moreBody).append(det);
     P.els.chain[f.key] = { value, deltaEye, deltaEar, note, label, formula, fmt: f.fmt, paidBox, sum, det, kind, kindWord: kind.lastChild };
     /* A row's formula is written while it is open, and when it opens. */
     det.addEventListener('toggle', () => { if (det.open) labPaintPanel(P); });
@@ -52079,6 +52352,12 @@ function labChain(P, lab, col) {
       labShowFormula(P, f.key);
     });
   }
+  const more = el('details', { class: 'lab-chain-more', id: labId(P, 'chain-more'), open: P.chainMoreOpen ? '' : null });
+  more.addEventListener('toggle', () => { P.chainMoreOpen = more.open; });
+  more.append(el('summary', { class: 'lab-chain-more-sum', id: labId(P, 'chain-more-btn') }, [
+    el('span', { class: 'lab-chain-more-name' }, `${folded.length} more figures`),
+    el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]), moreBody);
+  list.append(more);
   card.append(list);
   if (labPaid(d)) {
     const paid = el('div', { class: 'lab-paid-figs', id: labId(P, 'paid') });
@@ -52100,6 +52379,9 @@ function labChain(P, lab, col) {
   seeWhy.setAttribute('aria-controls', labId(P, 'grade-why'));
   card.append(grade);
   P.els.grade = { letter, verdict, gate, seeWhy };
+  /* What the figures rest on, once, under the grade (labRests). */
+  const rests = P.compact ? null : labRests(P, lab);
+  if (rests) card.append(rests);
   return card;
 }
 
@@ -52200,22 +52482,25 @@ function labShowFormula(P, key) {
   const f = LAB_FIGURES.find(x => x.key === key);
   if (f) liveSay(`How ${f.label(labActive(LAB[P.key]).work).toLowerCase().replace(/\bvp\b/g, 'VP')} is worked out, in the evidence beside the figures.`);
 }
-/* THE SYSTEM'S ALERT CARD: how many of the figures behind these results
-   are still the tool's, and where they are reviewed — the calculator's
-   review list (/property/calculator#review). Only for the calculator's own
-   deal, as the next step: another deal is not the one there. */
-function labAlert(P, lab) {
-  const onCalc = !lab.model || State.deal?.modelId === lab.model;
+/* "WHAT THESE FIGURES REST ON", ONCE (the 30 Oct 2026 audit): the grade card's
+   long sentence ("4 gates; the most serious: 4 of the 10 sample inputs…")
+   and the alert bar under it ("10 sample inputs need evidence · Review →")
+   gave two counts and said it twice. It is the calculator's own block
+   (pcQuickRests, 75-property-grade.js): one count of the inputs still the
+   tool's, which of them hold back the research grade, one "Review the
+   defaults →" and a closed "Why these are defaults". Its link is what the
+   "Next step" tile was: the first figure still the tool's, entered where
+   figures become the reader's — the calculator, at its box — and only for
+   the calculator's own deal, as the next step was: another deal is not the
+   one there. Counted on the subject’s own figures — the deal on the
+   calculator, or a saved property as saved — as the next step and the bar
+   were, never a column’s what-ifs: a move marks nothing as the reader’s, so
+   it is drawn with the panel, not at a tick. */
+function labRests(P, lab) {
   const d = labSubjectInputs(lab);
-  const q = d && onCalc ? propertyReviewQueue(d) : [];
-  if (!q.length) return null;
-  /* Named as the calculator names them (CL-02): "sample inputs". Without
-     the list of three it carried: the grade beside it names the four the
-     answer rests on, and the review it opens lists all of them — the
-     words the evidence tags took (the Day-10 pre-audit, CL-02: the
-     lab-words count stays where it was). */
-  return lsAlertCard({ text: `${q.length} sample input${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
-    cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
+  const q = d ? propertyReviewQueue(d) : [];
+  const go = q.length && labOnCalc(lab) ? { path: `/property/calculator#d-${q[0].k}`, id: labId(P, 'review') } : null;
+  return (d && pcQuickRests(d, q, { go, id: labId(P, 'rests-box') })) || null;
 }
 /* Where a figure is entered, only while the column IS the calculator's
    deal and unmoved: a plain link from any other column would open a
@@ -52685,6 +52970,16 @@ function labCommits(P, lab, col) {
     el('p', { class: 'pc-more-body lab-commit-why' }, why.join(' '))]);
   more.addEventListener('toggle', () => { P.saveMoreOpen = more.open; });
   card.append(more);
+  /* The optional ELS link (the owner's Day 18 instructions, 31 Oct 2026): one quiet
+     text link to the calculator's panel (pcElsPanel, 75-property-grade.js). The
+     address carries nothing of the deal; nothing is needed from it to compare or keep.
+     The brief it opens is the calculator's deal, so the link stands only where A is that
+     deal, and says so where the column kept is another or has moved (the 31 Oct review). */
+  const elsOn = (c) => (c.prop ? !!labColRecId(lab, c) && State.deal?.modelId === labColRecId(lab, c) : !lab.model || State.deal?.modelId === lab.model);
+  const elsA = lab.cols.find(c => c.key === 'A');
+  if (elsA && elsOn(elsA)) card.append(el('p', { class: 'metaline lab-els' }, el('a', { id: labId(P, 'els'), href: href(ELS_PLAN_PATH), onclick: (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(ELS_PLAN_PATH);
+  } }, elsOn(col) && !labMoveCount(col) ? ELS_ACTION_WORDS : `${ELS_ACTION_WORDS} — for the deal on the calculator`)));
   return card;
 }
 /* The column's figures as a commit writes them: the moved ones marked as
@@ -52763,7 +53058,7 @@ function labNameForm(P, lab, col) {
     el('div', { class: 'lab-name-acts' }, [
       el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: labId(P, 'name-save') }, 'Save'),
       el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, 'name-cancel'), onclick: () => {
-        const back = lab.naming?.at === 'identity' ? ['id-save', 'next-go'] : [isOpp ? 'save-opp' : isProp ? 'save-first' : 'save'];
+        const back = lab.naming?.at === 'identity' ? ['id-save'] : [isOpp ? 'save-opp' : isProp ? 'save-first' : 'save'];
         lab.naming = null; labDraw(P, back.map(x => labId(P, x)));
       } }, 'Cancel'),
     ]));
@@ -52816,7 +53111,7 @@ function labSaveProperty(P, lab, name, scenario = null) {
   /* The keyboard on the next thing to do with the column, which the
      property's save leaves enabled — beside the identity line where the
      save was asked for there. */
-  labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'save'), labId(P, 'open')]);
+  labDraw(P, [...(fromId ? [labId(P, 'id-save')] : []), labId(P, 'save'), labId(P, 'open')]);
   labAfterStructure(P, next, { address: true });
 }
 function labCommitScenario(P, lab, name, { withProperty = null } = {}) {
@@ -52845,7 +53140,7 @@ function labCommitScenario(P, lab, name, { withProperty = null } = {}) {
   lab.naming = null;
   /* Saved, the button that saved it is disabled: the keyboard goes to the
      next thing to do with the column, not to <body>. */
-  labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'open'), labId(P, `col-${col.key}`)]);
+  labDraw(P, [...(fromId ? [labId(P, 'id-save')] : []), labId(P, 'open'), labId(P, `col-${col.key}`)]);
   labAfterStructure(P, lab, { address: true });
   toast(withProperty
     ? `Saved “${rec.name}” and ${col.key} as its scenario “${sc.name}” — both are listed in My properties${yours}.${labGateWords(next)}`
@@ -53656,12 +53951,13 @@ function labPaintPanel(P, { initial = false } = {}) {
       labAttr(kn.range, 'aria-describedby', desc);
       labAttr(kn.num, 'aria-describedby', desc);
     }
-    if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', inputIsSeeded(d, inp.k)); }
+    if (kn.ev) { const own = labOwn(d, inp.k); labText(kn.ev, own === 'default' ? 'Default' : 'Yours'); labAttr(kn.ev, 'data-own', own); labAttr(kn.ev, 'title', labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', own === 'default'); }
     if (kn.zero) kn.zero.hidden = !(m && m.zeroRateModelled);
     if (kn.recover) labText(kn.recover, num0(d.renoValueRecoveryPct) > 0
       ? `Moves the cash required and, through the ${labPctIn(num0(d.renoValueRecoveryPct))} of it recovered at the sale, the sale value — not the rent you entered.`
       : 'Moves the cash required, and the gains tax it is allowed against — none of it is recovered at the sale (0%, set in the calculator), and it does not change the rent you entered.');
   }
+  if (P.els.defaultNote) P.els.defaultNote.hidden = !LAB_INPUTS.some(inp => labApplies(d, inp.k) && labOwn(d, inp.k) === 'default');
   /* What the group says is the reader's own, as a slider moves (QT-D15-02). */
   if (P.els.refineState) labText(P.els.refineState, labRefineCount(P, lab, col).words);
   /* The chain. */
@@ -53726,7 +54022,10 @@ function labPaintPanel(P, { initial = false } = {}) {
     labText(P.els.grade.letter, LAB_FORMATS.grade(g?.grade));
     labAttr(P.els.grade.letter, 'data-value', g?.grade || '');
     labText(P.els.grade.verdict, g ? g.verdict : 'Needs a purchase price');
-    labText(P.els.grade.gate, worst ? `${g.gates.length} gate${g.gates.length === 1 ? '' : 's'}; the most serious: ${worst.text}` : g ? 'No gate is open.' : '');
+    /* The grade's one line is a blocker that is not the defaults' — those are said once, in the block below (labRests); every gate is under "See why". */
+    const gateSay = worst && worst.id !== 'illustrative' ? `Most serious: ${worst.text}` : '';
+    labText(P.els.grade.gate, gateSay);
+    P.els.grade.gate.hidden = !gateSay;
     labText(P.els.grade.whyLetter, g?.grade || 'there is no grade');
     if (initial || P.els.grade.why.open) {
       const rank = { critical: 0, serious: 1, warning: 2 };
@@ -53915,7 +54214,28 @@ function labRefresh() {
 /* The lede (Day-15 review QT-D15-02, 28 Oct 2026): what the page does for the
    reader, first; the Beta badge beside the title says beta, and the second
    sentence keeps it said once in words (served-check contact-status). */
-const LAB_LEDE = 'See how your purchase price, financing and rent affect the cash you need and your monthly position. The Scenario Lab is beta.';
+/* Day 18 (QT-D18-01, 31 Oct 2026; the owner's wording): the introduction under the heading,
+   replacing "See how your purchase price, financing and rent affect the cash you need and your
+   monthly position. The Scenario Lab is beta." — the Beta badge beside the title says beta. */
+const LAB_LEDE = 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.';
+/* THE PAGE'S ONE PRIMARY ACTION (Day 18; the coordinator's answer of 31 Oct 2026):
+   "Enter your property figures" is a link to the calculator's purchase price box
+   (/property/calculator#d-price, the address "Review the defaults" opens too, and
+   the calculator's own arrival puts the keyboard in it), so the figure typed is
+   the deal's own — the Lab's boxes only move what-ifs, which no column's tile
+   reads as the reader's. A real link: it works with no script, opens in a new
+   tab, and goes through navigate() on a plain click. Where it goes is said to a
+   screen reader (labEnterWhy), not on the page. Save, which was the primary, is a
+   secondary beside the identity line and in the phone's bar. While a name is
+   asked for, that form's Save is the one to press and this is a secondary for
+   the time (labDraw). */
+const LAB_ENTER_WORDS = 'Enter your property figures';
+const LAB_ENTER_PATH = '/property/calculator#d-price';
+function labEnterLink() {
+  const go = (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(LAB_ENTER_PATH); };
+  return [el('a', { class: 'btn btn-primary lab-enter', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go }, LAB_ENTER_WORDS),
+    el('span', { class: 'sr-only', id: 'lab-enter-why' }, 'Opens the calculator')];
+}
 VIEWS.propertyLab = () => {
   labArrive();
   /* On the layout system (ls-page: 37-layout-system.js, styles.css). */
@@ -53927,7 +54247,7 @@ VIEWS.propertyLab = () => {
      itself before it showed anything): where the figures come from — the
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: LAB_LEDE }));
+    lede: LAB_LEDE, action: labEnterLink() }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the
@@ -58818,7 +59138,7 @@ function scanBotResultText(r) {
   return `${head}${extra.length ? `; ${extra.join('; ')}` : ''}.${tail}`;
 }
 function scanBotCard() {
-  const det = el('details', { class: 'card scan-bot', open: scanBotState.open ? '' : null });
+  const det = el('details', { class: 'card scan-bot', id: 'scan-bot', open: scanBotState.open ? '' : null });
   det.append(el('summary', {}, [el('span', { class: 'h-card' }, 'Add a TradingView bot’s signals'),
     el('span', { class: 'caption scan-bot-sub' }, 'The “Multi-Timeframe Trading Bot” script’s alerts, as setups: entries on the daily bar, the trade timeframe on the last closed weekly and monthly bar.')]));
   const body = el('div', { class: 'scan-bot-body' });
@@ -58826,9 +59146,63 @@ function scanBotCard() {
   let built = false;
   const fill = () => { built = true; body.replaceChildren(...scanBotForm()); };
   if (scanBotState.open) fill();
-  det.addEventListener('toggle', () => { scanBotState.open = det.open; if (det.open && !built) fill(); });
+  /* A details drawn with its open attribute fires "toggle" once as it is
+     inserted; only a change is the reader opening it. */
+  let was = det.open;
+  det.addEventListener('toggle', () => {
+    scanBotState.open = det.open;
+    if (det.open && !built) fill();
+    /* Opened by the reader, it is in an open Advanced. */
+    if (det.open && !was) scanAdvOpenAround(det);
+    was = det.open;
+  });
   return det;
 }
+
+/* THE ADVANCED DETAILS OF THE SETUPS PAGE (the 30 Oct 2026 audit: "place
+   local-worker commands in an advanced section"). One closed details holds
+   what a first setup does not need — the TradingView import, "Evaluate now"
+   and, with nothing saved anywhere, the worker's file. Its open state is
+   kept here, as the bot card's is, because every save redraws the page. */
+const scanAdvState = { open: false };
+const SCAN_ADV_IDS = ['scan-advanced', 'scan-bot', 'scan-export', 'scan-evaluate'];
+function scanAdvOpenAround(node) {
+  scanAdvState.open = true;
+  const adv = node.closest?.('details.scan-adv');
+  if (adv) adv.open = true;
+}
+function scanAdvancedCard(cards) {
+  const det = el('details', { class: 'scan-run-d scan-adv', id: 'scan-advanced', open: scanAdvState.open || scanBotState.open ? '' : null });
+  det.append(el('summary', { class: 'scan-run-sum' }, 'Advanced — the local worker, TradingView signals and “Evaluate now”'));
+  det.append(el('div', { class: 'scan-run-body' }, [
+    el('p', { class: 'body' }, 'You do not need any of this to write and save a setup. It is for running the worker on your own computer, which is not available to download yet, and for adding a TradingView script’s alerts as setups.'),
+    ...cards,
+  ]));
+  /* Closed by the reader, the TradingView card inside it is closed too: an open card in a closed Advanced is a button nobody can reach, and the page would reopen Advanced for it at the next redraw. */
+  det.addEventListener('toggle', () => { scanAdvState.open = det.open; if (!det.open) scanBotState.open = false; });
+  return det;
+}
+/* An address that names something inside Advanced opens it first, once per
+   arrival (the page redraws on every save, and a reader who has closed it
+   keeps it closed), and scrolls to it. Returns the id it names, or null. */
+let scanAdvKey = null;
+function scanAdvLeft() { scanAdvKey = null; }
+function scanAdvancedAddress() {
+  let id = '';
+  try { id = decodeURIComponent(location.hash.replace(/^#/, '')); } catch { /* a malformed escape names nothing */ }
+  if (!SCAN_ADV_IDS.includes(id)) return null;
+  const key = location.pathname + location.hash;
+  if (key === scanAdvKey) return null;
+  scanAdvKey = key;
+  scanAdvState.open = true;
+  if (id === 'scan-bot') scanBotState.open = true;
+  return id;
+}
+/* The address changed while the page is open (a link to a card, or the
+   reader editing the address). */
+window.addEventListener('hashchange', () => {
+  if (State.view === 'scannerSetups') { scanAdvLeft(); render(); }
+});
 function scanBotForm() {
   const out = [];
   const signals = scanBotSignals();
@@ -58970,6 +59344,7 @@ function scanBoundaryDetails() {
    ===================================================================== */
 VIEWS.scannerSetups = () => {
   const wrap = scanPage();
+  const addressed = scanAdvancedAddress();
   wrap.append(scanSubnav('setups'));
   const st = scanStoreRead();
   const setups = scanBrowserSetups({ st });
@@ -59029,17 +59404,25 @@ VIEWS.scannerSetups = () => {
   const exp = scanExportControls({ primary: off.some(r => r.state === 'NOT_EXPORTED' || r.state === 'BROWSER_ONLY') });
   exp.style.marginTop = 'var(--md)';
   dc.append(exp);
-  wrap.append(dc);
-  /* The reader's TradingView bot's alerts, as setups — below the export,
-     which is what makes them run. */
-  wrap.append(scanBotCard());
+  dc.id = 'scan-export';
+  /* THE 30 OCT 2026 AUDIT: the page opened on the worker's file, the
+     TradingView import and "Evaluate now", and its first sight of a way to
+     start — "Create a setup" — came fourth. The reader's setups, or the empty
+     state with "Create a setup", now follow the header; the worker's file
+     (the reader's backup, which is also where "Adopt from file" lives) follows
+     them as soon as there is anything in either copy to keep in step, and
+     with nothing saved anywhere it goes into the Advanced details below. */
+  const dcShown = !!(setups.length || drift.length || fileCheck?.problems.length);
+  /* The reader's TradingView bot's alerts, as setups: in Advanced, below the
+     export, which is what makes them run. */
+  const botCard = scanBotCard();
 
   /* ---- the setups ---- */
   if (!setups.length) {
     const e = el('div', { class: 'card scan-empty' });
     e.append(el('h2', { class: 'h-card' }, 'No setups saved in this browser'));
     e.append(el('p', { class: 'body', style: 'margin:6px auto 0' }, fileOnly.length
-      ? `The worker’s file holds ${scanPlural(fileOnly.length, 'setup')} this browser has not adopted. Adopt them above to see their versions here and edit them in the builder, or write a new one.`
+      ? `The worker’s file holds ${scanPlural(fileOnly.length, 'setup')} this browser has not adopted. Adopt them below to see their versions here and edit them in the builder, or write a new one.`
       : 'Write a setup from conditions you choose — the builder offers every indicator and operator the engine evaluates, and refuses a comparison of two unrelated scales.'));
     /* One primary action on the page (Release B, B5): the head's "New setup"
        is it, and this, the same address, stays quiet beside the words. */
@@ -59077,6 +59460,7 @@ VIEWS.scannerSetups = () => {
     });
     wrap.append(list);
   }
+  if (dcShown) wrap.append(dc);
   if (deleted.length) {
     const det = el('details', { class: 'card' });
     det.append(el('summary', { class: 'h-card' }, `Deleted — ${scanPlural(deleted.length, 'setup')}`));
@@ -59092,7 +59476,7 @@ VIEWS.scannerSetups = () => {
   /* ---- evaluate now, on either copy ---- */
   const history = scanHistoryFile;
   const haveHistory = !!(history?.series && Object.keys(history.series).length);
-  const ev = el('div', { class: 'card' });
+  const ev = el('div', { class: 'card', id: 'scan-evaluate' });
   ev.append(cardHead('Evaluate now — nothing recorded', haveHistory
     ? 'Runs the engine the worker runs, here, on data/price-history.json as the worker reads it. The worker writes the record; this writes nothing.'
     : 'No price history is loaded, so there is nothing to evaluate. This site ships none: no price it could ship is licensed for redistribution.', null, haveHistory ? { kind: 'yours', fine: 'From your own closes' } : { kind: 'unavailable', fine: 'No price history loaded' }));
@@ -59107,8 +59491,9 @@ VIEWS.scannerSetups = () => {
     el('button', { class: 'btn btn-ghost btn-sm', disabled: haveHistory && fileSetups.length ? null : '', onclick: () => run(fileSetups, 'the setups in data/scan-setups.json, as the worker would') }, 'Evaluate the file’s setups'),
   ]));
   ev.append(host);
-  wrap.append(ev);
+  wrap.append(scanAdvancedCard([...(dcShown ? [] : [dc]), botCard, ev]));
   wrap.append(scanBoundaryDetails());
+  if (addressed) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(addressed)?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })));
   return wrap;
 };
 
@@ -61370,9 +61755,11 @@ function scanExample() {
 }
 /* The chart at bar i (0-based): the closes and the EMA up to it, none after,
    on the whole series' scale, with the bar marked. No words in it: its two
-   ends' bar numbers are the line under it, in the page's type. */
-function scanExSvg(ex, i) {
-  const W = 320, H = 116, L = 4, R = 4, T = 10, Bt = 8;
+   ends' bar numbers are the line under it, in the page's type. H is its
+   height in the viewBox (116; the homepage's preview draws it at 62, the
+   30 Oct 2026 audit's example output, from the same series). */
+function scanExSvg(ex, i, { H = 116 } = {}) {
+  const W = 320, L = 4, R = 4, T = 10, Bt = 8;
   const vals = [...ex.A.closes, ...ex.ema.filter(isNum)];
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const x = (k) => L + k * (W - L - R) / (ex.n - 1);
@@ -61479,8 +61866,12 @@ VIEWS.scannerDashboard = () => {
      the long "Whether each setup is active…" note, which the answers below
      give themselves, is gone. The layout system holds a lede to one line, so
      the first sentence is the lede and the rest the note under it. */
-  const head = pageHead({ title: 'Scanner dashboard', lede: 'Create and save your scanning rules here.', cls: 'scan-hd-full',
-    note: 'Scanning needs price history and the local worker on your own computer, which is not available to download yet. This website does not run scans or supply prices.' });
+  /* QT-D18-02 (31 Oct 2026): the lede says what the page is for, in the
+     owner's words, and the limitation is stated once, plainly and darker
+     than a note (.scan-hd-full), where it read twice over in a longer,
+     greyer sentence. */
+  const head = pageHead({ title: 'Scanner dashboard', lede: 'Create and save rules for checking price history you supply.', cls: 'scan-hd-full',
+    note: 'The website does not run scans or supply prices. The local worker is not available to download yet.' });
   wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
@@ -61506,7 +61897,7 @@ VIEWS.scannerDashboard = () => {
     if (target.tagName === 'DETAILS') target.open = true;
     target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     (target.querySelector('summary') || target).focus?.({ preventScroll: true });
-  } }, 'Run locally');
+  } }, 'Run locally (advanced)');
   /* The layout system's section names itself with a heading; this one is for
      a screen reader — the steps are their own heading to a sighted reader. */
   wrap.append(el('section', { class: 'card scan-steps-card ls-section', 'aria-labelledby': 'scan-steps-hd' }, [el('h2', { id: 'scan-steps-hd', class: 'sr-only' }, 'From a rule to a recorded result'), el('ol', { class: 'scan-steps', role: 'list' }, [
@@ -61514,10 +61905,21 @@ VIEWS.scannerDashboard = () => {
       browserSetups.length ? `${browserSetups.length} saved in this browser` : 'None yet',
       [createPath ? scanOpsLink(createPath, sc.action, { class: 'btn btn-primary' }) : null,
        browserSetups.length ? scanOpsLink('/app/scanner/setups', 'Your setups', { class: 'scan-step-link' }) : null]),
-    step(2, 'Price history', 'Needed',
+    /* THE 30 OCT 2026 AUDIT: a red "Unavailable" badge beside "None supplied"
+       read as a fault, when the price history is the reader's to supply and
+       this site is not meant to hold any. The state is a plain sentence, the
+       tag says whose it is, and one line says what the file holds, as the
+       engine reads it (scanBars, 24-market-engine.js: series {SYM: {date:
+       close}}, and each optional: volume, ohlc [open, high, low]) and where
+       the worker reads it (scanner/scan.mjs, data/price-history.json; the
+       file's name stays inside "Advanced: run locally", where served-check
+       keeps the data files). The tab bar's badges are the shared register's
+       and stay. */
+    step(2, 'Price history', hist ? 'Needed' : 'You supply it',
       hist ? `${scanOpsPlural(hist.symbols.length, 'series', 'series')}, newest bar ${hist.newestBar || '—'}`
-           : [el('span', { class: 'status-badge status-unavailable', title: 'This site ships no prices; the worker reads the history you supply.' }, 'Unavailable'), ' None supplied'],
-      null),
+           : 'None supplied — this site ships no prices',
+      null,
+      hist ? null : 'The worker reads your price history on your own computer: for each symbol, a close for each date, and optionally open, high, low and volume.'),
     step(3, 'Run locally', 'Needs the worker on your computer', 'Not available to download yet', runLink),
     step(4, 'Review recorded results', 'Recorded by the worker',
       lastRun ? `Last scan ${scanOpsDay(lastRun.finishedAt || lastRun.startedAt)}` : lastTry ? `No scan has succeeded; latest attempt ${scanOpsDay(lastTry.startedAt)}` : 'No scan recorded',
@@ -61655,7 +62057,10 @@ VIEWS.scannerDashboard = () => {
      follows it, last. */
   const files = el('section', { class: 'scan-run-part' }, [cardHead('Your files', 'Open the worker’s files from your own disk to read them on these pages.'), scanOpsOpenFiles()]);
   wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
-    el('summary', { class: 'scan-run-sum' }, 'Run locally'),
+    /* The 30 Oct 2026 audit: worker commands belong in an advanced section.
+       QT-D18-02 (31 Oct) words the summary "Advanced: run locally". The
+       body says there is nothing to download yet, as the head and step 3 do. */
+    el('summary', { class: 'scan-run-sum' }, 'Advanced: run locally'),
     el('div', { class: 'scan-run-body' }, [
       el('p', { class: 'body' }, 'The worker is not distributed yet; setups can be tested here on prices you supply. If you hold its files, open them below.'),
       run, files, mon,
@@ -65149,7 +65554,7 @@ const checksServed = (function checksServed(checks, journeys, suites) {
     + (forSite ? ' · ' + target + (ciAt ? ', ' + ciAt : '') : '') + ' · <a class="journey-line-link" href="#health-kinds-h">details</a>';
   return { kinds: rows, ci, status, commit: target };
 });
-const CHECK_SUITES = [{"id":"model-test","name":"model-test","kind":"numbers"},{"id":"equity-test","name":"equity-test","kind":"numbers"},{"id":"scanner-test","name":"scanner-test","kind":"numbers"},{"id":"ingest-test","name":"ingest-test","kind":"numbers"},{"id":"history-store-test","name":"history-store-test","kind":"numbers"},{"id":"data-check","name":"data-check","kind":"data"},{"id":"register-check","name":"register-check","kind":"data"},{"id":"served-check-data","name":"served-check, data blocks","kind":"data"},{"id":"served-check","name":"served-check, pages","kind":"layout"},{"id":"build-check","name":"build --check","kind":"layout"},{"id":"prerender-check","name":"prerender --check","kind":"layout"},{"id":"sweep","name":"sweep","kind":"layout"},{"id":"coverage-frames","name":"coverage-frames","kind":"layout"},{"id":"mobile","name":"mobile","kind":"layout"}];
+const CHECK_SUITES = [{"id":"model-test","name":"model-test","kind":"numbers"},{"id":"equity-test","name":"equity-test","kind":"numbers"},{"id":"register-test","name":"register-test","kind":"numbers"},{"id":"scanner-test","name":"scanner-test","kind":"numbers"},{"id":"ingest-test","name":"ingest-test","kind":"numbers"},{"id":"history-store-test","name":"history-store-test","kind":"numbers"},{"id":"data-check","name":"data-check","kind":"data"},{"id":"register-check","name":"register-check","kind":"data"},{"id":"served-check-data","name":"served-check, data blocks","kind":"data"},{"id":"served-check","name":"served-check, pages","kind":"layout"},{"id":"build-check","name":"build --check","kind":"layout"},{"id":"prerender-check","name":"prerender --check","kind":"layout"},{"id":"sweep","name":"sweep","kind":"layout"},{"id":"coverage-frames","name":"coverage-frames","kind":"layout"},{"id":"mobile","name":"mobile","kind":"layout"}];
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';
 /* A recorded run older than this says so. Runs are recorded at least twice
