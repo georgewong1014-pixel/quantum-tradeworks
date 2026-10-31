@@ -6539,7 +6539,7 @@ try {
           { const b = document.getElementById('d-price'); if (b) { b.value = '612000'; b.dispatchEvent(new Event('change', { bubbles: true })); await w(900); } }
           navigate('/property'); await w(600);
           { const pt3 = document.querySelector('#views .lab-tile[data-tile="price"]');
-            out.typed = { value: t(pt3?.querySelector('.lab-tile-val')), tag: t(pt3?.querySelector('[data-own]')), own: pt3?.querySelector('[data-own]')?.dataset.own, rests: !!document.getElementById('lab-rests-box') }; }
+            out.typed = { value: t(pt3?.querySelector('.lab-tile-val')), tag: t(pt3?.querySelector('[data-own]')), own: pt3?.querySelector('[data-own]')?.dataset.own, rests: t(document.querySelector('#views .pc-rests-text > strong')) }; }
         } finally {
           State.deal = JSON.parse(JSON.stringify(kept)); saveDeal();
         }
@@ -6556,7 +6556,7 @@ try {
       if (r.enter.tag !== 'A' || r.enter.href !== '/property/calculator#d-price' || r.enter.why !== 'Opens the calculator') p.push(`"Enter your property figures" is ${JSON.stringify(r.enter)}, not a link to /property/calculator#d-price described by "Opens the calculator"`);
       /* The journey: press the link, type a price in the calculator's box, return to the Lab: the Purchase price tile reads it, "Yours". */
       if (r.arrive.path !== '/property/calculator' || r.arrive.focus !== 'd-price') p.push(`pressing the link: ${JSON.stringify(r.arrive)}`);
-      if (r.typed.value !== 'RM612,000' || !/^Yours/.test(r.typed.tag) || r.typed.own !== 'yours' || r.typed.rests) p.push(`after typing a price in the calculator and returning, the Purchase price tile reads ${JSON.stringify(r.typed)}, not RM612,000 with its Yours badge`);
+      if (r.typed.value !== 'RM612,000' || !/^Yours/.test(r.typed.tag) || r.typed.own !== 'yours' || r.typed.rests !== '9 inputs') p.push(`after typing a price in the calculator and returning, the Purchase price tile reads ${JSON.stringify(r.typed)}, not RM612,000 with its Yours badge and nine inputs left in "What these figures rest on"`);
       if (H.chip !== 'Not a valuation' || H.claim !== 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.' || H.more !== 'Why this is not a valuation' || H.moreOpen) p.push(`the claim beside the chip: ${JSON.stringify({ chip: H.chip, claim: H.claim, more: H.more, open: H.moreOpen })}`);
       if (r.rests.n !== 1 || r.rests.head !== 'What these figures rest on' || r.rests.links !== 1) p.push(`the rests block: ${JSON.stringify(r.rests)}`);
       if (r.rests.bar || r.rests.gateLine) p.push(`the alert bar or the grade's gate sentence is still said: ${JSON.stringify({ bar: r.rests.bar, gate: r.rests.gateLine })}`);
