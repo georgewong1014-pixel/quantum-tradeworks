@@ -1639,12 +1639,19 @@ function navigate(path, { push = true, replace = false } = {}) {
      research tab riding onto /discover reached a panel lookup with no such
      panel and threw. It is also dropped when the target route names its own
      tab in the path. A path ending in a bare "?" means "and no query". */
+  /* A hash belongs after the query, never inside it (the 31 Oct 2026 review):
+     "/property/calculator#els-plan" with ?personal=1 kept came out as
+     "#els-plan?personal=1" — the section never opened and the parameter was
+     the hash's. It is split off here, and put back last, for every caller. */
+  const hashAt = path.indexOf('#');
+  const hash = hashAt > -1 ? path.slice(hashAt) : '';
+  const bare = hashAt > -1 ? path.slice(0, hashAt) : path;
   let url;
-  if (path.includes('?')) {
+  if (bare.includes('?')) {
     /* A path that brings its own query (a footer link to /learn?tab=scoring)
        still keeps the two global parameters, as every other route change
        does; one the path names itself wins. */
-    const [p, s0] = path.split('?');
+    const [p, s0] = bare.split('?');
     const q = new URLSearchParams(s0), here = new URLSearchParams(location.search);
     for (const k of GLOBAL_PARAMS) if (here.has(k) && !q.has(k)) q.set(k, here.get(k));
     const s = q.toString();
@@ -1655,13 +1662,13 @@ function navigate(path, { push = true, replace = false } = {}) {
        own view; the property calculator's ?city, ?district and ?d= mean
        nothing on /learn and used to ride there. Leaving a view keeps only the
        two that are global — ?personal=1 and ?real=0, read at boot. */
-    const target = matchRoute(path);
-    const q = keptQuery(path);
+    const target = matchRoute(bare);
+    const q = keptQuery(bare);
     if (target && target.view === State.view && target.tab) q.delete('tab');
     const s = q.toString();
-    url = href(path) + (s ? `?${s}` : '');
+    url = href(bare) + (s ? `?${s}` : '');
   }
-  url = url.replace(/\?$/, '');
+  url = url.replace(/\?$/, '') + hash;
   if (replace) history.replaceState({ path }, '', url);
   else if (push && (location.pathname + location.search) !== url) history.pushState({ path }, '', url);
   const before = State.view;

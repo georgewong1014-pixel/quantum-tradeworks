@@ -1042,6 +1042,9 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
      a folder of the journey's own (the backup journey, which reads it back
      from disk, sets it on a file input, and deletes the folder). */
   tab.downloadInto = (dir) => browser.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dir, browserContextId, eventsEnabled: true });
+  /* The clipboard, readable for this journey's own context (the optional ELS
+     panel's copy is held to what the clipboard then holds). */
+  tab.grantClipboard = () => browser.send('Browser.grantPermissions', { permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'], origin: new URL(BASE).origin, browserContextId });
   /* A file chosen in a file input, as a reader picks it. */
   tab.chooseFile = async (find, file, what) => {
     await S('DOM.enable').catch(() => {});
@@ -1518,6 +1521,32 @@ const JOURNEYS = [
         if (now.cash?.value === first.cash.value) throw new StepError(`the cash required stayed ${first.cash.value} when the deposit went from 10% to 30%`);
         if (now.monthly?.value === first.monthly.value) throw new StepError(`the monthly cash flow stayed ${first.monthly.value} when the loan shrank`);
       });
+      /* THE OPTIONAL ELS BRIEF (the owner's Day 18 instructions, 31 Oct 2026):
+         opened, the requirements typed, copied; what the clipboard holds is
+         what the panel shows, which names no figure of the deal typed above
+         and calls the sample's renovation "Not set"; and the deal is as it
+         was — modelling, saving and the reports needed none of it. Not an
+         outcome step: the journey's declared outcomes are the tool's own. */
+      await step(j, tab, 'The optional ELS panel: open it, copy the brief, the clipboard matches the panel and the deal is unchanged', BUDGET.action * 3, async () => {
+        const deal = await tab.eval('JSON.stringify(State.deal)');
+        await tab.click(`document.getElementById('els-plan-sum')`, 'Explore design and renovation planning with ELS');
+        await tab.expect(`document.getElementById('els-plan')?.open && !!document.getElementById('els-brief')?.checkVisibility()`, 'pressing "Explore design and renovation planning with ELS" did not open the panel');
+        await tab.eval(`(() => { const r = document.getElementById('els-requirements'); r.value = 'A new kitchen and two bathrooms'; r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+        const shown = await tab.eval(`document.getElementById('els-brief').value`);
+        if (!shown.includes('Your requirements: A new kitchen and two bathrooms')) throw new StepError(`the brief does not carry the requirements typed: ${JSON.stringify(shown.slice(0, 200))}`);
+        if (!shown.includes("Renovation allowance: Not set: the calculator's sample figure is not a budget")) throw new StepError(`the sample's renovation is not "Not set": ${JSON.stringify(shown.slice(0, 300))}`);
+        const leak = shown.match(/RM|\d{3}|600|3,?000|2,?600/);
+        if (leak) throw new StepError(`the brief carries a figure (${leak[0]}) though only an entered renovation may: ${JSON.stringify(shown.slice(0, 300))}`);
+        await tab.grantClipboard();
+        await tab.click(`document.getElementById('els-copy')`, 'Copy brief');
+        await tab.expect(`document.getElementById('els-status')?.textContent === 'Copied'`, async () => `Copy brief said “${await tab.eval(`document.getElementById('els-status')?.textContent || ''`)}”, not Copied`, 4000);
+        const clip = await tab.eval(`navigator.clipboard.readText()`);
+        if (clip.split('\r\n').join('\n') !== shown) throw new StepError(`the clipboard holds ${JSON.stringify(clip.slice(0, 120))}, not the brief the panel shows`);
+        const link = await tab.eval(`(() => { const a = document.getElementById('els-link'); return { href: a.getAttribute('href'), target: a.target, rel: a.rel }; })()`);
+        if (link.href !== 'https://els.alumax.pro/' || link.target !== '_blank' || link.rel !== 'noopener noreferrer') throw new StepError(`the link to ELS is ${JSON.stringify(link)}`);
+        if (await tab.eval('JSON.stringify(State.deal)') !== deal) throw new StepError('opening the panel and copying the brief changed the deal');
+        if (await tab.eval(`Object.keys(localStorage).some(k => (localStorage.getItem(k) || '').includes('two bathrooms'))`)) throw new StepError('the requirements were stored in this browser');
+      });
       const name = `Journey check ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
       await step(j, tab, 'Save the property', BUDGET.action, async () => {
         await saveByNameForm(tab, byText('main button', '/^Save this (property|deal)$/'), 'Save this property', name);
@@ -1567,6 +1596,23 @@ const JOURNEYS = [
           .filter(([, re]) => re.test(sale.text)).map(([w]) => w);
         if (shown.length) throw new StepError(`before any report is unlocked the proposal shows the full report's ${shown.join(', ')}`);
         if (!sale.notes.includes('In the full analysis — preview in the calculator; nothing is on sale')) throw new StepError('the proposal does not say where the rest of the sale is');
+      });
+      /* THE SCENARIO LAB'S LINK TO THE PANEL, WITH A KEPT PARAMETER (the 31 Oct
+         2026 review): navigate() put the kept ?real=0 after the hash
+         ("#els-plan?real=0"), so the panel did not open and the parameter was
+         the hash's. Now the address is /property/calculator?real=0#els-plan,
+         the panel is open, and the parameter survived. */
+      await step(j, tab, 'The Scenario Lab’s ELS link opens the calculator’s panel and keeps ?real=0', BUDGET.load + BUDGET.action, async () => {
+        await tab.goto('/property?real=0');
+        await tab.expect(`State.view === 'propertyLab' && !!document.querySelector('.lab-els a')`, 'the Scenario Lab shows no ELS link beside its Keep card');
+        const words = await tab.eval(`document.querySelector('.lab-els a').textContent.trim()`);
+        if (!/^Explore design and renovation planning with ELS/.test(words)) throw new StepError(`the Lab's link reads "${words}"`);
+        await tab.click(`document.querySelector('.lab-els a')`, 'The Lab’s ELS link');
+        await tab.expect(`State.view === 'property' && !!document.getElementById('els-plan')?.open`, async () => `the link did not open the calculator's panel: ${await tab.where()}`, 8000);
+        const at = await tab.eval(`({ path: location.pathname, search: location.search, hash: location.hash, view: new URLSearchParams(location.search).get('view') })`);
+        if (at.path !== '/property/calculator' || new URLSearchParams(at.search).get('real') !== '0') throw new StepError(`the address is ${JSON.stringify(at)}, not the calculator with ?real=0 kept`);
+        if (at.hash && at.hash !== '#els-plan') throw new StepError(`the address's hash is ${at.hash}, not #els-plan`);
+        if (/#els-plan\?|\?[^#]*#.*\?/.test(await tab.eval('location.href'))) throw new StepError('a parameter sits inside the hash');
       });
     },
   },

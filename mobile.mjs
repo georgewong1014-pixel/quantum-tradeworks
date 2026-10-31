@@ -5326,6 +5326,91 @@ for (const w of [360, 390]) {
 }
 /* ---- end calc-words ---- */
 
+/* ---- els-panel ---- */
+/* THE OPTIONAL ELS PANEL ON A PHONE (the owner's Day 18 instructions, 31 Oct
+   2026; the 31 Oct review). At 360×640 and 390×844, in the page's font and
+   in Verdana: /property/calculator#els-plan opens the full model at Decide
+   with the panel open (the arrival the Quick model's and the Lab's links
+   use); its summary, "Copy brief" and "Open the ELS website" are each at
+   least 44px in both directions; the requirements and brief boxes and the
+   buttons stay inside the screen, a long requirement typed included; the
+   page scrolls no way sideways. The Quick model's text link
+   (/property/calculator) and the Scenario Lab's (/property) are 44px
+   targets too. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(600);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const VERDANA = `(() => { const s = document.createElement('style'); s.textContent = '*{font-family:Verdana, sans-serif !important}'; document.head.append(s); return true; })()`;
+  const BOX = `const box = (s) => { const n = document.querySelector(s); if (!n || !n.getClientRects().length) return null; const b = n.getBoundingClientRect(); return { w: Math.round(b.width), h: Math.round(b.height * 10) / 10, l: Math.round(b.left), r: Math.round(b.right) }; };`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844]]) for (const font of [null, 'Verdana']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      const view = await load('/property/calculator#els-plan');
+      if (view !== 'property') { fails.push(`${at}: /property/calculator#els-plan opened ${view}`); continue; }
+      if (font) await ev(VERDANA);
+      /* The arrival waits on the pages' data; the panel is open when it has. */
+      for (let i = 0; i < 40 && !(await ev(`!!document.getElementById('els-plan')?.open`)); i++) await sleep(250);
+      const r = await ev(`(async () => {
+        await document.fonts.ready; await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        ${BOX}
+        const q = document.getElementById('els-requirements');
+        q.value = 'A new kitchen, two bathrooms, built-in wardrobes in every bedroom and a long, unbroken, requirement_that_has_no_spaces_at_all_in_it_to_test_the_width_of_the_box';
+        q.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise(r => requestAnimationFrame(r));
+        return { open: !!document.getElementById('els-plan')?.open, vw: document.documentElement.clientWidth, over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          sum: box('#els-plan-sum'), copy: box('#els-copy'), link: box('#els-link'), req: box('#els-requirements'), brief: box('#els-brief'), body: box('.pc-els-body'),
+          section: document.getElementById('els-plan')?.closest('.pc-sec')?.id || null, sectionShown: !!document.getElementById('els-plan')?.closest('.pc-sec')?.getClientRects().length,
+          rest: document.getElementById('els-link')?.getAttribute('href') };
+      })()`);
+      if (!r.open) fails.push(`${at}: the panel is not open on arrival`);
+      if (r.section !== 'report' || !r.sectionShown) fails.push(`${at}: the panel's section is ${r.section}${r.sectionShown ? '' : ' and not shown'}, not Decide in sight`);
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      for (const [name, b, tall, wide] of [['summary', r.sum, 43.5, 43.5], ['Copy brief', r.copy, 43.5, 43.5], ['Open the ELS website', r.link, 43.5, 43.5]]) {
+        if (!b) fails.push(`${at}: ${name} is not in sight`);
+        else if (b.h < tall || b.w < wide) fails.push(`${at}: ${name} is ${b.w}×${b.h}px, not 44px both ways`);
+        else if (b.r > r.vw || b.l < 0) fails.push(`${at}: ${name} runs off the screen (${b.l}–${b.r} of ${r.vw})`);
+      }
+      for (const [name, b] of [['the requirements box', r.req], ['the brief box', r.brief], ['the panel body', r.body]]) {
+        if (!b) fails.push(`${at}: ${name} is not in sight`);
+        else if (b.r > r.vw + 0.5 || b.l < 0) fails.push(`${at}: ${name} runs off the screen (${b.l}–${b.r} of ${r.vw})`);
+      }
+      if (r.sum && r.copy && r.link && r.copy.w + r.link.w + 16 > r.vw - 32 && Math.abs(r.copy.h - r.link.h) > 1) said.push(`${at}: the two buttons stack`);
+      said.push(`${at}: summary ${r.sum?.w}×${r.sum?.h}, Copy ${r.copy?.w}×${r.copy?.h}, link ${r.link?.w}×${r.link?.h}`);
+      /* The Quick model's text link and the Lab's: 44px targets. */
+      for (const [path, sel, what] of [['/property/calculator', '#pc-q-els', 'the Quick model\'s link'], ['/property', '.lab-els a', 'the Scenario Lab\'s link']]) {
+        await load(path); if (font) await ev(VERDANA);
+        const b = await ev(`(async () => { await document.fonts.ready; ${BOX} return box(${JSON.stringify(sel)}); })()`);
+        if (!b) fails.push(`${at}: ${what} is not in sight at ${path}`);
+        else if (b.h < 43.5) fails.push(`${at}: ${what} is ${b.w}×${b.h}px, not a 44px target`);
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL els-panel — the optional ELS panel on a phone: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   els-panel: /property/calculator#els-plan opens the panel at Decide at 360 and 390, in the page's font and in Verdana — ${said.join('; ')}; the summary, Copy brief and the link to ELS 44px both ways, the boxes and buttons inside the screen with a long requirement typed, nothing sideways; the Quick model's and the Lab's text links 44px`);
+}
+/* ---- end els-panel ---- */
 /* ---- calc-quick ---- */
 /* THE CALCULATOR'S QUICK MODEL (the owner's QT-003, 14 Oct 2026;
    75-property-grade.js, pcQuickView). /property/calculator on a first
