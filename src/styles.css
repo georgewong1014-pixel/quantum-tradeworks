@@ -5423,6 +5423,7 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-disc > .lab-disc-sum::-webkit-details-marker { display: none; }
 .lab-disc > .lab-disc-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
 .lab-disc > .lab-disc-sum > .lab-about-chev { flex: none; transition: transform 160ms ease; }
+.lab-disc-h { margin: 0; }
 .lab-disc[open] > .lab-disc-sum > .lab-about-chev { transform: rotate(180deg); }
 .lab-disc[open] > .lab-disc-sum { margin-bottom: var(--xs); }
 /* The rule between rows is a shadow, not a border, so a row is its 44px. */

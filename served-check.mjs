@@ -3258,7 +3258,9 @@ const HOME_PAGE = read(HOME);
     if (!r || r.status !== 200) { p.push(`${path}: ${r ? described(r) : 'not fetched'}`); continue; }
     const views = all(B.htmlTree(r.body)).find(n => attr(n, 'id') === 'views');
     const rows = views ? all(views).filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')) : [];
-    const kinds = rows.map(n => { const s = all(n).find(x => x.tag === 'summary'); const b = s ? all(s).find(x => attr(x, 'data-kind-badge')) : null; return [attr(n, 'data-row'), b ? attr(b, 'data-kind-badge') : null, b ? sight(b) : null]; });
+    /* Four of the eight rows sit in the closed "4 more figures" since the 30 Oct 2026 audit: served whole, but not in sight, so their badge word is read raw. */
+    const rawOf = (n) => (n.kids || []).map(k => (k.tag === '#text' ? k.text : rawOf(k))).join(' ').replace(/\s+/g, ' ').trim();
+    const kinds = rows.map(n => { const s = all(n).find(x => x.tag === 'summary'); const b = s ? all(s).find(x => attr(x, 'data-kind-badge')) : null; return [attr(n, 'data-row'), b ? attr(b, 'data-kind-badge') : null, b ? rawOf(b) : null]; });
     said[path] = kinds.length;
     if (kinds.length !== 8) p.push(`${path} serves ${kinds.length} chain rows, not eight`);
     for (const [row, kind, word] of kinds) if (kind !== 'illustrative' || word !== 'Illustrative') p.push(`${path}: the ${row} row serves ${kind ? `a ${kind} badge ("${word}")` : 'no kind badge'}, not the sample's Illustrative`);
@@ -3333,7 +3335,7 @@ const HOME_PAGE = read(HOME);
     for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (% of the year)', 'Holding period (years)'])
       if (!labels.includes(want)) p.push(`/property/lab does not list the input “${want}”`);
     /* A row's whole text, its closed body too: the cover is said in the body, one tap away. */
-    const rows = inside.filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')).map(n => [attr(n, 'data-row'), sight(all(n).find(x => x.tag === 'summary') || n), rawText(n)]);
+    const rows = inside.filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')).map(n => [attr(n, 'data-row'), rawText(all(n).find(x => x.tag === 'summary') || n), rawText(n)]);
     said.rows = rows.length;
     /* The row, in the calculator's words; the cover said inside it, with its figure. */
     const mc = rows.find(x => x[0] === 'monthlyCommitment');
@@ -3415,7 +3417,7 @@ const HOME_PAGE = read(HOME);
     const headTree = tree.find(n => B.hasClass(n, 'lab-page-hd'));
     const lede2 = headTree ? all(headTree).find(n => B.hasClass(n, 'page-lede')) : null;
     if (!lede2 || rawText(lede2) !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.') p.push(`/property/lab: the introduction reads "${lede2 ? rawText(lede2) : 'nothing'}"`);
-    const prim = inside.filter(n => (n.tag === 'button' || n.tag === 'a') && B.hasClass(n, 'btn-primary'));
+    const prim = inside.filter(n => (n.tag === 'button' || n.tag === 'a' || attr(n, 'data-inert') === 'button') && B.hasClass(n, 'btn-primary'));
     if (prim.length !== 1 || rawText(prim[0]) !== 'Enter your property figures' || attr(prim[0], 'id') !== 'lab-enter') p.push(`/property/lab: its primary buttons are ${JSON.stringify(prim.map(n => rawText(n)))}, not the one "Enter your property figures"`);
     const claimLine = 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.';
     const claimBox = inside.find(n => B.hasClass(n, 'lab-id-claim'));
@@ -3453,7 +3455,7 @@ const HOME_PAGE = read(HOME);
     /* The boxes: one sentence, a tag on each, the eight lines gone. */
     const SENT = 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.';
     if (text.split(SENT).length !== 2) p.push('/property/lab: the sentence over the boxes is not served exactly once');
-    if (/Illustrative default — not yours/.test(r.body)) p.push('/property/lab: still serves "Illustrative default — not yours, and not from any market"');
+    if (/Illustrative default — not yours/.test(text)) p.push('/property/lab: still says "Illustrative default — not yours, and not from any market" in a box\'s own line (it stays only as the tag\'s title)');
     const knobs = inside.filter(n => B.hasClass(n, 'lab-knob'));
     const untagged = knobs.filter(n => !all(n).some(x => x.tag === 'span' && /^lab-ev-/.test(attr(x, 'id') || '') && rawText(x) === 'Default')).map(n => attr(n, 'data-k'));
     said.knobs = knobs.length - untagged.length;

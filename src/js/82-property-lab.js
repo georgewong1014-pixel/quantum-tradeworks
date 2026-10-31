@@ -1430,7 +1430,7 @@ function labPriceSection(P, lab) {
      focus (labDraw, by id). */
   const card = el('details', { class: 'card ls-section lab-pe lab-disc', id: labId(P, 'pe'), open: P.peOpen ? '' : null });
   card.addEventListener('toggle', () => { P.peOpen = card.open; });
-  card.append(el('summary', { class: 'lab-disc-sum', id: labId(P, 'pe-h') }, [el('span', { class: 'h-card lab-disc-h' }, 'Check the price against your evidence'),
+  card.append(el('summary', { class: 'lab-disc-sum', id: labId(P, 'pe-h') }, [el('h2', { class: 'h-card lab-disc-h' }, 'Check the price against your evidence'),
     el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]));
   const route = el('p', { class: 'metaline pe-route', id: labId(P, 'pe-route') });
   const cards = el('div', { class: 'pe-cards-wrap', id: labId(P, 'pe-cards') });
