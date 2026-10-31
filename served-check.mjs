@@ -2587,8 +2587,16 @@ const HOME_PAGE = read(HOME);
   const reads = /<html[^>]*data-served-reads="([^"]*)"/.exec(home)?.[1] || '';
   if (/baseCcy/.test(reads)) p.push(`/: its served reads name the base currency (${reads})`);
   const sc = cardOf('scanner');
-  const scDigits = sc ? (sight(sc).match(/\d+/g) || []) : ['no card'];
-  if (scDigits.some(d => d !== '50')) p.push(`/: the Scanner card carries digits other than the 50: ${scDigits.join(', ')}`);
+  /* 30 Oct 2026 (the audit's real example output): the card's preview is the
+     engine's evaluation on a generated series, so its figure carries digits —
+     the 50 of EMA 50, the bar's number, and the values in the three evaluated
+     conditions, which the scanner-first-view check below holds to the engine.
+     Nowhere else on the card is there a digit: no count, no date. */
+  const scFig = sc ? all(sc).find(n => n.tag === 'figure') : null;
+  const scOut = sc ? (sight(sc, n => n.tag === 'figure').match(/\d+/g) || []) : ['no card'];
+  if (scOut.length) p.push(`/: the Scanner card carries digits outside its figure: ${scOut.join(', ')}`);
+  const scIn = scFig ? (sight(scFig, n => has(n, 'pub-scan-conds')).match(/\d+/g) || []) : ['no figure'];
+  if (scIn.some(d => d !== '50' && d !== '66')) p.push(`/: the Scanner card's figure carries digits other than the 50 and the bar number (conditions apart): ${scIn.join(', ')}`);
   if (/\b(matched|approaching|watching)\b/i.test(sight(hm || { kids: [] }))) p.push('/: "matched", "approaching" or "watching" on the homepage');
   /* N8 */
   const pr = got.get('/pricing')?.body || '';
@@ -2703,7 +2711,7 @@ const HOME_PAGE = read(HOME);
   const SYMBOLS = [...new Set([...reg.flatMap(e => [e.symbol, ...(e.aliases || [])]), ...us.map(c => c.id)].filter(Boolean).map(String))];
   const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const symbolIn = (t) => SYMBOLS.find(s => new RegExp(`(?<![\\w!:/=])${reEsc(s)}(?![\\w!])`).test(t)) || null;
-  const got = await getAll(['/app/scanner', '/how-it-works']);
+  const got = await getAll(['/', '/app/scanner', '/how-it-works']);
   const figureProblems = (path, root) => {
     const figs = all(root).filter(n => n.tag === 'figure' && has(n, 'scan-ex'));
     if (figs.length !== 1) { p.push(`${path}: ${figs.length} example figures (figure.scan-ex), not one`); return; }
@@ -2790,6 +2798,58 @@ const HOME_PAGE = read(HOME);
       if (said.words > 300) p.push(`/app/scanner: ${said.words} words in sight in <main>, more than 300`);
     }
   }
+  /* / — the Scanner card's preview (the 30 Oct 2026 audit: "a genuine, clearly
+     labelled example of what they will obtain"). It was chips and grey
+     placeholder rows; it is now the engine's own evaluation of the example
+     setup on its generated series, drawn into the served page: the verdict at
+     bar 66 and each condition with its values and state, word for word what
+     the engine says above (rA), the series' 66 closes, and the dashboard's
+     label. All three previews open with one "Example output" caption. */
+  const hm = got.get('/');
+  if (hm?.status === 200) {
+    const home = all(B.htmlTree(hm.body)).find(n => n.tag === 'main');
+    const cardsH = home ? all(home).filter(n => n.tag === 'article' && has(n, 'pub-card')) : [];
+    const firstEl = (n) => n.kids.find(k => k.tag !== '#text');
+    for (const c of cardsH) {
+      const fg = all(c).find(n => n.tag === 'figure');
+      const eg = fg && firstEl(fg);
+      if (!eg || !has(eg, 'pub-vis-eg') || rawText(eg) !== 'Example output') p.push(`/: the ${attr(c, 'data-product')} preview does not open with the "Example output" caption (it opens with ${eg ? `"${rawText(eg).slice(0, 40)}"` : 'nothing'})`);
+    }
+    said.homeCaptions = cardsH.length;
+    if (cardsH.length !== 3) p.push(`/: ${cardsH.length} product cards, not three`);
+    const sc = cardsH.find(c => attr(c, 'data-product') === 'scanner');
+    const fig = sc && all(sc).find(n => n.tag === 'figure');
+    if (!fig) p.push('/: the Scanner card has no preview figure');
+    else {
+      if (all(fig).some(n => has(n, 'pub-record') || has(n, 'pub-record-row') || has(n, 'pub-chip') || has(n, 'pub-rule') || has(n, 'pub-vis-empty'))) p.push('/: the Scanner preview still draws the mock-up (starting-rule chips, placeholder rows or the empty record)');
+      const lis = all(fig).filter(n => n.tag === 'li' && has(n, 'scan-ex-c'));
+      if (lis.length !== rA.conditions.length) p.push(`/: the Scanner preview has ${lis.length} evaluated conditions, not the engine's ${rA.conditions.length}`);
+      lis.forEach((li, i) => {
+        const c = rA.conditions[i];
+        const text = rawText(all(li).find(n => has(n, 'scan-ex-x')) || { kids: [] });
+        const state = rawText(all(li).find(n => has(n, 'scan-ex-s')) || { kids: [] });
+        if (!c || text !== c.text) p.push(`/: the Scanner preview's condition ${i + 1} reads "${text}", where the engine says "${c?.text}"`);
+        if (!c || state !== WORD[c.state] || attr(li, 'data-state') !== c.state) p.push(`/: the Scanner preview's condition ${i + 1} is "${state}" (${attr(li, 'data-state')}), where the engine says ${c?.state}`);
+      });
+      const vd = all(fig).find(n => has(n, 'pub-scan-verdict'));
+      const vt = vd ? rawText(vd) : '';
+      if (vt !== `The rule at bar ${A.closes.length} ${WORD[rA.state]}`) p.push(`/: the Scanner preview's verdict reads "${vt}", where the engine says "The rule at bar ${A.closes.length} ${WORD[rA.state]}"`);
+      const close = all(fig).find(n => n.tag === 'path' && has(n, 'scan-ex-close'));
+      const pts = close ? (attr(close, 'd') || '').match(/[ML]\s*-?[\d.]+[ ,]-?[\d.]+/g)?.length || 0 : 0;
+      if (pts !== A.closes.length) p.push(`/: the Scanner preview's series has ${pts} points, not the generated series' ${A.closes.length}`);
+      const src = all(fig).find(n => has(n, 'pub-vis-src'));
+      const badge = src && all(src).find(n => n.tag === 'a' && has(n, 'kind-badge') && has(n, 'kind-illustrative'));
+      if (!src || !badge || !apos(rawText(src)).includes("Generated series, not a market's prices")) p.push(`/: the Scanner preview's label is "${src ? rawText(src) : ''}", not Illustrative · generated series, not a market's prices`);
+      const inside = `${rawText(fig)} ${attrsText(fig)}`;
+      const date = inside.match(/[0-9]{4}-[0-9]{2}-[0-9]{2}/);
+      if (date) p.push(`/: a date inside the Scanner preview (${date[0]})`);
+      const sym = symbolIn(inside);
+      if (sym) p.push(`/: the symbol ${sym} inside the Scanner preview`);
+      const banned = inside.match(/\b(approaching|watching|matched|signal|buy|sell|live|works)\b/i);
+      if (banned) p.push(`/: "${banned[0]}" inside the Scanner preview`);
+      said.homeConds = lis.length;
+    }
+  }
   /* /how-it-works#hiw-scanner. */
   const hw = got.get('/how-it-works');
   if (hw?.status === 200) {
@@ -2798,7 +2858,7 @@ const HOME_PAGE = read(HOME);
     else figureProblems('/how-it-works#hiw-scanner', sec);
     if (/No example match is shown here/.test(hw.body)) p.push('/how-it-works: still says "No example match is shown here"');
   }
-  judge(p, `the Scanner's first view (N5a, N5b, D14c): /app/scanner ${said.words} words in sight (≤300), the commands and the data files only in the closed "Run locally" or an Unavailable badge's note, "No scan recorded" and "by design, not by fault" in sight with ${said.unavailable} Unavailable badges; one example figure there and on /how-it-works#hiw-scanner — "Example — generated series, not a market’s prices", Illustrative to /data-sources#kinds, ${said['/app/scanner points']} points, the engine's three conditions at bar 66 word for word, series B Not held for RSI on a flat series, the caption — with no date, currency, registry symbol, banned word or other state in it; no "N match" on either page`,
+  judge(p, `the Scanner's first view (N5a, N5b, D14c): /app/scanner ${said.words} words in sight (≤300), the commands and the data files only in the closed "Run locally" or an Unavailable badge's note, "No scan recorded" and "by design, not by fault" in sight with ${said.unavailable} Unavailable badges; one example figure there and on /how-it-works#hiw-scanner — "Example — generated series, not a market’s prices", Illustrative to /data-sources#kinds, ${said['/app/scanner points']} points, the engine's three conditions at bar 66 word for word, series B Not held for RSI on a flat series, the caption — with no date, currency, registry symbol, banned word or other state in it; no "N match" on either page; and on / the Scanner card's preview is the same evaluation (${said.homeConds} conditions, verdict, series and label) with no mock-up part, and "Example output" opens each of the ${said.homeCaptions} previews`,
     'the Scanner\'s first view and its example (N5a, N5b) are not served as accepted');
 }
 /* ---- end scanner-first-view ---- */

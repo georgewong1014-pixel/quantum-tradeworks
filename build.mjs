@@ -1878,7 +1878,11 @@ export function layoutSystemProblems({ root = ROOT } = {}) {
      line (.pub-card-outcome, QT-D03-01) left out — served-check holds those
      word for word, and the limit at 8 words or fewer;
    - each figure: 20 words or fewer — its caption, legend and state rows,
-     inside the <figure>, the <svg>'s words with them;
+     inside the <figure>, the <svg>'s words with them; the Scanner's three
+     evaluated conditions (ol.pub-scan-conds) are not counted (30 Oct 2026,
+     the audit's real example output): they are the engine's own result,
+     lines of values like a chart's numbers, and with them the figure is
+     26 words — its caption, verdict, legend and label stay inside 20;
    - <main>: 110 words or fewer outside its figures and those lines;
    - at least two data visuals: a figure with an <svg> of three or more
      data marks (data-v) and a source label in sight (.pub-vis-src);
@@ -1995,7 +1999,7 @@ export function homeBudgets(html) {
   if (cards.length < 3) p.push(`/ serves ${cards.length} product cards, not three`);
   /* The figures. */
   said.figures = figures.map(f => {
-    const w = wordsIn(sightText(f)).length;
+    const w = wordsIn(sightText(f, n => hasClass(n, 'pub-scan-conds'))).length;
     const name = attrOf(f, 'class') || 'figure';
     if (w > HOME_BUDGET.figure) p.push(`a figure (${name}) is ${w} words, more than ${HOME_BUDGET.figure}: "${sightText(f).slice(0, 120)}"`);
     return w;

@@ -504,9 +504,11 @@ function scanExample() {
 }
 /* The chart at bar i (0-based): the closes and the EMA up to it, none after,
    on the whole series' scale, with the bar marked. No words in it: its two
-   ends' bar numbers are the line under it, in the page's type. */
-function scanExSvg(ex, i) {
-  const W = 320, H = 116, L = 4, R = 4, T = 10, Bt = 8;
+   ends' bar numbers are the line under it, in the page's type. H is its
+   height in the viewBox (116; the homepage's preview draws it at 62, the
+   30 Oct 2026 audit's example output, from the same series). */
+function scanExSvg(ex, i, { H = 116 } = {}) {
+  const W = 320, L = 4, R = 4, T = 10, Bt = 8;
   const vals = [...ex.A.closes, ...ex.ema.filter(isNum)];
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const x = (k) => L + k * (W - L - R) / (ex.n - 1);

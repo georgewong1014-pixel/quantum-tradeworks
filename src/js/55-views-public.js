@@ -128,6 +128,7 @@ function pubQualifier(p, id) {
 function pubVisEquities() {
   const F = HOME_FILED;
   const fig = el('figure', { class: 'pub-vis pub-vis-eq', 'aria-labelledby': 'pub-vis-eq-src' });
+  fig.append(pubVisEg());
   if (!F || !F.years?.length) { fig.append(el('figcaption', { class: 'pub-vis-cap', id: 'pub-vis-eq-src' }, kindBadge('unavailable'), ' Filed example not loaded')); return fig; }
   /* The shared component (filedColumnsSvg, 30-charts.js), as Research's
      examples draw it. */
@@ -141,30 +142,32 @@ function pubVisEquities() {
   return fig;
 }
 
-/* SCANNER: the rule the builder starts from, as its condition chips, read
-   from the builder's own blank (scanBlankCondition) and the engine's
-   labels; and where a match is recorded. No chart and no count: no price
-   ships with this site, so nothing here could match. */
+/* "Example output", the one caption at the top of all three previews (the
+   30 Oct 2026 audit: a visitor should see a clearly labelled example of
+   what the tool produces). Each preview keeps its own label below it —
+   Filed, or Illustrative — which says what the example is made of. */
+const pubVisEg = () => el('p', { class: 'pub-vis-eg' }, 'Example output');
+
+/* SCANNER: a rule evaluated by the engine, as the dashboard shows it
+   (scanExample, 87-scanner-ops.js: generated series A, the setup "Trend
+   breakout", read at bar 66). The 30 Oct 2026 audit asked for a real
+   output where there was a mock-up of one — chips and grey rows. The
+   verdict and the three conditions are the engine's own words and values,
+   not written here; the series is generated and labelled so, as on the
+   dashboard. The same on every draw, so the served page and the script's
+   agree. No count, no symbol, no date, and nothing about a market. */
 function pubVisScanner() {
-  const c = typeof scanBlankCondition === 'function' ? scanBlankCondition() : null;
-  /* Each side as the builder names it, short: the price, or the indicator
-     and its period ("EMA 50"). */
-  const side = (s) => {
-    const def = SCAN_INDICATORS[s?.indicator];
-    if (s?.indicator === 'price') return 'Price';
-    const n = def ? scanParams(s).params.n : null;
-    const w = def && isNum(n) ? `${def.label} ${n}` : scanSideLabel(s);
-    return w.charAt(0).toUpperCase() + w.slice(1);
-  };
-  const chips = c ? [side(c.left), SCAN_OPERATORS[scanOpName(c.op)]?.label || c.op, side(c.right)] : [];
-  return el('figure', { class: 'pub-vis pub-vis-scan' }, [
-    el('p', { class: 'pub-vis-k pub-vis-k-top' }, 'Starting rule'),
-    el('p', { class: 'pub-rule', role: 'list', 'aria-label': 'The builder’s starting rule' }, chips.map((t, i) => el('span', { class: `pub-chip${i === 1 ? ' pub-chip-op' : ''}`, role: 'listitem' }, t))),
-    el('div', { class: 'pub-record', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('div', { class: 'pub-record-row' }, [el('i'), el('i'), el('i')]))),
-    el('figcaption', { class: 'pub-vis-cap pub-vis-empty' }, [
-      el('span', { class: 'pub-vis-empty-mark', 'aria-hidden': 'true' }),
-      el('span', {}, 'Matches are recorded by a worker you run, not by this site'),
-    ]),
+  const ex = scanExample();
+  const r = ex.at(ex.n - 1);
+  return el('figure', { class: 'pub-vis pub-vis-scan', 'aria-labelledby': 'pub-vis-scan-src' }, [
+    pubVisEg(),
+    el('div', { class: 'pub-scan-plot', html: scanExSvg(ex, ex.n - 1, { H: 62 }) }),
+    el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, [el('i', { class: 'scan-sw scan-sw-close' }), 'Close', el('i', { class: 'scan-sw scan-sw-ema' }), 'EMA 50']),
+    el('p', { class: 'pub-scan-verdict' }, [el('span', { class: 'scan-ex-k' }, ['The rule at bar ', el('span', { class: 'num' }, String(ex.n))]), ' ',
+      el('strong', { class: 'scan-ex-v', 'data-state': r.state }, SCAN_EX_WORD[r.state])]),
+    el('ol', { class: 'pub-scan-conds', 'aria-label': 'All three must hold on one bar' }, r.conditions.map(c => el('li', { class: 'scan-ex-c', 'data-state': c.state }, [
+      el('span', { class: 'scan-ex-s' }, el('span', { class: 'sr-only' }, SCAN_EX_WORD[c.state])), ' ', el('span', { class: 'scan-ex-x' }, c.text)]))),
+    el('figcaption', { class: 'pub-vis-cap' }, el('p', { class: 'pub-vis-src', id: 'pub-vis-scan-src' }, [kindBadge('illustrative', { fine: 'A generated series' }), el('span', {}, 'Generated series, not a market’s prices')])),
   ]);
 }
 
@@ -236,6 +239,7 @@ function pubVisProperty({ badgeLink = true } = {}) {
   });
   paint(at);
   fig.append(
+    pubVisEg(),
     el('div', { class: 'pub-lab-knob' }, [el('label', { class: 'pub-vis-k', for: 'pub-lab-price' }, 'Price'), val, range]),
     figs,
     el('div', { class: 'pub-lab-flow' }, [bars,
