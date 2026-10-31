@@ -1891,6 +1891,51 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end readiness-served ---- */
 
+/* ---- els-served ---- */
+/* THE OPTIONAL ELS LINKS, SERVED (the owner's Day 18 instructions, 31 Oct
+   2026; briefs/README-els-referral.md). The panel itself is the full
+   model's, drawn by script (model-test els-brief holds its words, its link
+   to https://els.alumax.pro/ and that its brief names no figure of the
+   deal). What is served is the two text links to it, each once and each
+   carrying nothing of the deal:
+   - /property/calculator, served in the Quick model: one link,
+     "Explore design and renovation planning with ELS", to
+     /property/calculator#els-plan — no query, and no address outside the app;
+   - /property/lab: the same, in the Keep card (after "How saving works");
+   - nowhere else: not the homepage, the Equities pages or the Scanner, and
+     no page serves the ELS address, the brief box or the requirements box
+     (they are drawn on the full model only, and nothing of the brief is
+     served as text a crawler or a preview could read). */
+{
+  const p = [];
+  const WORDS = 'Explore design and renovation planning with ELS';
+  const PATHS = ['/property/calculator', '/property/lab', '/property'];
+  const got = await getAll([...PATHS, '/', '/app/scanner', '/research']);
+  const anchors = (html) => [...html.matchAll(/<a\b([^>]*)>([^<]*)<\/a>/g)].filter(m => m[2].trim() === WORDS).map(m => m[1]);
+  for (const path of PATHS) {
+    const r = got.get(path);
+    const html = r?.body || '';
+    const a = anchors(html);
+    if (a.length !== 1) p.push(`${path}: "${WORDS}" is served ${a.length} times, not once`);
+    else {
+      const href = /\bhref="([^"]*)"/.exec(a[0])?.[1];
+      if (href !== '/property/calculator#els-plan') p.push(`${path}: the link goes to ${JSON.stringify(href)}, not /property/calculator#els-plan`);
+      if (/\btarget=|\brel=/.test(a[0])) p.push(`${path}: the in-app link opens a new tab or names a rel`);
+    }
+    if (/els\.alumax\.pro/.test(html)) p.push(`${path}: serves the ELS address — it is the full model's panel's, drawn, not served`);
+    if (/id="els-(brief|requirements|plan)"/.test(html)) p.push(`${path}: serves the brief or requirements box (they are drawn, on the full model)`);
+  }
+  for (const path of ['/', '/app/scanner', '/research']) {
+    const r = got.get(path);
+    if (r?.status !== 200) continue;
+    const html = r.body || '';
+    if (html.includes(WORDS) || /els-plan|els\.alumax\.pro/.test(html)) p.push(`${path}: carries the ELS action — it is for the calculator and the Scenario Lab only`);
+  }
+  judge(p, `the optional ELS action is served as one text link, "${WORDS}", on /property/calculator (the Quick model), /property/lab and /property, each to /property/calculator#els-plan with no query and no other address, and on no other page checked (the homepage, the Scanner, Equities); no page serves the ELS address or the brief and requirements boxes`,
+    'the optional ELS links are not served as they should be');
+}
+/* ---- end els-served ---- */
+
 /* ---- n3-property-landing ---- */
 /* /PROPERTY OPENS THE SCENARIO LAB, AND THE CALCULATOR'S TOP IS DRAWERS
    (N3, the 5 Oct audit; the owner's decision D18). /property served the
