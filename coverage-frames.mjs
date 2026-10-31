@@ -1011,8 +1011,15 @@ try {
         /* /status at 390, scrolled so the window's top is at Property's
            two lines (N2d; statusPropertySection, 91-health.js). */
         const N2D_SCROLL = 380;
-        const ANCHOR = `(() => { const v = document.getElementById('views'), w = document.createTreeWalker(v, NodeFilter.SHOW_TEXT); const seen = new Map(); let best = null;
-          for (let n = w.nextNode(); n; n = w.nextNode()) { const t = n.data.replace(/\\s+/g, ' ').trim(); if (t.length < 6 || n.parentElement.closest('svg, [data-now]')) continue;
+        /* A served field's text is not a run of words (1 Nov 2026): the
+           served page draws a box's value as text (data-inert="field",
+           prerender.mjs) and the script's box holds it as a value, so an
+           anchor on it "moved out of the page" though nothing moved — the
+           calculator at 1280 in CI's font, scrolled to its price box, on
+           50ef11826 (layout shift 0.005). Skipped as the other frames
+           here skip them; the calculator is held in Verdana too. */
+        const ANCHOR =`(() => { const v = document.getElementById('views'), w = document.createTreeWalker(v, NodeFilter.SHOW_TEXT); const seen = new Map(); let best = null;
+          for (let n = w.nextNode(); n; n = w.nextNode()) { const t = n.data.replace(/\\s+/g, ' ').trim(); if (t.length < 6 || n.parentElement.closest('svg, [data-now], [data-inert="field"], [data-inert="choice"], [data-inert="range"], select, textarea')) continue;
             const k = seen.get(t) || 0; seen.set(t, k + 1); const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect();
             if (b.height && b.top >= 100 && b.top < innerHeight - 60 && (!best || b.top < best.y)) best = { t, k, y: b.top }; }
           return best; })()`;
@@ -1022,7 +1029,7 @@ try {
            total, above the ledger's the reader had scrolled to — reported as
            the words moving 872px (the fee rulebook 1.1.0, 9 Oct 2026). */
         const FIND = (a) => `(() => { const w = document.createTreeWalker(document.getElementById('views'), NodeFilter.SHOW_TEXT); let k = 0;
-          for (let n = w.nextNode(); n; n = w.nextNode()) { if (n.data.replace(/\\s+/g, ' ').trim() !== ${JSON.stringify(a.t)} || n.parentElement.closest('svg, [data-now]') || k++ !== ${a.k}) continue;
+          for (let n = w.nextNode(); n; n = w.nextNode()) { if (n.data.replace(/\\s+/g, ' ').trim() !== ${JSON.stringify(a.t)} || n.parentElement.closest('svg, [data-now], [data-inert="field"], [data-inert="choice"], [data-inert="range"], select, textarea') || k++ !== ${a.k}) continue;
             const r = document.createRange(); r.selectNodeContents(n); return r.getBoundingClientRect().top; } return null; })()`;
         /* IN ANOTHER MACHINE'S FONT TOO (6 Oct 2026). /status at 390 passed
            here in Segoe UI and failed on CI's runner, in DejaVu Sans: a
@@ -1038,7 +1045,7 @@ try {
            three lines, in the page's font and in Verdana. */
         for (const [path, metrics, at, face = null] of [['/status', W1280, 0.5], ['/status', W390, 0.5], ['/status', W1280, 0.5, 'Verdana'], ['/status', W390, 0.5, 'Verdana'],
           ['/status', W390, N2D_SCROLL], ['/status', W390, N2D_SCROLL, 'Verdana'],
-          ['/property/calculator', W1280, 0.5], ['/property/calculator', W390, 0.3],
+          ['/property/calculator', W1280, 0.5], ['/property/calculator', W1280, 0.5, 'Verdana'], ['/property/calculator', W390, 0.3],
           ['/discover/screener', W390, 1618], ['/discover/screener', W1280, 0.5], ['/app', W1280, 0.6], ['/pricing', W390, 0.5], ['/research/queue', W1280, 0.5]]) {
           await size(metrics);
           await firstVisit({ script: true });
