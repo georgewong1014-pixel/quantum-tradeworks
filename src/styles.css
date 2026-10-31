@@ -7220,6 +7220,35 @@ input.au-in[type="text"] { text-align: left; }
 }
 @media print { .pc-view, .pc-q-open { display: none !important; } }
 /* ---- end calc-quick ---- */
+/* ---- els-plan ---- */
+/* THE OPTIONAL ELS PANEL (the owner's Day 18 instructions, 31 Oct 2026;
+   pcElsPanel, 75-property-grade.js): a closed drawer after the Decide
+   section's Share / Export row, its brief in a read-only box, and two quiet
+   text links to it, one in the Quick model and one in the Scenario Lab's Keep
+   card. Tokens only; only colour and the chevron's transform move. */
+.pc-els { margin-top: var(--lg); padding-top: var(--md); border-top: 1px solid var(--line); min-width: 0; }
+.pc-els > .pc-els-sum { color: var(--ink); }
+.pc-els-body { display: flex; flex-direction: column; gap: var(--md); margin: var(--xs) 0 0 16px; min-width: 0; max-width: var(--ls-measure); }
+.pc-els-lede { margin: 0; font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
+.pc-els-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pc-els-field > label { font-size: var(--ls-support); font-weight: var(--weight-semibold); line-height: 20px; color: var(--ink); }
+.pc-els-field > .metaline { margin: 0; }
+.pc-els textarea.input { width: 100%; max-width: 100%; box-sizing: border-box; }
+.pc-els-brief { font-family: var(--mono); font-size: var(--ls-support); line-height: 1.55; min-height: 250px; background: var(--surface-sunk); color: var(--ink); }
+.pc-els-before { margin: 0; font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
+.pc-els-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--md); min-width: 0; }
+.pc-els-acts > a.btn { gap: 6px; }
+.pc-els-status { min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; line-height: 1.5; }
+.pc-q-els, .lab-els { grid-column: 1 / -1; margin: var(--sm) 0 0; min-width: 0; }
+.pc-q-els-link, .lab-els > a { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; transition: color 160ms ease; }
+.pc-q-els-link:hover, .lab-els > a:hover { color: var(--brand); }
+.pc-q-els-link:focus-visible, .lab-els > a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+@media (pointer: coarse), (max-width: 768px) {
+  .pc-q-els-link, .lab-els > a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+@media print { .pc-els, .pc-q-els, .lab-els { display: none !important; } }
+/* ---- end els-plan ---- */
+
 /* ---- kuching-map ---- */
 /* THE KUCHING SCHEME MAP (92-kuching-map.js; the owner's decision of
    12 Oct 2026). Tokens only; the page is the area screen's second view.

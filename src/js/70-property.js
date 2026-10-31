@@ -1538,6 +1538,91 @@ function readPropertyUrl(d) {
   return changed;
 }
 
+/* THE OPTIONAL ELS DESIGN AND RENOVATION BRIEF
+   ---------------------------------------------------------------------------
+   The owner's Day 18 instructions, 31 Oct 2026 (briefs/README-els-referral.md,
+   built now: it is copy-only and sends nothing). ELS is a separate business.
+   After the results one optional panel shows a short plain-text brief the
+   reader reviews, edits and copies, and links to the ELS home page. This is
+   that brief, as a pure function of the deal: nothing is read from the page,
+   stored, fetched or sent.
+
+   ONLY FOUR FACTS OF THE DEAL LEAVE IT: the property type, the area the
+   reader chose, whether the property is to be let or used by its owner, and
+   the renovation allowance — the last only once the reader has entered it.
+   Never the price, deposit, loan, rate, repayment, rent, income, cash flow,
+   cash required, reserve or returns; never a name, a contact or a saved
+   property's id. A sample figure never appears as an amount, and a figure the
+   reader typed is said to be theirs: editing an assumption does not make it
+   checked by anyone, so the brief never calls it verified, approved or
+   confirmed. ELS does not yet expose a page of its own that receives a brief,
+   so the reader brings the copy to their first contact; nothing here claims
+   that ELS will see, prefill or receive anything. */
+const ELS_URL = 'https://els.alumax.pro/';
+const ELS_BRIEF_ID = 'qt-property-brief/1';
+const ELS_REQUIREMENTS_MAX = 1000;
+const ELS_NOT_SET = {
+  location: "Not set: the calculator's sample location is not a choice",
+  use: 'Not set',
+  renovation: "Not set: the calculator's sample figure is not a budget",
+};
+function elsBrief(d, requirements = '') {
+  const def = PROPERTY_DEFAULT_DEAL;
+  /* The reader's own: the figure was typed (or the deal was started by the
+     reader), as pcFieldOwn reads it for the boxes. */
+  const own = (k) => !!d?.userStarted || isTouched(d, k);
+
+  /* 1. Property type: the deal's. Chosen only when it is not the sample's. */
+  const typeChosen = !!d?.propertyType && d.propertyType !== def.propertyType;
+  const type = d?.propertyType ? String(d.propertyType) : 'Not set';
+
+  /* 2. Location: the city or area the reader selected, as they selected it —
+     never derived, never geocoded, never a sample project. A district that
+     only follows from a town chosen (the first of its list) is not named. */
+  const cityDef = SARAWAK_CITIES.find(c => c.id === d?.city);
+  const cityChosen = !!cityDef && d.city !== def.city;
+  const districtChosen = !!cityDef && !!d.district && d.district !== def.district
+    && !(cityChosen && d.district === cityDef.districts[0]);
+  const locationChosen = cityChosen || districtChosen;
+  const location = locationChosen
+    ? `${[cityDef.name, districtChosen ? d.district : null].filter(Boolean).join(', ')} (as you entered it)`
+    : ELS_NOT_SET.location;
+
+  /* 3. Intended use: to be used by the owner when the reader has said so (an
+     own-use objective, or weeks of own use); otherwise let to a tenant. A
+     property that earns no rent has no letting to name. */
+  const ownUse = d?.objective === 'ownuse' || num0(d?.ownUseWeeks) > 0;
+  const lets = propertyInputApplies(d, 'rent');
+  const useChosen = ownUse || (lets && (own('rent') || Object.hasOwn(PROPERTY_OBJECTIVES, d?.objective)));
+  const use = ownUse ? 'Own use' : lets ? 'Let to a tenant' : ELS_NOT_SET.use;
+
+  /* 4. Renovation allowance: the reader's figure only once entered; the
+     sample's is never shown as an amount. */
+  const reno = d?.renovation;
+  const renoChosen = own('renovation') && isNum(reno) && reno >= 0;
+  const renovation = renoChosen
+    ? `${fmtMoney(reno, 'MYR', 0)}, as you entered it — your own figure, not a quotation or a verified budget`
+    : ELS_NOT_SET.renovation;
+
+  /* 5. Their requirements, as typed: one paragraph of their own words. */
+  const typed = String(requirements ?? '').replace(/\r\n?/g, '\n').trim().slice(0, ELS_REQUIREMENTS_MAX);
+
+  /* 6. Which of the four are still the sample's. */
+  const assumed = [['property type', typeChosen], ['location', locationChosen], ['intended use', useChosen], ['renovation allowance', renoChosen]]
+    .filter(([, chosen]) => !chosen).map(([name]) => name);
+
+  const lines = [
+    `Quantum Tradeworks renovation brief (${ELS_BRIEF_ID})`,
+    `Property type: ${type}`,
+    `Location: ${location}`,
+    `Intended use: ${use}`,
+    `Renovation allowance: ${renovation}`,
+    `Your requirements:${typed ? ` ${typed.replace(/\n/g, '\n  ')}` : ''}`,
+  ];
+  if (assumed.length) lines.push(`Assumptions: Assumed (the sample's): ${assumed.join(', ')}.`);
+  return { text: lines.join('\n'), lines, assumed, renovationEntered: renoChosen };
+}
+
 /* CARRYING A COMPANY INTO A WORKSPACE
    ---------------------------------------------------------------------------
    The Strategy Lens grades a company and then linked to two blank workspaces,

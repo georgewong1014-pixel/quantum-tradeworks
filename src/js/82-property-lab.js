@@ -2753,6 +2753,12 @@ function labCommits(P, lab, col) {
     el('p', { class: 'pc-more-body lab-commit-why' }, why.join(' '))]);
   more.addEventListener('toggle', () => { P.saveMoreOpen = more.open; });
   card.append(more);
+  /* The optional ELS link (the owner's Day 18 instructions, 31 Oct 2026): one quiet
+     text link to the calculator's panel (pcElsPanel, 75-property-grade.js). The
+     address carries nothing of the deal; nothing is needed from it to compare or keep. */
+  card.append(el('p', { class: 'metaline lab-els' }, el('a', { id: labId(P, 'els'), href: href(ELS_PLAN_PATH), onclick: (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(ELS_PLAN_PATH);
+  } }, ELS_ACTION_WORDS)));
   return card;
 }
 /* The column's figures as a commit writes them: the moved ones marked as
