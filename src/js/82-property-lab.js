@@ -978,14 +978,14 @@ const LAB_CLAIM_VISIBLE = 'Results are calculated from your inputs and labelled 
    wording): the sample is illustrative, and the results are calculations. The calculator keeps the sentence above. */
 const LAB_CLAIM_LINE = 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.';
 const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
-/* THE SAMPLE'S ASSUMPTIONS, UNDER ITS NAME (the Day-8 report's QT-D08-02;
-   the owner's decision of 20 Oct 2026): while the sample deal is open, the
-   line under "Sample deal" says which of its figures are assumptions —
-   growth among them, which the tiles' "Illustrative default" does not name.
-   It replaces "— not a real listing". Held word for word, and outside the
-   Lab's word budget, as the homepage's boundary line is (mobile.mjs
-   lab-words and n3-first-view; served-check n3-property-landing). */
-const LAB_SAMPLE_ASSUME = 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.';
+/* THE LINE UNDER "SAMPLE DEAL" WENT (the owner's Day 18 follow-up, QT-D18-01,
+   31 Oct 2026: "remove before adding"). "Illustrative scenario: price, rent,
+   growth and some costs are assumptions, not market evidence." (the Day-8
+   report's QT-D08-02, 20 Oct 2026) said what LAB_CLAIM_LINE now says beside
+   the chip — the sample is illustrative, not market evidence. Growth, the one
+   figure it named that the tiles' badges do not, is named by "What these
+   figures rest on" (appreciation); the name "Sample deal" and the
+   Illustrative badges still say it is a sample. */
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
@@ -1090,8 +1090,7 @@ function labGuidedScenario(lab, col) {
 }
 const labGuidedNaming = (lab, at = null) => ({ kind: 'property', at, value: pmNameOf(State.deal), scenario: labGuidedScenario(lab, labActive(lab)) });
 /* THE IDENTITY LINE. The name — "Sample deal", with the line under it that
-   says its figures are assumptions (LAB_SAMPLE_ASSUME), or the property's —
-   with its place, type and size; Save, a secondary button since Day 18 (the
+   or the property's — with its place, type and size; Save, a secondary button since Day 18 (the
    page's one primary is "Enter your property figures", in its head); and
    the regulated claim and the lab's own, whole at every width: "Not a
    valuation" leads, and the reader is never left to find it under the
@@ -1099,8 +1098,7 @@ const labGuidedNaming = (lab, at = null) => ({ kind: 'property', at, value: pmNa
    name. */
 function labIdentity(P, lab, status, sample = false) {
   const d = labSubjectInputs(lab);
-  const assume = sample ? el('p', { class: 'lab-id-assume', id: labId(P, 'assume') }, el('strong', {}, 'Illustrative scenario:'), LAB_SAMPLE_ASSUME.slice('Illustrative scenario:'.length)) : null;
-  const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status'), 'aria-describedby': assume ? labId(P, 'assume') : null });
+  const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status') });
   P.els.idAct = labIdentityAct(P, lab);
   /* On a phone the place line carries the two questions' summary and its
      Change (83-property-decision.js): one 44px line, the questions opening
@@ -1113,7 +1111,7 @@ function labIdentity(P, lab, status, sample = false) {
   if (act?.prop) sum.textContent = `${act.key}: ${sum.textContent}`;
   const meta = !d ? null : P.compact ? el('p', { class: 'lab-id-meta' }, labPlaceLine(d))
     : el('p', { class: 'lab-id-meta has-sum' }, [el('span', { class: 'lab-id-place' }, labPlaceLine(d)), sum, pqChangeButton(P.idPrefix)]);
-  box.append(el('div', { class: assume ? 'lab-id-top has-assume' : 'lab-id-top' }, [status, assume, P.els.idAct, meta]));
+  box.append(el('div', { class: 'lab-id-top' }, [status, P.els.idAct, meta]));
   P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
   box.append(P.els.idForm);
   /* The registered-valuer sentence and the lab's own limits, whole and one

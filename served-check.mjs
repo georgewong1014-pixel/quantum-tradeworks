@@ -1915,10 +1915,9 @@ const HOME_PAGE = read(HOME);
      price, Cash required, Monthly position, Net yield), and "Not an official property valuation" (the
      registered valuer's line) whole inside the closed "Why this is not a
      valuation" (the Day-15 review, QT-D15-02, 28 Oct 2026: it was visible,
-     in a longer paragraph); and the
-     sample's line under its name (the Day-8 report's QT-D08-02, the
-     owner's decision of 20 Oct 2026; it took the place of "— not a real
-     listing") word for word, in the identity line, before the tiles;
+     in a longer paragraph); and no line under the sample's name (the Day-8
+     report's QT-D08-02, "Illustrative scenario: …", went on 31 Oct 2026:
+     the chip's line says it);
    - /property/calculator: the methodology ("The score and the grade are
      not the same claim"), the pillar table and the list of blockers inside
      closed <details>, with the worst blocker in sight on one line, and the
@@ -1999,7 +1998,6 @@ const HOME_PAGE = read(HOME);
     return { body, blocks, tags, runs, control, qControl, textOf };
   };
   const p = [], said = {};
-  const LAB_SAMPLE_ASSUME = 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.';
   const got = await getAll(['/property', '/property/calculator']);
   const land = got.get('/property'), calc = got.get('/property/calculator');
   if (land.status !== 200) p.push(`/property: ${described(land)}`);
@@ -2014,18 +2012,14 @@ const HOME_PAGE = read(HOME);
     if (words > 290) p.push(`/property: ${words} visible words in <main> before the first form control, more than 290`);
     if (proseWords > 228) p.push(`/property: ${proseWords} of them in ${prose.length} blocks of eight words or more, more than 228`);
     const seen = L.runs.filter(r => r.at < L.control.at && r.visible).map(r => r.s).join(' ').replace(/\s+/g, ' ');
-    for (const want of ['Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.', LAB_SAMPLE_ASSUME]) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
+    for (const want of ['Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.']) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
     /* The registered valuer's line, kept whole and one tap away (QT-D15-02). */
     const official = L.runs.find(r => r.s.includes('Not an official property valuation'));
     if (!official || !official.closed || !official.s.includes('registered valuer')) p.push('/property: "Not an official property valuation — … registered valuer" is not served inside the closed "Why this is not a valuation"');
     const id = L.tags.find(t => / lab-identity /.test(` ${attr(t.raw, 'class') || ''} `));
-    /* The sample's line under its name (QT-D08-02): word for word, in the
-       identity line, before the figures. */
-    const note = L.tags.find(t => / lab-id-assume /.test(` ${attr(t.raw, 'class') || ''} `));
-    const firstTile = L.tags.find(t => attr(t.raw, 'data-tile') !== null);
-    said.assume = note ? L.textOf(note.at) : null;
-    if (!note || !note.visible || said.assume !== LAB_SAMPLE_ASSUME) p.push(`/property: the sample's line under its name ${!note ? 'is not served (.lab-id-assume)' : !note.visible ? 'is not visible' : `reads "${said.assume}"`}, not "${LAB_SAMPLE_ASSUME}" word for word`);
-    else if ((id && note.at < id.at) || (firstTile && note.at > firstTile.at)) p.push('/property: the sample\'s line under its name is not in the identity line, before the figures');
+    /* The line under the sample's name (QT-D08-02) went on 31 Oct 2026 (the Day 18 follow-up, "remove before adding"): the chip's line, "Sample figures are illustrative…", says it. */
+    if (L.tags.some(t => / lab-id-assume /.test(` ${attr(t.raw, 'class') || ''} `))) p.push('/property: still serves the old line under the sample\'s name, "Illustrative scenario: …" (.lab-id-assume)');
+    said.assume = 'gone';
     if (!id || !id.visible || id.at > L.control.at) p.push(`/property: ${!id ? 'no identity line (.lab-identity)' : !id.visible ? 'its identity line is not visible' : 'its identity line comes after the first form control'}`);
     else {
       const name = L.textOf(L.tags.find(t => t.at > id.at && attr(t.raw, 'id') === 'lab-status')?.at ?? -1);
@@ -2088,7 +2082,7 @@ const HOME_PAGE = read(HOME);
     const n = top.split(k).length - 1;
     if (n !== 1) p.push(`/property/calculator: "${k}" is visible ${n} times, not once`);
   }
-  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "They are not a property valuation or investment recommendation" and the sample's line ("${said.assume}") in sight; /property/calculator is served in the Quick model — no methodology, pillar table or blocker served outside a closed drawer, the worst in sight ("${said.worst}…"), the cash required and the monthly position said once (the full model, drawn: model-test qt-quick-full)`,
+  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "They are not a property valuation or investment recommendation" in sight and the old line under the sample's name ${said.assume}; /property/calculator is served in the Quick model — no methodology, pillar table or blocker served outside a closed drawer, the worst in sight ("${said.worst}…"), the cash required and the monthly position said once (the full model, drawn: model-test qt-quick-full)`,
     '/property is not the Scenario Lab with its identity line and four tiles first, or the calculator\'s top is not compacted (N3, D18)');
 
   /* ---- p1-questions ---- */

@@ -5216,16 +5216,7 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 @container lab (min-width: 600px) { .lab-id-top { grid-template-areas: "name act" "meta act"; column-gap: 24px; } .lab-status.lab-id-name { font-size: var(--ls-section); line-height: 1.25; } }
 @media (min-width: 663px) { :root[data-served] .lab-id-top { grid-template-areas: "name act" "meta act"; column-gap: 24px; } :root[data-served] .lab-status.lab-id-name { font-size: var(--ls-section); line-height: 1.25; } }
 .lab-id-name strong { font-weight: 700; }
-/* The sample's line under its name (LAB_SAMPLE_ASSUME, QT-D08-02): what its
-   figures are, led in the illustrative badges' bronze, at the place line's
-   size and before it — two even lines at the reading measure, not one long
-   one with a word left over. A saved property has no such line, and its
-   grid is as it was. */
-.lab-id-top.has-assume { grid-template-areas: "name act" "note note" "meta meta"; }
-.lab-id-top > .lab-id-assume { grid-area: note; margin: 0; max-width: var(--ls-measure); font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); text-wrap: balance; }
-.lab-id-assume > strong { color: var(--bronze); font-weight: 600; }
-@container lab (min-width: 600px) { .lab-id-top.has-assume { grid-template-areas: "name act" "note act" "meta act"; } }
-@media (min-width: 663px) { :root[data-served] .lab-id-top.has-assume { grid-template-areas: "name act" "note act" "meta act"; } }
+/* The sample's line under its name went (Day 18 follow-up, 31 Oct 2026: the chip's line says it). */
 .lab-id-meta { margin: 1px 0 0; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
 .lab-id-act { flex: none; display: flex; align-items: center; }
 .lab-id-act .btn { white-space: nowrap; }
@@ -5253,7 +5244,8 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 
 /* The four tiles: on the layout system (layout-system, at the end). */
 @media (max-width: 599px) {
-  .lab-page-hd .eyebrow, .lab-page-hd .page-lede { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* Day 18 follow-up (31 Oct 2026): the introduction shows on a phone too, between the heading and its button; only the eyebrow, the product's name, is for the ear. */
+  .lab-page-hd .eyebrow { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .page-hd.lab-page-hd { margin-bottom: var(--xs); row-gap: 4px; }
   .view:has(> .shell > .lab-page) { padding-top: var(--xs); }
   .shell:has(> .lab-page) > .journey-line:not(:empty) { margin-bottom: 4px; }
