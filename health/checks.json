@@ -1,12 +1,12 @@
 {
   "kind": "quantum-tradeworks-checks",
   "schema": 1,
-  "commit": "3f31f22baf2a14ca9b70e193dec67c1b39787250",
-  "recordedAt": "2026-10-31T11:38:15.522Z",
-  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/41192106981",
-  "ranAt": "2026-10-31T11:37:43Z",
+  "commit": "50ef118266a64c29a642033429e3f88a024984ac",
+  "recordedAt": "2026-10-31T16:48:02.920Z",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/41214899899",
+  "ranAt": "2026-10-31T16:47:13Z",
   "event": "push",
-  "conclusion": "success",
+  "conclusion": "failure",
   "note": null,
   "suites": [
     {
@@ -15,9 +15,9 @@
       "kind": "numbers",
       "job": "runtime",
       "status": "PASS",
-      "passed": 293,
+      "passed": 302,
       "failed": 0,
-      "said": "all 293 model invariants hold",
+      "said": "all 302 model invariants hold",
       "exit": 0
     },
     {
@@ -26,9 +26,20 @@
       "kind": "numbers",
       "job": "runtime",
       "status": "PASS",
-      "passed": 294,
+      "passed": 298,
       "failed": 0,
-      "said": "294 passed, 0 failed",
+      "said": "298 passed, 0 failed",
+      "exit": 0
+    },
+    {
+      "id": "register-test",
+      "name": "register-test",
+      "kind": "numbers",
+      "job": "runtime",
+      "status": "PASS",
+      "passed": 18,
+      "failed": 0,
+      "said": "18 ok, 0 FAIL — register holds: record, edit, undo and replay agree across every entity.",
       "exit": 0
     },
     {
@@ -103,9 +114,9 @@
       "kind": "layout",
       "job": "static",
       "status": "PASS",
-      "passed": 60,
+      "passed": 63,
       "failed": 0,
-      "said": "60 passed, 0 failed (of 64 passed, 0 failed; the data blocks apart)",
+      "said": "63 passed, 0 failed (of 67 passed, 0 failed; the data blocks apart)",
       "exit": 0
     },
     {
@@ -146,11 +157,11 @@
       "name": "coverage-frames",
       "kind": "layout",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 207,
-      "failed": 0,
-      "said": "207 passed, 0 failed",
-      "exit": 0
+      "status": "FAIL",
+      "passed": 206,
+      "failed": 1,
+      "said": "206 passed, 1 failed",
+      "exit": 1
     },
     {
       "id": "mobile",
@@ -158,9 +169,9 @@
       "kind": "layout",
       "job": "runtime",
       "status": "PASS",
-      "passed": 44,
+      "passed": 45,
       "failed": 0,
-      "said": "no horizontal overflow at any width, and no focus stop hidden (44 ok, 0 FAIL)",
+      "said": "no horizontal overflow at any width, and no focus stop hidden (45 ok, 0 FAIL)",
       "exit": 0
     }
   ]
