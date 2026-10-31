@@ -2303,6 +2303,9 @@ table.scan-dt td { vertical-align: top; }
 .scan-first-ex { max-width: 46rem; }
 /* The head's note is a claim — no scan here, no prices — so a phone shows it whole, not in the two lines a note is clamped to. */
 @media (max-width: 760px) { .page-hd.scan-hd-full .page-note { display: block; -webkit-line-clamp: unset; overflow: visible; } }
+/* QT-D18-02: the one limitation near the top of the first view reads as the
+   page's main caution, not a grey note. */
+.page-hd.scan-hd-full .page-note { color: var(--ink); font-size: var(--ls-support); font-weight: var(--weight-semibold); }
 
 .scan-ex {
   margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--ls-related);
@@ -2356,7 +2359,10 @@ table.scan-dt td { vertical-align: top; }
 :root .scan-ex :is(.scan-ex-ticks, .scan-ex-verdict) { max-width: none; }
 /* How to run the worker (L3): closed, its summary a 44px target. */
 .scan-run-d { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); box-shadow: var(--lift-1); }
-.scan-run-sum { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px 16px;
+/* nowrap: on a phone every summary wraps (the rule at the top of the mobile
+   block), and a two-line label dropped its chevron beneath it — the 30 Oct 2026
+   audit's longer "Advanced" labels made that show. */
+.scan-run-sum { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px 16px;
   cursor: pointer; list-style: none; font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); border-radius: var(--r-md); }
 .scan-run-sum::-webkit-details-marker { display: none; }
 .scan-run-sum::after { content: ""; flex: none; width: 7px; height: 7px; margin-right: 4px; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3);

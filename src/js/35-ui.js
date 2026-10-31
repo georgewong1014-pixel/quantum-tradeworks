@@ -1921,6 +1921,9 @@ function applyRoute() {
      page reopened the last goal's questions instead of the menu. Entering the
      view resets it; the answers are kept. */
   if (route.view === 'launcher' && State.view !== 'launcher' && State.launcher) State.launcher.goal = null;
+  /* The setups page's Advanced details opens for an address that names
+     something inside it once per arrival (86-scanner.js, scanAdvancedAddress). */
+  if (State.view !== route.view && typeof scanAdvLeft === 'function') scanAdvLeft();
   State.view = route.view;
   setDocumentMeta(route);
   render();
