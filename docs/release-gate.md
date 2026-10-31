@@ -7,6 +7,9 @@ Written 29 October 2026 (QT-D13-01). This explains how a commit reaches producti
 1. A push to `main` starts two things at once: Vercel's Git integration and the GitHub Actions workflow `checks.yml`.
 2. Vercel serves the repository as committed. `vercel.json` has no build command and no ignore step, and no workflow in this repository deploys anything.
 3. **Today, Vercel promotes the new deployment to production as soon as it is ready. It does not wait for `checks.yml`.** This happened with `0f8fbaf` on 25 October and with `090ae64` on 29 October. CI on `090ae64` failed first, because its browser did not start on the runner, and the commit went live anyway.
+4. **It happened again with a real failure on 30 October.** `d8b209a37` became the Production deployment at 15:32:47 UTC. Its gate finished at 16:41:55 UTC as a **failure**: "every route renders" failed on the calculator at 390px on CI's fonts. That deployment stayed live until the fix, `3f31f22ba`, went out on 31 October; its gate passed.
+
+GitHub has no branch protection or ruleset on `main` either (`gh api repos/{owner}/{repo}/branches/main/protection` answers "Branch not protected"). That is not the missing piece: Vercel builds from the push, whatever GitHub requires of a merge.
 
 The repository cannot hold back Vercel's own promotion. The promotion setting is in the Vercel project, not in this repository.
 
@@ -46,6 +49,17 @@ Do not publish a failing commit to test it. Instead:
 2. On the next ordinary push to `main`, the deployment in Vercel should show "Checks" pending, then passed, before it becomes the production deployment.
 
 A screenshot of each in Vercel is the evidence. A green `/status` alone cannot show it, because `/status` reports after deployment.
+
+GitHub's records show the same without opening Vercel. For a pushed commit, compare when its Production deployment succeeded with when the gate completed:
+
+```bash
+SHA=$(git rev-parse <commit>)
+gh api "repos/{owner}/{repo}/deployments?sha=$SHA&environment=Production" --jq '.[].id' |
+  while read id; do gh api "repos/{owner}/{repo}/deployments/$id/statuses" --jq '.[] | select(.state=="success") | .created_at'; done
+gh api "repos/{owner}/{repo}/commits/$SHA/check-runs" --jq '.check_runs[] | select(.name|startswith("release gate")) | [.conclusion, .completed_at] | @tsv'
+```
+
+With Deployment Checks on, the deployment's success time comes **after** the gate's completed time. On `d8b209a37` it came 69 minutes before, so the setting is off.
 
 ## If a bad release reaches production anyway
 
