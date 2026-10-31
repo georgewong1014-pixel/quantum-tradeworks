@@ -905,7 +905,7 @@ const PC_FIELD_HASH = /^d-[A-Za-z]+$/;
 function propertyArrivalSection() {
   const want = (h => PC_SECTION_ALIAS[h] || h)(location.hash.replace(/^#/, ''));
   const key = location.pathname + location.search + location.hash;
-  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want) || want === 'review') && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
+  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want) || want === 'review' || want === 'els-plan') && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
   if (!pcArrivalWant) return;
   const go = () => {
     if (!pcArrivalWant || State.view !== 'property') { pcArrivalWant = null; return; }
@@ -925,6 +925,9 @@ function propertyArrivalSection() {
       det.querySelector('summary')?.focus({ preventScroll: true });
       return;
     }
+    /* The optional ELS panel (the owner's Day 18 instructions, 31 Oct 2026):
+       opened, in sight, the keyboard on its name (pcOpenElsPanel). */
+    if (id === 'els-plan') { pcOpenElsPanel(); return; }
     if (PC_FIELD_HASH.test(id)) {
       const field = document.getElementById(id);
       if (!field) return;

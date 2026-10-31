@@ -3310,10 +3310,12 @@ function pcSwitchView(full, { keep = null } = {}) {
    (#scenarios) or a box the Quick model does not show (#d-holdYears,
    #d-askingPrice) is the full model's; #review and the Quick model's own
    boxes are both views', and keep the view the address names. */
+/* #els-plan is the optional ELS panel's, in the full model (the owner's Day 18
+   instructions, 31 Oct 2026): the Scenario Lab and the Quick model link to it. */
 function pcArrivalView() {
   const want = (h => PC_SECTION_ALIAS[h] || h)(location.hash.replace(/^#/, ''));
   if (!want || pcViewIsFull()) return;
-  const fullOnly = PC_SECTIONS.some(s => s.id === want) || (PC_FIELD_HASH.test(want) && !PC_QUICK_KEYS.has(want.slice(2)));
+  const fullOnly = PC_SECTIONS.some(s => s.id === want) || want === 'els-plan' || (PC_FIELD_HASH.test(want) && !PC_QUICK_KEYS.has(want.slice(2)));
   if (!fullOnly) return;
   const p = new URLSearchParams(location.search);
   p.set('view', 'full');
@@ -3386,13 +3388,19 @@ function pcQuickCard(key, level, label, value, sub, badge, tone = null) {
    "Why these are defaults" stays folded. The address #review lands on it.
    Null when nothing is left to review. */
 const PC_DRIVER_SAY = { price: 'price', rent: 'rent', maintenance: 'maintenance', sqft: 'built-up area' };
-function pcQuickRests(d, queue) {
+/* THE SCENARIO LAB SAYS IT THE SAME WAY (the 30 Oct 2026 audit): the one
+   block, the same count and the same second clause. `go`, where the figures
+   are replaced in the calculator rather than listed in place — { first, id,
+   onclick? } — makes "Review the defaults →" a link to the first figure
+   still the tool's (the Lab's old "Next step"), in place of the list; `id`
+   names the block where it is not the calculator's #review. */
+function pcQuickRests(d, queue, { go = null, id = 'review' } = {}) {
   const drivers = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
   const keys = [...new Set([...queue.map(f => f.k), ...drivers])];
   if (!keys.length) return null;
   const n = keys.length, s = n === 1 ? '' : 's';
   const say = (k) => (PROPERTY_REVIEW.find(f => f.k === k)?.label || k).toLowerCase();
-  const box = el('div', { class: 'pc-rests', id: 'review', 'aria-labelledby': 'pc-rests-h' });
+  const box = el('div', { class: 'pc-rests', id, 'aria-labelledby': 'pc-rests-h' });
   box.append(el('h3', { class: 'pc-rests-h', id: 'pc-rests-h' }, 'What these figures rest on'));
   const lead = el('p', { class: 'pc-rests-text', id: 'pc-rests-text' }, [
     el('strong', { 'data-n': String(n) }, `${n} input${s}`), ` ${n === 1 ? 'is' : 'are'} still the tool’s illustrative default${s}, not yours: ${feeList(keys.map(say))}.`]);
@@ -3400,10 +3408,18 @@ function pcQuickRests(d, queue) {
     ? `${n === 1 ? 'It holds' : 'All hold'} back the research grade.`
     : `${drivers.length} of the ${n} — ${feeList(drivers.map(k => PC_DRIVER_SAY[k] || k))} — hold${drivers.length === 1 ? 's' : ''} back the research grade.`);
   box.append(lead);
-  const det = el('details', { class: 'pc-rests-list', id: 'pc-review-list' });
-  det.append(el('summary', { class: 'pc-rests-sum' }, [`Review the defaults`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]));
-  det.append(...pcReviewRows(d, queue));
-  box.append(det);
+  if (go) {
+    const first = queue[0] || null;
+    if (first) box.append(el('p', { class: 'pc-rests-go-p' }, el('a', { class: 'pc-rests-go', id: go.id, href: href(go.path), onclick: (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(go.path);
+    } }, ['Review the defaults', el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →'),
+      el('span', { class: 'sr-only' }, ` — starting with the ${first.label.toLowerCase()}, in the calculator`)])));
+  } else {
+    const det = el('details', { class: 'pc-rests-list', id: 'pc-review-list' });
+    det.append(el('summary', { class: 'pc-rests-sum' }, [`Review the defaults`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]));
+    det.append(...pcReviewRows(d, queue));
+    box.append(det);
+  }
   box.append(el('details', { class: 'explain' }, [el('summary', {}, 'Why these are defaults'),
     el('p', { class: 'metaline' }, `Nobody chose ${n === 1 ? 'it' : 'them'} for this property and no market was consulted. The sample deal is not a real listing.`)]));
   if (d.city !== 'kuching') box.append(el('p', { class: 'metaline' },
@@ -3534,8 +3550,93 @@ function pcQuickView(d, m, g, DK) {
       sw?.scrollIntoView({ block: 'start' });
       focusAfterRedraw(sw);
     } }) }));
-  sec.append(inputs, res, open);
+  sec.append(inputs, res, open, pcQuickElsLink());
   return sec;
+}
+/* THE OPTIONAL ELS PANEL (the owner's Day 18 instructions, 31 Oct 2026;
+   briefs/README-els-referral.md). One quiet drawer in the full model, after
+   the results and the report actions and never above them: a short brief the
+   reader reviews, edits and copies, then a plain link to the ELS website.
+   Nothing is sent — no request to ELS, no prefill, no tracking, no query or
+   hash on the link. ELS does not yet expose a page of its own that receives a
+   brief, so the reader brings the copy to their first contact. Calculating,
+   comparing and saving need none of it; the brief is a pure function of the
+   deal (elsBrief, 70-property.js) and the panel keeps nothing of its own: it
+   is open or closed and holds the typed requirements in this tab's memory
+   only — not stored, not in any address, not printed. The link opens a new
+   tab, so the model in this one is exactly as it was when the reader returns. */
+let pcElsOpen = false;
+let pcElsReq = '';
+const ELS_LINK_WORDS = 'Open the ELS website';
+const ELS_ACTION_WORDS = 'Explore design and renovation planning with ELS';
+/* Where the panel is addressed from, as a section is (#scenarios): no deal and
+   nothing private in it; the calculator opens the full model for it
+   (pcArrivalView) and keeps the deal it holds. */
+const ELS_PLAN_PATH = '/property/calculator#els-plan';
+/* To the panel: the full model opened first from the Quick model, its section
+   chosen on a phone, the drawer open and in sight, the keyboard on its name. */
+function pcOpenElsPanel() {
+  pcElsOpen = true;
+  if (!pcViewIsFull()) pcSwitchView(true);
+  const det = document.getElementById('els-plan');
+  if (!det) return;
+  pcShowFor(det);
+  det.open = true;
+  det.scrollIntoView({ block: 'start', behavior: 'instant' });
+  det.querySelector(':scope > summary')?.focus({ preventScroll: true });
+}
+function pcElsPanel(d) {
+  const det = el('details', { class: 'pc-more pc-els', id: 'els-plan', open: pcElsOpen ? '' : null });
+  det.addEventListener('toggle', () => { pcElsOpen = det.open; });
+  det.append(el('summary', { class: 'pc-more-sum pc-els-sum', id: 'els-plan-sum' }, ELS_ACTION_WORDS));
+
+  const status = el('span', { class: 'metaline pc-els-status', id: 'els-status', role: 'status' });
+  const brief = el('textarea', { class: 'input pc-els-brief', id: 'els-brief', readonly: '', rows: '12', spellcheck: 'false' });
+  brief.value = elsBrief(d, pcElsReq).text;
+  const requirements = el('textarea', { class: 'input pc-els-requirements', id: 'els-requirements', rows: '4', maxlength: String(ELS_REQUIREMENTS_MAX), autocomplete: 'off', spellcheck: 'true',
+    'aria-describedby': 'els-requirements-note' });
+  requirements.value = pcElsReq;
+  requirements.addEventListener('input', () => {
+    pcElsReq = requirements.value;
+    brief.value = elsBrief(d, pcElsReq).text;
+    status.textContent = '';
+  });
+
+  const copy = async () => {
+    try {
+      if (!navigator.clipboard) throw new Error('no clipboard');
+      await navigator.clipboard.writeText(brief.value);
+      status.textContent = 'Copied';
+    } catch {
+      /* Refused (an insecure page, a policy, a browser that asks first): the
+         brief is selected where the reader can see it, and how to copy it said. */
+      brief.focus(); brief.select();
+      status.textContent = 'Your browser did not allow copying. The brief is selected: press Ctrl+C (Command+C on a Mac) to copy it.';
+    }
+  };
+
+  det.append(el('div', { class: 'pc-els-body' }, [
+    el('p', { class: 'pc-els-lede' }, 'ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.'),
+    el('div', { class: 'pc-els-field' }, [
+      el('label', { for: 'els-requirements' }, 'Your requirements'),
+      requirements,
+      el('p', { class: 'metaline', id: 'els-requirements-note' }, 'In your own words. Not saved and not printed.')]),
+    el('div', { class: 'pc-els-field' }, [
+      el('label', { for: 'els-brief' }, 'Your brief'),
+      brief]),
+    el('p', { class: 'pc-els-before', id: 'els-before' }, 'Review and copy your brief. Nothing is sent to ELS: you paste it there yourself if you want to.'),
+    el('div', { class: 'pc-els-acts' }, [
+      el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'els-copy', onclick: copy }, 'Copy brief'),
+      el('a', { class: 'btn btn-ghost btn-sm', id: 'els-link', href: ELS_URL, target: '_blank', rel: 'noopener noreferrer',
+        html: `${ELS_LINK_WORDS} ${icon('ext', 10)}` }),
+      status]),
+  ]));
+  return det;
+}
+/* The Quick model's one way to it: a text link under "The full model". */
+function pcQuickElsLink() {
+  return el('p', { class: 'pc-q-els' }, el('a', { class: 'pc-q-els-link', id: 'pc-q-els', href: href(ELS_PLAN_PATH),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); pcOpenElsPanel(); } }, ELS_ACTION_WORDS));
 }
 VIEWS.property = () => {
   /* A part of the full model the address names opens the full model
@@ -5472,7 +5573,7 @@ VIEWS.property = () => {
   rnt.outputs.append(...[headline, propertyClassOf(d) === 'commercial' ? pcCommercial(d) : null, ops, rentBuyCard].filter(Boolean));
   scn.outputs.append(propertyScenariosPanel(d), pcL3('sens', 'What actually decides this: each input moved', sensPanel), stressCard,
     pcL3('returns', 'Return, and tax on the rent, year by year', returnsPanel));
-  rpt.outputs.append(checkCard, pcL3('gates', 'Against the methodology: each gate', gatesPanel), demandCard, envCard, pcL3('rests', 'What this rests on: every driving figure', ev), ...reportCards, propertyShareRow(d, paid), regNote);
+  rpt.outputs.append(checkCard, pcL3('gates', 'Against the methodology: each gate', gatesPanel), demandCard, envCard, pcL3('rests', 'What this rests on: every driving figure', ev), ...reportCards, propertyShareRow(d, paid), pcElsPanel(d), regNote);
   [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));
   return wrap;
 };

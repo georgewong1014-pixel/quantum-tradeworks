@@ -1878,7 +1878,11 @@ export function layoutSystemProblems({ root = ROOT } = {}) {
      line (.pub-card-outcome, QT-D03-01) left out — served-check holds those
      word for word, and the limit at 8 words or fewer;
    - each figure: 20 words or fewer — its caption, legend and state rows,
-     inside the <figure>, the <svg>'s words with them;
+     inside the <figure>, the <svg>'s words with them; the Scanner's three
+     evaluated conditions (ol.pub-scan-conds) are not counted (30 Oct 2026,
+     the audit's real example output): they are the engine's own result,
+     lines of values like a chart's numbers, and with them the figure is
+     26 words — its caption, verdict, legend and label stay inside 20;
    - <main>: 110 words or fewer outside its figures and those lines;
    - at least two data visuals: a figure with an <svg> of three or more
      data marks (data-v) and a source label in sight (.pub-vis-src);
@@ -1995,7 +1999,7 @@ export function homeBudgets(html) {
   if (cards.length < 3) p.push(`/ serves ${cards.length} product cards, not three`);
   /* The figures. */
   said.figures = figures.map(f => {
-    const w = wordsIn(sightText(f)).length;
+    const w = wordsIn(sightText(f, n => hasClass(n, 'pub-scan-conds'))).length;
     const name = attrOf(f, 'class') || 'figure';
     if (w > HOME_BUDGET.figure) p.push(`a figure (${name}) is ${w} words, more than ${HOME_BUDGET.figure}: "${sightText(f).slice(0, 120)}"`);
     return w;
@@ -2324,6 +2328,10 @@ export function feeRulebookProblems({ root = ROOT } = {}) {
      of the changelog is the version in force, dated, and said. */
   const log0 = (T.changelog || [])[0];
   if (!log0 || log0.version !== T.version || !isDay(log0.date) || !String(log0.what || '').trim()) out.push(`the fee rulebook's changelog does not open with version ${T.version}, dated and said`);
+  /* Each version says whether it changes an amount (the 31 Oct 2026
+     operational audit, #4): model-test holds the ones that do to a row of
+     the corrections log. */
+  for (const x of T.changelog || []) if (typeof x.amounts !== 'boolean') out.push(`the fee rulebook's changelog entry ${x.version} does not say whether it changes an amount (amounts: true or false)`);
   /* The ledger's kinds are named, each with what it means. */
   for (const k of Object.keys(T.categories || {})) if (!String(T.categoryNotes?.[k] || '').trim()) out.push(`the fee rulebook's kind "${k}" does not say what it means (categoryNotes)`);
   for (const [id, l] of Object.entries(T.lines || {})) {

@@ -504,9 +504,11 @@ function scanExample() {
 }
 /* The chart at bar i (0-based): the closes and the EMA up to it, none after,
    on the whole series' scale, with the bar marked. No words in it: its two
-   ends' bar numbers are the line under it, in the page's type. */
-function scanExSvg(ex, i) {
-  const W = 320, H = 116, L = 4, R = 4, T = 10, Bt = 8;
+   ends' bar numbers are the line under it, in the page's type. H is its
+   height in the viewBox (116; the homepage's preview draws it at 62, the
+   30 Oct 2026 audit's example output, from the same series). */
+function scanExSvg(ex, i, { H = 116 } = {}) {
+  const W = 320, L = 4, R = 4, T = 10, Bt = 8;
   const vals = [...ex.A.closes, ...ex.ema.filter(isNum)];
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const x = (k) => L + k * (W - L - R) / (ex.n - 1);
@@ -613,8 +615,12 @@ VIEWS.scannerDashboard = () => {
      the long "Whether each setup is active…" note, which the answers below
      give themselves, is gone. The layout system holds a lede to one line, so
      the first sentence is the lede and the rest the note under it. */
-  const head = pageHead({ title: 'Scanner dashboard', lede: 'Create and save your scanning rules here.', cls: 'scan-hd-full',
-    note: 'Scanning needs price history and the local worker on your own computer, which is not available to download yet. This website does not run scans or supply prices.' });
+  /* QT-D18-02 (31 Oct 2026): the lede says what the page is for, in the
+     owner's words, and the limitation is stated once, plainly and darker
+     than a note (.scan-hd-full), where it read twice over in a longer,
+     greyer sentence. */
+  const head = pageHead({ title: 'Scanner dashboard', lede: 'Create and save rules for checking price history you supply.', cls: 'scan-hd-full',
+    note: 'The website does not run scans or supply prices. The local worker is not available to download yet.' });
   wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
@@ -640,7 +646,7 @@ VIEWS.scannerDashboard = () => {
     if (target.tagName === 'DETAILS') target.open = true;
     target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     (target.querySelector('summary') || target).focus?.({ preventScroll: true });
-  } }, 'Run locally');
+  } }, 'Run locally (advanced)');
   /* The layout system's section names itself with a heading; this one is for
      a screen reader — the steps are their own heading to a sighted reader. */
   wrap.append(el('section', { class: 'card scan-steps-card ls-section', 'aria-labelledby': 'scan-steps-hd' }, [el('h2', { id: 'scan-steps-hd', class: 'sr-only' }, 'From a rule to a recorded result'), el('ol', { class: 'scan-steps', role: 'list' }, [
@@ -648,10 +654,21 @@ VIEWS.scannerDashboard = () => {
       browserSetups.length ? `${browserSetups.length} saved in this browser` : 'None yet',
       [createPath ? scanOpsLink(createPath, sc.action, { class: 'btn btn-primary' }) : null,
        browserSetups.length ? scanOpsLink('/app/scanner/setups', 'Your setups', { class: 'scan-step-link' }) : null]),
-    step(2, 'Price history', 'Needed',
+    /* THE 30 OCT 2026 AUDIT: a red "Unavailable" badge beside "None supplied"
+       read as a fault, when the price history is the reader's to supply and
+       this site is not meant to hold any. The state is a plain sentence, the
+       tag says whose it is, and one line says what the file holds, as the
+       engine reads it (scanBars, 24-market-engine.js: series {SYM: {date:
+       close}}, and each optional: volume, ohlc [open, high, low]) and where
+       the worker reads it (scanner/scan.mjs, data/price-history.json; the
+       file's name stays inside "Advanced: run locally", where served-check
+       keeps the data files). The tab bar's badges are the shared register's
+       and stay. */
+    step(2, 'Price history', hist ? 'Needed' : 'You supply it',
       hist ? `${scanOpsPlural(hist.symbols.length, 'series', 'series')}, newest bar ${hist.newestBar || '—'}`
-           : [el('span', { class: 'status-badge status-unavailable', title: 'This site ships no prices; the worker reads the history you supply.' }, 'Unavailable'), ' None supplied'],
-      null),
+           : 'None supplied — this site ships no prices',
+      null,
+      hist ? null : 'The worker reads your price history on your own computer: for each symbol, a close for each date, and optionally open, high, low and volume.'),
     step(3, 'Run locally', 'Needs the worker on your computer', 'Not available to download yet', runLink),
     step(4, 'Review recorded results', 'Recorded by the worker',
       lastRun ? `Last scan ${scanOpsDay(lastRun.finishedAt || lastRun.startedAt)}` : lastTry ? `No scan has succeeded; latest attempt ${scanOpsDay(lastTry.startedAt)}` : 'No scan recorded',
@@ -789,7 +806,10 @@ VIEWS.scannerDashboard = () => {
      follows it, last. */
   const files = el('section', { class: 'scan-run-part' }, [cardHead('Your files', 'Open the worker’s files from your own disk to read them on these pages.'), scanOpsOpenFiles()]);
   wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
-    el('summary', { class: 'scan-run-sum' }, 'Run locally'),
+    /* The 30 Oct 2026 audit: worker commands belong in an advanced section.
+       QT-D18-02 (31 Oct) words the summary "Advanced: run locally". The
+       body says there is nothing to download yet, as the head and step 3 do. */
+    el('summary', { class: 'scan-run-sum' }, 'Advanced: run locally'),
     el('div', { class: 'scan-run-body' }, [
       el('p', { class: 'body' }, 'The worker is not distributed yet; setups can be tested here on prices you supply. If you hold its files, open them below.'),
       run, files, mon,

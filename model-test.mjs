@@ -667,6 +667,38 @@ try {
     else ok(`fee rulebook ${r.version} (checked ${r.checkedOn}): Item 32(a) ${want.mot.join('/')}, Item 27(a)(iii) ${want.loanDuty.join('/')}, Sarawak's scale ${want.sarawak.join('/')} and 1.25× on the loan (${want.loanLegal[0]}), 8% service tax ${want.sst}, the Peninsular SRO ${want.peninsular.join('/')} held aside, the valuers' ceiling ${want.valuation.join('/')}; ${r.lines.length} lines each with a provenance, jurisdiction, effective date, source and checked date`);
   }
 
+  /* 19b-log — EVERY RULEBOOK VERSION THAT CHANGES AN AMOUNT IS IN THE
+           CORRECTIONS LOG (the 31 Oct 2026 operational audit, #4). The 25 Oct
+           fee correction, rulebook 1.5.0, shipped with no row on /corrections
+           although the log says every row is a correction that shipped. Each
+           changelog entry of FEE_TABLE states whether it changes an amount
+           (amounts: true or false, decided from its own text); each true one
+           must have a row of the log, about the fee rulebook, that names its
+           version or is dated the day of the entry. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = (ms) => new Promise(res => setTimeout(res, ms));
+      navigate('/corrections'); await wait(500);
+      const t = [...document.querySelectorAll('main table.dt')].find(x => { const h = [...x.querySelectorAll('thead th')].map(n => n.textContent); return h[0] === 'Date' && h[1] === 'Scope'; });
+      const rows = t ? [...t.querySelectorAll('tbody tr')].map(tr => [...tr.cells].map(c => c.textContent)) : [];
+      const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const day = (iso) => { const [y, m, d] = iso.split('-'); return d + ' ' + M[+m - 1] + ' ' + y; };
+      /* Read, then put the address back: later checks press Back through their own entries. */
+      history.back(); await wait(500);
+      return { rows: rows.length, log: FEE_TABLE.changelog.map(x => ({ version: x.version, date: day(x.date), amounts: x.amounts,
+        row: rows.findIndex(c => /rulebook/i.test(c.join(' ')) && (c.join(' ').split(/[^0-9.]+/).includes(x.version) || c[0] === day(x.date))) })) };
+    })()`);
+    const p = [];
+    if (!r.rows) p.push('the corrections log table was not found on /corrections');
+    for (const x of r.log) {
+      if (typeof x.amounts !== 'boolean') p.push(`rulebook ${x.version} does not say whether it changes an amount (amounts: true or false)`);
+      else if (x.amounts && x.row < 0) p.push(`rulebook ${x.version} (${x.date}) changes an amount and /corrections has no row naming it, or dated ${x.date} under the fee rulebook`);
+    }
+    if (!r.log.some(x => x.amounts === true)) p.push('no changelog entry is marked as changing an amount');
+    if (p.length) fail('fee rulebook: every version that changes an amount has a row in the corrections log', p);
+    else ok(`fee rulebook: every version that changes an amount has a row in the corrections log (${r.log.filter(x => x.amounts).map(x => x.version).join(', ')}; not ${r.log.filter(x => !x.amounts).map(x => x.version).join(', ')})`);
+  }
+
   /* 19c — THE COST LEDGER RECONCILES, AND SAYS WHAT RESTS ON WHAT. On the
            sample, a taxed deal, a quoted MRTA premium and a cash purchase:
            the lines sum to the total initial cash; the unverified or unknown
@@ -5273,6 +5305,8 @@ try {
           const out = {};
           out.status = txt(document.getElementById('lab-status'));
           out.price = txt(document.getElementById('lab-ev-price')); out.rent = txt(document.getElementById('lab-ev-rent'));
+          out.note = txt(document.getElementById('lab-default-note'));
+          out.repeated = [...document.querySelectorAll('#views .lab-knob')].some(k => txt(k).includes('Illustrative default — not yours'));
           out.row6 = txt(document.querySelector('#views .lab-row[data-row="valueLessLoanAtExit"] .lab-formula'));
           out.row7 = txt(document.querySelector('#views .lab-row[data-row="irrPct"] .lab-formula'));
           const radio = document.getElementById('lab-by-appreciation'); radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await frame();
@@ -5287,7 +5321,10 @@ try {
         })()`);
         const p = [];
         if (!/^Sample deal/.test(r.status)) p.push(`the status reads "${r.status}"`);
-        for (const k of ['price', 'rent']) if (r[k] !== 'Illustrative default — not yours, and not from any market') p.push(`the ${k} chip reads "${r[k]}"`);
+        /* The 30 Oct 2026 audit: the tag is the calculator's own, "Default" (its words, "Illustrative default — not yours, and not from any market", stay its title), under one sentence said once. */
+        for (const k of ['price', 'rent']) if (r[k] !== 'Default') p.push(`the ${k} chip reads "${r[k]}"`);
+        if (r.note !== 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.') p.push(`the sentence over the boxes reads "${r.note}"`);
+        if (r.repeated) p.push('"Illustrative default — not yours, and not from any market" is still said in a box\'s own line');
         for (const k of ['row6', 'row7', 'apprec']) if (!/sample assumption/.test(r[k])) p.push(`${k} does not say "sample assumption"`);
         if (!r.whatIf) p.push('a moved rent does not show “What-if — not saved”');
         if (r.touched) p.push('a moved rent is marked as the reader’s');
@@ -5755,8 +5792,11 @@ try {
           const ok = k === 'grade' ? got === (want ?? null) : near(got, isNum(want) ? want : null);
           if (!ok || txt(n) !== LAB_FORMATS[n.dataset.labFmt](want)) bad.push(k + ' shows ' + txt(n) + ', the model ' + LAB_FORMATS[n.dataset.labFmt](want));
         }
+        /* The 30 Oct 2026 audit: the grade card keeps one line only for a blocker that is not the defaults' (those are said once, in "What these figures rest on"); every gate is under "See why". */
         const gate = txt(document.querySelector('#lab-root .lab-grade-gate'));
-        if (g.gates.length && !gate.startsWith(g.gates.length + ' gate')) bad.push('the grade says "' + gate.slice(0, 40) + '…", the grade has ' + g.gates.length + ' gates');
+        const worst = ['critical', 'serious', 'warning'].map(s => g.gates.find(x => x.severity === s)).find(Boolean);
+        const wantGate = worst && worst.id !== 'illustrative' ? 'Most serious: ' + worst.text : '';
+        if (gate !== wantGate) bad.push('the grade says "' + gate.slice(0, 40) + '…", wanted "' + wantGate.slice(0, 40) + '"');
         return { n: nodes.length, bad };
       };
       const pick = async (key) => { const r = document.getElementById('lab-col-' + key); if (r && !r.checked) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); await frame(); } };
@@ -6112,6 +6152,9 @@ try {
           return n?.name?.value ?? null;
         };
         const radios = { A: await axName('#lab-col-A'), B: await axName('#lab-col-B') };
+        /* Two of the three rows sit in "4 more figures" since the 30 Oct 2026 audit: closed, a row is not in the accessibility tree; the reader opens the fold. */
+        await evaluate(`(() => { const d = document.getElementById('lab-chain-more'); if (d) d.open = true; return true; })()`);
+        await sleep(150);
         const sums = [];
         for (const k of ['instalment', 'netYield', 'irrPct']) sums.push(await axName(`#lab-root .lab-row[data-row="${k}"] > summary`));
         const p = [];
@@ -6336,10 +6379,13 @@ try {
            B, moves none of them;
          - each wears "Illustrative default" while a figure it is worked from
            is the tool's, and the weakest evidence among them once none is;
-         - Next step is the first figure still the tool's — the review
-           queue's first — linked to its box in the calculator, which the
-           link opens with the keyboard in it; with none left, Save; once
-           saved, Compare;
+         - the first figure still the tool's — the review queue's first —
+           is linked to its box in the calculator, which the link opens with
+           the keyboard in it: from "Review the defaults" in "What these
+           figures rest on" and, for the price, from "Replace with your
+           price" on the purchase price tile (the 30 Oct 2026 audit: the
+           Next step tile went; with none left to replace, the price tile
+           reads Yours, has no action and the block is gone);
          - the grade's "Why" holds every gate the grade has. */
   {
     try {
@@ -6348,15 +6394,17 @@ try {
         const kept = JSON.parse(JSON.stringify(State.deal));
         const tiles = () => Object.fromEntries([...document.querySelectorAll('#views .lab-tile')].map(n => [n.dataset.tile, {
           value: n.querySelector('.lab-tile-val')?.textContent.trim(), sub: n.querySelector('.lab-tile-sub')?.textContent.trim(),
-          kind: n.querySelector('[data-kind]')?.dataset.kind, go: n.querySelector('.lab-next-go') ? { text: n.querySelector('.lab-next-go').firstChild.textContent.trim(), href: n.querySelector('.lab-next-go').getAttribute('href') } : null }]));
+          kind: n.querySelector('[data-kind]')?.dataset.kind, go: n.querySelector('.lab-price-go') ? 'an action' : null }]));
+        const rests = () => { const a = document.getElementById('lab-review'); return { block: !!document.getElementById('lab-rests-box'), go: a ? { text: a.firstChild.textContent.trim(), href: a.getAttribute('href') } : null }; };
         const out = {};
         newPropertyDeal({ show: false });
         navigate('/property'); await w(400);
         const d = pmBare(State.deal), m = dealModel(d), g = propertyGrade(d, m);
         out.view = State.view;
-        out.want = { cash: labMoney(m.safeCashRequired), monthly: labMoney(m.cashflowMonthly), yield: fmtPct(m.netYield, 2), fees: labMoney(m.unconfirmedCost), gross: fmtPct(m.grossYield, 2),
+        out.want = { price: labMoney(d.price), cash: labMoney(m.safeCashRequired), monthly: labMoney(m.cashflowMonthly), yield: fmtPct(m.netYield, 2), fees: labMoney(m.unconfirmedCost), gross: fmtPct(m.grossYield, 2),
           first: propertyReviewQueue(d)[0]?.k, gates: g.gates.length };
         out.sample = tiles();
+        out.sampleRests = rests();
         const why = document.getElementById('lab-grade-why');
         why.open = true; await w(100);
         out.why = why.querySelectorAll('.lab-grade-gates > li').length;
@@ -6369,6 +6417,7 @@ try {
         PROPERTY_REVIEW.forEach(f => markTouched(State.deal, f.k)); saveDeal();
         navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(150); navigate('/property'); await w(300);
         out.touched = tiles();
+        out.touchedRests = rests();
         out.save = document.getElementById('lab-id-save')?.textContent.trim();
         const rec = saveActiveProperty({ name: 'N3 tiles' });
         navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(150); navigate('/property'); await w(300);
@@ -6378,9 +6427,16 @@ try {
         /* The next step's link opens the calculator at its box. */
         State.deal = JSON.parse(JSON.stringify(kept)); newPropertyDeal({ show: false });
         navigate('/property'); await w(300);
-        document.querySelector('#views .lab-tile-next .lab-next-go').click();
+        document.getElementById('lab-enter').click();
         for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await w(150);
         out.go = { view: State.view, path: location.pathname, focus: document.activeElement?.id || null };
+        navigate('/property'); await w(400);
+        /* The rests block's one link, the same way. The calculator reads an address once per arrival, so the same address twice running is not read again (pcArrivalSeen): the second click is a fresh arrival. */
+        navigate('/property'); await w(400);
+        pcArrivalSeen = null;
+        document.getElementById('lab-review').click();
+        for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await w(150);
+        out.goRests = { view: State.view, path: location.pathname, focus: document.activeElement?.id || null };
         State.deal = kept; saveDeal();
         return JSON.stringify(out);
       })()`));
@@ -6389,23 +6445,174 @@ try {
       if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on estimated lines`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on estimated lines`);
       if (s.cashflowMonthly?.value !== W.monthly) p.push(`Monthly position: ${s.cashflowMonthly?.value}, the model's ${W.monthly}`);
       if (s.netYield?.value !== W.yield || s.netYield?.sub !== `gross ${W.gross}`) p.push(`Net yield: ${JSON.stringify(s.netYield)}, the model's ${W.yield}, gross ${W.gross}`);
-      if (['safeCashRequired', 'cashflowMonthly', 'netYield', 'next'].some(k => s[k]?.kind !== 'illustrative_default')) p.push(`on the sample every tile is "Illustrative default": ${JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.kind])))}`);
-      if (W.first !== 'price' || s.next?.go?.href !== '/property/calculator#d-price' || s.next?.go?.text !== 'Replace the price') p.push(`Next step on the sample: ${JSON.stringify(s.next)} (the queue's first is ${W.first})`);
+      if (['safeCashRequired', 'cashflowMonthly', 'netYield', 'price'].some(k => s[k]?.kind !== 'illustrative_default')) p.push(`on the sample every tile is "Illustrative default" (the price's, its "Default" tag): ${JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.kind])))}`);
+      if (W.first !== 'price' || s.price?.value !== W.price || s.price?.go) p.push(`the price tile on the sample: ${JSON.stringify(s.price)} (the queue's first is ${W.first}, the price ${W.price}; it has no action of its own since Day 18)`);
+      if (!r.sampleRests.block || r.sampleRests.go?.href !== '/property/calculator#d-price' || r.sampleRests.go?.text !== 'Review the defaults') p.push(`the rests block's link on the sample: ${JSON.stringify(r.sampleRests)}`);
+      if (s.next) p.push('the Next step tile is still drawn');
       if (r.why !== W.gates) p.push(`the grade's "Why" lists ${r.why} gates, the grade has ${W.gates}`);
       if (['safeCashRequired', 'cashflowMonthly', 'netYield'].some(k => r.moved[k]?.value !== s[k]?.value)) p.push(`a what-if on B moved a tile: ${JSON.stringify(r.moved)}`);
       if (['safeCashRequired', 'cashflowMonthly', 'netYield'].some(k => r.touched[k]?.kind === 'illustrative_default')) p.push(`with every figure the reader's a tile still says illustrative: ${JSON.stringify(r.touched)}`);
       /* B still holds the rent moved above, so the identity line's one Save
          is the guided save of the property and B (8 Oct 2026). */
-      if (r.touched.next?.go?.text !== 'Save this property' || r.save !== 'Save this property and B as a scenario') p.push(`with nothing left to replace, the next step is ${JSON.stringify(r.touched.next)} and the identity line's Save "${r.save}"`);
-      if (r.saved.next?.go?.text !== 'Compare scenarios' || !/^“N3 tiles” · saved /.test(r.savedName)) p.push(`once saved: the next step ${JSON.stringify(r.saved.next)}, the identity "${r.savedName}"`);
-      if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`the next step's link: ${JSON.stringify(r.go)}`);
+      if (r.touched.price?.go || r.touched.price?.kind === 'illustrative_default' || r.touchedRests.block || r.touchedRests.go || r.save !== 'Save this property and B as a scenario') p.push(`with nothing left to replace, the price tile is ${JSON.stringify(r.touched.price)}, the rests block ${JSON.stringify(r.touchedRests)} and the identity line's Save "${r.save}"`);
+      if (r.saved.price?.go || !/^“N3 tiles” · saved /.test(r.savedName)) p.push(`once saved: the price tile ${JSON.stringify(r.saved.price)}, the identity "${r.savedName}"`);
+      /* Day 18 (QT-D18-01), as answered on 31 Oct 2026: "Enter your property figures" is a link to the calculator's price box, so the figure typed is the deal's own (it was a button into the Lab's box, a what-if on B, until then). */
+      if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`"Enter your property figures": ${JSON.stringify(r.go)}`);
+      if (r.goRests.view !== 'property' || r.goRests.path !== '/property/calculator' || r.goRests.focus !== 'd-price') p.push(`the rests block's link: ${JSON.stringify(r.goRests)}`);
       if (p.length) fail('n3 T1: /property\'s tiles are the model\'s figures of the deal on the calculator, and the next step leads on', p);
-      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; Next step "Replace the price" opens the calculator with the keyboard in #d-price, then Save, then Compare; "Why" holds all ${W.gates} gates`);
+      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; "Enter your property figures" and the rests block's "Review the defaults" opens the calculator with it in #d-price, and with every figure the reader's the price tile reads Yours and the block is gone; "Why" holds all ${W.gates} gates`);
     } catch (e) {
       fail('n3 T1: /property\'s tiles could not be read', e.message);
     }
   }
   /* ---- end n3-landing ---- */
+
+  /* ---- a4-lab ---- */
+  /* THE SCENARIO LAB, SIMPLIFIED (the 30 Oct 2026 audit: it "exposes the
+     five-stage process, financial summaries, scenario controls and detailed
+     assumptions together"; the engine unchanged, the order of attention
+     purchase price, monthly position, cash required, assumptions, compare
+     and save). Drawn:
+       - the four tiles run Purchase price, Cash required, Monthly position,
+         Net yield (Day 18, QT-D18-01, 31 Oct 2026) (a chosen objective keeps its own order after the price);
+         the price tile wears the kind badge "Illustrative default" with
+         no action of its own (Day 18: the one call is "Enter your property figures" in the head), then "Yours" once the price is the reader's; there is
+         no Next step tile;
+       - one "What these figures rest on" block, and neither the alert bar
+         nor the grade card's "N gates; the most serious" sentence; the
+         grade's letter is still in the card;
+       - four rows stand (Monthly position, Cash required, Net yield, Monthly
+         repayment) and four sit in a closed "4 more figures" that stays as
+         the reader left it, with the keyboard on its summary, across a
+         redraw; all eight stay in the page and give the model's figures;
+       - one sentence over the boxes, a Default or Yours tag on each (in its
+         description) and none of the eight old lines;
+       - Scenarios side by side, Columns, Keep B, then a closed "Check the
+         price against your evidence" that keeps its state across a redraw.
+     Fails on d8b209a37: tiles Cash required, Monthly position, Net yield,
+     Next step; the bar and the sentence; eight rows in sight; the old line
+     under each box; the price's card above the comparison. */
+  {
+    try {
+      const r = JSON.parse(await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const kept = JSON.parse(JSON.stringify(State.deal));
+        const t = (n) => (n ? n.textContent.replace(/\\s+/g, ' ').trim() : '');
+        const out = {};
+        try {
+          newPropertyDeal({ show: false });
+          navigate('/property'); await w(500);
+          const tileKeys = () => [...document.querySelectorAll('#views .lab-tiles > .lab-tile')].map(n => n.dataset.tile);
+          out.tiles = tileKeys();
+          out.labels = [...document.querySelectorAll('#views .lab-tiles > .lab-tile .lab-tile-label')].map(t);
+          const pt = document.querySelector('#views .lab-tile[data-tile="price"]');
+          out.price = { value: t(pt?.querySelector('.lab-tile-val')), tag: t(pt?.querySelector('[data-own]')), own: pt?.querySelector('[data-own]')?.dataset.own, go: !!pt?.querySelector('.lab-price-go') };
+          out.head = { lede: t(document.querySelector('#views .lab-page-hd .page-lede')), h1: t(document.querySelector('#views .lab-page-hd h1')), badge: t(document.querySelector('#views .lab-page-hd .status-badge')), cta: t(document.getElementById('lab-enter')),
+            claim: t(document.querySelector('#views .lab-id-claim > span:not(.chip)')), chip: t(document.querySelector('#views .lab-id-claim > .chip')), more: t(document.querySelector('#views .lab-claim-more > summary')), moreOpen: document.querySelector('#views .lab-claim-more').open,
+            primaries: [...document.querySelectorAll('#views .btn-primary, body > .dock .btn-primary, body > .dock .ls-act-primary')].filter(n => n.getClientRects().length).map(n => t(n)), save: document.getElementById('lab-id-save')?.className || '' };
+          out.noNext = !document.querySelector('#views .lab-tile-next') && !/Next step/.test(t(document.querySelector('#views .lab-tiles')));
+          /* One rests block; no bar; the grade without its sentence. */
+          out.rests = { n: document.querySelectorAll('#views .pc-rests').length, head: t(document.querySelector('#views .pc-rests .pc-rests-h')), links: [...document.querySelectorAll('#views .pc-rests a')].map(t).length,
+            bar: !!document.querySelector('#views .lab-alert') || /need evidence/.test(t(document.getElementById('views'))), gateLine: /gates?; the most serious/.test(t(document.getElementById('views'))),
+            letter: t(document.querySelector('#views .lab-grade .lab-grade-letter')), counts: [...t(document.querySelector('#views .pc-rests-text')).matchAll(/(\\d+) input/g)].map(x => x[1]),
+            queue: propertyReviewQueue(State.deal).length };
+          /* The rows. */
+          const rowKeys = (root) => [...root.querySelectorAll(':scope > .lab-row')].map(n => n.dataset.row);
+          const more = document.getElementById('lab-chain-more');
+          out.rows = { shown: rowKeys(document.querySelector('#views .lab-chain')), folded: more ? rowKeys(more.querySelector('.lab-chain-more-body')) : null, all: document.querySelectorAll('#views .lab-row').length,
+            closed: more ? !more.open : null, sum: t(more?.querySelector('summary')), hiddenWhileClosed: more ? ![...more.querySelectorAll('.lab-row')].some(n => n.checkVisibility()) : null };
+          const figs = [...document.querySelectorAll('#views .lab-chain [data-lab]')].map(n => n.dataset.lab);
+          out.figs = figs.length;
+          /* Enter your property figures is a link to the calculator's price box, described by "Opens the calculator". */
+          { const a = document.getElementById('lab-enter'); out.enter = { tag: a?.tagName, href: a?.getAttribute('href'), why: t(document.getElementById(a?.getAttribute('aria-describedby') || '')) }; }
+          /* The fold: opened by its summary, kept, with the keyboard on it, across a redraw. */
+          more.querySelector('summary').click(); await w(80);
+          out.opened = more.open && [...more.querySelectorAll('.lab-row')].every(n => n.checkVisibility());
+          document.getElementById('lab-chain-more-btn').focus();
+          const P = [...LAB_PANELS].find(x => x.address); labDraw(P); await w(150);
+          out.kept = { open: document.getElementById('lab-chain-more').open, focus: document.activeElement?.id };
+          document.getElementById('lab-chain-more').querySelector('summary').click(); await w(50);
+          labDraw(P); await w(150);
+          out.keptClosed = !document.getElementById('lab-chain-more').open;
+          /* The boxes. */
+          const knobs = [...document.querySelectorAll('#views .lab-knob')];
+          out.boxes = { note: t(document.getElementById('lab-default-note')), old: knobs.some(k => t(k).includes('Illustrative default — not yours')),
+            tags: knobs.map(k => t(k.querySelector('.lab-tag[id^="lab-ev-"]'))).join('|'),
+            described: knobs.filter(k => { const n = k.querySelector('input.lab-num'); const ev = k.querySelector('.lab-tag[id^="lab-ev-"]'), wi = k.querySelector('.lab-tag-whatif'); const d = (n && n.getAttribute('aria-describedby') || '').split(' '); return !n || !ev || !(d.includes(ev.id) || (wi && d.includes(wi.id))); }).length };
+          /* The order below the figures. */
+          const heads = ['Scenarios side by side', 'Columns', 'Keep B', 'Check the price against your evidence'].map(s => [...document.querySelectorAll('#views h2, #views summary')].find(x => t(x).startsWith(s)));
+          out.order = heads.map(n => !!n);
+          out.orderOk = heads.every((n, i) => !i || (heads[i - 1] && n && (heads[i - 1].compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)));
+          const pe = document.getElementById('lab-pe');
+          out.pe = { tag: pe?.tagName, closed: pe ? !pe.open : null, old: [...document.querySelectorAll('#views h2')].some(x => t(x) === 'The price, against your evidence'), inside: !!pe?.querySelector('.pe-cards-wrap') };
+          document.querySelector('#lab-pe > summary').click(); await w(80);
+          document.querySelector('#lab-pe > summary').focus();
+          labDraw(P); await w(150);
+          out.peKept = { open: document.getElementById('lab-pe').open, focus: document.activeElement?.id };
+          /* The reader's own price: Yours, no action, no block. */
+          State.deal = { ...State.deal, price: 610000, touched: { ...(State.deal.touched || {}), price: true }, evidence: { ...(State.deal.evidence || {}), price: 'user' } }; saveDeal();
+          navigate('/property/calculator'); await w(200); navigate('/property'); await w(500);
+          const pt2 = document.querySelector('#views .lab-tile[data-tile="price"]');
+          out.own = { value: t(pt2?.querySelector('.lab-tile-val')), tag: t(pt2?.querySelector('[data-own]')), go: !!pt2?.querySelector('.lab-price-go'), restsN: document.querySelectorAll('#views .pc-rests').length };
+          /* A chosen objective keeps its own order after the price (answered in the Lab, as a reader does, and put back). */
+          navigate('/property'); await w(500);
+          const P2 = [...LAB_PANELS].find(x => x.address), L2 = LAB[P2.key];
+          labAnswer(P2, L2, 'objective', 'growth'); await w(300);
+          out.growth = tileKeys();
+          labAnswer(P2, L2, 'objective', null); await w(300);
+          out.unchosen = tileKeys();
+          /* The reader's journey (31 Oct 2026): the link, a price typed in the calculator, back to the Lab. The calculator reads an address once per arrival (pcArrivalSeen), so the earlier visits are forgotten first. */
+          State.deal = JSON.parse(JSON.stringify(kept)); newPropertyDeal({ show: false });
+          navigate('/property'); await w(500);
+          pcArrivalSeen = null;
+          document.getElementById('lab-enter').click();
+          for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await w(150);
+          out.arrive = { path: location.pathname, focus: document.activeElement?.id || null };
+          { const b = document.getElementById('d-price'); if (b) { b.value = '612000'; b.dispatchEvent(new Event('change', { bubbles: true })); await w(900); } }
+          navigate('/property'); await w(600);
+          { const pt3 = document.querySelector('#views .lab-tile[data-tile="price"]');
+            out.typed = { value: t(pt3?.querySelector('.lab-tile-val')), tag: t(pt3?.querySelector('[data-own]')), own: pt3?.querySelector('[data-own]')?.dataset.own, rests: t(document.querySelector('#views .pc-rests-text > strong')) }; }
+        } finally {
+          State.deal = JSON.parse(JSON.stringify(kept)); saveDeal();
+        }
+        return JSON.stringify(out);
+      })()`));
+      const p = [], eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+      if (!eq(r.tiles, ['price', 'safeCashRequired', 'cashflowMonthly', 'netYield']) || !eq(r.labels, ['Purchase price', 'Cash required', 'Monthly position', 'Net yield'])) p.push(`the tiles are ${JSON.stringify(r.labels)} (${JSON.stringify(r.tiles)}), not Purchase price, Cash required, Monthly position, Net yield`);
+      if (r.price.value !== 'RM572,000' || r.price.tag !== 'Illustrative default' || r.price.own !== 'default' || r.price.go) p.push(`the price tile on the sample: ${JSON.stringify(r.price)}`);
+      if (!r.noNext) p.push('a Next step tile is still drawn');
+      /* Day 18 (QT-D18-01): the introduction, the one primary, the supporting line beside the chip. */
+      const H = r.head;
+      if (H.lede !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.' || H.h1 !== 'Scenario Lab' || !/^Beta$/i.test(H.badge)) p.push(`the head: ${JSON.stringify({ h1: H.h1, badge: H.badge, lede: H.lede })}`);
+      if (H.cta !== 'Enter your property figures' || H.primaries.join('|') !== 'Enter your property figures' || /btn-primary/.test(H.save)) p.push(`the primary buttons in sight are ${JSON.stringify(H.primaries)} and Save is "${H.save}", not one "Enter your property figures" and a secondary Save`);
+      if (r.enter.tag !== 'A' || r.enter.href !== '/property/calculator#d-price' || r.enter.why !== 'Opens the calculator') p.push(`"Enter your property figures" is ${JSON.stringify(r.enter)}, not a link to /property/calculator#d-price described by "Opens the calculator"`);
+      /* The journey: press the link, type a price in the calculator's box, return to the Lab: the Purchase price tile reads it, "Yours". */
+      if (r.arrive.path !== '/property/calculator' || r.arrive.focus !== 'd-price') p.push(`pressing the link: ${JSON.stringify(r.arrive)}`);
+      if (r.typed.value !== 'RM612,000' || !/^Yours/.test(r.typed.tag) || r.typed.own !== 'yours' || r.typed.rests !== '9 inputs') p.push(`after typing a price in the calculator and returning, the Purchase price tile reads ${JSON.stringify(r.typed)}, not RM612,000 with its Yours badge and nine inputs left in "What these figures rest on"`);
+      if (H.chip !== 'Not a valuation' || H.claim !== 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.' || H.more !== 'Why this is not a valuation' || H.moreOpen) p.push(`the claim beside the chip: ${JSON.stringify({ chip: H.chip, claim: H.claim, more: H.more, open: H.moreOpen })}`);
+      if (r.rests.n !== 1 || r.rests.head !== 'What these figures rest on' || r.rests.links !== 1) p.push(`the rests block: ${JSON.stringify(r.rests)}`);
+      if (r.rests.bar || r.rests.gateLine) p.push(`the alert bar or the grade's gate sentence is still said: ${JSON.stringify({ bar: r.rests.bar, gate: r.rests.gateLine })}`);
+      if (!eq(r.rests.counts, [String(r.rests.queue)])) p.push(`the one count is ${JSON.stringify(r.rests.counts)}, the review queue's ${r.rests.queue}`);
+      if (r.rests.letter !== 'U') p.push(`the grade's letter reads "${r.rests.letter}", not U`);
+      if (!eq(r.rows.shown, ['safeCashRequired', 'cashflowMonthly', 'netYield', 'instalment']) || !eq(r.rows.folded, ['monthlyCommitment', 'breakEvenOccupancy', 'valueLessLoanAtExit', 'irrPct']) || r.rows.all !== 8) p.push(`the rows: ${JSON.stringify(r.rows)}`);
+      if (!r.rows.closed || r.rows.sum !== '4 more figures' || !r.rows.hiddenWhileClosed) p.push(`the fold of four rows: ${JSON.stringify({ closed: r.rows.closed, sum: r.rows.sum, hidden: r.rows.hiddenWhileClosed })}`);
+      if (r.figs < 8) p.push(`only ${r.figs} chain figures are in the page`);
+      if (!r.opened) p.push('pressing "4 more figures" did not bring the four rows into sight');
+      if (!r.kept.open || r.kept.focus !== 'lab-chain-more-btn') p.push(`the fold, opened and focused, after a redraw: ${JSON.stringify(r.kept)}`);
+      if (!r.keptClosed) p.push('the fold, closed by the reader, opened itself on a redraw');
+      if (r.boxes.note !== 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.' || r.boxes.old || r.boxes.tags !== 'Default|Default|Default|Default|Default|Default|Default|Default|Default' || r.boxes.described) p.push(`the boxes: ${JSON.stringify(r.boxes)}`);
+      if (!r.orderOk || r.order.includes(false)) p.push(`the sections do not run Scenarios side by side, Columns, Keep B, Check the price against your evidence (found ${JSON.stringify(r.order)})`);
+      if (r.pe.tag !== 'DETAILS' || !r.pe.closed || r.pe.old || !r.pe.inside) p.push(`the price check: ${JSON.stringify(r.pe)}`);
+      if (!r.peKept.open || r.peKept.focus !== 'lab-pe-h') p.push(`the price check, opened and focused, after a redraw: ${JSON.stringify(r.peKept)}`);
+      if (r.own.value !== 'RM610,000' || !/^Yours/.test(r.own.tag) || r.own.go) p.push(`with the reader's own price: ${JSON.stringify(r.own)}`);
+      if (!eq(r.growth, ['price', 'valueLessLoanAtExit', 'safeCashRequired', 'cashflowMonthly']) || !eq(r.unchosen, r.tiles)) p.push(`with the growth objective the tiles are ${JSON.stringify(r.growth)}, with none ${JSON.stringify(r.unchosen)}`);
+      if (p.length) fail('a4-lab: the Scenario Lab leads with the price, month and cash, folds the detail and compares before it checks the price', p);
+      else ok('a4-lab: the Lab\'s tiles run Purchase price (Illustrative default; Yours once it is the reader\'s; no action of its own), Cash required, Monthly position, Net yield — an objective keeping its own order after the price — with no Next step; one "What these figures rest on" (one count, the review queue\'s, one link) and no alert bar or gate sentence; Cash required, Monthly position, Net yield and Monthly repayment stand and the other four sit in a closed "4 more figures" kept open or closed, with the keyboard on it, across a redraw; one sentence over nine boxes tagged Default, each in its description; Scenarios side by side, Columns, Keep B, then the closed "Check the price against your evidence", kept across a redraw');
+    } catch (e) {
+      fail('a4-lab: the simplified Lab could not be read', e.message);
+    }
+  }
+  /* ---- end a4-lab ---- */
 
   /* ---- p1-route ---- */
   /* THE PROPERTY DECISION LAYER, P1 AND P2 (the owner's brief of 7 Oct 2026;
@@ -8664,7 +8871,8 @@ try {
       await kLoad(MINE);
       const y = JSON.parse(await evaluate(KREAD));
       const p = [];
-      if (JSON.stringify(Object.keys(s.rows)) !== JSON.stringify(KEYS)) p.push(`the rows: ${Object.keys(s.rows).join(', ')}`);
+      /* The 30 Oct 2026 audit moved four rows into a closed "4 more figures" and led with the monthly position: the same eight, in another order (a4-lab holds the order). */
+      if (JSON.stringify(Object.keys(s.rows).sort()) !== JSON.stringify([...KEYS].sort())) p.push(`the rows: ${Object.keys(s.rows).join(', ')}`);
       for (const k of KEYS) if (s.rows[k]?.k !== 'illustrative' || s.rows[k]?.word !== 'Illustrative') p.push(`the sample's ${k}: ${JSON.stringify(s.rows[k])}, not Illustrative`);
       for (const k of KEYS) { const want = k === 'safeCashRequired' ? 'placeholder' : 'yours'; if (y.rows[k]?.k !== want) p.push(`the reader's ${k}: ${JSON.stringify(y.rows[k])}, not ${want}`); }
       if (!/^Fee lines unchecked — /.test(y.rows.safeCashRequired?.title || '')) p.push(`the cash required's title: "${y.rows.safeCashRequired?.title}"`);
@@ -12174,6 +12382,213 @@ try {
     else ok(`calc-fixes CF3: with no loan the valuation fee and its service tax read nought and "${r.cash.val.why}"; the cash purchase requires ${rmw(r.cash.total)} by hand, RM2,670 of it on the two estimates left; with a loan both stand at RM1,194 and RM95.52; the rulebook's two lines say so`);
   }
   /* ---- end calc-fixes ---- */
+
+  /* ---- els-brief ---- */
+  /* THE OPTIONAL ELS DESIGN AND RENOVATION BRIEF (the owner's Day 18
+     instructions, 31 Oct 2026; briefs/README-els-referral.md). elsBrief
+     (70-property.js) is a pure function of the deal; the panel is
+     pcElsPanel (75-property-grade.js).
+     EB1 — the sample's allowance reads "Not set: the calculator's sample
+           figure is not a budget" and the sample's figure appears nowhere;
+           all four facts are listed as Assumed (the sample's).
+     EB2 — a renovation the reader entered gives the amount, as theirs, "not
+           a quotation or a verified budget", and leaves the allowance out of
+           the Assumptions line; editing it never makes it verified, approved
+           or confirmed.
+     EB3 — for each of the nine R1 deals, with and without an entered
+           renovation and with every financial figure touched: the brief is
+           the six lines (and the Assumptions line) and nothing else; no
+           financial word and no figure but the entered allowance (and the
+           brief's own version) appears.
+     EB4 — the location is what the reader chose, never the sample project's
+           name, and never a town's first district (the Kuching page's worked
+           example, Miri and back, both leave it "Not set"); the use is the
+           app's own words (the own-use objective's label, "Let to a tenant,
+           with some own use" for weeks of own use) and only the own-use
+           objective, weeks or a touched rent make it the reader's (Capital
+           growth and Value add do not); nothing is mutated.
+     EB7 — the allowance is worded from its cost lines: a placeholder
+           says so, a written quote is "from a quotation you entered — not
+           verified by Quantum", the rest the reader's own figure; lines whose
+           figure is untouched, and a legacy userStarted deal's untouched
+           figure, are the sample's: "Not set".
+     EB5 — the requirements are the reader's words after their label, empty
+           by default, cut at 1,000.
+     EB6 — the panel's words as written, the link to the ELS home page with
+           no query or hash, in a new tab, with no opener or referrer; the
+           requirements box empty with no placeholder; the brief box
+           read-only and equal to the builder's text. */
+  try {
+    const r = JSON.parse(await evaluate(`(() => {
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const lineOf = (t, label) => (t.split('\\n').find(l => l.startsWith(label + ':')) || '').slice(label.length + 2);
+      const FORBID = /\\b(price|deposit|loan|rate|repayment|rent|income|cash|reserve|returns?|mortgage|yield|instalment)\\b/i;
+      const out = { sample: elsBrief(base()), entered: elsBrief({ ...base(), renovation: 60000, touched: { renovation: true } }) };
+      /* EB3 */
+      const deals = {
+        sample: base(),
+        land: { ...base(), propertyType: 'Land', landSqft: 4000, sqft: 0 },
+        shophouse: { ...base(), propertyType: 'Shophouse', rent: 3500, sqft: 1600 },
+        condoAsCommercial: { ...base(), propertyClassOverride: 'commercial' },
+        taxed: { ...base(), rent: 3600, marginalTaxPct: 24 },
+        cash: { ...base(), downPct: 100 },
+        lowValuation: { ...base(), bankValuation: 540000 },
+        noTenure: { ...base(), tenureYears: 0 },
+        managed: { ...base(), selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 150, renovation: 60000, renoValueRecoveryPct: 40 },
+        legacyUserStarted: { ...base(), userStarted: true },
+      };
+      /* What a saved property carries and a brief must not: its ids, its
+         name, a custom project (and the name a reader gave it). */
+      const PRIVATE = { modelId: 'mdl-SECRET-17', scenarioId: 'scn-SECRET-18', name: 'Secret Villa', savedName: 'Secret saved name', projectId: 'custom-miri', projectName: 'Secret Project', custom: true };
+      const everything = { price: 913377, rent: 4321, downPct: 17, ratePct: 6.1, tenureYears: 21, maintenance: 777, bookingDepositPaid: 4242, reserveMonths: 9, rentGrowthPct: 3.3, vacancyPct: 11, bankValuation: 800123 };
+      const touchedAll = Object.fromEntries(Object.keys(everything).map(k => [k, true]));
+      const bad = [], shapes = [];
+      let n = 0;
+      for (const [name, d] of Object.entries(deals)) {
+        for (const [how, dd0] of [['as held', d],
+          ['renovation entered', { ...d, renovation: 48000, touched: { ...d.touched, renovation: true } }],
+          ['everything touched', { ...d, ...everything, touched: { ...d.touched, ...touchedAll } }],
+          ['everything and the renovation', { ...d, ...everything, renovation: 48000, touched: { ...d.touched, ...touchedAll, renovation: true } }]]) {
+          const dd = { ...dd0, ...PRIVATE };
+          const b = elsBrief(dd, ''); n++;
+          if (/secret|custom|mdl-|scn-/i.test(b.text)) bad.push(name + '/' + how + ': a saved id, name or custom project reaches the brief: ' + b.text.match(/.{0,20}(secret|custom|mdl-|scn-).{0,20}/i)[0]);
+          const ls = b.text.split('\\n');
+          const labels = ['Property type', 'Location', 'Intended use', 'Renovation allowance', 'Your requirements'];
+          if (!ls[0].startsWith('Quantum Tradeworks renovation brief (qt-property-brief/1)')) bad.push(name + '/' + how + ': first line ' + ls[0]);
+          labels.forEach((l, i) => { if (!ls[i + 1].startsWith(l + ':')) bad.push(name + '/' + how + ': line ' + (i + 2) + ' is ' + ls[i + 1]); });
+          if (ls.length !== 6 && !(ls.length === 7 && ls[6].startsWith('Assumptions: Assumed (the sample\\'s): '))) bad.push(name + '/' + how + ': ' + ls.length + ' lines');
+          const scrub = b.text.replace('(qt-property-brief/1)', '').replace(/RM48,000, as you entered it/, '');
+          if (/[0-9]/.test(scrub)) bad.push(name + '/' + how + ': a figure in "' + scrub.match(/.{0,20}[0-9].{0,20}/)[0] + '"');
+          if (FORBID.test(b.text)) bad.push(name + '/' + how + ': a financial word in the brief: ' + b.text.match(FORBID)[0]);
+          if (/\\b(verified|approved|confirmed)\\b/i.test(b.text.replace('a quotation or a verified budget', '').replace('not verified by Quantum', ''))) bad.push(name + '/' + how + ': claims a check');
+          if (/RM/.test(b.text) !== /entered/.test(lineOf(b.text, 'Renovation allowance')) ) bad.push(name + '/' + how + ': an amount without being entered, or the reverse');
+          if (!dd.touched.renovation && /RM/.test(b.text)) bad.push(name + '/' + how + ': an amount for a renovation the reader did not enter (userStarted: ' + !!dd.userStarted + ')');
+          if (/Riveria|Tabuan Heights|p1|custom-/.test(b.text)) bad.push(name + '/' + how + ': names a project');
+        }
+      }
+      /* EB4 */
+      const before = pmCanon(base()), d0 = base(); elsBrief(d0, 'x'); const mutated = pmCanon(d0) !== before;
+      const stateBefore = JSON.stringify(State.deal); elsBrief(State.deal, 'x'); const stateMoved = JSON.stringify(State.deal) !== stateBefore;
+      const kuching = SARAWAK_CITIES.find(c => c.id === 'kuching'), miriFirst = SARAWAK_CITIES.find(c => c.id === 'miri').districts[0];
+      const place = {
+        firstDistrictIsNotTheDefault: kuching.districts[0] !== PROPERTY_DEFAULT_DEAL.district,
+        /* The Kuching page's worked example, and Miri and back: both leave Kuching's first district. */
+        kuchingExample: lineOf(elsBrief({ ...base(), city: 'kuching', district: kuching.districts[0] }).text, 'Location'),
+        miriAndBack: lineOf(elsBrief({ ...base(), city: 'kuching', district: kuching.districts[0], touched: {} }).text, 'Location'),
+        miriFirst: lineOf(elsBrief({ ...base(), city: 'miri', district: miriFirst }).text, 'Location'),
+        sample: lineOf(elsBrief(base()).text, 'Location'),
+        miri: lineOf(elsBrief({ ...base(), city: 'miri', district: SARAWAK_CITIES.find(c => c.id === 'miri').districts[0] }).text, 'Location'),
+        kuchingArea: lineOf(elsBrief({ ...base(), district: 'Petra Jaya' }).text, 'Location'),
+        otherProject: lineOf(elsBrief({ ...base(), projectId: 'p2' }).text, 'Location'),
+      };
+      const use = {
+        sample: lineOf(elsBrief(base()).text, 'Intended use'),
+        weeks: lineOf(elsBrief({ ...base(), ownUseWeeks: 6 }).text, 'Intended use'),
+        weeks2: lineOf(elsBrief({ ...base(), ownUseWeeks: 2 }).text, 'Intended use'),
+        objective: lineOf(elsBrief({ ...base(), objective: 'ownuse' }).text, 'Intended use'),
+        growth: lineOf(elsBrief({ ...base(), objective: 'growth' }).text, 'Intended use'),
+        land: lineOf(elsBrief(deals.land).text, 'Intended use'),
+        assumedGrowth: elsBrief({ ...base(), objective: 'growth' }).assumed.includes('intended use'),
+        assumedValueAdd: elsBrief({ ...base(), objective: 'valueadd' }).assumed.includes('intended use'),
+        assumedRent: elsBrief({ ...base(), rent: 2000, touched: { rent: true } }).assumed.includes('intended use'),
+        assumedOwnuse: elsBrief({ ...base(), objective: 'ownuse' }).assumed.includes('intended use'),
+        assumedWeeks: elsBrief({ ...base(), ownUseWeeks: 2 }).assumed.includes('intended use'),
+        ownuseLabel: PROPERTY_OBJECTIVES.ownuse.label,
+      };
+      /* EB7 */
+      const reno = (extra) => elsBrief({ ...base(), touched: { renovation: true }, ...extra });
+      const line = (kind, amount, more = {}) => ({ id: 'l' + kind + amount, item: 'Kitchen', amount, kind, ...more });
+      const quote = { source: 'Contractor A, quotation 12', date: '2026-10-20' };
+      const lines = {
+        placeholder: lineOf(reno({ renovation: 30000, renovationLines: [line('placeholder', 30000)] }).text, 'Renovation allowance'),
+        quoted: lineOf(reno({ renovation: 30000, renovationLines: [line('quoted', 30000, quote)] }).text, 'Renovation allowance'),
+        mixedPlaceholder: lineOf(reno({ renovation: 30000, renovationLines: [line('quoted', 20000, quote), line('placeholder', 10000)] }).text, 'Renovation allowance'),
+        quotedAndEstimate: lineOf(reno({ renovation: 30000, renovationLines: [line('quoted', 20000, quote), line('estimate', 10000)] }).text, 'Renovation allowance'),
+        estimate: lineOf(reno({ renovation: 30000, renovationLines: [line('estimate', 30000)] }).text, 'Renovation allowance'),
+        untouchedLines: lineOf(elsBrief({ ...base(), renovation: 30000, renovationLines: [line('quoted', 30000, quote)] }).text, 'Renovation allowance'),
+        legacy: lineOf(elsBrief({ ...base(), userStarted: true }).text, 'Renovation allowance'),
+        legacyAssumed: elsBrief({ ...base(), userStarted: true }).assumed.includes('renovation allowance'),
+      };
+      const assumedWhenOwn = elsBrief({ ...base(), propertyType: 'Shophouse', district: 'Petra Jaya', ownUseWeeks: 2, renovation: 1000, touched: { renovation: true } }).text.split('\\n').filter(l => l.startsWith('Assumptions')).length;
+      /* EB5 */
+      const typed = elsBrief(base(), '  Open-plan kitchen\\r\\nand a new bathroom  ').text.split('\\n');
+      const long = elsBrief(base(), 'x'.repeat(1500)).text.split('\\n')[5];
+      /* EB6 */
+      const p = pcElsPanel(base());
+      const a = p.querySelector('#els-link'), req = p.querySelector('#els-requirements'), box = p.querySelector('#els-brief');
+      const panel = {
+        summary: p.querySelector('summary').textContent, closed: !p.open, id: p.id,
+        lede: p.querySelector('.pc-els-lede').textContent, before: p.querySelector('#els-before').textContent,
+        link: a && { text: a.textContent.trim(), href: a.getAttribute('href'), target: a.target, rel: a.rel, ext: !!a.querySelector('svg') },
+        req: req && { value: req.value, placeholder: req.getAttribute('placeholder'), label: p.querySelector('label[for=els-requirements]')?.textContent },
+        box: box && { ro: box.hasAttribute('readonly'), same: box.value === elsBrief(base(), '').text, label: p.querySelector('label[for=els-brief]')?.textContent },
+        copy: p.querySelector('#els-copy')?.textContent,
+        nonLink: [...p.querySelectorAll('a')].length,
+        constUrl: ELS_URL,
+      };
+      return JSON.stringify({ out, n, bad, mutated, stateMoved, place, use, lines, assumedWhenOwn, typed, longLen: long.length, panel });
+    })()`));
+    const p1 = [];
+    const sLines = r.out.sample.lines, eLines = r.out.entered.lines;
+    if (sLines[4] !== "Renovation allowance: Not set: the calculator's sample figure is not a budget") p1.push(`the sample's allowance line is "${sLines[4]}"`);
+    if (/25,?000|25k|RM/.test(r.out.sample.text)) p1.push('the sample\'s renovation figure (or any amount) appears: ' + r.out.sample.text.match(/.{0,20}(25,?000|RM).{0,20}/)[0]);
+    if (sLines[6] !== "Assumptions: Assumed (the sample's): property type, location, intended use, renovation allowance.") p1.push(`the sample's assumptions line is "${sLines[6]}"`);
+    if (p1.length) fail('els EB1: the sample deal gives "Not set" for the allowance and no amount', p1);
+    else ok('els EB1: the sample deal\'s brief reads "Renovation allowance: Not set: the calculator\'s sample figure is not a budget", shows no amount, and lists property type, location, intended use and renovation allowance as Assumed (the sample\'s)');
+    const p2 = [];
+    if (eLines[4] !== 'Renovation allowance: RM60,000, as you entered it — your own figure, not a quotation or a verified budget') p2.push(`the entered allowance line is "${eLines[4]}"`);
+    if (eLines[6] !== "Assumptions: Assumed (the sample's): property type, location, intended use.") p2.push(`the entered deal's assumptions line is "${eLines[6]}"`);
+    if (p2.length) fail('els EB2: an entered renovation gives the amount, as the reader\'s own', p2);
+    else ok('els EB2: an entered renovation of RM60,000 reads "RM60,000, as you entered it — your own figure, not a quotation or a verified budget" and drops out of the Assumptions line');
+    if (r.bad.length) fail('els EB3: the brief carries nothing financial for any of the nine R1 deals', r.bad.slice(0, 20));
+    else ok(`els EB3: ${r.n} briefs (nine R1 deals, as held, with a renovation entered, with every financial figure touched, and both) are the six lines and the Assumptions line only — no figure but the entered allowance, none of price, deposit, loan, rate, repayment, rent, income, cash, reserve or returns, no project named, and never "verified", "approved" or "confirmed" of the allowance`);
+    const p4 = [];
+    if (r.mutated || r.stateMoved) p4.push('elsBrief changed the deal it was given');
+    const NOT_SET = "Not set — the sample's location is not yours";
+    if (r.place.sample !== NOT_SET) p4.push(`the sample's location is "${r.place.sample}"`);
+    if (!r.place.firstDistrictIsNotTheDefault) p4.push("Kuching's first district is now the sample's, so the worked-example case below proves nothing");
+    if (r.place.kuchingExample !== NOT_SET) p4.push(`the Kuching page's worked example (the first district) reads "${r.place.kuchingExample}"`);
+    if (r.place.miriAndBack !== NOT_SET) p4.push(`Miri and back to Kuching reads "${r.place.miriAndBack}"`);
+    if (r.place.miri !== 'Miri (as you entered it)') p4.push(`a town chosen reads "${r.place.miri}"`);
+    if (r.place.kuchingArea !== 'Kuching, Petra Jaya (as you entered it)') p4.push(`an area chosen reads "${r.place.kuchingArea}"`);
+    if (r.place.otherProject !== r.place.sample) p4.push(`another sample project names "${r.place.otherProject}"`);
+    if (r.use.sample !== 'Let to a tenant' || r.use.weeks !== 'Let to a tenant, with some own use' || r.use.weeks2 !== r.use.weeks || r.use.objective !== 'Own use + investment' || r.use.objective !== r.use.ownuseLabel
+      || r.use.growth !== 'Let to a tenant' || r.use.land !== 'Not set') p4.push(`the use reads ${JSON.stringify(r.use)}`);
+    if (!r.use.assumedGrowth || !r.use.assumedValueAdd) p4.push('Capital growth or Value add made "Let to a tenant" the reader\'s choice');
+    if (r.use.assumedRent || r.use.assumedOwnuse || r.use.assumedWeeks) p4.push(`the use is the reader's: rent touched ${!r.use.assumedRent}, own-use objective ${!r.use.assumedOwnuse}, weeks ${!r.use.assumedWeeks}`);
+    if (r.assumedWhenOwn !== 0) p4.push('the Assumptions line stands when all four are the reader\'s');
+    if (p4.length) fail('els EB4: the location and the use are the reader\'s, and nothing is mutated', p4);
+    else ok('els EB4: the sample\'s location is "Not set — the sample\'s location is not yours", and stays so for Kuching\'s first district (the city page\'s worked example; Miri and back); a town or area chosen is named "as you entered it" (Miri; Kuching, Petra Jaya), a sample project is never named; the use reads Let to a tenant, "Let to a tenant, with some own use" (weeks), the own-use objective\'s own label "Own use + investment", or Not set (land), and is the reader\'s only by that objective, weeks or a touched rent (Capital growth and Value add leave it assumed); the Assumptions line goes when all four are the reader\'s, and the deal is not touched');
+    const p7 = [], L = r.lines;
+    if (L.placeholder !== 'RM30,000, a placeholder you entered — not a budget') p7.push(`a placeholder line reads "${L.placeholder}"`);
+    if (L.quoted !== 'RM30,000, from a quotation you entered — not verified by Quantum') p7.push(`a quoted line reads "${L.quoted}"`);
+    if (L.mixedPlaceholder !== 'RM30,000, including a placeholder you entered — not a budget') p7.push(`a quote with a placeholder reads "${L.mixedPlaceholder}"`);
+    if (L.quotedAndEstimate !== L.estimate || L.estimate !== 'RM30,000, as you entered it — your own figure, not a quotation or a verified budget') p7.push(`an estimate reads "${L.estimate}", a quote with an estimate "${L.quotedAndEstimate}"`);
+    if (L.untouchedLines !== "Not set: the calculator's sample figure is not a budget") p7.push(`cost lines on an untouched figure read "${L.untouchedLines}"`);
+    if (L.legacy !== "Not set: the calculator's sample figure is not a budget" || !L.legacyAssumed) p7.push(`a legacy userStarted deal's untouched renovation reads "${L.legacy}", assumed ${L.legacyAssumed}`);
+    if (/\b(approved|confirmed)\b/i.test(Object.values(L).join(' ')) || /\bverified\b/i.test(Object.values(L).join(' ').split('not a quotation or a verified budget').join('').split('not verified by Quantum').join(''))) p7.push('an allowance line claims a check');
+    if (p7.length) fail('els EB7: the allowance is worded from its cost lines', p7);
+    else ok('els EB7: a placeholder line reads "RM30,000, a placeholder you entered — not a budget" (with a quote beside it, "including a placeholder"), a written quote "from a quotation you entered — not verified by Quantum", an estimate the reader\'s own figure; cost lines on an untouched figure, and a legacy userStarted deal\'s untouched renovation, are "Not set" and Assumed; no line is verified, approved or confirmed');
+    const p5 = [];
+    if (r.typed[5] !== 'Your requirements: Open-plan kitchen' || r.typed[6] !== '  and a new bathroom') p5.push(`the typed requirements read ${JSON.stringify(r.typed.slice(5))}`);
+    if (r.longLen !== 'Your requirements: '.length + 1000) p5.push(`1,500 characters give a line of ${r.longLen}`);
+    if (p5.length) fail('els EB5: the requirements are the reader\'s own words', p5);
+    else ok('els EB5: the requirements follow their label as typed (trimmed, a second line indented) and are cut at 1,000 characters; empty by default');
+    const p6 = [], pn = r.panel;
+    if (pn.summary !== 'Explore design and renovation planning with ELS' || !pn.closed || pn.id !== 'els-plan') p6.push(`the panel is ${JSON.stringify([pn.summary, pn.closed, pn.id])}`);
+    if (pn.lede !== 'ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.') p6.push(`the lede reads "${pn.lede}"`);
+    if (pn.before !== 'Review and copy your brief. Nothing is sent to ELS: you paste it there yourself if you want to.') p6.push(`the line before the link reads "${pn.before}"`);
+    if (!pn.link || pn.link.text !== 'Open the ELS website' || pn.link.href !== 'https://els.alumax.pro/' || pn.link.target !== '_blank' || pn.link.rel !== 'noopener noreferrer' || !pn.link.ext) p6.push(`the link is ${JSON.stringify(pn.link)}`);
+    if (/[?#]/.test(pn.link?.href || '') || /[?#]/.test(pn.constUrl) || pn.nonLink !== 1) p6.push(`the link carries a query or hash, or there are ${pn.nonLink} links`);
+    if (!pn.req || pn.req.value !== '' || pn.req.placeholder !== null || pn.req.label !== 'Your requirements') p6.push(`the requirements box is ${JSON.stringify(pn.req)}`);
+    if (!pn.box || !pn.box.ro || !pn.box.same || pn.box.label !== 'Your brief') p6.push(`the brief box is ${JSON.stringify(pn.box)}`);
+    if (pn.copy !== 'Copy brief') p6.push(`the copy button reads "${pn.copy}"`);
+    if (p6.length) fail('els EB6: the panel\'s words and its link', p6);
+    else ok('els EB6: the panel is a closed "Explore design and renovation planning with ELS" with the lede and the line before the link as written, one link "Open the ELS website" to https://els.alumax.pro/ (no query, no hash; new tab, noopener noreferrer, the external-link marker), an empty requirements box with no placeholder, a read-only brief box equal to the builder\'s text, and "Copy brief"');
+  } catch (e) {
+    fail('els: the brief could not be run', String(e.message).split('\n')[0]);
+  }
+  /* ---- end els-brief ---- */
 
 } catch (e) {
   fail('harness error', e.message);

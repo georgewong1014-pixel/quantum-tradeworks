@@ -1329,7 +1329,10 @@ function riskFlags(c, d) {
      saying nobody had researched it (the 20 Oct 2026 sweep,
      copy-equities-34). The illustrative set's is written text and keeps
      its name. The flag and its weight are unchanged. */
-  if (c.qrisk) add('warning', c.real ? 'Qualitative risk (not researched)' : 'Qualitative risk (analyst review)', c.qrisk, null);
+  /* Day 18, 31 Oct 2026: "(analyst review)" claimed a reviewer the illustrative
+     set does not have. Its note is the tool's written text, so it says
+     "illustrative". */
+  if (c.qrisk) add('warning', c.real ? 'Qualitative risk (not researched)' : 'Qualitative risk (illustrative)', c.qrisk, null);
   return out;
 }
 

@@ -1538,6 +1538,110 @@ function readPropertyUrl(d) {
   return changed;
 }
 
+/* THE OPTIONAL ELS DESIGN AND RENOVATION BRIEF
+   ---------------------------------------------------------------------------
+   The owner's Day 18 instructions, 31 Oct 2026 (briefs/README-els-referral.md,
+   built now: it is copy-only and sends nothing). ELS is a separate business.
+   After the results one optional panel shows a short plain-text brief the
+   reader reviews, edits and copies, and links to the ELS home page. This is
+   that brief, as a pure function of the deal: nothing is read from the page,
+   stored, fetched or sent.
+
+   ONLY FOUR FACTS OF THE DEAL LEAVE IT: the property type, the area the
+   reader chose, whether the property is to be let or used by its owner, and
+   the renovation allowance — the last only once the reader has entered it.
+   Never the price, deposit, loan, rate, repayment, rent, income, cash flow,
+   cash required, reserve or returns; never a name, a contact or a saved
+   property's id. A sample figure never appears as an amount, and a figure the
+   reader typed is said to be theirs: editing an assumption does not make it
+   checked by anyone, so the brief never calls it verified, approved or
+   confirmed. ELS does not yet expose a page of its own that receives a brief,
+   so the reader brings the copy to their first contact; nothing here claims
+   that ELS will see, prefill or receive anything. */
+const ELS_URL = 'https://els.alumax.pro/';
+const ELS_BRIEF_ID = 'qt-property-brief/1';
+const ELS_REQUIREMENTS_MAX = 1000;
+const ELS_NOT_SET = {
+  location: "Not set — the sample's location is not yours",
+  use: 'Not set',
+  renovation: "Not set: the calculator's sample figure is not a budget",
+};
+function elsBrief(d, requirements = '') {
+  const def = PROPERTY_DEFAULT_DEAL;
+  /* 1. Property type: the deal's. Chosen only when it is not the sample's. */
+  const typeChosen = !!d?.propertyType && d.propertyType !== def.propertyType;
+  const type = d?.propertyType ? String(d.propertyType) : 'Not set';
+
+  /* 2. Location: the city or area the reader selected, as they selected it —
+     never derived, never geocoded, never a sample project. The first district
+     of a town is never named as chosen: choosing a town sets it (switching to
+     Miri and back leaves Kuching's "City centre"), and the Kuching page's
+     worked example sets it too. Nothing here can tell those from a pick, so a
+     district counts only when it is neither the sample's nor its town's first
+     (the 31 Oct 2026 review). */
+  const cityDef = SARAWAK_CITIES.find(c => c.id === d?.city);
+  const cityChosen = !!cityDef && d.city !== def.city;
+  const districtChosen = !!cityDef && !!d.district && d.district !== def.district
+    && d.district !== cityDef.districts[0];
+  const locationChosen = cityChosen || districtChosen;
+  const location = locationChosen
+    ? `${[cityDef.name, districtChosen ? d.district : null].filter(Boolean).join(', ')} (as you entered it)`
+    : ELS_NOT_SET.location;
+
+  /* 3. Intended use, in the app's own words: the own-use objective reads its
+     label ("Own use + investment"); weeks of own use on a let property read
+     "Let to a tenant, with some own use"; otherwise let to a tenant. A property
+     that earns no rent has no letting to name. It is the reader's choice when
+     they chose the own-use objective, put in weeks of own use, or touched the
+     rent; any other objective (Capital growth, Value add) says nothing of the
+     use, so it does not make "Let to a tenant" theirs (the 31 Oct 2026 review). */
+  const ownObjective = d?.objective === 'ownuse';
+  const weeks = num0(d?.ownUseWeeks) > 0;
+  const lets = propertyInputApplies(d, 'rent');
+  const useChosen = ownObjective || weeks || (lets && isTouched(d, 'rent'));
+  const use = ownObjective ? PROPERTY_OBJECTIVES.ownuse.label
+    : lets ? (weeks ? 'Let to a tenant, with some own use' : 'Let to a tenant')
+    : weeks ? 'Some own use' : ELS_NOT_SET.use;
+
+  /* 4. Renovation allowance: the reader's figure only once they have entered
+     it (isTouched alone: a legacy userStarted deal's untouched figure is still
+     the sample's), and worded from its cost lines: a placeholder is said to be one, lines that
+     are all written quotes are the reader's quotation and not Quantum's to
+     vouch for, anything else is their own figure. Never called verified,
+     approved or confirmed. The sample's figure is never shown as an amount. */
+  const reno = d?.renovation;
+  const renoChosen = isTouched(d, 'renovation') && isNum(reno) && reno >= 0;
+  let renovation = ELS_NOT_SET.renovation;
+  if (renoChosen) {
+    const sum = costLinesSummary(costLinesOf(d, 'renovation'));
+    const amount = fmtMoney(reno, 'MYR', 0);
+    /* A placeholder anywhere is said; "from a quotation" only where every line is one. */
+    renovation = sum.by.placeholder > 0
+      ? `${amount}, ${sum.by.placeholder < sum.total ? 'including ' : ''}a placeholder you entered — not a budget`
+      : sum.n > 0 && sum.by.quoted === sum.total
+        ? `${amount}, from a quotation you entered — not verified by Quantum`
+        : `${amount}, as you entered it — your own figure, not a quotation or a verified budget`;
+  }
+
+  /* 5. Their requirements, as typed: one paragraph of their own words. */
+  const typed = String(requirements ?? '').replace(/\r\n?/g, '\n').trim().slice(0, ELS_REQUIREMENTS_MAX);
+
+  /* 6. Which of the four are still the sample's. */
+  const assumed = [['property type', typeChosen], ['location', locationChosen], ['intended use', useChosen], ['renovation allowance', renoChosen]]
+    .filter(([, chosen]) => !chosen).map(([name]) => name);
+
+  const lines = [
+    `Quantum Tradeworks renovation brief (${ELS_BRIEF_ID})`,
+    `Property type: ${type}`,
+    `Location: ${location}`,
+    `Intended use: ${use}`,
+    `Renovation allowance: ${renovation}`,
+    `Your requirements:${typed ? ` ${typed.replace(/\n/g, '\n  ')}` : ''}`,
+  ];
+  if (assumed.length) lines.push(`Assumptions: Assumed (the sample's): ${assumed.join(', ')}.`);
+  return { text: lines.join('\n'), lines, assumed, renovationEntered: renoChosen };
+}
+
 /* CARRYING A COMPANY INTO A WORKSPACE
    ---------------------------------------------------------------------------
    The Strategy Lens grades a company and then linked to two blank workspaces,
@@ -1819,19 +1923,25 @@ const FEE_TABLE = {
     estimate: 'An approximation the rulebook carries so the total runs, where no rule fixes the amount. Replace it with a quotation.',
   },
   /* What changed, version by version: a reader of /data-sources who sees
-     the figures move is owed the reason. Newest first. */
+     the figures move is owed the reason. Newest first.
+     `amounts` (the 31 Oct 2026 operational audit, #4): true where the entry
+     itself says a figure the tool shows can change, false where it says none
+     does. model-test holds every `amounts: true` version to a row of the
+     corrections log on /corrections that names its version, or its date and
+     the fee rulebook. 1.0.0 is false only because its entry states no
+     amount change; it replaced the unverified 0.1.0 draft. */
   changelog: [
-    { version: '1.5.0', date: '2026-10-25',
+    { version: '1.5.0', date: '2026-10-25', amounts: true,
       what: 'The valuation fee is charged on the value the valuer finds — your bank or valuer estimate, once you enter one — not on the price: the scale’s item is for a valuation on an improved-value basis, and nothing in it charges on the price. Until a valuation is entered the price stands in for it, so a deal with no valuation entered is unchanged; a valuation below the price lowers the fee, and one above it raises it. The scale’s eight bands and its RM400 minimum match the Board of Valuers’ published scale and a consolidated text of the Rules, and the Board’s Circular 3/2009 puts the current scale in force from 1 October 2009. The line stays an estimate until it is read in a gazetted copy. No rate is made up.' },
-    { version: '1.4.0', date: '2026-10-15',
+    { version: '1.4.0', date: '2026-10-15', amounts: false,
       what: 'Re-checked after Budget 2027, tabled on 9 October 2026: the speech and its tax measures annex, read in the Ministry of Finance’s English and Malay texts. No line’s rule or amount changes. The Budget proposes no change to the transfer duty scale or the loan agreement duty this tool charges (on a ringgit loan; its cap on foreign-currency loan agreements does not reach one), the charge’s stamp, service tax on legal or valuation services (its one service-tax change is elderly care, 8% to 6%), a non-citizen’s transfer duty, or gains tax on a sale. It proposes to revise the first-home exemption for sale and purchase agreements executed from 1 January 2027 to 31 December 2030: 100% on a first home priced up to RM500,000, and on one priced up to RM750,000, 100% on the first RM500,000 and 50% on the rest. That is a proposal, not law — no order had been gazetted and no Finance Bill tabled when this was read — so it is held below beside the exemption in force, applied to nothing. No rate is made up.' },
-    { version: '1.3.0', date: '2026-10-13',
+    { version: '1.3.0', date: '2026-10-13', amounts: false,
       what: 'Purchase legal fees by purchase route, read in the gazette (Swk. L.N. (F) 348 of 2022, the First Schedule’s rules 1–4 and 13). For a purchase at auction and a purchase from a developer, the Rules do not settle the purchaser’s advocate’s share by the route alone: it turns on the instruments the advocate handles — an SPA and the transfer, the SPA alone, the transfer alone — and, at auction, rule 13 prices the seller’s side and names the purchaser’s only for several lots bought under one title. So no amount changes: the line stays at rule 1’s full scale, each route says why on its page and below, and your lawyer’s quote takes its place once entered — on a new development as well as at auction now. No rate is made up.' },
-    { version: '1.2.0', date: '2026-10-10',
+    { version: '1.2.0', date: '2026-10-10', amounts: true,
       what: 'Lines whose rule differs by property class, and has not been checked for the class, are no longer charged on a commercial property or on land: they read “Unavailable — not yet checked for commercial property” (or land), and the cash required for those classes is a partial total that names them. Commercial: the loan legal fees (rule 7 prices the charge alone; a commercial financing commonly takes further security priced per instrument), the service tax charged on them, the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. Land: the valuation fee and its service tax (the scale’s item is for a valuation on an improved-value basis), the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. The transfer and loan stamp duties, the charge’s stamp, registration and the purchase legal fees stay for every class: their rules do not turn on the class (each line’s source says why). A quotation you enter stands for any class. No rate is made up for either class; residential figures are unchanged.' },
-    { version: '1.1.0', date: '2026-10-09',
+    { version: '1.1.0', date: '2026-10-09', amounts: true,
       what: 'Mortgage protection (MRTA/MLTA) is an optional line, off by default: left out of the cash required unless you include it or enter a quote, and listed as “Optional: mortgage protection” so its absence is visible — the sample’s cash required falls by its RM8,000 estimate. The ledger is split into five kinds: statutory charges, professional fees on a published scale, quotations, optional products and estimates. Registration of the transfer and the charge (RM10 an instrument, Land and Survey Department, Sarawak) and the stamp duty on the charge (one-fifth of the loan agreement’s duty, at most RM10: Item 27(b)) are verified and taken out of the disbursements estimate, which keeps the rest. The valuation fee, the searches and the firm’s disbursements, and the utility deposits stay estimates: no primary source fixing them was found.' },
-    { version: '1.0.0', date: '2026-10-08',
+    { version: '1.0.0', date: '2026-10-08', amounts: false,
       what: 'Replaced the unverified first draft: the transfer and loan agreement stamp duty, Sarawak’s advocates’ scale for the purchase and loan legal fees, and service tax verified from official texts; the valuation fee carried at the Board of Valuers’ ceiling as an estimate.' },
   ],
 

@@ -1042,6 +1042,9 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
      a folder of the journey's own (the backup journey, which reads it back
      from disk, sets it on a file input, and deletes the folder). */
   tab.downloadInto = (dir) => browser.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dir, browserContextId, eventsEnabled: true });
+  /* The clipboard, readable for this journey's own context (the optional ELS
+     panel's copy is held to what the clipboard then holds). */
+  tab.grantClipboard = () => browser.send('Browser.grantPermissions', { permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'], origin: new URL(BASE).origin, browserContextId });
   /* A file chosen in a file input, as a reader picks it. */
   tab.chooseFile = async (find, file, what) => {
     await S('DOM.enable').catch(() => {});
@@ -1518,6 +1521,32 @@ const JOURNEYS = [
         if (now.cash?.value === first.cash.value) throw new StepError(`the cash required stayed ${first.cash.value} when the deposit went from 10% to 30%`);
         if (now.monthly?.value === first.monthly.value) throw new StepError(`the monthly cash flow stayed ${first.monthly.value} when the loan shrank`);
       });
+      /* THE OPTIONAL ELS BRIEF (the owner's Day 18 instructions, 31 Oct 2026):
+         opened, the requirements typed, copied; what the clipboard holds is
+         what the panel shows, which names no figure of the deal typed above
+         and calls the sample's renovation "Not set"; and the deal is as it
+         was — modelling, saving and the reports needed none of it. Not an
+         outcome step: the journey's declared outcomes are the tool's own. */
+      await step(j, tab, 'The optional ELS panel: open it, copy the brief, the clipboard matches the panel and the deal is unchanged', BUDGET.action * 3, async () => {
+        const deal = await tab.eval('JSON.stringify(State.deal)');
+        await tab.click(`document.getElementById('els-plan-sum')`, 'Explore design and renovation planning with ELS');
+        await tab.expect(`document.getElementById('els-plan')?.open && !!document.getElementById('els-brief')?.checkVisibility()`, 'pressing "Explore design and renovation planning with ELS" did not open the panel');
+        await tab.eval(`(() => { const r = document.getElementById('els-requirements'); r.value = 'A new kitchen and two bathrooms'; r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+        const shown = await tab.eval(`document.getElementById('els-brief').value`);
+        if (!shown.includes('Your requirements: A new kitchen and two bathrooms')) throw new StepError(`the brief does not carry the requirements typed: ${JSON.stringify(shown.slice(0, 200))}`);
+        if (!shown.includes("Renovation allowance: Not set: the calculator's sample figure is not a budget")) throw new StepError(`the sample's renovation is not "Not set": ${JSON.stringify(shown.slice(0, 300))}`);
+        const leak = shown.match(/RM|\d{3}|600|3,?000|2,?600/);
+        if (leak) throw new StepError(`the brief carries a figure (${leak[0]}) though only an entered renovation may: ${JSON.stringify(shown.slice(0, 300))}`);
+        await tab.grantClipboard();
+        await tab.click(`document.getElementById('els-copy')`, 'Copy brief');
+        await tab.expect(`document.getElementById('els-status')?.textContent === 'Copied'`, async () => `Copy brief said “${await tab.eval(`document.getElementById('els-status')?.textContent || ''`)}”, not Copied`, 4000);
+        const clip = await tab.eval(`navigator.clipboard.readText()`);
+        if (clip.split('\r\n').join('\n') !== shown) throw new StepError(`the clipboard holds ${JSON.stringify(clip.slice(0, 120))}, not the brief the panel shows`);
+        const link = await tab.eval(`(() => { const a = document.getElementById('els-link'); return { href: a.getAttribute('href'), target: a.target, rel: a.rel }; })()`);
+        if (link.href !== 'https://els.alumax.pro/' || link.target !== '_blank' || link.rel !== 'noopener noreferrer') throw new StepError(`the link to ELS is ${JSON.stringify(link)}`);
+        if (await tab.eval('JSON.stringify(State.deal)') !== deal) throw new StepError('opening the panel and copying the brief changed the deal');
+        if (await tab.eval(`Object.keys(localStorage).some(k => (localStorage.getItem(k) || '').includes('two bathrooms'))`)) throw new StepError('the requirements were stored in this browser');
+      });
       const name = `Journey check ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
       await step(j, tab, 'Save the property', BUDGET.action, async () => {
         await saveByNameForm(tab, byText('main button', '/^Save this (property|deal)$/'), 'Save this property', name);
@@ -1567,6 +1596,23 @@ const JOURNEYS = [
           .filter(([, re]) => re.test(sale.text)).map(([w]) => w);
         if (shown.length) throw new StepError(`before any report is unlocked the proposal shows the full report's ${shown.join(', ')}`);
         if (!sale.notes.includes('In the full analysis — preview in the calculator; nothing is on sale')) throw new StepError('the proposal does not say where the rest of the sale is');
+      });
+      /* THE SCENARIO LAB'S LINK TO THE PANEL, WITH A KEPT PARAMETER (the 31 Oct
+         2026 review): navigate() put the kept ?real=0 after the hash
+         ("#els-plan?real=0"), so the panel did not open and the parameter was
+         the hash's. Now the address is /property/calculator?real=0#els-plan,
+         the panel is open, and the parameter survived. */
+      await step(j, tab, 'The Scenario Lab’s ELS link opens the calculator’s panel and keeps ?real=0', BUDGET.load + BUDGET.action, async () => {
+        await tab.goto('/property?real=0');
+        await tab.expect(`State.view === 'propertyLab' && !!document.querySelector('.lab-els a')`, 'the Scenario Lab shows no ELS link beside its Keep card');
+        const words = await tab.eval(`document.querySelector('.lab-els a').textContent.trim()`);
+        if (!/^Explore design and renovation planning with ELS/.test(words)) throw new StepError(`the Lab's link reads "${words}"`);
+        await tab.click(`document.querySelector('.lab-els a')`, 'The Lab’s ELS link');
+        await tab.expect(`State.view === 'property' && !!document.getElementById('els-plan')?.open`, async () => `the link did not open the calculator's panel: ${await tab.where()}`, 8000);
+        const at = await tab.eval(`({ path: location.pathname, search: location.search, hash: location.hash, view: new URLSearchParams(location.search).get('view') })`);
+        if (at.path !== '/property/calculator' || new URLSearchParams(at.search).get('real') !== '0') throw new StepError(`the address is ${JSON.stringify(at)}, not the calculator with ?real=0 kept`);
+        if (at.hash && at.hash !== '#els-plan') throw new StepError(`the address's hash is ${at.hash}, not #els-plan`);
+        if (/#els-plan\?|\?[^#]*#.*\?/.test(await tab.eval('location.href'))) throw new StepError('a parameter sits inside the hash');
       });
     },
   },
@@ -1714,7 +1760,8 @@ const JOURNEYS = [
         const id = await tab.eval(`(document.getElementById('lab-status')?.textContent || '').trim()`);
         if (!/^Sample deal/.test(id)) throw new StepError(`the identity line reads “${id.slice(0, 60)}”, not the sample deal`);
         const tiles = await tab.eval(`[...document.querySelectorAll('main .lab-tile .lab-tile-label')].map(n => n.textContent.trim()).join(' | ')`);
-        if (tiles !== 'Cash required | Monthly position | Net yield | Next step') throw new StepError(`the four tiles read “${tiles}”`);
+        /* The 30 Oct 2026 audit's order, Day 18's (QT-D18-01): the Next step tile went. */
+        if (tiles !== 'Purchase price | Cash required | Monthly position | Net yield') throw new StepError(`the four tiles read “${tiles}”`);
         const exp = await tab.eval(`(() => { const n = document.getElementById('lab-export'); return n ? n.tagName + ':' + n.disabled + ':' + (document.getElementById('lab-export-why')?.textContent || '') : null; })()`);
         if (exp !== 'BUTTON:true:Save it first — a proposal is made from what is saved') throw new StepError(`on the unsaved sample deal, Export reads “${exp}”, not a disabled button with its reason`);
         deal0 = await tab.eval(dealAt);
@@ -1857,6 +1904,9 @@ const JOURNEYS = [
         await tab.expect(`(${work}).route === 'auction' && !!document.getElementById('lab-au') && !document.getElementById('lab-pe')`, 'Auction chosen, the columns are not an auction or the auction risk mode is not drawn');
         await tab.click(`document.querySelector('label[for="lab-q-how-subsale"]')`, 'How are you buying? — Subsale');
         await tab.expect(`!(${work}).route && document.getElementById('lab-q-how-subsale')?.checked === true && !document.getElementById('lab-au') && !!document.getElementById('lab-pe')`, 'Subsale chosen, the columns do not read as a subsale');
+        /* The price against the evidence is a closed disclosure at the foot (the 30 Oct 2026 audit): the reader opens it. */
+        if (!await tab.eval(`!!document.getElementById('lab-pe')?.open`)) await tab.click(`document.querySelector('#lab-pe > summary')`, 'Check the price against your evidence');
+        await tab.expect(`!!document.getElementById('lab-pe')?.open`, 'the price check did not open');
         await tab.click(`document.querySelector('label[for="lab-q-target-monthly"]')`, 'Target — Monthly position at least');
         await tab.fill(`document.getElementById('lab-pe-target-value')`, '0', 'The target figure', { commit: true });
         await tab.expect(`document.querySelector('#lab-pe-cards [data-pe="solve"]')?.dataset.status === 'solved'`, async () => `with a target of RM0 a month the card reads “${await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="solve"]')?.textContent || 'nothing').slice(0, 120)`)}”`, 4000);
@@ -1975,6 +2025,9 @@ const JOURNEYS = [
         if (await tab.eval(`JSON.stringify(store.read('deal', null))`) !== deal0) throw new StepError('using it wrote the calculator’s deal — it is a what-if until saved');
       });
       await step(j, tab, 'Enter an asking price: the price gap names it with its source and date', BUDGET.action * 2, async () => {
+        /* The price against the evidence is a closed disclosure at the foot (the 30 Oct 2026 audit): the reader opens it. */
+        if (!await tab.eval(`!!document.getElementById('lab-pe')?.open`)) await tab.click(`document.querySelector('#lab-pe > summary')`, 'Check the price against your evidence');
+        await tab.expect(`!!document.getElementById('lab-pe')?.open`, 'the price check did not open');
         await tab.fill(`document.getElementById('lab-pe-asking')`, '600000', 'The asking price', { commit: true });
         await tab.expect(`document.querySelector('#lab-pe-cards [data-pe="gap"]')?.dataset.value === '60000'`,
           async () => `with RM600,000 asked against RM540,000 the gap card reads “${await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="gap"]')?.textContent || 'nothing').slice(0, 160)`)}”`, 4000);
@@ -2606,10 +2659,10 @@ const JOURNEYS = [
         const r = await line();
         if (r.here !== 'analyse' || r.what !== null || r.route !== null || r.ev !== 'Sample figures: 10 of 10' || r.moves !== 0 || r.state !== 'No unsaved moves' || r.save)
           throw new StepError(`the Lab's line reads ${said(r)}${r.save ? ', Save offered with nothing moved' : ''}, ${r.here} marked`);
-        const id = JSON.parse(await tab.eval(`JSON.stringify({ name: (document.getElementById('lab-status')?.textContent || '').trim(), assume: (document.getElementById('lab-assume')?.textContent || '').trim(), route: (document.getElementById('lab-q-sum')?.textContent || '').trim() })`));
+        const id = JSON.parse(await tab.eval(`JSON.stringify({ name: (document.getElementById('lab-status')?.textContent || '').trim(), assume: document.getElementById('lab-assume') ? 'drawn' : '', route: (document.getElementById('lab-q-sum')?.textContent || '').trim() })`));
         if (id.name !== 'Sample deal' || id.route !== 'Residential · Subsale') throw new StepError(`the Lab's heading names “${id.name}”, “${id.route}”`);
-        /* The sample's line under its name (QT-D08-02), word for word. */
-        if (id.assume !== 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.') throw new StepError(`the line under the sample's name reads “${id.assume}”`);
+        /* The line under the sample's name (QT-D08-02) went on 31 Oct 2026 (Day 18 follow-up: the chip's line says it). */
+        if (id.assume) throw new StepError('the old line under the sample\'s name, “Illustrative scenario: …”, is still drawn beside the chip\'s line');
         if (r.lines !== 1) throw new StepError(`the Lab's line takes ${r.lines} lines at 1440, not one`);
         if (await snap() !== before) throw new StepError('opening the Lab wrote to storage');
       });
@@ -2846,7 +2899,7 @@ const JOURNEYS = [
           const prim = [...document.querySelectorAll('main .btn-primary')];
           const link = steps[2]?.querySelector('a');
           return { titles: steps.map(li => t(li.querySelector('strong'))), states: steps.map(li => t(li.querySelector('.scan-step-s'))),
-            badge2: t(steps[1]?.querySelector('.status-badge.status-unavailable')),
+            badge2: t(steps[1]?.querySelector('.status-badge')), tag2: t(steps[1]?.querySelector('.scan-step-tag')),
             prim: prim.map(t), primIn1: prim.length === 1 && !!steps[0]?.contains(prim[0]),
             detOpen: det ? det.open : null, detSum: t(det?.querySelector('summary')), detCmd: /node scanner\\/scan\\.mjs/.test(det?.textContent || ''),
             link: link ? link.getAttribute('href') : null, lede: t(document.querySelector('main .page-lede')) + ' ' + t(document.querySelector('main .page-note')),
@@ -2855,11 +2908,14 @@ const JOURNEYS = [
         const want = ['Create a rule setup', 'Price history', 'Run locally', 'Review recorded results'];
         if (JSON.stringify(got.titles) !== JSON.stringify(want)) throw new StepError(`the steps read ${JSON.stringify(got.titles)}, not ${want.join(' → ')}`);
         if (!/^None yet\b/.test(got.states[0])) throw new StepError(`step 1 reads “${got.states[0]}”, not “None yet” on a fresh browser`);
-        if (!/^unavailable$/i.test(got.badge2) || !/None supplied/.test(got.states[1]) || /\b0\b/.test(got.states[1])) throw new StepError(`step 2 reads “${got.states[1]}”, not Unavailable and “None supplied” — and never a 0`);
+        /* The 30 Oct 2026 audit: step 2 is "You supply it · None supplied —
+           this site ships no prices" with a line on what the worker reads,
+           and no red Unavailable badge (it was one). */
+        if (got.badge2 || got.tag2 !== 'You supply it' || !/None supplied — this site ships no prices/.test(got.states[1]) || /\b0\b/.test(got.states[1])) throw new StepError(`step 2 reads “${got.states[1]}” (tag “${got.tag2}”, badge “${got.badge2}”), not “You supply it” and “None supplied — this site ships no prices” with no badge — and never a 0`);
         if (!/Not available to download yet/.test(got.states[2])) throw new StepError(`step 3 reads “${got.states[2]}”`);
         if (!/^No scan recorded\b/.test(got.states[3])) throw new StepError(`step 4 reads “${got.states[3]}”, not “No scan recorded”`);
         if (got.prim.length !== 1 || got.prim[0] !== 'Create a setup' || !got.primIn1) throw new StepError(`the page’s primary buttons are ${JSON.stringify(got.prim)}: not one, “Create a setup”, in step 1`);
-        if (got.detOpen !== false || got.detSum !== 'Run locally' || !got.detCmd) throw new StepError(`“Run locally” is ${JSON.stringify({ open: got.detOpen, summary: got.detSum, commands: got.detCmd })}: not a closed details holding the commands`);
+        if (got.detOpen !== false || got.detSum !== 'Advanced: run locally' || !got.detCmd) throw new StepError(`“Advanced: run locally” is ${JSON.stringify({ open: got.detOpen, summary: got.detSum, commands: got.detCmd })}: not a closed details holding the commands`);
         if (got.link !== '#scan-run') throw new StepError(`step 3 links to ${got.link}, not #scan-run`);
         if (!/does not run scans or supply prices/.test(got.lede) || !/not available to download yet/.test(got.lede)) throw new StepError(`the lede reads “${got.lede.slice(0, 120)}”`);
         if (!got.before) throw new StepError('the four steps do not come before “Run locally” and the example');

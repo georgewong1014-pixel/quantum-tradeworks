@@ -406,6 +406,43 @@ try {
     else ok('every research tab labels MSFT-SEC with its own fiscal years — no FY2016 anywhere, FY2026 where the latest year is named');
   }
 
+  /* 10b — NO INTERNAL REVIEW CLAIM ON A COMPANY PAGE (the owner's Day 18
+          instructions, 31 Oct 2026, item 4). The Moat tab of every
+          illustrative company read "reviewed 30 Jul 2026" and "Analyst-reviewed
+          template", and the Snapshot's flag "Qualitative risk (analyst review)":
+          the text is written into the illustrative set by the tool's authors and
+          no analyst reviewed it. A company with a moat assessment dates its
+          evidence by the data ("FY… reported · illustrative set <date>") and says
+          what the template is; neither tab claims a review or a reviewer. */
+  {
+    const r = await evaluate(`(() => {
+      const bad = [], seen = [];
+      const claim = /analyst[- ]reviewed|analyst review|reviewed by an analyst|\\breviewed\\s+\\d/i;
+      const rows = U.filter(x => !x.c.real && x.c.moat && x.c.moat.kind !== 'Not assessed');
+      for (const x of rows) {
+        for (const tab of ['snapshot', 'moat', 'risks']) {
+          openResearch(x.c.id, tab);
+          const t = document.querySelector('main')?.textContent || '';
+          const m = t.match(claim);
+          if (m) bad.push(x.c.id + ' ' + tab + ': "' + m[0] + '"');
+          if (tab === 'moat') {
+            const dd = [...document.querySelectorAll('main dt')].find(d => d.textContent === 'Evidence date')?.nextElementSibling?.textContent || '';
+            const rs = [...document.querySelectorAll('main dt')].find(d => d.textContent === 'Review status')?.nextElementSibling?.textContent || '';
+            if (!dd.includes('illustrative set ' + AS_OF) || !/not an analyst/i.test(rs)) bad.push(x.c.id + ' moat: Evidence date "' + dd + '", Review status "' + rs + '"');
+          }
+        }
+        seen.push(x.c.id);
+      }
+      openResearch('MSFT-SEC', 'moat');
+      const f = document.querySelector('main')?.textContent || '';
+      if (claim.test(f)) bad.push('MSFT-SEC moat: ' + f.match(claim)[0]);
+      return { n: seen.length, bad };
+    })()`);
+    if (!r.n) fail('10b: no illustrative company with a moat assessment was found to check', []);
+    else if (r.bad.length) fail('a company page still claims an analyst or a review date on its Moat, Risks or Snapshot tab', r.bad);
+    else ok(`${r.n} illustrative companies and a filed one: the Snapshot, Moat and Risks tabs claim no analyst review and no "reviewed <date>"; the Moat's evidence date is the illustrative set's`);
+  }
+
   /* 11 — the nine methods refuse a missing bridge or share count rather than
           producing a number. */
   {
@@ -1549,7 +1586,7 @@ try {
         link: [...drawer.querySelectorAll('a')].some(a => /See my recorded cases/.test(a.textContent)) };
       closeDrawer({ restore: false }); await wait(350);
       await record('two'); closeDrawer({ restore: false }); await wait(350);
-      State.corrections = State.corrections.filter(c => !c.id.endsWith('-001'));
+      State.corrections = State.corrections.filter(c => !/^QT-\\d{8}-001(-|$)/.test(c.id));
       await record('three'); closeDrawer({ restore: false }); await wait(350);
       const ids = State.corrections.map(c => c.id);
       const raised = State.corrections[0].createdAt;
@@ -1564,6 +1601,40 @@ try {
     if (!/ UTC[+−]\d\d:\d\d$/.test(r.raised) || r.raised.slice(0, 10).replace(/-/g, '') !== stamp) p.push(`raised "${r.raised}" against id ${r.id}`);
     if (p.length) fail('a recorded correction case is confirmed, keeps a unique id, and is dated on one labelled clock', p);
     else ok(`a recorded correction case is confirmed, keeps a unique id after a delete (${r.ids.join(', ')}), and is dated on one labelled clock (${r.raised})`);
+  }
+  /* (The 31 Oct 2026 operational audit, #1) TWO BROWSERS' CASE IDS DIFFER. The
+     sequence was this browser's own, so every visitor's first report of a day was
+     QT-YYYYMMDD-001 and the owner's rule "same case ID: link the rows" would have
+     merged two people's. An id now ends in four random characters; a case stored
+     before that (no suffix) still counts toward the sequence and is not renamed. */
+  {
+    const r = await evaluate(`(() => {
+      const saved = State.corrections;
+      const d = new Date(2026, 9, 31, 12, 0);
+      try {
+        const fresh = [];
+        for (let i = 0; i < 40; i++) { State.corrections = []; fresh.push(nextCaseId(d)); }
+        const old = [{ id: 'QT-20261031-001' }, { id: 'QT-20261031-004' }, { id: 'QT-20261030-009' }];
+        State.corrections = old;
+        const afterOld = nextCaseId(d);
+        State.corrections = [{ id: 'QT-20261031-002-k7f2' }, { id: 'QT-20261031-001' }];
+        const afterMixed = nextCaseId(d);
+        State.corrections = [{ id: 'QT-20261031-001-k7f2' }];
+        const second = nextCaseId(d);
+        return { fresh, afterOld, afterMixed, second, oldKept: JSON.stringify(old) };
+      } finally { State.corrections = saved; }
+    })()`);
+    const p = [];
+    const SHAPE = /^QT-20261031-\d{3}-[a-km-np-z2-9]{4}$/;
+    if (r.fresh.some(id => !SHAPE.test(id))) p.push(`an id is not QT-YYYYMMDD-NNN-xxxx: ${r.fresh.find(id => !SHAPE.test(id))}`);
+    if (r.fresh.some(id => !/^QT-20261031-001(-|$)/.test(id))) p.push(`a cleared browser's first case of the day is not -001: ${r.fresh[0]}`);
+    if (new Set(r.fresh).size < 38) p.push(`40 cleared browsers issued only ${new Set(r.fresh).size} different ids for the same first case of a day`);
+    if (!/^QT-20261031-005(-|$)/.test(r.afterOld)) p.push(`with QT-20261031-001 and -004 stored (no suffix), the next id is ${r.afterOld}, not -005`);
+    if (!/^QT-20261031-003(-|$)/.test(r.afterMixed)) p.push(`with -002-k7f2 and an unsuffixed -001 stored, the next id is ${r.afterMixed}, not -003`);
+    if (!/^QT-20261031-002(-|$)/.test(r.second)) p.push(`after -001-k7f2 the next id is ${r.second}`);
+    if (r.oldKept !== '[{"id":"QT-20261031-001"},{"id":"QT-20261031-004"},{"id":"QT-20261030-009"}]') p.push(`an old case id was rewritten: ${r.oldKept}`);
+    if (p.length) fail('case ids from two browsers differ, and a stored id without the suffix still counts toward the sequence', p);
+    else ok(`case ids from two browsers differ (${r.fresh.slice(0, 2).join(', ')} …), and ids stored without the suffix still count toward the sequence and are not renamed (next after -001 and -004: ${r.afterOld})`);
   }
   /* LEARN PUBLISHES WHAT THE PRODUCT DOES. The router table lists every type
      routeModel handles with the pack it routes to; the scoring page carries
@@ -3385,7 +3456,12 @@ try {
         scanAlertsFile = null; navigate('/app/scanner/alerts'); await w(150); out.noFile = /cannot be seen from here/.test(t()) && !/0 unread/.test(t());
         out.subnav = [...document.querySelectorAll('main nav a')].map(a => a.textContent).join('|');
         localStorage.removeItem('vl.scanSetups'); scanSetupsFile = null; navigate('/app/scanner/setups'); await w(150);
-        out.noSetups = /No setups saved in this browser/.test(t()) && /cannot be seen from here/.test(t());
+        /* The 30 Oct 2026 audit: with nothing saved the worker's file card is
+           in the closed Advanced details, so its "cannot be seen from here" is
+           in the page and not in its sight (innerText leaves out a closed
+           details' body): the empty state is what the reader sees. */
+        out.noSetups = /No setups saved in this browser/.test(t()) && !/cannot be seen from here/.test(t())
+          && /cannot be seen from here/.test(document.querySelector('main details#scan-advanced').textContent);
         scanHistoryFile = null; navigate('/app/scanner/setups/new'); await w(150);
         const test = [...document.querySelectorAll('main button')].find(b => /Test against your history/.test(b.textContent));
         out.noHistory = test?.disabled === true && /nothing to test against/.test(t());
@@ -7567,6 +7643,123 @@ try {
   }
   /* ---- end bugfix5: shell ---- */
 
+  /* ---- scanner: first use ---- */
+  /* THE SCANNER'S FIRST USE, LESS TECHNICAL (the 30 Oct 2026 audit: "lead
+     with 'Create a setup' and explain the required price-history data; place
+     local-worker commands in an advanced section").
+     1. /app/scanner/setups with nothing saved: the empty state and its
+        "Create a setup" come before every technical card, which now sit in
+        ONE closed <details id="scan-advanced"> headed "Advanced"; "What this
+        will and will not do" stays last. With a setup saved, the list comes
+        first, the worker's file and its export follow it in sight, and the
+        TradingView card and "Evaluate now" are in Advanced.
+     2. Advanced is closed on arrival; it keeps its open state across a
+        redraw; an address naming something in it (#scan-bot, #scan-evaluate)
+        opens it first — and the TradingView card too for #scan-bot.
+     3. /app/scanner step 2 with no price history: tag "You supply it", state
+        "None supplied — this site ships no prices", no red Unavailable badge,
+        and a line naming what the worker reads. With a history loaded, the
+        step keeps its old text. */
+  scannerFirstUse: {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const main = () => document.querySelector('main');
+      const keep = { h: scanHistoryFile, a: scanAlertsFile, s: scanSetupsFile, store: localStorage.getItem('vl.scanSetups'),
+        bot: JSON.stringify(scanBotState), adv: JSON.stringify(scanAdvState), hash: location.hash };
+      const out = {};
+      try {
+        scanHistoryFile = null; scanAlertsFile = null; scanSetupsFile = null;
+        localStorage.removeItem('vl.scanSetups');
+        Object.assign(scanBotState, { open: false, symbols: null, tfs: ['1W', '1M'], signals: null, cooldownMode: 'NEW_MATCH', criterion3: 'ema', result: null });
+        scanAdvState.open = false; scanAdvLeft();
+        const order = () => {
+          const kids = [...(main().querySelector('.scan-page')?.children || [])];
+          const at = (sel) => kids.findIndex(k => k.matches(sel) || k.querySelector(sel));
+          const adv = main().querySelector('details#scan-advanced');
+          return { empty: at('.scan-empty'), list: at('.scan-setup-row'), exportAt: kids.findIndex(k => k.id === 'scan-export'), advAt: kids.findIndex(k => k.id === 'scan-advanced'),
+            boundary: kids.findIndex(k => k.classList.contains('scan-boundary')), n: kids.length,
+            advOpen: adv ? adv.open : null, advSum: (adv?.querySelector('summary')?.textContent || '').trim(),
+            inAdv: ['#scan-export', '#scan-bot', '#scan-evaluate'].map(s => !!adv?.querySelector(s)),
+            exportInAdv: !!adv?.querySelector('#scan-export'), exportVisible: !!main().querySelector('#scan-export') && !main().querySelector('#scan-export').closest('details:not([open])'),
+            create: [...main().querySelectorAll('a')].filter(a => a.textContent.trim() === 'Create a setup').length };
+        };
+        /* 1 — nothing saved. */
+        navigate('/app/scanner/setups'); await w(200);
+        out.none = order();
+        /* 2 — closed on arrival, kept across a redraw, an address opens it. */
+        const adv = () => main().querySelector('details#scan-advanced');
+        /* The reader's open and close, waited for as the page hears them (a toggle event). */
+        const flip = (open) => new Promise(res => { adv().addEventListener('toggle', res, { once: true }); adv().open = open; });
+        await flip(true); render(); await w(100);
+        out.keptOpen = adv().open;
+        await flip(false); render(); await w(100);
+        out.keptClosed = adv().open;
+        history.replaceState(history.state, '', location.pathname + '#scan-bot');
+        scanAdvLeft(); scanBotState.open = false; render(); await w(150);
+        out.byBot = { advOpen: adv().open, botOpen: main().querySelector('details#scan-bot')?.open, form: !!main().querySelector('details#scan-bot .scan-bot-body > *') };
+        await flip(false); render(); await w(100);
+        out.closedAgain = adv().open;
+        history.replaceState(history.state, '', location.pathname);
+        navigate('/learn'); await w(100);
+        scanAdvState.open = false; scanBotState.open = false;
+        navigate('/app/scanner/setups'); await w(200);
+        out.arrival = adv().open;
+        location.hash = '#scan-evaluate'; await w(250);
+        out.byEvaluate = { advOpen: adv()?.open, inside: !!adv()?.querySelector('#scan-evaluate') };
+        history.replaceState(history.state, '', location.pathname);
+        scanAdvState.open = false; scanBotState.open = false; scanAdvLeft();
+        /* 3 — one setup saved. */
+        const one = { id: 'qa-first-use', name: 'QA first use', version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D',
+          cooldownMode: 'EVERY_MATCH', cooldownBars: 0, ruleTree: { type: 'group', logic: 'ALL', children: [
+            { type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'sma', n: 5 } }] } };
+        scanSaveSetup(one);
+        navigate('/app/scanner/setups'); await w(200);
+        out.saved = order(); out.savedCount = scanBrowserSetups().length;
+        /* 4 — the dashboard's step 2. */
+        localStorage.removeItem('vl.scanSetups');
+        navigate('/app/scanner'); await w(250);
+        const step2 = () => main().querySelectorAll('ol.scan-steps > li.scan-step')[1];
+        const t = (n) => (n?.innerText || '').replace(/\\s+/g, ' ').trim();
+        out.step2 = { tag: t(step2()?.querySelector('.scan-step-tag')), state: t(step2()?.querySelector('.scan-step-v')), note: t(step2()?.querySelector('.metaline')),
+          badge: !!step2()?.querySelector('.status-badge'), whole: t(step2()) };
+        out.runSum = t(main().querySelector('details#scan-run > summary'));
+        out.runLink = t(main().querySelector('ol.scan-steps > li:nth-child(3) a'));
+        out.head = [t(main().querySelector('.page-lede')), t(main().querySelector('.page-note'))];
+        main().querySelector('ol.scan-steps > li:nth-child(3) a').click(); await w(150);
+        out.runOpened = main().querySelector('details#scan-run')?.open;
+        scanHistoryFile = { generated: '2026-09-25T22:00:00Z', series: { AAA: { '2026-09-24': 10, '2026-09-25': 11 } }, volume: {} };
+        navigate('/learn'); await w(60); navigate('/app/scanner'); await w(250);
+        out.step2Loaded = { tag: t(step2()?.querySelector('.scan-step-tag')), state: t(step2()?.querySelector('.scan-step-v')), notes: step2()?.querySelectorAll('.metaline').length };
+        return out;
+      } finally {
+        scanHistoryFile = keep.h; scanAlertsFile = keep.a; scanSetupsFile = keep.s;
+        if (keep.store == null) localStorage.removeItem('vl.scanSetups'); else localStorage.setItem('vl.scanSetups', keep.store);
+        Object.assign(scanBotState, JSON.parse(keep.bot)); Object.assign(scanAdvState, JSON.parse(keep.adv));
+        history.replaceState(history.state, '', location.pathname);
+        navigate('/learn');
+      }
+    })()`);
+    const pf = [];
+    const n0 = r.none || {};
+    if (!(n0.empty >= 0 && n0.exportAt === -1 && n0.advAt > n0.empty) || n0.create < 2) pf.push(`nothing saved: the empty state is at ${n0.empty}, Advanced at ${n0.advAt}, the export card outside Advanced at ${n0.exportAt}; ${n0.create} "Create a setup" links`);
+    if (n0.advOpen !== false || !/^Advanced/.test(n0.advSum) || JSON.stringify(n0.inAdv) !== '[true,true,true]') pf.push(`Advanced on arrival: open ${n0.advOpen}, headed "${n0.advSum}", holds export/TradingView/Evaluate ${JSON.stringify(n0.inAdv)}`);
+    if (!(n0.boundary === n0.n - 1 && n0.boundary > n0.advAt)) pf.push(`"What this will and will not do" is at ${n0.boundary} of ${n0.n}, not last after Advanced (${n0.advAt})`);
+    const s1 = r.saved || {};
+    if (r.savedCount !== 1 || !(s1.list >= 0 && s1.exportAt > s1.list && s1.advAt > s1.exportAt) || s1.exportInAdv || s1.advOpen !== false || JSON.stringify(s1.inAdv) !== '[false,true,true]') pf.push(`one setup saved: list ${s1.list}, export card ${s1.exportAt}, Advanced ${s1.advAt}; export in Advanced ${s1.exportInAdv}; Advanced open ${s1.advOpen}, holds ${JSON.stringify(s1.inAdv)}`);
+    if (r.keptOpen !== true || r.keptClosed !== false) pf.push(`Advanced after a redraw: opened → ${r.keptOpen}, closed → ${r.keptClosed}`);
+    if (!r.byBot || r.byBot.advOpen !== true || r.byBot.botOpen !== true || !r.byBot.form || r.closedAgain !== false) pf.push(`#scan-bot opened Advanced ${r.byBot?.advOpen}, the TradingView card ${r.byBot?.botOpen} (form ${r.byBot?.form}); closed by the reader and redrawn → ${r.closedAgain}`);
+    if (r.arrival !== false || !r.byEvaluate?.advOpen || !r.byEvaluate?.inside) pf.push(`arriving afresh: open ${r.arrival}; #scan-evaluate opened ${JSON.stringify(r.byEvaluate)}`);
+    const s2 = r.step2 || {};
+    if (s2.tag !== 'You supply it' || s2.state !== 'None supplied — this site ships no prices' || s2.badge || /Unavailable/i.test(s2.whole || '')) pf.push(`step 2 reads tag "${s2.tag}", state "${s2.state}", badge ${s2.badge}: "${s2.whole}"`);
+    if (!/^The worker reads your price history on your own computer: for each symbol, a close for each date, and optionally open, high, low and volume\.$/.test(s2.note || '')) pf.push(`step 2's note reads "${s2.note}"`);
+    if (JSON.stringify(r.head) !== JSON.stringify(['Create and save rules for checking price history you supply.', 'The website does not run scans or supply prices. The local worker is not available to download yet.'])) pf.push(`the dashboard's head reads ${JSON.stringify(r.head)}`);
+    if (!/^Advanced: run locally$/.test(r.runSum || '') || r.runOpened !== true) pf.push(`"Run locally": summary "${r.runSum}", link "${r.runLink}" opened it ${r.runOpened}`);
+    if (r.step2Loaded?.tag !== 'Needed' || !/^1 series, newest bar 2026-09-25$/.test(r.step2Loaded?.state || '') || r.step2Loaded?.notes) pf.push(`step 2 with a history loaded: ${JSON.stringify(r.step2Loaded)}`);
+    if (pf.length) fail('scanner first use: the setups page leads with its setups or "Create a setup" and keeps the worker, the TradingView import and "Evaluate now" in one closed Advanced; step 2 explains the price history without an alarm', pf);
+    else ok('scanner first use: /app/scanner/setups leads with the empty state ("Create a setup") or the setups and their export, "What this will and will not do" last; the worker\'s file with nothing saved, the TradingView import and "Evaluate now" sit in one Advanced details that is closed on arrival, keeps its state across redraws and is opened by #scan-bot or #scan-evaluate; step 2 says "You supply it · None supplied — this site ships no prices" with a line on what the worker reads; "Advanced: run locally" opens from step 3');
+  }
+  /* ---- end scanner: first use ---- */
+
   /* ---- bot: pages ---- */
   /* THE READER'S TRADINGVIEW BOT ON THE SCANNER PAGES (the bot contract,
      B1–B4, 86-scanner.js):
@@ -7883,6 +8076,66 @@ try {
     else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS with ${home.figures} charts and Business as text; /how-it-works has the steps, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
   }
   /* ---- end release-a: public ---- */
+  /* ---- home: example outputs ---- */
+  /* THE HOMEPAGE'S THREE PREVIEWS ARE EXAMPLE OUTPUT (the 30 Oct 2026 audit:
+     "a genuine, clearly labelled example of what they will obtain, rather than
+     invented performance claims"). The Scanner's was a mock-up — starting-rule
+     chips and grey placeholder rows. It is now what the dashboard shows: the
+     engine's evaluation (scanExample) of the example setup on its generated
+     series, read at bar 66 — the verdict and the three conditions with their
+     values, as scanEvaluate words them, the 66 closes, labelled Illustrative —
+     and nothing is written by hand: the card is compared here with a fresh
+     evaluation of the same fixture. Each preview opens with the one "Example
+     output" caption; the three cards are one height where they sit side by
+     side; and no preview draws a count, a date, a symbol or a word that leans
+     toward a trade. */
+  {
+    /* At 1440 the three cards sit side by side, which is where their height is judged. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      navigate('/'); await w(250);
+      const m = document.querySelector('#views');
+      const cards = [...m.querySelectorAll('.pub-card')];
+      const fx = scanFixture(), setup = scanNormaliseSetup(fx.setup), cache = scanCache();
+      const A = scanBars(fx.history, 'MATCH', { timeframe: '1D', now: fx.now, calendar: scanCalendar(fx.history, [], null) });
+      const eng = scanEvaluate(setup.ruleTree, A, { cache });
+      const sc = cards.find(c => c.dataset.product === 'scanner');
+      const fig = sc?.querySelector('figure');
+      const rows = fig ? [...fig.querySelectorAll('li.scan-ex-c')].map(li => ({ text: li.querySelector('.scan-ex-x')?.textContent.trim(), state: li.dataset.state, word: li.querySelector('.scan-ex-s')?.textContent.trim() })) : [];
+      const h = cards.map(c => Math.round(c.getBoundingClientRect().height));
+      return {
+        captions: cards.map(c => { const f = c.querySelector('figure'); const e = f?.firstElementChild; return e && e.classList.contains('pub-vis-eg') ? e.textContent.trim() : (e ? e.className : null); }),
+        side: cards.length === 3 && cards.every(c => Math.abs(c.getBoundingClientRect().top - cards[0].getBoundingClientRect().top) < 2) && getComputedStyle(m.querySelector('.pub-cards')).display !== 'flex',
+        h,
+        mock: fig ? fig.querySelectorAll('.pub-record, .pub-record-row, .pub-chip, .pub-rule, .pub-vis-empty').length : -1,
+        rows, engine: eng.conditions.map(c => ({ text: c.text, state: c.state, word: { MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' }[c.state] })), engineState: eng.state,
+        verdict: fig?.querySelector('.pub-scan-verdict')?.textContent.replace(/\\s+/g, ' ').trim(),
+        verdictState: fig?.querySelector('.scan-ex-v')?.dataset.state,
+        points: fig?.querySelector('path.scan-ex-close')?.getAttribute('data-points'), closes: A.closes.length,
+        label: fig?.querySelector('.pub-vis-src')?.textContent.replace(/\\s+/g, ' ').trim(),
+        badge: fig?.querySelector('.pub-vis-src .kind-illustrative')?.textContent.trim(),
+        text: fig?.textContent || '',
+        overflow: document.documentElement.scrollWidth - innerWidth,
+      };
+    })()`);
+    await send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+    const p = [];
+    if (r.captions.length !== 3 || r.captions.some(c => c !== 'Example output')) p.push(`the previews open with ${JSON.stringify(r.captions)}, not "Example output" on each of three`);
+    if (r.mock !== 0) p.push(`the Scanner preview still draws the mock-up (${r.mock} chips, placeholder rows or empty-record parts)`);
+    if (r.rows.length !== r.engine.length || r.rows.length !== 3) p.push(`the Scanner preview has ${r.rows.length} conditions, the engine's evaluation ${r.engine.length}`);
+    r.rows.forEach((x, i) => { const e = r.engine[i]; if (!e || x.text !== e.text || x.state !== e.state || x.word !== e.word) p.push(`condition ${i + 1}: "${x.text}" ${x.word} (${x.state}), the engine: "${e?.text}" ${e?.word}`); });
+    const want = `The rule at bar ${r.closes} ${{ MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' }[r.engineState]}`;
+    if (r.verdict !== want || r.verdictState !== r.engineState) p.push(`the verdict reads "${r.verdict}" (${r.verdictState}), the engine: "${want}" (${r.engineState})`);
+    if (Number(r.points) !== r.closes || r.closes !== 66) p.push(`the series has ${r.points} points, the generated series ${r.closes} (66)`);
+    if (r.badge !== 'Illustrative' || !/Generated series, not a market’s prices/.test(r.label || '')) p.push(`the Scanner preview's label is "${r.label}" (badge "${r.badge}")`);
+    if (/\b(matched|approaching|watching|signal|buy|sell|live|works)\b/i.test(r.text) || /[0-9]{4}-[0-9]{2}-[0-9]{2}|RM|US\$/.test(r.text)) p.push(`the Scanner preview says something a market's page would: "${r.text.replace(/\s+/g, ' ').slice(0, 160)}"`);
+    if (!r.side) p.push(`at 1440 the three cards do not sit side by side (${JSON.stringify(r.h)}px)`);
+    else if (new Set(r.h).size !== 1) p.push(`the three cards sit side by side at ${JSON.stringify(r.h)}px, not one height`);
+    if (p.length) fail('home: the three previews are example output, the Scanner\'s the engine\'s own evaluation', p);
+    else ok(`home: each of the three previews opens with "Example output"; the Scanner's is scanExample's evaluation at bar ${r.closes} — "${r.verdict}" and ${r.rows.length} conditions as the engine words them — labelled Illustrative, with no placeholder rows${r.side ? `; the cards are ${r.h[0]}px each` : ''}`);
+  }
+  /* ---- end home: example outputs ---- */
   /* ---- release-a: dashboard ---- */
   /* MY DASHBOARD COUNTS ONLY WHAT IS THE VISITOR'S, AND EVERY COUNT IS A DOOR.
      /app was the equities research queue; Release A makes it the visitor's
@@ -10894,7 +11147,8 @@ try {
       || !/How to reach the site’s owner, who handles support and corrections/.test(r.setContact))
       p.push(`with an address set, /contact does not name the site owner and say that opening the email program is not sending: ${r.setContact.replace(/\s+/g, ' ').slice(0, 300)}`);
     if (/\b(within|hours?|business days?|reply|respond)\b/i.test(r.setContact)) p.push(`with an address set, /contact carries a response-time word: ${/\b(within|hours?|business days?|reply|respond)\b/i.exec(r.setContact)[0]}`);
-    if (!/subject=Data%20error%20report%20\S+?&body=/.test(r.set.mailto || '') || !/Correction%20case%20/.test(r.set.mailto || '')) p.push(`with an address set, the report's email subject or text lacks the case identifier: ${(r.set.mailto || '').slice(0, 160)}`);
+    if (!/subject=Data%20error%20report%20\S+?&body=/.test(r.set.mailto || '') || !/Correction%20case%20/.test(r.set.mailto || '')
+      || !/subject=Data%20error%20report%20QT-\d{8}-\d{3}-[a-km-np-z2-9]{4}&body=Correction%20case%20QT-\d{8}-\d{3}-[a-km-np-z2-9]{4}%0A/.test(r.set.mailto || '')) p.push(`with an address set, the report's email subject or text lacks the case identifier: ${(r.set.mailto || '').slice(0, 160)}`);
     if (r.setContact.split('support@example.test').length !== 2 || !/Do not include confidential or sensitive information\./.test(r.setContact) || /because nobody has received it/.test(r.setContact))
       p.push(`with an address set, /contact says it ${r.setContact.split('support@example.test').length - 1} times, or keeps the no-address lines: ${r.setContact.replace(/\s+/g, ' ').slice(0, 300)}`);
     if (/there is no contact address yet|Until these are supplied there is no one to send a request to|At launch, send requests to/.test(r.setPrivacy)
