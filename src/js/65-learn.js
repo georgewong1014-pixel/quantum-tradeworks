@@ -676,6 +676,13 @@ function learnTrust() {
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, ['Date', 'Scope', 'What was wrong', 'What changed'].map(h => el('th', {}, h)))));
   t.append(el('tbody', {}, [
+    /* The 31 Oct 2026 operational audit, #4: the 25 Oct fee correction
+       (8f801c309, rulebook 1.5.0) had no row. model-test now holds every
+       rulebook version that changes an amount (FEE_TABLE.changelog, amounts: true)
+       to a row here. */
+    ['25 Oct 2026', 'Fee rulebook',
+      'The valuation fee was charged on the purchase price. The scale’s item is for a valuation on an improved-value basis, and nothing in it charges on the price.',
+      'Rulebook 1.5.0. The fee is charged on the value the valuer finds — your bank or valuer estimate, once you enter one. Until one is entered the price stands in for it, so a deal with no valuation entered is unchanged; a valuation below the price lowers the fee, and one above it raises it. On a price of RM572,000 with a valuation of RM540,000 the fee is RM1,130, not RM1,194.'],
     ['22 Oct 2026', 'Property model — auction',
       'The holding months before the property earns were priced in the effective cost only, as the full month with no rent from the day of the sale, the loan instalment included. The cash required and the rate of return did not count them.',
       'The holding months are priced once and every figure reads that: no rent, the running costs owed with no tenancy, and the instalment only from the day the balance falls due. They are a line of the cash required, and the hold’s years count from when the property earns. With no days to pay the balance entered, the instalment is not priced and the page says so.'],

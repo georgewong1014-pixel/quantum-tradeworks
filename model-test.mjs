@@ -667,6 +667,38 @@ try {
     else ok(`fee rulebook ${r.version} (checked ${r.checkedOn}): Item 32(a) ${want.mot.join('/')}, Item 27(a)(iii) ${want.loanDuty.join('/')}, Sarawak's scale ${want.sarawak.join('/')} and 1.25× on the loan (${want.loanLegal[0]}), 8% service tax ${want.sst}, the Peninsular SRO ${want.peninsular.join('/')} held aside, the valuers' ceiling ${want.valuation.join('/')}; ${r.lines.length} lines each with a provenance, jurisdiction, effective date, source and checked date`);
   }
 
+  /* 19b-log — EVERY RULEBOOK VERSION THAT CHANGES AN AMOUNT IS IN THE
+           CORRECTIONS LOG (the 31 Oct 2026 operational audit, #4). The 25 Oct
+           fee correction, rulebook 1.5.0, shipped with no row on /corrections
+           although the log says every row is a correction that shipped. Each
+           changelog entry of FEE_TABLE states whether it changes an amount
+           (amounts: true or false, decided from its own text); each true one
+           must have a row of the log, about the fee rulebook, that names its
+           version or is dated the day of the entry. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = (ms) => new Promise(res => setTimeout(res, ms));
+      navigate('/corrections'); await wait(500);
+      const t = [...document.querySelectorAll('main table.dt')].find(x => { const h = [...x.querySelectorAll('thead th')].map(n => n.textContent); return h[0] === 'Date' && h[1] === 'Scope'; });
+      const rows = t ? [...t.querySelectorAll('tbody tr')].map(tr => [...tr.cells].map(c => c.textContent)) : [];
+      const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const day = (iso) => { const [y, m, d] = iso.split('-'); return d + ' ' + M[+m - 1] + ' ' + y; };
+      /* Read, then put the address back: later checks press Back through their own entries. */
+      history.back(); await wait(500);
+      return { rows: rows.length, log: FEE_TABLE.changelog.map(x => ({ version: x.version, date: day(x.date), amounts: x.amounts,
+        row: rows.findIndex(c => /rulebook/i.test(c.join(' ')) && (c.join(' ').split(/[^0-9.]+/).includes(x.version) || c[0] === day(x.date))) })) };
+    })()`);
+    const p = [];
+    if (!r.rows) p.push('the corrections log table was not found on /corrections');
+    for (const x of r.log) {
+      if (typeof x.amounts !== 'boolean') p.push(`rulebook ${x.version} does not say whether it changes an amount (amounts: true or false)`);
+      else if (x.amounts && x.row < 0) p.push(`rulebook ${x.version} (${x.date}) changes an amount and /corrections has no row naming it, or dated ${x.date} under the fee rulebook`);
+    }
+    if (!r.log.some(x => x.amounts === true)) p.push('no changelog entry is marked as changing an amount');
+    if (p.length) fail('fee rulebook: every version that changes an amount has a row in the corrections log', p);
+    else ok(`fee rulebook: every version that changes an amount has a row in the corrections log (${r.log.filter(x => x.amounts).map(x => x.version).join(', ')}; not ${r.log.filter(x => !x.amounts).map(x => x.version).join(', ')})`);
+  }
+
   /* 19c — THE COST LEDGER RECONCILES, AND SAYS WHAT RESTS ON WHAT. On the
            sample, a taxed deal, a quoted MRTA premium and a cash purchase:
            the lines sum to the total initial cash; the unverified or unknown

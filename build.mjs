@@ -2324,6 +2324,10 @@ export function feeRulebookProblems({ root = ROOT } = {}) {
      of the changelog is the version in force, dated, and said. */
   const log0 = (T.changelog || [])[0];
   if (!log0 || log0.version !== T.version || !isDay(log0.date) || !String(log0.what || '').trim()) out.push(`the fee rulebook's changelog does not open with version ${T.version}, dated and said`);
+  /* Each version says whether it changes an amount (the 31 Oct 2026
+     operational audit, #4): model-test holds the ones that do to a row of
+     the corrections log. */
+  for (const x of T.changelog || []) if (typeof x.amounts !== 'boolean') out.push(`the fee rulebook's changelog entry ${x.version} does not say whether it changes an amount (amounts: true or false)`);
   /* The ledger's kinds are named, each with what it means. */
   for (const k of Object.keys(T.categories || {})) if (!String(T.categoryNotes?.[k] || '').trim()) out.push(`the fee rulebook's kind "${k}" does not say what it means (categoryNotes)`);
   for (const [id, l] of Object.entries(T.lines || {})) {
