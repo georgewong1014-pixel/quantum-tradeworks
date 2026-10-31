@@ -4318,6 +4318,9 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 .page-hd .page-lede { margin-top: 8px; max-width: 82ch; }
 /* The Lab's lede says what is live and what is beta (Day-4 QT-D04-01): balanced, so "is beta." is not left alone on a line. */
 .lab-page-hd .page-lede { text-wrap: balance; }
+/* Day 18: the one primary, "Enter your property figures", under the introduction; a 44px target at every width. */
+.page-hd.lab-page-hd { row-gap: 12px; }
+.lab-enter { min-height: 44px; }
 .page-hd .page-note {
   margin-top: 6px; max-width: 76ch;
   font-size: var(--text-sm); line-height: 1.55; color: var(--ink-3);
@@ -5251,7 +5254,7 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 /* The four tiles: on the layout system (layout-system, at the end). */
 @media (max-width: 599px) {
   .lab-page-hd .eyebrow, .lab-page-hd .page-lede { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .page-hd.lab-page-hd { margin-bottom: var(--xs); }
+  .page-hd.lab-page-hd { margin-bottom: var(--xs); row-gap: 4px; }
   .view:has(> .shell > .lab-page) { padding-top: var(--xs); }
   .shell:has(> .lab-page) > .journey-line:not(:empty) { margin-bottom: 4px; }
 }

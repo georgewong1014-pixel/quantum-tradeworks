@@ -1714,8 +1714,8 @@ const JOURNEYS = [
         const id = await tab.eval(`(document.getElementById('lab-status')?.textContent || '').trim()`);
         if (!/^Sample deal/.test(id)) throw new StepError(`the identity line reads “${id.slice(0, 60)}”, not the sample deal`);
         const tiles = await tab.eval(`[...document.querySelectorAll('main .lab-tile .lab-tile-label')].map(n => n.textContent.trim()).join(' | ')`);
-        /* The 30 Oct 2026 audit's order (the Next step tile went). */
-        if (tiles !== 'Purchase price | Monthly position | Cash required | Net yield') throw new StepError(`the four tiles read “${tiles}”`);
+        /* The 30 Oct 2026 audit's order, Day 18's (QT-D18-01): the Next step tile went. */
+        if (tiles !== 'Purchase price | Cash required | Monthly position | Net yield') throw new StepError(`the four tiles read “${tiles}”`);
         const exp = await tab.eval(`(() => { const n = document.getElementById('lab-export'); return n ? n.tagName + ':' + n.disabled + ':' + (document.getElementById('lab-export-why')?.textContent || '') : null; })()`);
         if (exp !== 'BUTTON:true:Save it first — a proposal is made from what is saved') throw new StepError(`on the unsaved sample deal, Export reads “${exp}”, not a disabled button with its reason`);
         deal0 = await tab.eval(dealAt);

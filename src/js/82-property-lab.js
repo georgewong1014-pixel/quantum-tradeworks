@@ -948,6 +948,9 @@ function labDraw(P, focusId = null) {
   P.node.replaceChildren(labHeader(P, lab), grid);
   labPaintPanel(P, { initial: true });
   if (P.address) labBarSync();
+  /* One primary: the name form's Save while a name is asked for. */
+  const enter = P.address ? document.getElementById('lab-enter') : null;
+  if (enter) { enter.classList.toggle('btn-primary', !lab.naming); enter.classList.toggle('btn-ghost', !!lab.naming); }
   for (const id of [].concat(had || [])) {
     const n = document.getElementById(id);
     if (!n || !P.node.contains(n) || n.disabled || !n.getClientRects().length) continue;
@@ -971,6 +974,9 @@ const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a forecast — nothing here
    a forecast — nothing here is ranked" are in the closed "Why this is not
    a valuation" under it. */
 const LAB_CLAIM_VISIBLE = 'Results are calculated from your inputs and labelled assumptions. They are not a property valuation or investment recommendation.';
+/* The Lab's own supporting line beside the chip (Day 18, QT-D18-01, 31 Oct 2026; the owner's
+   wording): the sample is illustrative, and the results are calculations. The calculator keeps the sentence above. */
+const LAB_CLAIM_LINE = 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.';
 const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
 /* THE SAMPLE'S ASSUMPTIONS, UNDER ITS NAME (the Day-8 report's QT-D08-02;
    the owner's decision of 20 Oct 2026): while the sample deal is open, the
@@ -1085,7 +1091,8 @@ function labGuidedScenario(lab, col) {
 const labGuidedNaming = (lab, at = null) => ({ kind: 'property', at, value: pmNameOf(State.deal), scenario: labGuidedScenario(lab, labActive(lab)) });
 /* THE IDENTITY LINE. The name — "Sample deal", with the line under it that
    says its figures are assumptions (LAB_SAMPLE_ASSUME), or the property's —
-   with its place, type and size; Save as the page's one primary button; and
+   with its place, type and size; Save, a secondary button since Day 18 (the
+   page's one primary is "Enter your property figures", in its head); and
    the regulated claim and the lab's own, whole at every width: "Not a
    valuation" leads, and the reader is never left to find it under the
    figures. The sample's line describes the section; its name stays the
@@ -1115,7 +1122,7 @@ function labIdentity(P, lab, status, sample = false) {
      phone's first screen, whose first slider has no pixel to spare, does not
      give a 44px row to it. */
   box.append(el('div', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
-    el('span', {}, LAB_CLAIM_VISIBLE), ' ',
+    el('span', {}, LAB_CLAIM_LINE), ' ',
     el('details', { class: 'pc-more ls-l3 lab-claim-more', id: labId(P, 'claim-more') }, [
       el('summary', { class: 'pc-more-sum' }, 'Why this is not a valuation'),
       el('p', { class: 'pc-more-body' }, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM_SHORT}`)])]));
@@ -1131,20 +1138,20 @@ function labIdentityAct(P, lab) {
   /* While its name is asked for, under the line, the form's Save is the
      one to press: one primary, not two. */
   if (lab.naming?.at === 'identity') return box;
-  if (lab.model && labAnswersPending(lab)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  if (lab.model && labAnswersPending(lab)) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labSaveAnswers(P, lab) }, labSaveAnswersWords(lab)));
   /* The sliders on a register record's column (#7): Save keeps it as a
      property of the reader's, tied to the record. */
-  else if (labColOpp(col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  else if (labColOpp(col)) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labNaming(P, lab, labOppNaming(col, 'identity')) }, `Save ${col.key} as a property`));
   /* The sliders on another property's column, moved (P6): Save keeps it as
      a scenario of that property. */
-  else if (col.prop && labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  else if (col.prop && labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
     `Save ${col.key} as a scenario${labMarked(col).length ? ' — the moved figures become yours' : ''}`));
-  else if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  else if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, labGuidedWords(lab, col)));
-  else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-ghost', id,
     onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
     `Save ${col.key} as a scenario${labMarked(col).length ? ' — the moved figures become yours' : ''}`));
   else box.append(el('span', { class: 'lab-id-saved' }, 'Saved in this browser'));
@@ -1206,12 +1213,11 @@ const LAB_TILE_RESTS = {
    (L2). With none chosen, the three /property has always opened on. The
    objective decides what leads and nothing else: the columns below keep
    their order, and nothing is ranked. */
-/* THE 30 OCT 2026 AUDIT'S ORDER — purchase price, monthly position, cash
-   required, net yield: with no objective chosen the Lab leads with the month
-   and then the cash (the calculator's answer keeps its own order). A chosen
-   objective keeps its own, as it decides what leads and nothing else. */
-const LAB_TILES_UNCHOSEN = ['cashflowMonthly', 'safeCashRequired', 'netYield'];
-const labTileSet = (d) => { const o = dealObjective(d); return (o.id ? o.tiles : LAB_TILES_UNCHOSEN).map((key, i) => ({ key, level: i < 2 ? 1 : 2, rests: LAB_TILE_RESTS[key] })); };
+/* THE ORDER OF THE FOUR (the 30 Oct 2026 audit, then the owner's Day 18, QT-D18-01,
+   31 Oct 2026): the purchase price first (labPriceTile), then the objective's
+   three — with none chosen, Cash required, Monthly position, Net yield. A
+   chosen objective keeps its own order after the price. */
+const labTileSet = (d) => dealObjective(d).tiles.map((key, i) => ({ key, level: i < 2 ? 1 : 2, rests: LAB_TILE_RESTS[key] }));
 /* A tile's label where the chain's is a sentence long. */
 const LAB_TILE_LABEL = { valueLessLoanAtExit: (d) => `Value less loan, ${labSaleWhen(d)}` };
 const LAB_TILE_NOTE = { valueLessLoanAtExit: (m) => (isNum(m.valueLessLoanAtExit) ? 'before selling costs' : null) };
@@ -1294,13 +1300,11 @@ function labTiles(P, lab) {
    position, the cash and the yield). It is the deal's own price, as the other
    three tiles are the deal's figures, with its tag beside it — default while
    it is the tool's figure, Yours once it is the reader's (pcFieldOwn, whose
-   word the boxes below carry) — and, while it is the tool's, the one action: to
-   replace it, in the calculator, at its box, with the keyboard in it. That
-   is what the "Next step" tile did for the first figure still the tool's;
-   that figure's link is now the one in "What these figures rest on"
-   (labRests). Only for the calculator's own deal: a saved property opened by
-   a link while another deal is on the calculator would open the wrong one
-   there. */
+   word the boxes below carry). It has no action of its own: "Enter your
+   property figures" in the page's head is the one call (labEnter; Day 18,
+   QT-D18-01: only one of it and a "Replace with your price" on the tile),
+   and the first figure still the tool's is linked from "What these figures
+   rest on" (labRests), which is what the "Next step" tile was. */
 const labOnCalc = (lab) => !lab.model || State.deal?.modelId === lab.model;
 function labPriceTile(P, lab, d) {
   const has = !!d && num0(d.price) > 0;
@@ -1308,15 +1312,8 @@ function labPriceTile(P, lab, d) {
   /* The tile’s tag is the system’s kind badge, as the other three wear (a metric card holds one — build --check): "Illustrative default" while the price is the tool’s, "Yours · you supplied" once it is the reader’s. */
   const tag = own ? labTag(labTileKind(d, ['price'])) : null;
   if (tag) { tag.setAttribute('data-own', own); tag.id = labId(P, 'price-own'); }
-  let act = null;
-  if (own === 'default' && labOnCalc(lab)) {
-    const path = '/property/calculator#d-price';
-    act = el('a', { class: 'lab-price-go', id: labId(P, 'price-go'), href: href(path), onclick: (e) => {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path);
-    } }, ['Replace with your price', el('span', { class: 'sr-only' }, ' — the sample price, in the calculator')]);
-  }
   const card = lsMetricCard({ label: 'Purchase price', value: has ? labMoney(num0(d.price)) : '—', badge: tag, level: 2,
-    sub: act || (has ? null : 'Needs a purchase price'), cls: 'lab-tile lab-tile-price', attrs: { role: 'listitem', 'data-tile': 'price' },
+    sub: has ? null : 'Needs a purchase price', cls: 'lab-tile lab-tile-price', attrs: { role: 'listitem', 'data-tile': 'price' },
     valueAttrs: { class: 'lab-tile-val', 'data-value': has ? String(num0(d.price)) : '' } });
   card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
   card.querySelector('.ls-card-label').classList.add('lab-tile-label');
@@ -1699,7 +1696,7 @@ function labBarActions() {
   return [
     { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', path: '/property/calculator', aria: 'Analyse this property in the calculator' },
     { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare A, B and C', onclick: () => labGoTo('compare') },
-    { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, aria: s.aria, disabled: s.disabled, said: () => labBarSave().said, onclick: () => labBarSave().run?.() },
+    { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', aria: s.aria, disabled: s.disabled, said: () => labBarSave().said, onclick: () => labBarSave().run?.() },
   ];
 }
 /* Where the bar's Compare, and the property flow's Compare and Save
@@ -2118,13 +2115,13 @@ function labWireRange(P, lab, range, k) {
 }
 
 /* THE CHAIN: the rows, and the grade. THE FOUR THAT STAND (the 30 Oct 2026
-   audit asked for the monthly position, the cash required and the yield
-   before the detail, the repayment being what the month is made of): the
+   audit asked for the cash required, the monthly position and the yield
+   (Day 18's order) before the detail, the repayment being what the month is made of): the
    other four — the commitment, the break-even occupancy, the value less loan
    and the rate of return if sold — are folded under "N more figures", in the
    page whole and closed (a served page and the coverage frames read them
    there), open as the reader left them (P.chainMoreOpen). */
-const LAB_CHAIN_SHOWN = ['cashflowMonthly', 'safeCashRequired', 'netYield', 'instalment'];
+const LAB_CHAIN_SHOWN = ['safeCashRequired', 'cashflowMonthly', 'netYield', 'instalment'];
 function labChain(P, lab, col) {
   const card = el('section', { class: 'card ls-section lab-chain-card', 'aria-labelledby': labId(P, 'chain-h') });
   const bl = labBaseline(lab, col);
@@ -4021,7 +4018,27 @@ function labRefresh() {
 /* The lede (Day-15 review QT-D15-02, 28 Oct 2026): what the page does for the
    reader, first; the Beta badge beside the title says beta, and the second
    sentence keeps it said once in words (served-check contact-status). */
-const LAB_LEDE = 'See how your purchase price, financing and rent affect the cash you need and your monthly position. The Scenario Lab is beta.';
+/* Day 18 (QT-D18-01, 31 Oct 2026; the owner's wording): the introduction under the heading,
+   replacing "See how your purchase price, financing and rent affect the cash you need and your
+   monthly position. The Scenario Lab is beta." — the Beta badge beside the title says beta. */
+const LAB_LEDE = 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.';
+/* THE PAGE'S ONE PRIMARY ACTION (Day 18): "Enter your property figures" takes the reader to
+   the first input — the purchase price box, scrolled into view with the keyboard in it, on a
+   desk and on a phone (where the Input picker is put on Price first). Save, which was the
+   primary, is a secondary beside the identity line and in the phone's bar. While a name is
+   asked for, that form's Save is the one to press and this is a secondary for the time. */
+const LAB_ENTER_WORDS = 'Enter your property figures';
+function labEnter() {
+  const P = labPagePanel(), lab = P && LAB[P.key];
+  if (!P || !lab) return;
+  const id = labId(P, 'n-price');
+  if (!document.getElementById(id)?.checkVisibility()) { lab.input = 'price'; labDraw(P); }
+  const n = document.getElementById(id);
+  if (!n) return;
+  n.scrollIntoView({ block: 'center', behavior: 'instant' });
+  n.focus({ preventScroll: true });
+  n.select?.();
+}
 VIEWS.propertyLab = () => {
   labArrive();
   /* On the layout system (ls-page: 37-layout-system.js, styles.css). */
@@ -4033,7 +4050,7 @@ VIEWS.propertyLab = () => {
      itself before it showed anything): where the figures come from — the
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: LAB_LEDE }));
+    lede: LAB_LEDE, action: el('button', { type: 'button', class: 'btn btn-primary lab-enter', id: 'lab-enter', onclick: labEnter }, LAB_ENTER_WORDS) }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the

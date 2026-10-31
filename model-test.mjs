@@ -6362,7 +6362,7 @@ try {
         const kept = JSON.parse(JSON.stringify(State.deal));
         const tiles = () => Object.fromEntries([...document.querySelectorAll('#views .lab-tile')].map(n => [n.dataset.tile, {
           value: n.querySelector('.lab-tile-val')?.textContent.trim(), sub: n.querySelector('.lab-tile-sub')?.textContent.trim(),
-          kind: n.querySelector('[data-kind]')?.dataset.kind, go: n.querySelector('.lab-price-go') ? { text: n.querySelector('.lab-price-go').firstChild.textContent.trim(), href: n.querySelector('.lab-price-go').getAttribute('href') } : null }]));
+          kind: n.querySelector('[data-kind]')?.dataset.kind, go: n.querySelector('.lab-price-go') ? 'an action' : null }]));
         const rests = () => { const a = document.getElementById('lab-review'); return { block: !!document.getElementById('lab-rests-box'), go: a ? { text: a.firstChild.textContent.trim(), href: a.getAttribute('href') } : null }; };
         const out = {};
         newPropertyDeal({ show: false });
@@ -6395,9 +6395,9 @@ try {
         /* The next step's link opens the calculator at its box. */
         State.deal = JSON.parse(JSON.stringify(kept)); newPropertyDeal({ show: false });
         navigate('/property'); await w(300);
-        document.querySelector('#views .lab-tile-price .lab-price-go').click();
-        for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await w(150);
+        document.getElementById('lab-enter').click(); await w(150);
         out.go = { view: State.view, path: location.pathname, focus: document.activeElement?.id || null };
+        navigate('/property'); await w(400);
         /* The rests block's one link, the same way. The calculator reads an address once per arrival, so the same address twice running is not read again (pcArrivalSeen): the second click is a fresh arrival. */
         navigate('/property'); await w(400);
         pcArrivalSeen = null;
@@ -6413,7 +6413,7 @@ try {
       if (s.cashflowMonthly?.value !== W.monthly) p.push(`Monthly position: ${s.cashflowMonthly?.value}, the model's ${W.monthly}`);
       if (s.netYield?.value !== W.yield || s.netYield?.sub !== `gross ${W.gross}`) p.push(`Net yield: ${JSON.stringify(s.netYield)}, the model's ${W.yield}, gross ${W.gross}`);
       if (['safeCashRequired', 'cashflowMonthly', 'netYield', 'price'].some(k => s[k]?.kind !== 'illustrative_default')) p.push(`on the sample every tile is "Illustrative default" (the price's, its "Default" tag): ${JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.kind])))}`);
-      if (W.first !== 'price' || s.price?.value !== W.price || s.price?.go?.href !== '/property/calculator#d-price' || s.price?.go?.text !== 'Replace with your price') p.push(`the price tile on the sample: ${JSON.stringify(s.price)} (the queue's first is ${W.first}, the price ${W.price})`);
+      if (W.first !== 'price' || s.price?.value !== W.price || s.price?.go) p.push(`the price tile on the sample: ${JSON.stringify(s.price)} (the queue's first is ${W.first}, the price ${W.price}; it has no action of its own since Day 18)`);
       if (!r.sampleRests.block || r.sampleRests.go?.href !== '/property/calculator#d-price' || r.sampleRests.go?.text !== 'Review the defaults') p.push(`the rests block's link on the sample: ${JSON.stringify(r.sampleRests)}`);
       if (s.next) p.push('the Next step tile is still drawn');
       if (r.why !== W.gates) p.push(`the grade's "Why" lists ${r.why} gates, the grade has ${W.gates}`);
@@ -6423,10 +6423,11 @@ try {
          is the guided save of the property and B (8 Oct 2026). */
       if (r.touched.price?.go || r.touched.price?.kind === 'illustrative_default' || r.touchedRests.block || r.touchedRests.go || r.save !== 'Save this property and B as a scenario') p.push(`with nothing left to replace, the price tile is ${JSON.stringify(r.touched.price)}, the rests block ${JSON.stringify(r.touchedRests)} and the identity line's Save "${r.save}"`);
       if (r.saved.price?.go || !/^“N3 tiles” · saved /.test(r.savedName)) p.push(`once saved: the price tile ${JSON.stringify(r.saved.price)}, the identity "${r.savedName}"`);
-      if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`the price tile's link: ${JSON.stringify(r.go)}`);
+      /* Day 18 (QT-D18-01): "Enter your property figures" takes the reader to the Lab's own price box, on the Lab's page. */
+      if (r.go.view !== 'propertyLab' || r.go.focus !== 'lab-n-price') p.push(`"Enter your property figures": ${JSON.stringify(r.go)}`);
       if (r.goRests.view !== 'property' || r.goRests.path !== '/property/calculator' || r.goRests.focus !== 'd-price') p.push(`the rests block's link: ${JSON.stringify(r.goRests)}`);
       if (p.length) fail('n3 T1: /property\'s tiles are the model\'s figures of the deal on the calculator, and the next step leads on', p);
-      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; the price tile ("Illustrative default", "Replace with your price") and the rests block's "Review the defaults" open the calculator with the keyboard in #d-price, and with every figure the reader's both are gone; "Why" holds all ${W.gates} gates`);
+      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; "Enter your property figures" puts the keyboard in the Lab's price box and the rests block's "Review the defaults" opens the calculator with it in #d-price, and with every figure the reader's the price tile reads Yours and the block is gone; "Why" holds all ${W.gates} gates`);
     } catch (e) {
       fail('n3 T1: /property\'s tiles could not be read', e.message);
     }
@@ -6439,11 +6440,10 @@ try {
      assumptions together"; the engine unchanged, the order of attention
      purchase price, monthly position, cash required, assumptions, compare
      and save). Drawn:
-       - the four tiles run Purchase price, Monthly position, Cash required,
-         Net yield (a chosen objective keeps its own order after the price);
+       - the four tiles run Purchase price, Cash required, Monthly position,
+         Net yield (Day 18, QT-D18-01, 31 Oct 2026) (a chosen objective keeps its own order after the price);
          the price tile wears the kind badge "Illustrative default" with
-         "Replace with your price" until the price is the reader's, then
-         "Yours" with no action; there is
+         no action of its own (Day 18: the one call is "Enter your property figures" in the head), then "Yours" once the price is the reader's; there is
          no Next step tile;
        - one "What these figures rest on" block, and neither the alert bar
          nor the grade card's "N gates; the most serious" sentence; the
@@ -6473,7 +6473,10 @@ try {
           out.tiles = tileKeys();
           out.labels = [...document.querySelectorAll('#views .lab-tiles > .lab-tile .lab-tile-label')].map(t);
           const pt = document.querySelector('#views .lab-tile[data-tile="price"]');
-          out.price = { value: t(pt?.querySelector('.lab-tile-val')), tag: t(pt?.querySelector('[data-own]')), own: pt?.querySelector('[data-own]')?.dataset.own, go: t(pt?.querySelector('.lab-price-go')).replace(/ — .*/, '') };
+          out.price = { value: t(pt?.querySelector('.lab-tile-val')), tag: t(pt?.querySelector('[data-own]')), own: pt?.querySelector('[data-own]')?.dataset.own, go: !!pt?.querySelector('.lab-price-go') };
+          out.head = { lede: t(document.querySelector('#views .lab-page-hd .page-lede')), h1: t(document.querySelector('#views .lab-page-hd h1')), badge: t(document.querySelector('#views .lab-page-hd .status-badge')), cta: t(document.getElementById('lab-enter')),
+            claim: t(document.querySelector('#views .lab-id-claim > span:not(.chip)')), chip: t(document.querySelector('#views .lab-id-claim > .chip')), more: t(document.querySelector('#views .lab-claim-more > summary')), moreOpen: document.querySelector('#views .lab-claim-more').open,
+            primaries: [...document.querySelectorAll('#views .btn-primary, body > .dock .btn-primary, body > .dock .ls-act-primary')].filter(n => n.getClientRects().length).map(n => t(n)), save: document.getElementById('lab-id-save')?.className || '' };
           out.noNext = !document.querySelector('#views .lab-tile-next') && !/Next step/.test(t(document.querySelector('#views .lab-tiles')));
           /* One rests block; no bar; the grade without its sentence. */
           out.rests = { n: document.querySelectorAll('#views .pc-rests').length, head: t(document.querySelector('#views .pc-rests .pc-rests-h')), links: [...document.querySelectorAll('#views .pc-rests a')].map(t).length,
@@ -6487,6 +6490,10 @@ try {
             closed: more ? !more.open : null, sum: t(more?.querySelector('summary')), hiddenWhileClosed: more ? ![...more.querySelectorAll('.lab-row')].some(n => n.checkVisibility()) : null };
           const figs = [...document.querySelectorAll('#views .lab-chain [data-lab]')].map(n => n.dataset.lab);
           out.figs = figs.length;
+          /* Enter your property figures: the keyboard in the price box, from another chip too. */
+          document.getElementById('lab-enter').click(); await w(100);
+          out.enter = document.activeElement?.id;
+          if (document.getElementById('lab-in-deposit')) { const r = document.getElementById('lab-in-deposit'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); await w(200); document.getElementById('lab-enter').click(); await w(200); out.enterFromDeposit = document.activeElement?.id; }
           /* The fold: opened by its summary, kept, with the keyboard on it, across a redraw. */
           more.querySelector('summary').click(); await w(80);
           out.opened = more.open && [...more.querySelectorAll('.lab-row')].every(n => n.checkVisibility());
@@ -6529,14 +6536,20 @@ try {
         return JSON.stringify(out);
       })()`));
       const p = [], eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-      if (!eq(r.tiles, ['price', 'cashflowMonthly', 'safeCashRequired', 'netYield']) || !eq(r.labels, ['Purchase price', 'Monthly position', 'Cash required', 'Net yield'])) p.push(`the tiles are ${JSON.stringify(r.labels)} (${JSON.stringify(r.tiles)}), not Purchase price, Monthly position, Cash required, Net yield`);
-      if (r.price.value !== 'RM572,000' || r.price.tag !== 'Illustrative default' || r.price.own !== 'default' || r.price.go !== 'Replace with your price') p.push(`the price tile on the sample: ${JSON.stringify(r.price)}`);
+      if (!eq(r.tiles, ['price', 'safeCashRequired', 'cashflowMonthly', 'netYield']) || !eq(r.labels, ['Purchase price', 'Cash required', 'Monthly position', 'Net yield'])) p.push(`the tiles are ${JSON.stringify(r.labels)} (${JSON.stringify(r.tiles)}), not Purchase price, Cash required, Monthly position, Net yield`);
+      if (r.price.value !== 'RM572,000' || r.price.tag !== 'Illustrative default' || r.price.own !== 'default' || r.price.go) p.push(`the price tile on the sample: ${JSON.stringify(r.price)}`);
       if (!r.noNext) p.push('a Next step tile is still drawn');
+      /* Day 18 (QT-D18-01): the introduction, the one primary, the supporting line beside the chip. */
+      const H = r.head;
+      if (H.lede !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.' || H.h1 !== 'Scenario Lab' || !/^Beta$/i.test(H.badge)) p.push(`the head: ${JSON.stringify({ h1: H.h1, badge: H.badge, lede: H.lede })}`);
+      if (H.cta !== 'Enter your property figures' || H.primaries.join('|') !== 'Enter your property figures' || /btn-primary/.test(H.save)) p.push(`the primary buttons in sight are ${JSON.stringify(H.primaries)} and Save is "${H.save}", not one "Enter your property figures" and a secondary Save`);
+      if (r.enter !== 'lab-n-price' || (r.enterFromDeposit && r.enterFromDeposit !== 'lab-n-price')) p.push(`"Enter your property figures" puts the keyboard on #${r.enter} (from the Deposit chip: #${r.enterFromDeposit}), not the price box`);
+      if (H.chip !== 'Not a valuation' || H.claim !== 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.' || H.more !== 'Why this is not a valuation' || H.moreOpen) p.push(`the claim beside the chip: ${JSON.stringify({ chip: H.chip, claim: H.claim, more: H.more, open: H.moreOpen })}`);
       if (r.rests.n !== 1 || r.rests.head !== 'What these figures rest on' || r.rests.links !== 1) p.push(`the rests block: ${JSON.stringify(r.rests)}`);
       if (r.rests.bar || r.rests.gateLine) p.push(`the alert bar or the grade's gate sentence is still said: ${JSON.stringify({ bar: r.rests.bar, gate: r.rests.gateLine })}`);
       if (!eq(r.rests.counts, [String(r.rests.queue)])) p.push(`the one count is ${JSON.stringify(r.rests.counts)}, the review queue's ${r.rests.queue}`);
       if (r.rests.letter !== 'U') p.push(`the grade's letter reads "${r.rests.letter}", not U`);
-      if (!eq(r.rows.shown, ['cashflowMonthly', 'safeCashRequired', 'netYield', 'instalment']) || !eq(r.rows.folded, ['monthlyCommitment', 'breakEvenOccupancy', 'valueLessLoanAtExit', 'irrPct']) || r.rows.all !== 8) p.push(`the rows: ${JSON.stringify(r.rows)}`);
+      if (!eq(r.rows.shown, ['safeCashRequired', 'cashflowMonthly', 'netYield', 'instalment']) || !eq(r.rows.folded, ['monthlyCommitment', 'breakEvenOccupancy', 'valueLessLoanAtExit', 'irrPct']) || r.rows.all !== 8) p.push(`the rows: ${JSON.stringify(r.rows)}`);
       if (!r.rows.closed || r.rows.sum !== '4 more figures' || !r.rows.hiddenWhileClosed) p.push(`the fold of four rows: ${JSON.stringify({ closed: r.rows.closed, sum: r.rows.sum, hidden: r.rows.hiddenWhileClosed })}`);
       if (r.figs < 8) p.push(`only ${r.figs} chain figures are in the page`);
       if (!r.opened) p.push('pressing "4 more figures" did not bring the four rows into sight');
@@ -6549,7 +6562,7 @@ try {
       if (r.own.value !== 'RM610,000' || !/^Yours/.test(r.own.tag) || r.own.go) p.push(`with the reader's own price: ${JSON.stringify(r.own)}`);
       if (!eq(r.growth, ['price', 'valueLessLoanAtExit', 'safeCashRequired', 'cashflowMonthly']) || !eq(r.unchosen, r.tiles)) p.push(`with the growth objective the tiles are ${JSON.stringify(r.growth)}, with none ${JSON.stringify(r.unchosen)}`);
       if (p.length) fail('a4-lab: the Scenario Lab leads with the price, month and cash, folds the detail and compares before it checks the price', p);
-      else ok('a4-lab: the Lab\'s tiles run Purchase price (Illustrative default, "Replace with your price"; Yours with no action once it is the reader\'s), Monthly position, Cash required, Net yield — an objective keeping its own order after the price — with no Next step; one "What these figures rest on" (one count, the review queue\'s, one link) and no alert bar or gate sentence; Monthly position, Cash required, Net yield and Monthly repayment stand and the other four sit in a closed "4 more figures" kept open or closed, with the keyboard on it, across a redraw; one sentence over nine boxes tagged Default, each in its description; Scenarios side by side, Columns, Keep B, then the closed "Check the price against your evidence", kept across a redraw');
+      else ok('a4-lab: the Lab\'s tiles run Purchase price (Illustrative default; Yours once it is the reader\'s; no action of its own), Cash required, Monthly position, Net yield — an objective keeping its own order after the price — with no Next step; one "What these figures rest on" (one count, the review queue\'s, one link) and no alert bar or gate sentence; Cash required, Monthly position, Net yield and Monthly repayment stand and the other four sit in a closed "4 more figures" kept open or closed, with the keyboard on it, across a redraw; one sentence over nine boxes tagged Default, each in its description; Scenarios side by side, Columns, Keep B, then the closed "Check the price against your evidence", kept across a redraw');
     } catch (e) {
       fail('a4-lab: the simplified Lab could not be read', e.message);
     }

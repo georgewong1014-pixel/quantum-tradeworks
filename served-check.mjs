@@ -1906,10 +1906,13 @@ const HOME_PAGE = read(HOME);
      words or more;
    - before that control, in this order: the identity line, naming the
      property or "Sample deal", then four tiles labelled Purchase price,
-     Monthly position, Cash required and Net yield, each with a kind tag;
-   - "They are not a property valuation or investment recommendation"
-     visible before it (the tiles now Purchase price, Monthly position,
-     Cash required, Net yield: the 30 Oct 2026 audit), and "Not an official property valuation" (the
+     Cash required, Monthly position and Net yield, each with a kind tag;
+   - "Sample figures are illustrative, not market evidence. Results are
+     calculations, not an official valuation or investment recommendation."
+     (Day 18, QT-D18-01, 31 Oct 2026; it was "Results are calculated from
+     your inputs and labelled assumptions. They are not a property valuation
+     or investment recommendation.") visible before it (the tiles now Purchase
+     price, Cash required, Monthly position, Net yield), and "Not an official property valuation" (the
      registered valuer's line) whole inside the closed "Why this is not a
      valuation" (the Day-15 review, QT-D15-02, 28 Oct 2026: it was visible,
      in a longer paragraph); and the
@@ -2011,7 +2014,7 @@ const HOME_PAGE = read(HOME);
     if (words > 290) p.push(`/property: ${words} visible words in <main> before the first form control, more than 290`);
     if (proseWords > 228) p.push(`/property: ${proseWords} of them in ${prose.length} blocks of eight words or more, more than 228`);
     const seen = L.runs.filter(r => r.at < L.control.at && r.visible).map(r => r.s).join(' ').replace(/\s+/g, ' ');
-    for (const want of ['They are not a property valuation or investment recommendation.', LAB_SAMPLE_ASSUME]) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
+    for (const want of ['Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.', LAB_SAMPLE_ASSUME]) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
     /* The registered valuer's line, kept whole and one tap away (QT-D15-02). */
     const official = L.runs.find(r => r.s.includes('Not an official property valuation'));
     if (!official || !official.closed || !official.s.includes('registered valuer')) p.push('/property: "Not an official property valuation — … registered valuer" is not served inside the closed "Why this is not a valuation"');
@@ -2029,8 +2032,8 @@ const HOME_PAGE = read(HOME);
       said.identity = name;
       if (!/^(Sample deal|“[^”]+”)/.test(name)) p.push(`/property: the identity line names "${name.slice(0, 60)}", not the property or "Sample deal"`);
     }
-    /* The 30 Oct 2026 audit's order; the Next step tile went (a4-lab-served). */
-    const WANT = ['Purchase price', 'Monthly position', 'Cash required', 'Net yield'];
+    /* The 30 Oct 2026 audit's order, Day 18's (QT-D18-01, 31 Oct 2026); the Next step tile went (a4-lab-served). */
+    const WANT = ['Purchase price', 'Cash required', 'Monthly position', 'Net yield'];
     const tiles = L.tags.filter(t => attr(t.raw, 'data-tile') !== null && / lab-tile /.test(` ${attr(t.raw, 'class') || ''} `));
     const labels = tiles.map(t => L.textOf(L.tags.find(x => x.at > t.at && / lab-tile-label /.test(` ${attr(x.raw, 'class') || ''} `))?.at ?? -1));
     const kinds = tiles.map((t, i) => { const k = L.tags.find(x => x.at > t.at && (i + 1 >= tiles.length || x.at < tiles[i + 1].at) && attr(x.raw, 'data-kind') !== null); return k ? [attr(k.raw, 'data-kind'), L.textOf(k.at)] : null; });
@@ -3292,7 +3295,7 @@ const HOME_PAGE = read(HOME);
      "Monthly maintenance (RM)" among them, each in the calculator's own
      words;
    - its chain shows "Debt-service cover" and "Monthly commitment";
-   - "Save" is a btn-primary placed before a non-primary "Export PDF / Share
+   - "Save" is a secondary (btn-ghost; Day 18) placed before a non-primary "Export PDF / Share
      with client", off on the unsaved sample, its reason in sight.
    Fails on b7ce1a77: five inputs, no "Debt-service cover" or "Monthly
    commitment" and no export. */
@@ -3337,13 +3340,16 @@ const HOME_PAGE = read(HOME);
     if (!mc || !mc[1].includes('Monthly commitment')) p.push('/property/lab\'s chain has no “Monthly commitment” row');
     if (!mc || !/Debt-service cover \d+\.\d\d×/.test(mc[2])) p.push('/property/lab\'s chain does not show “Debt-service cover” with its figure');
     const buttons = inside.filter(n => (n.tag === 'button' || n.tag === 'a' || attr(n, 'data-inert') === 'button') && B.hasClass(n, 'btn'));
-    const save = buttons.findIndex(n => B.hasClass(n, 'btn-primary') && /^Save/.test(sight(n).trim()));
+    /* Day 18 (QT-D18-01): Save is a secondary (btn-ghost); the page's one primary is "Enter your property figures" in its head. */
+    const save = buttons.findIndex(n => !B.hasClass(n, 'btn-primary') && B.hasClass(n, 'btn-ghost') && /^Save/.test(sight(n).trim()));
     const exp = buttons.findIndex(n => /^Export PDF \/ Share with client$/.test(sight(n).trim()));
-    if (save < 0) p.push('/property/lab serves no btn-primary “Save …” button');
+    if (save < 0) p.push('/property/lab serves no secondary (btn-ghost) “Save …” button');
+    const primaries = inside.filter(n => (n.tag === 'button' || n.tag === 'a' || attr(n, 'data-inert') === 'button') && B.hasClass(n, 'btn-primary')).map(n => sight(n).trim());
+    if (primaries.join('|') !== 'Enter your property figures') p.push(`/property/lab serves the primary buttons ${JSON.stringify(primaries)}, not the one “Enter your property figures”`);
     if (exp < 0) p.push('/property/lab serves no “Export PDF / Share with client” button');
     if (save >= 0 && exp >= 0) {
       if (!(save < exp)) p.push('“Export PDF / Share with client” does not come after Save');
-      if (B.hasClass(buttons[exp], 'btn-primary')) p.push('“Export PDF / Share with client” is btn-primary: Save is the one primary');
+      if (B.hasClass(buttons[exp], 'btn-primary')) p.push('“Export PDF / Share with client” is btn-primary: “Enter your property figures” is the one primary');
     }
     if (!/Save it first — a proposal is made from what is saved/.test(sight(views || tree[0]))) p.push('the reason “Save it first — a proposal is made from what is saved” is not in sight beside Export');
   }
@@ -3357,9 +3363,14 @@ const HOME_PAGE = read(HOME);
    assumptions together"; asked to prioritise the purchase price, the monthly
    position, the cash required, the assumptions, then compare and save).
    /property/lab, as a fetch reads it:
-   - four tiles, in that order — Purchase price (wearing "Illustrative default", with
-     "Replace with your price" to the calculator's box), Monthly position,
-     Cash required, Net yield — and no "Next step" tile;
+   - four tiles, in that order — Purchase price (tagged Illustrative default,
+     no action of its own), Cash required, Monthly position, Net yield (Day 18's
+     order, QT-D18-01) — and no "Next step" tile;
+   - the introduction "Model your property’s cash requirement, monthly position
+     and rental yield using figures you enter.", the one primary "Enter your
+     property figures" (Save a secondary), and the supporting line "Sample
+     figures are illustrative, not market evidence. Results are calculations,
+     not an official valuation or investment recommendation." beside the chip;
    - one "What these figures rest on" block with one "Review the defaults"
      link, and neither the alert bar ("… sample inputs need evidence") nor
      the grade's "N gates; the most serious …" sentence;
@@ -3390,17 +3401,25 @@ const HOME_PAGE = read(HOME);
     const tiles = inside.filter(n => attr(n, 'data-tile') !== null && B.hasClass(n, 'lab-tile'));
     const labels = tiles.map(n => sight(all(n).find(x => B.hasClass(x, 'lab-tile-label')) || n).trim());
     said.tiles = labels.join(' · ');
-    if (JSON.stringify(tiles.map(n => attr(n, 'data-tile'))) !== JSON.stringify(['price', 'cashflowMonthly', 'safeCashRequired', 'netYield'])) p.push(`/property/lab: its tiles are ${JSON.stringify(tiles.map(n => attr(n, 'data-tile')))}, not price, cashflowMonthly, safeCashRequired, netYield`);
-    if (JSON.stringify(labels) !== JSON.stringify(['Purchase price', 'Monthly position', 'Cash required', 'Net yield'])) p.push(`/property/lab: its tiles read ${JSON.stringify(labels)}, not Purchase price, Monthly position, Cash required, Net yield`);
+    if (JSON.stringify(tiles.map(n => attr(n, 'data-tile'))) !== JSON.stringify(['price', 'safeCashRequired', 'cashflowMonthly', 'netYield'])) p.push(`/property/lab: its tiles are ${JSON.stringify(tiles.map(n => attr(n, 'data-tile')))}, not price, safeCashRequired, cashflowMonthly, netYield`);
+    if (JSON.stringify(labels) !== JSON.stringify(['Purchase price', 'Cash required', 'Monthly position', 'Net yield'])) p.push(`/property/lab: its tiles read ${JSON.stringify(labels)}, not Purchase price, Cash required, Monthly position, Net yield`);
     if (inside.some(n => B.hasClass(n, 'lab-tile-next')) || /Next step/.test(views ? rawText(views) : '')) p.push('/property/lab: still serves a "Next step" tile');
     const price = tiles[0];
     if (price) {
       const tag = all(price).find(n => attr(n, 'data-own') !== null);
-      const go = all(price).find(n => n.tag === 'a' && B.hasClass(n, 'lab-price-go'));
       if (!tag || attr(tag, 'data-own') !== 'default' || rawText(tag) !== 'Illustrative default') p.push(`/property/lab: the price tile's tag reads "${tag ? rawText(tag) : 'nothing'}", not the kind badge "Illustrative default"`);
-      if (!go || attr(go, 'href') !== '/property/calculator#d-price' || !/^Replace with your price/.test(sight(go).trim())) p.push('/property/lab: the price tile has no "Replace with your price" link to the calculator\'s price box');
+      if (all(price).some(n => n.tag === 'a' || n.tag === 'button')) p.push('/property/lab: the price tile has an action of its own — "Enter your property figures" in the head is the one call (Day 18)');
       if (!/^RM\s?572,000$/.test(sight(all(price).find(n => B.hasClass(n, 'ls-card-value')) || price).trim())) p.push('/property/lab: the price tile does not show the sample\'s RM572,000');
     }
+    /* Day 18: the introduction, the one primary, the supporting line beside the chip. */
+    const headTree = tree.find(n => B.hasClass(n, 'lab-page-hd'));
+    const lede2 = headTree ? all(headTree).find(n => B.hasClass(n, 'page-lede')) : null;
+    if (!lede2 || rawText(lede2) !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.') p.push(`/property/lab: the introduction reads "${lede2 ? rawText(lede2) : 'nothing'}"`);
+    const prim = inside.filter(n => (n.tag === 'button' || n.tag === 'a') && B.hasClass(n, 'btn-primary'));
+    if (prim.length !== 1 || rawText(prim[0]) !== 'Enter your property figures' || attr(prim[0], 'id') !== 'lab-enter') p.push(`/property/lab: its primary buttons are ${JSON.stringify(prim.map(n => rawText(n)))}, not the one "Enter your property figures"`);
+    const claimLine = 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.';
+    const claimBox = inside.find(n => B.hasClass(n, 'lab-id-claim'));
+    if (!claimBox || !rawText(claimBox).startsWith(`Not a valuation ${claimLine}`) ) p.push(`/property/lab: the line beside the "Not a valuation" chip reads "${claimBox ? rawText(claimBox).slice(0, 190) : 'nothing'}"`);
     /* What the figures rest on, once. */
     const rests = inside.filter(n => B.hasClass(n, 'pc-rests'));
     const links = inside.filter(n => n.tag === 'a' && /^Review the defaults/.test(rawText(n)));
@@ -3424,7 +3443,7 @@ const HOME_PAGE = read(HOME);
     const more = inside.find(n => n.tag === 'details' && B.hasClass(n, 'lab-chain-more'));
     const direct = chain ? (chain.kids || []).filter(x => x.tag === 'details' && B.hasClass(x, 'lab-row')).map(x => attr(x, 'data-row')) : [];
     said.rows = direct.length;
-    if (JSON.stringify(direct) !== JSON.stringify(['cashflowMonthly', 'safeCashRequired', 'netYield', 'instalment'])) p.push(`/property/lab: the rows in sight are ${JSON.stringify(direct)}, not Monthly position, Cash required, Net yield, Monthly repayment`);
+    if (JSON.stringify(direct) !== JSON.stringify(['safeCashRequired', 'cashflowMonthly', 'netYield', 'instalment'])) p.push(`/property/lab: the rows in sight are ${JSON.stringify(direct)}, not Cash required, Monthly position, Net yield, Monthly repayment`);
     if (!more || attr(more, 'open') !== null) p.push('/property/lab: "4 more figures" is not served closed');
     else {
       const sum = all(more).find(x => x.tag === 'summary');
@@ -3469,7 +3488,7 @@ const HOME_PAGE = read(HOME);
    - /property serves not more than one ">See plans<" (the Lab serves none:
      the duplicate was in the calculator's Decide section, which is drawn
      only by the script and is held in model-test, PP-D11), and its first
-     btn-primary is "Save this property";
+     btn-primary is "Enter your property figures" (it was "Save this property" until Day 18);
    - a btn-primary whose text names a report, a PDF, an export or print is
      served on /decision-record, a company's /report and the proposal only (and /my/data, whose "Export everything" is the backup, not a report: an exception the brief did not list, held for the owner);
    - the sidebar's entry for /my/reports reads "Print & share", and so does
@@ -3517,7 +3536,8 @@ const HOME_PAGE = read(HOME);
     said.plans = inside.filter(n => isButton(n) && sight(n).trim() === 'See plans').length;
     if (said.plans > 1) p.push(`/property serves ${said.plans} "See plans", not more than one`);
     const first = inside.find(n => isButton(n) && has(n, 'btn-primary'));
-    if (!first || sight(first).trim() !== 'Save this property') p.push(`/property: its first btn-primary is "${first ? sight(first).trim() : 'none'}", not "Save this property"`);
+    /* Day 18 (QT-D18-01): the Lab's one primary is "Enter your property figures"; "Save this property" is a secondary. */
+    if (!first || sight(first).trim() !== 'Enter your property figures') p.push(`/property: its first btn-primary is "${first ? sight(first).trim() : 'none'}", not "Enter your property figures"`);
   }
   for (const path of ['/property', '/my/reports']) {
     const r = got.get(path);
@@ -3532,7 +3552,7 @@ const HOME_PAGE = read(HOME);
     if (!h1 || sight(h1).trim() !== 'Print & share') p.push(`/my/reports: its h1 reads "${h1 ? sight(h1).trim() : 'nothing'}", not "Print & share"`);
     if (!/<title>Print &amp; share · /.test(r?.body || '') && !/<title>Print & share · /.test(r?.body || '')) p.push('/my/reports: its title does not begin "Print & share · "');
   }
-  judge(p, `the D11 renames as served: the Start-here example opens ${EX} on ${said.examples} Equities routes, /property serves ${said.plans} "See plans" and "Save this property" first, no report-ish btn-primary outside /decision-record, a company's /report and the proposal, the sidebar and /my/reports read "Print & share"`,
+  judge(p, `the D11 renames as served: the Start-here example opens ${EX} on ${said.examples} Equities routes, /property serves ${said.plans} "See plans" and "Enter your property figures" first, no report-ish btn-primary outside /decision-record, a company's /report and the proposal, the sidebar and /my/reports read "Print & share"`,
     'the D11 renames are not served');
 }
 /* ---- end d11-renames-served ---- */
@@ -4508,7 +4528,8 @@ const HOME_PAGE = read(HOME);
   said.push(`${marks('/privacy')} markers on /privacy and ${marks('/terms')} on /terms`);
   /* The Lab's lede since the Day-15 review (QT-D15-02, 28 Oct 2026): what it does
      for the reader, then the one-sentence beta line the N2b decision keeps. */
-  const LINE = 'See how your purchase price, financing and rent affect the cash you need and your monthly position. The Scenario Lab is beta.';
+  /* Day 18 (QT-D18-01, 31 Oct 2026): the owner's introduction; the Beta badge beside the heading says beta. */
+  const LINE = 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.';
   for (const path of ['/property', '/property/lab']) {
     const h = html(path), t = pageText(h);
     const n = t.split(LINE).length - 1;
@@ -4518,7 +4539,7 @@ const HOME_PAGE = read(HOME);
        Lab's, on its heading; the line is the Lab's lede, under that heading. */
     const row = (/<nav class="ptabs[\s\S]*?<\/nav>/.exec(h) || [''])[0];
     if (!/status-live/.test(row) || !/data-badge-of="property"/.test(row)) p.push(`${path}: Property Intelligence's Available badge is not in the tab row`);
-    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,1200}?<p class="body-lg page-lede"[^>]*>See how your purchase price, financing and rent affect the cash you need and your monthly position\. The Scenario Lab is beta\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
+    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,1200}?<p class="body-lg page-lede"[^>]*>Model your property’s cash requirement, monthly position and rental yield using figures you enter\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
   }
   /* Every Beta badge on /property and /app: whose is it? */
   const OTHERS = /(Equities Research|Quantum Scanner|Research a company|Create a scanner setup)\s*$/;
