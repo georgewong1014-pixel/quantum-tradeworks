@@ -3402,11 +3402,14 @@ function pcQuickRests(d, queue, { go = null, id = 'review' } = {}) {
   const say = (k) => (PROPERTY_REVIEW.find(f => f.k === k)?.label || k).toLowerCase();
   const box = el('div', { class: 'pc-rests', id, 'aria-labelledby': 'pc-rests-h' });
   box.append(el('h3', { class: 'pc-rests-h', id: 'pc-rests-h' }, 'What these figures rest on'));
+  /* ONE TEXT NODE AFTER THE COUNT, not three (1 Nov 2026, the merged release check, coverage-frames):
+     the served HTML joins adjacent text, so the drawn page's third piece, "4 of the 10 — price, rent… hold
+     back the research grade.", was a run of words the served page did not show on its own. */
+  const holds = !drivers.length ? '' : drivers.length === n
+    ? ` ${n === 1 ? 'It holds' : 'All hold'} back the research grade.`
+    : ` ${drivers.length} of the ${n} — ${feeList(drivers.map(k => PC_DRIVER_SAY[k] || k))} — hold${drivers.length === 1 ? 's' : ''} back the research grade.`;
   const lead = el('p', { class: 'pc-rests-text', id: 'pc-rests-text' }, [
-    el('strong', { 'data-n': String(n) }, `${n} input${s}`), ` ${n === 1 ? 'is' : 'are'} still the tool’s illustrative default${s}, not yours: ${feeList(keys.map(say))}.`]);
-  if (drivers.length) lead.append(' ', drivers.length === n
-    ? `${n === 1 ? 'It holds' : 'All hold'} back the research grade.`
-    : `${drivers.length} of the ${n} — ${feeList(drivers.map(k => PC_DRIVER_SAY[k] || k))} — hold${drivers.length === 1 ? 's' : ''} back the research grade.`);
+    el('strong', { 'data-n': String(n) }, `${n} input${s}`), ` ${n === 1 ? 'is' : 'are'} still the tool’s illustrative default${s}, not yours: ${feeList(keys.map(say))}.${holds}`]);
   box.append(lead);
   if (go) {
     const first = queue[0] || null;

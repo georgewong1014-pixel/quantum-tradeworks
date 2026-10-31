@@ -2416,7 +2416,7 @@ for (const w of [360, 390]) {
       said.oneScreen = r;
       if (r.knobs !== 1) fails.push(`360×640: ${r.knobs} knobs drawn, not one`);
       if (!r.range || r.range[0] < r.under || r.range[1] > r.vh) fails.push(`360×640: the slider sits at ${JSON.stringify(r.range)}, the screen below the topbar is ${r.under}–${r.vh}`);
-      if (r.all !== 8 || r.seen !== 'cashflowMonthly,safeCashRequired,netYield,instalment') fails.push(`360×640: ${r.all} results in the page and ${r.seen || 'none'} in sight, not eight with Monthly position, Cash required, Net yield and Monthly repayment standing`);
+      if (r.all !== 8 || r.seen !== 'safeCashRequired,cashflowMonthly,netYield,instalment') fails.push(`360×640: ${r.all} results in the page and ${r.seen || 'none'} in sight, not eight with Cash required, Monthly position, Net yield and Monthly repayment standing (Day 18's order, QT-D18-01, 31 Oct 2026: the pin still had the 30 Oct audit's order)`);
       r.vals.filter(([, t, b]) => t < r.under || b > r.vh).forEach(([k, t, b]) => fails.push(`360×640: ${k} sits at ${t}–${b}, off the screen`));
       if (!r.fold || r.fold[0] < r.under || r.fold[1] > r.vh || r.fold[2] < 43.5) fails.push(`360×640: "4 more figures" sits at ${JSON.stringify(r.fold)}, not a whole 44px line on the screen`);
     }
@@ -3179,6 +3179,8 @@ for (const w of [360, 390]) {
           window.scrollTo(0, 0); await frames();
           const range = [...document.querySelectorAll('#views input[type=range]')].find(shown);
           out.slider = range && location.pathname === '/property' ? [Math.round(range.getBoundingClientRect().top), Math.round(range.getBoundingClientRect().bottom)] : null;
+          const cta = document.getElementById('lab-enter');
+          out.cta = cta && shown(cta) && location.pathname === '/property' ? (() => { const b = cta.getBoundingClientRect(); return [Math.round(b.top), Math.round(b.bottom), Math.round(b.height)]; })() : null;
           const sumLine = document.querySelector('#views .lab-id-meta.has-sum');
           out.firstScreen = sumLine && shown(sumLine) && location.pathname === '/property' ? Math.round(sumLine.getBoundingClientRect().bottom) : null;
           /* The footer's end, at the page's end. */
@@ -3200,7 +3202,8 @@ for (const w of [360, 390]) {
             if (a.l < 0 || a.r > r.vw) fails.push(`${at}: "${a.word}" runs out of the screen (${a.l}–${a.r} of ${r.vw})`);
             if (a.cut) fails.push(`${at}: "${a.word}" in the bar is cut short`);
           });
-          if (r.slider != null && r.slider[1] > r.bar.top && r.slider[0] < r.vh) fails.push(`${at}: the first slider (${r.slider.join("–")}px) is under the action bar from ${r.bar.top}px`);
+          /* 1 Nov 2026 (the owner's Day 18 lead, QT-D18-01): the first slider is no longer on the Lab's first screen — "Enter your property figures", a link to the calculator's price box, takes the reader to the first input and stands whole above the bar, a 44px target. (Until then this held the slider whole above the bar; at 390×844 it now starts at 771px, its top 18px above the bar's 789px, and in Verdana at 826px, wholly below it: below the fold, not a box cut by it.) */
+          if (path === '/property') { if (r.cta == null || r.cta[0] < 0 || r.cta[1] > r.bar.top || r.cta[2] < 43.5) fails.push(`${at}: "Enter your property figures" ${r.cta ? `(${r.cta[0]}–${r.cta[1]}px, ${r.cta[2]}px high)` : 'is not in sight'}, not a whole 44px target above the action bar from ${r.bar.top}px`); }
           if (r.firstScreen == null && path === '/property') fails.push(`${at}: no summary line of the two questions on /property's first screen`);
           else if (r.firstScreen != null && r.firstScreen > r.bar.top) fails.push(`${at}: the two questions' summary line ends at ${r.firstScreen}px, under the action bar from ${r.bar.top}px`);
           if (r.footEnd == null || r.footEnd > r.barTopAtEnd + 1) fails.push(`${at}: at the page's end the footer's last line ends at ${r.footEnd}px, under the bar from ${r.barTopAtEnd}px`);
@@ -3274,7 +3277,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL layout-system — the pages on the layout system: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); if (fails.length > 40) console.log(`     … and ${fails.length - 40} more`); }
-  else console.log(`ok   layout-system: /property and /property/calculator at 360, 390 and 430, in the page's font and in Verdana — the action bar fixed at the window's foot with Analyse · Compare · Save, every action a 44px target on the screen and nothing under it (the first slider and the questions' summary line above it, the footer's end above it at the page's end; ${said.bars} pages); ${said.rows} tab rows on one line each; the financing scenarios and the cost breakdown cards, not tables (${said.tables}), the entered scenario alone until "Compare …" brings the others; every word in a size of the scale at 390, 1024 and 1440 (${said.words} pages); none of ${said.blocks} text blocks at 1024 and 1440 wider than 70 characters`);
+  else console.log(`ok   layout-system: /property and /property/calculator at 360, 390 and 430, in the page's font and in Verdana — the action bar fixed at the window's foot with Analyse · Compare · Save, every action a 44px target on the screen and nothing under it (on /property "Enter your property figures" and the questions' summary line above it, the footer's end above it at the page's end; ${said.bars} pages); ${said.rows} tab rows on one line each; the financing scenarios and the cost breakdown cards, not tables (${said.tables}), the entered scenario alone until "Compare …" brings the others; every word in a size of the scale at 390, 1024 and 1440 (${said.words} pages); none of ${said.blocks} text blocks at 1024 and 1440 wider than 70 characters`);
 }
 /* ---- end layout-system ---- */
 /* ---- p1-questions ---- */

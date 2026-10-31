@@ -2786,13 +2786,17 @@ function labCommits(P, lab, col) {
      text link to the calculator's panel (pcElsPanel, 75-property-grade.js). The
      address carries nothing of the deal; nothing is needed from it to compare or keep.
      The brief it opens is the calculator's deal, so the link stands only where A is that
-     deal, and says so where the column kept is another or has moved (the 31 Oct review). */
+     deal, and says so where the column kept is another or has moved (the 31 Oct review).
+     It stands directly UNDER the Keep card, not in it (1 Nov 2026, the merged release
+     check): inside, its words took the card past the 40 its buttons and one line are held
+     to (mobile.mjs lab-words) at every width; the card keeps its id and its words, and the
+     two are drawn, and drawn again, as one. */
   const elsOn = (c) => (c.prop ? !!labColRecId(lab, c) && State.deal?.modelId === labColRecId(lab, c) : !lab.model || State.deal?.modelId === lab.model);
   const elsA = lab.cols.find(c => c.key === 'A');
-  if (elsA && elsOn(elsA)) card.append(el('p', { class: 'metaline lab-els' }, el('a', { id: labId(P, 'els'), href: href(ELS_PLAN_PATH), onclick: (e) => {
+  const els = elsA && elsOn(elsA) ? el('p', { class: 'metaline lab-els' }, el('a', { id: labId(P, 'els'), href: href(ELS_PLAN_PATH), onclick: (e) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(ELS_PLAN_PATH);
-  } }, elsOn(col) && !labMoveCount(col) ? ELS_ACTION_WORDS : `${ELS_ACTION_WORDS} — for the deal on the calculator`)));
-  return card;
+  } }, elsOn(col) && !labMoveCount(col) ? ELS_ACTION_WORDS : `${ELS_ACTION_WORDS} — for the deal on the calculator`)) : null;
+  return el('div', { class: 'lab-commit-wrap', id: labId(P, 'commit-wrap') }, [card, els]);
 }
 /* The column's figures as a commit writes them: the moved ones marked as
    the reader's (markTouched) on a copy, BEFORE anything stores it —
