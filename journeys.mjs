@@ -1597,6 +1597,23 @@ const JOURNEYS = [
         if (shown.length) throw new StepError(`before any report is unlocked the proposal shows the full report's ${shown.join(', ')}`);
         if (!sale.notes.includes('In the full analysis — preview in the calculator; nothing is on sale')) throw new StepError('the proposal does not say where the rest of the sale is');
       });
+      /* THE SCENARIO LAB'S LINK TO THE PANEL, WITH A KEPT PARAMETER (the 31 Oct
+         2026 review): navigate() put the kept ?real=0 after the hash
+         ("#els-plan?real=0"), so the panel did not open and the parameter was
+         the hash's. Now the address is /property/calculator?real=0#els-plan,
+         the panel is open, and the parameter survived. */
+      await step(j, tab, 'The Scenario Lab’s ELS link opens the calculator’s panel and keeps ?real=0', BUDGET.load + BUDGET.action, async () => {
+        await tab.goto('/property?real=0');
+        await tab.expect(`State.view === 'propertyLab' && !!document.querySelector('.lab-els a')`, 'the Scenario Lab shows no ELS link beside its Keep card');
+        const words = await tab.eval(`document.querySelector('.lab-els a').textContent.trim()`);
+        if (!/^Explore design and renovation planning with ELS/.test(words)) throw new StepError(`the Lab's link reads "${words}"`);
+        await tab.click(`document.querySelector('.lab-els a')`, 'The Lab’s ELS link');
+        await tab.expect(`State.view === 'property' && !!document.getElementById('els-plan')?.open`, async () => `the link did not open the calculator's panel: ${await tab.where()}`, 8000);
+        const at = await tab.eval(`({ path: location.pathname, search: location.search, hash: location.hash, view: new URLSearchParams(location.search).get('view') })`);
+        if (at.path !== '/property/calculator' || new URLSearchParams(at.search).get('real') !== '0') throw new StepError(`the address is ${JSON.stringify(at)}, not the calculator with ?real=0 kept`);
+        if (at.hash && at.hash !== '#els-plan') throw new StepError(`the address's hash is ${at.hash}, not #els-plan`);
+        if (/#els-plan\?|\?[^#]*#.*\?/.test(await tab.eval('location.href'))) throw new StepError('a parameter sits inside the hash');
+      });
     },
   },
   {

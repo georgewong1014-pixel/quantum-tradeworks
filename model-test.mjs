@@ -12193,7 +12193,17 @@ try {
            financial word and no figure but the entered allowance (and the
            brief's own version) appears.
      EB4 — the location is what the reader chose, never the sample project's
-           name; the use is own use, let or not set; nothing is mutated.
+           name, and never a town's first district (the Kuching page's worked
+           example, Miri and back, both leave it "Not set"); the use is the
+           app's own words (the own-use objective's label, "Let to a tenant,
+           with some own use" for weeks of own use) and only the own-use
+           objective, weeks or a touched rent make it the reader's (Capital
+           growth and Value add do not); nothing is mutated.
+     EB7 — the allowance is worded from its cost lines: a placeholder
+           says so, a written quote is "from a quotation you entered — not
+           verified by Quantum", the rest the reader's own figure; lines whose
+           figure is untouched, and a legacy userStarted deal's untouched
+           figure, are the sample's: "Not set".
      EB5 — the requirements are the reader's words after their label, empty
            by default, cut at 1,000.
      EB6 — the panel's words as written, the link to the ELS home page with
@@ -12217,17 +12227,23 @@ try {
         lowValuation: { ...base(), bankValuation: 540000 },
         noTenure: { ...base(), tenureYears: 0 },
         managed: { ...base(), selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 150, renovation: 60000, renoValueRecoveryPct: 40 },
+        legacyUserStarted: { ...base(), userStarted: true },
       };
+      /* What a saved property carries and a brief must not: its ids, its
+         name, a custom project (and the name a reader gave it). */
+      const PRIVATE = { modelId: 'mdl-SECRET-17', scenarioId: 'scn-SECRET-18', name: 'Secret Villa', savedName: 'Secret saved name', projectId: 'custom-miri', projectName: 'Secret Project', custom: true };
       const everything = { price: 913377, rent: 4321, downPct: 17, ratePct: 6.1, tenureYears: 21, maintenance: 777, bookingDepositPaid: 4242, reserveMonths: 9, rentGrowthPct: 3.3, vacancyPct: 11, bankValuation: 800123 };
       const touchedAll = Object.fromEntries(Object.keys(everything).map(k => [k, true]));
       const bad = [], shapes = [];
       let n = 0;
       for (const [name, d] of Object.entries(deals)) {
-        for (const [how, dd] of [['as held', d],
+        for (const [how, dd0] of [['as held', d],
           ['renovation entered', { ...d, renovation: 48000, touched: { ...d.touched, renovation: true } }],
           ['everything touched', { ...d, ...everything, touched: { ...d.touched, ...touchedAll } }],
           ['everything and the renovation', { ...d, ...everything, renovation: 48000, touched: { ...d.touched, ...touchedAll, renovation: true } }]]) {
+          const dd = { ...dd0, ...PRIVATE };
           const b = elsBrief(dd, ''); n++;
+          if (/secret|custom|mdl-|scn-/i.test(b.text)) bad.push(name + '/' + how + ': a saved id, name or custom project reaches the brief: ' + b.text.match(/.{0,20}(secret|custom|mdl-|scn-).{0,20}/i)[0]);
           const ls = b.text.split('\\n');
           const labels = ['Property type', 'Location', 'Intended use', 'Renovation allowance', 'Your requirements'];
           if (!ls[0].startsWith('Quantum Tradeworks renovation brief (qt-property-brief/1)')) bad.push(name + '/' + how + ': first line ' + ls[0]);
@@ -12236,16 +12252,22 @@ try {
           const scrub = b.text.replace('(qt-property-brief/1)', '').replace(/RM48,000, as you entered it/, '');
           if (/[0-9]/.test(scrub)) bad.push(name + '/' + how + ': a figure in "' + scrub.match(/.{0,20}[0-9].{0,20}/)[0] + '"');
           if (FORBID.test(b.text)) bad.push(name + '/' + how + ': a financial word in the brief: ' + b.text.match(FORBID)[0]);
-          if (/\\b(verified|approved|confirmed)\\b/i.test(b.text.replace('a quotation or a verified budget', ''))) bad.push(name + '/' + how + ': claims a check');
+          if (/\\b(verified|approved|confirmed)\\b/i.test(b.text.replace('a quotation or a verified budget', '').replace('not verified by Quantum', ''))) bad.push(name + '/' + how + ': claims a check');
           if (/RM/.test(b.text) !== /entered/.test(lineOf(b.text, 'Renovation allowance')) ) bad.push(name + '/' + how + ': an amount without being entered, or the reverse');
-          if (!dd.touched.renovation && !dd.userStarted && /RM/.test(b.text)) bad.push(name + '/' + how + ': an amount for a renovation the reader did not enter');
+          if (!dd.touched.renovation && /RM/.test(b.text)) bad.push(name + '/' + how + ': an amount for a renovation the reader did not enter (userStarted: ' + !!dd.userStarted + ')');
           if (/Riveria|Tabuan Heights|p1|custom-/.test(b.text)) bad.push(name + '/' + how + ': names a project');
         }
       }
       /* EB4 */
       const before = pmCanon(base()), d0 = base(); elsBrief(d0, 'x'); const mutated = pmCanon(d0) !== before;
       const stateBefore = JSON.stringify(State.deal); elsBrief(State.deal, 'x'); const stateMoved = JSON.stringify(State.deal) !== stateBefore;
+      const kuching = SARAWAK_CITIES.find(c => c.id === 'kuching'), miriFirst = SARAWAK_CITIES.find(c => c.id === 'miri').districts[0];
       const place = {
+        firstDistrictIsNotTheDefault: kuching.districts[0] !== PROPERTY_DEFAULT_DEAL.district,
+        /* The Kuching page's worked example, and Miri and back: both leave Kuching's first district. */
+        kuchingExample: lineOf(elsBrief({ ...base(), city: 'kuching', district: kuching.districts[0] }).text, 'Location'),
+        miriAndBack: lineOf(elsBrief({ ...base(), city: 'kuching', district: kuching.districts[0], touched: {} }).text, 'Location'),
+        miriFirst: lineOf(elsBrief({ ...base(), city: 'miri', district: miriFirst }).text, 'Location'),
         sample: lineOf(elsBrief(base()).text, 'Location'),
         miri: lineOf(elsBrief({ ...base(), city: 'miri', district: SARAWAK_CITIES.find(c => c.id === 'miri').districts[0] }).text, 'Location'),
         kuchingArea: lineOf(elsBrief({ ...base(), district: 'Petra Jaya' }).text, 'Location'),
@@ -12254,8 +12276,30 @@ try {
       const use = {
         sample: lineOf(elsBrief(base()).text, 'Intended use'),
         weeks: lineOf(elsBrief({ ...base(), ownUseWeeks: 6 }).text, 'Intended use'),
+        weeks2: lineOf(elsBrief({ ...base(), ownUseWeeks: 2 }).text, 'Intended use'),
         objective: lineOf(elsBrief({ ...base(), objective: 'ownuse' }).text, 'Intended use'),
+        growth: lineOf(elsBrief({ ...base(), objective: 'growth' }).text, 'Intended use'),
         land: lineOf(elsBrief(deals.land).text, 'Intended use'),
+        assumedGrowth: elsBrief({ ...base(), objective: 'growth' }).assumed.includes('intended use'),
+        assumedValueAdd: elsBrief({ ...base(), objective: 'valueadd' }).assumed.includes('intended use'),
+        assumedRent: elsBrief({ ...base(), rent: 2000, touched: { rent: true } }).assumed.includes('intended use'),
+        assumedOwnuse: elsBrief({ ...base(), objective: 'ownuse' }).assumed.includes('intended use'),
+        assumedWeeks: elsBrief({ ...base(), ownUseWeeks: 2 }).assumed.includes('intended use'),
+        ownuseLabel: PROPERTY_OBJECTIVES.ownuse.label,
+      };
+      /* EB7 */
+      const reno = (extra) => elsBrief({ ...base(), touched: { renovation: true }, ...extra });
+      const line = (kind, amount, more = {}) => ({ id: 'l' + kind + amount, item: 'Kitchen', amount, kind, ...more });
+      const quote = { source: 'Contractor A, quotation 12', date: '2026-10-20' };
+      const lines = {
+        placeholder: lineOf(reno({ renovation: 30000, renovationLines: [line('placeholder', 30000)] }).text, 'Renovation allowance'),
+        quoted: lineOf(reno({ renovation: 30000, renovationLines: [line('quoted', 30000, quote)] }).text, 'Renovation allowance'),
+        mixedPlaceholder: lineOf(reno({ renovation: 30000, renovationLines: [line('quoted', 20000, quote), line('placeholder', 10000)] }).text, 'Renovation allowance'),
+        quotedAndEstimate: lineOf(reno({ renovation: 30000, renovationLines: [line('quoted', 20000, quote), line('estimate', 10000)] }).text, 'Renovation allowance'),
+        estimate: lineOf(reno({ renovation: 30000, renovationLines: [line('estimate', 30000)] }).text, 'Renovation allowance'),
+        untouchedLines: lineOf(elsBrief({ ...base(), renovation: 30000, renovationLines: [line('quoted', 30000, quote)] }).text, 'Renovation allowance'),
+        legacy: lineOf(elsBrief({ ...base(), userStarted: true }).text, 'Renovation allowance'),
+        legacyAssumed: elsBrief({ ...base(), userStarted: true }).assumed.includes('renovation allowance'),
       };
       const assumedWhenOwn = elsBrief({ ...base(), propertyType: 'Shophouse', district: 'Petra Jaya', ownUseWeeks: 2, renovation: 1000, touched: { renovation: true } }).text.split('\\n').filter(l => l.startsWith('Assumptions')).length;
       /* EB5 */
@@ -12274,7 +12318,7 @@ try {
         nonLink: [...p.querySelectorAll('a')].length,
         constUrl: ELS_URL,
       };
-      return JSON.stringify({ out, n, bad, mutated, stateMoved, place, use, assumedWhenOwn, typed, longLen: long.length, panel });
+      return JSON.stringify({ out, n, bad, mutated, stateMoved, place, use, lines, assumedWhenOwn, typed, longLen: long.length, panel });
     })()`));
     const p1 = [];
     const sLines = r.out.sample.lines, eLines = r.out.entered.lines;
@@ -12292,14 +12336,31 @@ try {
     else ok(`els EB3: ${r.n} briefs (nine R1 deals, as held, with a renovation entered, with every financial figure touched, and both) are the six lines and the Assumptions line only — no figure but the entered allowance, none of price, deposit, loan, rate, repayment, rent, income, cash, reserve or returns, no project named, and never "verified", "approved" or "confirmed" of the allowance`);
     const p4 = [];
     if (r.mutated || r.stateMoved) p4.push('elsBrief changed the deal it was given');
-    if (r.place.sample !== "Not set: the calculator's sample location is not a choice") p4.push(`the sample's location is "${r.place.sample}"`);
+    const NOT_SET = "Not set — the sample's location is not yours";
+    if (r.place.sample !== NOT_SET) p4.push(`the sample's location is "${r.place.sample}"`);
+    if (!r.place.firstDistrictIsNotTheDefault) p4.push("Kuching's first district is now the sample's, so the worked-example case below proves nothing");
+    if (r.place.kuchingExample !== NOT_SET) p4.push(`the Kuching page's worked example (the first district) reads "${r.place.kuchingExample}"`);
+    if (r.place.miriAndBack !== NOT_SET) p4.push(`Miri and back to Kuching reads "${r.place.miriAndBack}"`);
     if (r.place.miri !== 'Miri (as you entered it)') p4.push(`a town chosen reads "${r.place.miri}"`);
     if (r.place.kuchingArea !== 'Kuching, Petra Jaya (as you entered it)') p4.push(`an area chosen reads "${r.place.kuchingArea}"`);
     if (r.place.otherProject !== r.place.sample) p4.push(`another sample project names "${r.place.otherProject}"`);
-    if (r.use.sample !== 'Let to a tenant' || r.use.weeks !== 'Own use' || r.use.objective !== 'Own use' || r.use.land !== 'Not set') p4.push(`the use reads ${JSON.stringify(r.use)}`);
+    if (r.use.sample !== 'Let to a tenant' || r.use.weeks !== 'Let to a tenant, with some own use' || r.use.weeks2 !== r.use.weeks || r.use.objective !== 'Own use + investment' || r.use.objective !== r.use.ownuseLabel
+      || r.use.growth !== 'Let to a tenant' || r.use.land !== 'Not set') p4.push(`the use reads ${JSON.stringify(r.use)}`);
+    if (!r.use.assumedGrowth || !r.use.assumedValueAdd) p4.push('Capital growth or Value add made "Let to a tenant" the reader\'s choice');
+    if (r.use.assumedRent || r.use.assumedOwnuse || r.use.assumedWeeks) p4.push(`the use is the reader's: rent touched ${!r.use.assumedRent}, own-use objective ${!r.use.assumedOwnuse}, weeks ${!r.use.assumedWeeks}`);
     if (r.assumedWhenOwn !== 0) p4.push('the Assumptions line stands when all four are the reader\'s');
     if (p4.length) fail('els EB4: the location and the use are the reader\'s, and nothing is mutated', p4);
-    else ok('els EB4: the sample\'s location is "Not set", a town or area chosen is named "as you entered it" (Miri; Kuching, Petra Jaya), a sample project is never named, the use reads Let to a tenant, Own use (weeks or the objective) or Not set (land), the Assumptions line goes when all four are the reader\'s, and the deal is not touched');
+    else ok('els EB4: the sample\'s location is "Not set — the sample\'s location is not yours", and stays so for Kuching\'s first district (the city page\'s worked example; Miri and back); a town or area chosen is named "as you entered it" (Miri; Kuching, Petra Jaya), a sample project is never named; the use reads Let to a tenant, "Let to a tenant, with some own use" (weeks), the own-use objective\'s own label "Own use + investment", or Not set (land), and is the reader\'s only by that objective, weeks or a touched rent (Capital growth and Value add leave it assumed); the Assumptions line goes when all four are the reader\'s, and the deal is not touched');
+    const p7 = [], L = r.lines;
+    if (L.placeholder !== 'RM30,000, a placeholder you entered — not a budget') p7.push(`a placeholder line reads "${L.placeholder}"`);
+    if (L.quoted !== 'RM30,000, from a quotation you entered — not verified by Quantum') p7.push(`a quoted line reads "${L.quoted}"`);
+    if (L.mixedPlaceholder !== 'RM30,000, including a placeholder you entered — not a budget') p7.push(`a quote with a placeholder reads "${L.mixedPlaceholder}"`);
+    if (L.quotedAndEstimate !== L.estimate || L.estimate !== 'RM30,000, as you entered it — your own figure, not a quotation or a verified budget') p7.push(`an estimate reads "${L.estimate}", a quote with an estimate "${L.quotedAndEstimate}"`);
+    if (L.untouchedLines !== "Not set: the calculator's sample figure is not a budget") p7.push(`cost lines on an untouched figure read "${L.untouchedLines}"`);
+    if (L.legacy !== "Not set: the calculator's sample figure is not a budget" || !L.legacyAssumed) p7.push(`a legacy userStarted deal's untouched renovation reads "${L.legacy}", assumed ${L.legacyAssumed}`);
+    if (/\b(approved|confirmed)\b/i.test(Object.values(L).join(' ')) || /\bverified\b/i.test(Object.values(L).join(' ').split('not a quotation or a verified budget').join('').split('not verified by Quantum').join(''))) p7.push('an allowance line claims a check');
+    if (p7.length) fail('els EB7: the allowance is worded from its cost lines', p7);
+    else ok('els EB7: a placeholder line reads "RM30,000, a placeholder you entered — not a budget" (with a quote beside it, "including a placeholder"), a written quote "from a quotation you entered — not verified by Quantum", an estimate the reader\'s own figure; cost lines on an untouched figure, and a legacy userStarted deal\'s untouched renovation, are "Not set" and Assumed; no line is verified, approved or confirmed');
     const p5 = [];
     if (r.typed[5] !== 'Your requirements: Open-plan kitchen' || r.typed[6] !== '  and a new bathroom') p5.push(`the typed requirements read ${JSON.stringify(r.typed.slice(5))}`);
     if (r.longLen !== 'Your requirements: '.length + 1000) p5.push(`1,500 characters give a line of ${r.longLen}`);
