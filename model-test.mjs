@@ -4613,7 +4613,8 @@ try {
         const id = await evaluate(`(async () => { ${PPH}
           const rec = ppMake('PP two tabs', { price: 500000, rent: 2000 });
           navigate(cpPath(rec.id)); await w(450); return rec.id; })()`);
-        const before = await evaluate(look);
+        let before = await evaluate(look);
+        for (const t0 = Date.now(); !before.inst && Date.now() - t0 < 30000; before = await evaluate(look)) await sleep(100);
         const { result: { targetId: tB } } = await send('Target.createTarget', { url: `${BASE}/property/calculator?view=full` });
         const { result: { sessionId: sB } } = await send('Target.attachToTarget', { targetId: tB, flatten: true });
         await send('Runtime.enable', {}, sB);
@@ -4625,18 +4626,27 @@ try {
         }
         await evalB(`(() => { openPropertyModel(${JSON.stringify(id)}, { show: false });
           State.deal.price = 640000; State.deal.rent = 2600; markTouched(State.deal, 'price'); markTouched(State.deal, 'rent'); saveDeal(); saveActiveProperty(); return true; })()`);
-        await sleep(700);
+        /* Waited for, not slept on (1 Nov 2026, the merged release check): tab A is in the background once tab B opens, and under a loaded
+           machine its renderer is starved — the redraw after the other tab's write took 60ms on an idle machine and 4–5 seconds beside 40
+           busy processes, on the base (d8b209a37) as on the merge — so a fixed 700ms read the page before it had been told. The check is
+           unchanged: what the proposal shows once it has redrawn must be what the property was saved as, and it must say it was redrawn. */
+        let afterTab, wantTab;
+        for (const t0 = Date.now(); ; await sleep(100)) {
+          afterTab = await evaluate(look); wantTab = await evaluate(want(id));
+          if ((afterTab.inst === wantTab.inst && afterTab.redrawn) || Date.now() - t0 > 30000) break;
+        }
         await send('Target.closeTarget', { targetId: tB });
-        const afterTab = await evaluate(look);
-        const wantTab = await evaluate(want(id));
         /* A change no event announced: the stored property rewritten in this
            tab's storage directly, then the browser about to print. */
         await evaluate(`(() => { const list = JSON.parse(localStorage.getItem('vl.savedWork'));
           const rec = list.find(x => x.id === ${JSON.stringify(id)}); rec.payload.deal.price = 700000; rec.updatedAt = new Date().toISOString();
           localStorage.setItem('vl.savedWork', JSON.stringify(list)); window.dispatchEvent(new Event('beforeprint')); return true; })()`);
-        await sleep(200);
-        const afterPrint = await evaluate(look);
-        const wantPrint = await evaluate(want(id));
+        /* The same wait for the print's own redraw, from storage alone. */
+        let afterPrint, wantPrint;
+        for (const t0 = Date.now(); ; await sleep(100)) {
+          afterPrint = await evaluate(look); wantPrint = await evaluate(want(id));
+          if (afterPrint.price === wantPrint.price || Date.now() - t0 > 30000) break;
+        }
         const p7 = [];
         if (before.inst === wantTab.inst) p7.push(`the second tab's save did not change the instalment (${before.inst}) — the check proves nothing`);
         for (const k of ['inst', 'pos', 'safe', 'price']) {
