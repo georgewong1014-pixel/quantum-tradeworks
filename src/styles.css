@@ -4322,6 +4322,9 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 .page-hd .page-lede { margin-top: 8px; max-width: 82ch; }
 /* The Lab's lede says what is live and what is beta (Day-4 QT-D04-01): balanced, so "is beta." is not left alone on a line. */
 .lab-page-hd .page-lede { text-wrap: balance; }
+/* Day 18: the one primary, "Enter your property figures", under the introduction; a 44px target at every width. */
+.page-hd.lab-page-hd { row-gap: 12px; }
+.lab-enter { min-height: 44px; }
 .page-hd .page-note {
   margin-top: 6px; max-width: 76ch;
   font-size: var(--text-sm); line-height: 1.55; color: var(--ink-3);
@@ -5217,16 +5220,7 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 @container lab (min-width: 600px) { .lab-id-top { grid-template-areas: "name act" "meta act"; column-gap: 24px; } .lab-status.lab-id-name { font-size: var(--ls-section); line-height: 1.25; } }
 @media (min-width: 663px) { :root[data-served] .lab-id-top { grid-template-areas: "name act" "meta act"; column-gap: 24px; } :root[data-served] .lab-status.lab-id-name { font-size: var(--ls-section); line-height: 1.25; } }
 .lab-id-name strong { font-weight: 700; }
-/* The sample's line under its name (LAB_SAMPLE_ASSUME, QT-D08-02): what its
-   figures are, led in the illustrative badges' bronze, at the place line's
-   size and before it — two even lines at the reading measure, not one long
-   one with a word left over. A saved property has no such line, and its
-   grid is as it was. */
-.lab-id-top.has-assume { grid-template-areas: "name act" "note note" "meta meta"; }
-.lab-id-top > .lab-id-assume { grid-area: note; margin: 0; max-width: var(--ls-measure); font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); text-wrap: balance; }
-.lab-id-assume > strong { color: var(--bronze); font-weight: 600; }
-@container lab (min-width: 600px) { .lab-id-top.has-assume { grid-template-areas: "name act" "note act" "meta act"; } }
-@media (min-width: 663px) { :root[data-served] .lab-id-top.has-assume { grid-template-areas: "name act" "note act" "meta act"; } }
+/* The sample's line under its name went (Day 18 follow-up, 31 Oct 2026: the chip's line says it). */
 .lab-id-meta { margin: 1px 0 0; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
 .lab-id-act { flex: none; display: flex; align-items: center; }
 .lab-id-act .btn { white-space: nowrap; }
@@ -5256,8 +5250,9 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 
 /* The four tiles: on the layout system (layout-system, at the end). */
 @media (max-width: 599px) {
-  .lab-page-hd .eyebrow, .lab-page-hd .page-lede { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .page-hd.lab-page-hd { margin-bottom: var(--xs); }
+  /* Day 18 follow-up (31 Oct 2026): the introduction shows on a phone too, between the heading and its button; only the eyebrow, the product's name, is for the ear. */
+  .lab-page-hd .eyebrow { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .page-hd.lab-page-hd { margin-bottom: var(--xs); row-gap: 4px; }
   .view:has(> .shell > .lab-page) { padding-top: var(--xs); }
   .shell:has(> .lab-page) > .journey-line:not(:empty) { margin-bottom: 4px; }
 }
@@ -5400,7 +5395,35 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-chain-card { padding: var(--xs) var(--md) var(--sm); min-width: 0; }
 .lab-chain-hd { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 2px 8px; margin-bottom: 0; }
 .lab-chain-h { display: flex; align-items: center; gap: 6px; }
-.lab-chain { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: var(--lg); }
+.lab-chain, .lab-chain-more-body { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: var(--lg); }
+/* "N more figures" (the 30 Oct 2026 audit): the four rows the answer does not need first, one closed
+   disclosure across the chain, its rows in the chain's own columns. */
+.lab-chain-more { grid-column: 1 / -1; box-shadow: inset 0 1px 0 var(--grid); min-width: 0; }
+.lab-chain-more-sum { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 4px 0; cursor: pointer; list-style: none;
+  font-size: var(--ls-support); line-height: 17px; font-weight: 600; color: var(--brand); }
+.lab-chain-more-sum::-webkit-details-marker { display: none; }
+.lab-chain-more-name { text-decoration: underline; text-underline-offset: 3px; }
+.lab-chain-more-sum:hover { color: var(--brand-hi); }
+.lab-chain-more-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+.lab-chain-more-sum > .lab-about-chev { flex: none; transition: transform 160ms ease; }
+.lab-chain-more[open] > .lab-chain-more-sum > .lab-about-chev { transform: rotate(180deg); }
+/* The sentence over the boxes, once. */
+.lab-default-note { margin: 0; padding: 0 var(--xs); line-height: 1.45; }
+.lab-default-note[hidden] { display: none; }
+/* On a phone the one knob in sight stands first, with its Default tag, and the sentence that says what Default is
+   follows it: the first slider stays on the first screen (mobile.mjs, n3-first-view). The page order is the sentence first. */
+@container lab (max-width: 599px) { .lab-default-note { order: 1; } .lab-more { order: 2; } }
+@media (max-width: 662px) { :root[data-served] .lab-default-note { order: 1; } :root[data-served] .lab-more { order: 2; } }
+/* What the figures rest on, in the chain card, under the grade. */
+.lab-chain-card > .pc-rests { margin: 0 0 var(--ls-within); }
+/* A disclosure card (the price against the evidence): its summary is its heading, a 44px target. */
+.lab-disc > .lab-disc-sum { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; }
+.lab-disc > .lab-disc-sum::-webkit-details-marker { display: none; }
+.lab-disc > .lab-disc-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+.lab-disc > .lab-disc-sum > .lab-about-chev { flex: none; transition: transform 160ms ease; }
+.lab-disc-h { margin: 0; }
+.lab-disc[open] > .lab-disc-sum > .lab-about-chev { transform: rotate(180deg); }
+.lab-disc[open] > .lab-disc-sum { margin-bottom: var(--xs); }
 /* The rule between rows is a shadow, not a border, so a row is its 44px. */
 .lab-row { box-shadow: inset 0 1px 0 var(--grid); min-width: 0; }
 .lab-sum { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; min-height: 44px;
@@ -5544,7 +5567,7 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   .lab-more[open] > summary .lab-about-chev { transform: rotate(180deg); }
   .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   .lab-seg-by { display: flex; }
-  .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lab-chain, .lab-chain-more-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lab-facts { grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
   .lab-span-why { display: inline; }
   /* Names beside the letters need the strip's whole width: the legend
@@ -5577,7 +5600,7 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   :root[data-served] .lab-more > summary .lab-about-chev { transition: transform 160ms ease; }
   :root[data-served] .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   :root[data-served] .lab-seg-by { display: flex; }
-  :root[data-served] .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root[data-served] .lab-chain, :root[data-served] .lab-chain-more-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   :root[data-served] .lab-span-why { display: inline; }
   :root[data-served] .lab-pick-cols .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
   :root[data-served] .lab-knob { padding-top: 6px; }
@@ -6033,19 +6056,19 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   .ptabs.ls-chips-row .ptab:focus-visible { outline-offset: -4px; border-radius: 999px; }
   .ptabs.ls-chips-row .ptabs-name { padding-top: 10px; }
 }
-/* THE FOUR TILES, ON THE LAYOUT SYSTEM'S CARDS (layout-system, below):
-   two metric cards of the decision (L1), one of context (L2) and the next
-   step's action card. Two by two on a phone, four in a row from a 760px
-   panel; the decision's two a little wider there. */
+/* THE FOUR TILES, ON THE LAYOUT SYSTEM'S CARDS (layout-system, below), in the
+   30 Oct 2026 audit's order: the purchase price (context, L2, with its
+   Default or Yours tag and, while it is the tool's, its one action), the two
+   metric cards of the decision (L1) and one of context (L2). Two by two
+   from 600px, four in a row from a 760px panel with the decision's two a
+   little wider; on a phone the two of context are rows of their own. */
 .lab-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ls-related); margin-top: var(--ls-within); min-width: 0; }
 .lab-tile { min-width: 0; }
-/* The next step is one target, the whole tile: its link or button reaches
-   over it (::after), and the tile wears the ring. */
-.lab-tile-val.lab-next-what { font-size: var(--ls-body); line-height: 20px; white-space: normal; }
-.lab-next-go { display: inline; padding: 0; margin: 0; border: 0; background: none; font: inherit; font-weight: 700; text-align: left;
+/* The price's one action, a link to the calculator's box. */
+.lab-price-go { display: inline; padding: 0; margin: 0; border: 0; background: none; font: inherit; font-weight: 700; text-align: left;
   color: var(--brand); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
-.lab-next-go:focus-visible { outline: none; }
-.lab-tile-next:hover .lab-next-go { text-decoration-thickness: 2px; }
+.lab-price-go:hover { text-decoration-thickness: 2px; }
+.lab-price-go:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
 /* Where a finger is the pointer the link is a 44px target of its own too:
    padding on an inline link grows what it answers to, not its line (as the
    journey line's link does), so the tile keeps its height. */
@@ -6053,16 +6076,16 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   /* 15px: the target's height is the glyph box plus the padding, and CI's
      Linux sans has a glyph box 2px shorter than Windows' — 13px gave 42px
      there (CI on 1b47c74d). */
-  .lab-next-go { padding: 15px 6px; margin: 0 -6px; min-height: 0; }
+  .lab-price-go { padding: 15px 6px; margin: 0 -6px; min-height: 0; }
 }
 @container lab (min-width: 760px) {
-  .lab-tiles { grid-template-columns: repeat(2, minmax(0, 1.15fr)) repeat(2, minmax(0, 1fr)); gap: var(--sm); }
+  .lab-tiles { grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 1.15fr)) minmax(0, 1fr); gap: var(--sm); }
   .lab-tile { padding: 14px 16px; }
 }
 /* Served, by the window: a 760px panel from an 823px window, and from 1103px
    once the 264px sidebar stands (the panel's sum, below). */
 @media (min-width: 823px) and (max-width: 1023px), (min-width: 1103px) {
-  :root[data-served] .lab-tiles { grid-template-columns: repeat(2, minmax(0, 1.15fr)) repeat(2, minmax(0, 1fr)); gap: var(--sm); }
+  :root[data-served] .lab-tiles { grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 1.15fr)) minmax(0, 1fr); gap: var(--sm); }
   :root[data-served] .lab-tile { padding: 14px 16px; }
 }
 /* ON A PHONE the header is set a step tighter, every word kept: the four
@@ -6082,7 +6105,6 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   .lab-tile .ls-card-sub { line-height: 15px; margin-top: 0; }
   .lab-hd .pc-driver.lab-driver { line-height: 14px; margin-top: -2px; }
   .lab-status.lab-id-name { font-size: var(--ls-body); line-height: 20px; }
-  .ls-card.lab-tile-next .lab-tile-val.lab-next-what { font-size: var(--ls-support); line-height: 18px; margin-top: 3px; }
 }
 @media (max-width: 662px) {
   :root[data-served] .lab-hd { margin-bottom: var(--ls-within); gap: 4px; }
@@ -6097,7 +6119,6 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   :root[data-served] .lab-tile .ls-card-sub { line-height: 15px; margin-top: 0; }
   :root[data-served] .pc-driver.lab-driver { line-height: 14px; margin-top: -2px; }
   :root[data-served] .lab-status.lab-id-name { font-size: var(--ls-body); line-height: 20px; }
-  :root[data-served] .lab-tile-val.lab-next-what { font-size: var(--ls-support); line-height: 18px; margin-top: 3px; }
 }
 /* ON A PHONE TWO FIGURES LEAD (the 9 Oct audit, #5): the decision's two —
    Cash required and Monthly position, or the objective's pair — as cards
@@ -6106,24 +6127,29 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    body size, its kind badge kept, and the next step its call alone (the
    sample's figure it replaces is the slider's, just below). */
 @container lab (max-width: 599px) {
-  .lab-tile.ls-l2, .lab-tile.lab-tile-next { padding: 4px 10px 5px; background: var(--surface-sunk); box-shadow: none; }
+  .lab-tile.ls-l2 { grid-column: 1 / -1; padding: 2px 10px 3px; background: var(--surface-sunk); box-shadow: none; }
   .lab-tile.ls-l2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: baseline; align-content: start; }
   .lab-tile.ls-l2 > .ls-card-hd { display: contents; }
   .lab-tile.ls-l2 .ls-card-label { grid-column: 1; grid-row: 1; min-width: 0; }
-  .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 18px; }
-  .lab-tile.ls-l2 .ls-badge { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
-  .lab-tile.ls-l2 .ls-card-sub { grid-column: 1 / -1; grid-row: 3; }
-  .lab-tile.lab-tile-next .ls-card-sub { display: none; }
+  .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 15px; }
+  /* The tag and what follows it share the second row — the price's action, the yield's gross — so a tile of context is two lines, not three. */
+  .lab-tile.ls-l2 .ls-badge { grid-column: 1; grid-row: 2; justify-self: start; }
+  .lab-tile.ls-l2 .lab-tag.ls-badge { padding: 0 8px; line-height: 13px; }
+  .lab-tile.ls-l2 .kind-badge { height: 15px; line-height: 13px; }
+  .lab-tiles { gap: 3px; }
+  .lab-tile.ls-l2 .ls-card-sub { grid-column: 2; grid-row: 2; justify-self: end; text-align: right; }
 }
 @media (max-width: 662px) {
-  :root[data-served] .lab-tile.ls-l2, :root[data-served] .lab-tile.lab-tile-next { padding: 4px 10px 5px; background: var(--surface-sunk); box-shadow: none; }
+  :root[data-served] .lab-tile.ls-l2 { grid-column: 1 / -1; padding: 2px 10px 3px; background: var(--surface-sunk); box-shadow: none; }
   :root[data-served] .lab-tile.ls-l2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: baseline; align-content: start; }
   :root[data-served] .lab-tile.ls-l2 > .ls-card-hd { display: contents; }
   :root[data-served] .lab-tile.ls-l2 .ls-card-label { grid-column: 1; grid-row: 1; min-width: 0; }
-  :root[data-served] .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 18px; }
-  :root[data-served] .lab-tile.ls-l2 .ls-badge { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
-  :root[data-served] .lab-tile.ls-l2 .ls-card-sub { grid-column: 1 / -1; grid-row: 3; }
-  :root[data-served] .lab-tile.lab-tile-next .ls-card-sub { display: none; }
+  :root[data-served] .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 15px; }
+  :root[data-served] .lab-tile.ls-l2 .ls-badge { grid-column: 1; grid-row: 2; justify-self: start; }
+  :root[data-served] .lab-tile.ls-l2 .lab-tag.ls-badge { padding: 0 8px; line-height: 13px; }
+  :root[data-served] .lab-tile.ls-l2 .kind-badge { height: 15px; line-height: 13px; }
+  :root[data-served] .lab-tiles { gap: 3px; }
+  :root[data-served] .lab-tile.ls-l2 .ls-card-sub { grid-column: 2; grid-row: 2; justify-self: end; text-align: right; }
 }
 
 /* /PROPERTY ON THE SYSTEM (82-property-lab.js). */
@@ -6152,7 +6178,6 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   .ls-page .lab-knob-ctl[data-unit]::before { content: attr(data-unit); order: 1; flex: none; font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-3); }
   .ls-page .lab-knob-ctl > .lab-num { order: 2; }
   .ls-page .lab-knob-ctl > .lab-reset { order: 3; }
-  .ls-card.lab-tile-next .ls-card-act, .ls-card.lab-tile-next .ls-card-cta { font-size: var(--ls-support); line-height: 18px; }
   .ls-page .lab-knob .lab-tag { line-height: 15px; padding: 2px 8px; }
   .ls-page .lab-chain-card { padding: 0 var(--sm) var(--xs); }
   /* THE CHAIN CARD'S HEADER IS FOR THE EAR ON A PHONE (the owner, 16 Oct
@@ -6196,7 +6221,6 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   :root[data-served] .ls-page .lab-knob-ctl[data-unit]::before { content: attr(data-unit); order: 1; flex: none; font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-3); }
   :root[data-served] .ls-page .lab-knob-ctl > .lab-num { order: 2; }
   :root[data-served] .ls-page .lab-knob-ctl > .lab-reset { order: 3; }
-  :root[data-served] .ls-card.lab-tile-next .ls-card-act, :root[data-served] .ls-card.lab-tile-next .ls-card-cta { font-size: var(--ls-support); line-height: 18px; }
   :root[data-served] .ls-page .lab-knob .lab-tag { line-height: 15px; padding: 2px 8px; }
   :root[data-served] .ls-page .lab-chain-card { padding: 0 var(--sm) var(--xs); }
   :root[data-served] .ls-page .lab-chain-hd { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -6242,7 +6266,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   :root .ls-page .lab-inputs { grid-column: 1; grid-row: 1 / -1; }
   :root .ls-page .lab-outputs > * { grid-column: 2; }
   :root .ls-page .lab-outputs > .ls-evidence { grid-column: 3; grid-row: 1 / -1; }
-  :root .ls-page .lab-chain, :root[data-served] .ls-page .lab-chain { grid-template-columns: minmax(0, 1fr); }
+  :root .ls-page .lab-chain, :root[data-served] .ls-page .lab-chain, :root .ls-page .lab-chain-more-body, :root[data-served] .ls-page .lab-chain-more-body { grid-template-columns: minmax(0, 1fr); }
   /* Six ways to compare in the figures' column: three a row, never one
      word left alone on a second. */
   :root .ls-page .lab-seg-by, :root[data-served] .ls-page .lab-seg-by { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -7210,6 +7234,10 @@ input.au-in[type="text"] { text-align: left; }
 .pc-rests-text { margin: 0; max-width: var(--ls-measure); font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
 .pc-rests-text > strong { color: var(--ink); font-weight: var(--weight-semibold); }
 .pc-rests-list { margin-top: var(--xs); }
+.pc-rests-go-p { margin: 0; }
+.pc-rests-go { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--brand); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.pc-rests-go:hover { color: var(--brand-hi); }
+.pc-rests-go:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
 .pc-rests-sum { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--brand); cursor: pointer; list-style: none; text-decoration: underline; text-underline-offset: 3px; }
 .pc-rests-sum::-webkit-details-marker { display: none; }
 .pc-rests-sum:hover { color: var(--brand-hi); }

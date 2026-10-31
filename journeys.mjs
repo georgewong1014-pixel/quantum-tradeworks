@@ -1714,7 +1714,8 @@ const JOURNEYS = [
         const id = await tab.eval(`(document.getElementById('lab-status')?.textContent || '').trim()`);
         if (!/^Sample deal/.test(id)) throw new StepError(`the identity line reads “${id.slice(0, 60)}”, not the sample deal`);
         const tiles = await tab.eval(`[...document.querySelectorAll('main .lab-tile .lab-tile-label')].map(n => n.textContent.trim()).join(' | ')`);
-        if (tiles !== 'Cash required | Monthly position | Net yield | Next step') throw new StepError(`the four tiles read “${tiles}”`);
+        /* The 30 Oct 2026 audit's order, Day 18's (QT-D18-01): the Next step tile went. */
+        if (tiles !== 'Purchase price | Cash required | Monthly position | Net yield') throw new StepError(`the four tiles read “${tiles}”`);
         const exp = await tab.eval(`(() => { const n = document.getElementById('lab-export'); return n ? n.tagName + ':' + n.disabled + ':' + (document.getElementById('lab-export-why')?.textContent || '') : null; })()`);
         if (exp !== 'BUTTON:true:Save it first — a proposal is made from what is saved') throw new StepError(`on the unsaved sample deal, Export reads “${exp}”, not a disabled button with its reason`);
         deal0 = await tab.eval(dealAt);
@@ -1857,6 +1858,9 @@ const JOURNEYS = [
         await tab.expect(`(${work}).route === 'auction' && !!document.getElementById('lab-au') && !document.getElementById('lab-pe')`, 'Auction chosen, the columns are not an auction or the auction risk mode is not drawn');
         await tab.click(`document.querySelector('label[for="lab-q-how-subsale"]')`, 'How are you buying? — Subsale');
         await tab.expect(`!(${work}).route && document.getElementById('lab-q-how-subsale')?.checked === true && !document.getElementById('lab-au') && !!document.getElementById('lab-pe')`, 'Subsale chosen, the columns do not read as a subsale');
+        /* The price against the evidence is a closed disclosure at the foot (the 30 Oct 2026 audit): the reader opens it. */
+        if (!await tab.eval(`!!document.getElementById('lab-pe')?.open`)) await tab.click(`document.querySelector('#lab-pe > summary')`, 'Check the price against your evidence');
+        await tab.expect(`!!document.getElementById('lab-pe')?.open`, 'the price check did not open');
         await tab.click(`document.querySelector('label[for="lab-q-target-monthly"]')`, 'Target — Monthly position at least');
         await tab.fill(`document.getElementById('lab-pe-target-value')`, '0', 'The target figure', { commit: true });
         await tab.expect(`document.querySelector('#lab-pe-cards [data-pe="solve"]')?.dataset.status === 'solved'`, async () => `with a target of RM0 a month the card reads “${await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="solve"]')?.textContent || 'nothing').slice(0, 120)`)}”`, 4000);
@@ -1975,6 +1979,9 @@ const JOURNEYS = [
         if (await tab.eval(`JSON.stringify(store.read('deal', null))`) !== deal0) throw new StepError('using it wrote the calculator’s deal — it is a what-if until saved');
       });
       await step(j, tab, 'Enter an asking price: the price gap names it with its source and date', BUDGET.action * 2, async () => {
+        /* The price against the evidence is a closed disclosure at the foot (the 30 Oct 2026 audit): the reader opens it. */
+        if (!await tab.eval(`!!document.getElementById('lab-pe')?.open`)) await tab.click(`document.querySelector('#lab-pe > summary')`, 'Check the price against your evidence');
+        await tab.expect(`!!document.getElementById('lab-pe')?.open`, 'the price check did not open');
         await tab.fill(`document.getElementById('lab-pe-asking')`, '600000', 'The asking price', { commit: true });
         await tab.expect(`document.querySelector('#lab-pe-cards [data-pe="gap"]')?.dataset.value === '60000'`,
           async () => `with RM600,000 asked against RM540,000 the gap card reads “${await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="gap"]')?.textContent || 'nothing').slice(0, 160)`)}”`, 4000);
@@ -2606,10 +2613,10 @@ const JOURNEYS = [
         const r = await line();
         if (r.here !== 'analyse' || r.what !== null || r.route !== null || r.ev !== 'Sample figures: 10 of 10' || r.moves !== 0 || r.state !== 'No unsaved moves' || r.save)
           throw new StepError(`the Lab's line reads ${said(r)}${r.save ? ', Save offered with nothing moved' : ''}, ${r.here} marked`);
-        const id = JSON.parse(await tab.eval(`JSON.stringify({ name: (document.getElementById('lab-status')?.textContent || '').trim(), assume: (document.getElementById('lab-assume')?.textContent || '').trim(), route: (document.getElementById('lab-q-sum')?.textContent || '').trim() })`));
+        const id = JSON.parse(await tab.eval(`JSON.stringify({ name: (document.getElementById('lab-status')?.textContent || '').trim(), assume: document.getElementById('lab-assume') ? 'drawn' : '', route: (document.getElementById('lab-q-sum')?.textContent || '').trim() })`));
         if (id.name !== 'Sample deal' || id.route !== 'Residential · Subsale') throw new StepError(`the Lab's heading names “${id.name}”, “${id.route}”`);
-        /* The sample's line under its name (QT-D08-02), word for word. */
-        if (id.assume !== 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.') throw new StepError(`the line under the sample's name reads “${id.assume}”`);
+        /* The line under the sample's name (QT-D08-02) went on 31 Oct 2026 (Day 18 follow-up: the chip's line says it). */
+        if (id.assume) throw new StepError('the old line under the sample\'s name, “Illustrative scenario: …”, is still drawn beside the chip\'s line');
         if (r.lines !== 1) throw new StepError(`the Lab's line takes ${r.lines} lines at 1440, not one`);
         if (await snap() !== before) throw new StepError('opening the Lab wrote to storage');
       });

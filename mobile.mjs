@@ -2347,8 +2347,11 @@ for (const w of [360, 390]) {
      - at 360, 390 and 430 every control the reader can reach in the panel
        is a 44px target both ways (a radio's whole label is its target);
      - at 360×640, the panel's inputs at the top of the screen, the slider
-       being moved and all eight results sit on that one screen, below the
-       topbar, with one knob drawn; at 1024 and 1440 all five;
+       being moved and the results in sight sit on that one screen, below the
+       topbar, with one knob drawn — since the 30 Oct 2026 audit four of the
+       eight (Monthly position, Cash required, Net yield, Monthly repayment)
+       and "4 more figures", a 44px line, the other four being folded under it
+       and all eight in the page; at 1024 and 1440 all five;
      - at 360, under each of the six comparisons, nothing scrolls sideways;
      - in light and in dark, every bar's fill is 3:1 against its track and
        its card, every figure 4.5:1 against its card, a column's letter
@@ -2405,14 +2408,17 @@ for (const w of [360, 390]) {
         const knobs = [...document.querySelectorAll('.lab-knob')].filter(n => n.getClientRects().length);
         const range = document.querySelector('.lab-knob.is-on .lab-range');
         const rb = range ? range.getBoundingClientRect() : null;
-        const vals = [...document.querySelectorAll('.lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => ({ k: n.dataset.lab, b: n.getBoundingClientRect() }));
-        return { knobs: knobs.length, under: Math.round(under), range: rb && [Math.round(rb.top), Math.round(rb.bottom)], vals: vals.map(x => [x.k, Math.round(x.b.top), Math.round(x.b.bottom)]), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })() };
+        /* The 30 Oct 2026 audit: four of the eight stand, four are in the closed "4 more figures", whose summary stands under them. */
+        const vals = [...document.querySelectorAll('.lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => ({ k: n.dataset.lab, b: n.getBoundingClientRect(), seen: n.checkVisibility() }));
+        const fold = document.getElementById('lab-chain-more-btn'), fb = fold ? fold.getBoundingClientRect() : null;
+        return { knobs: knobs.length, under: Math.round(under), range: rb && [Math.round(rb.top), Math.round(rb.bottom)], fold: fb && [Math.round(fb.top), Math.round(fb.bottom), Math.round(fb.height)], seen: vals.filter(x => x.seen).map(x => x.k).join(), vals: vals.filter(x => x.seen).map(x => [x.k, Math.round(x.b.top), Math.round(x.b.bottom)]), all: vals.length, vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })() };
       })()`);
       said.oneScreen = r;
       if (r.knobs !== 1) fails.push(`360×640: ${r.knobs} knobs drawn, not one`);
       if (!r.range || r.range[0] < r.under || r.range[1] > r.vh) fails.push(`360×640: the slider sits at ${JSON.stringify(r.range)}, the screen below the topbar is ${r.under}–${r.vh}`);
-      if (r.vals.length !== 8) fails.push(`360×640: ${r.vals.length} results, not eight`);
+      if (r.all !== 8 || r.seen !== 'cashflowMonthly,safeCashRequired,netYield,instalment') fails.push(`360×640: ${r.all} results in the page and ${r.seen || 'none'} in sight, not eight with Monthly position, Cash required, Net yield and Monthly repayment standing`);
       r.vals.filter(([, t, b]) => t < r.under || b > r.vh).forEach(([k, t, b]) => fails.push(`360×640: ${k} sits at ${t}–${b}, off the screen`));
+      if (!r.fold || r.fold[0] < r.under || r.fold[1] > r.vh || r.fold[2] < 43.5) fails.push(`360×640: "4 more figures" sits at ${JSON.stringify(r.fold)}, not a whole 44px line on the screen`);
     }
     /* No sideways scroll at 360 under any comparison. */
     for (const id of ['yield', 'cashflow', 'entry', 'appreciation', 'risk', 'location']) {
@@ -2571,7 +2577,7 @@ for (const w of [360, 390]) {
         await ${frames};
         const at = () => {
           const range = document.getElementById('lab-r-${k}').getBoundingClientRect();
-          const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
+          const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade' && n.checkVisibility()).map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
           return { range: [Math.round(range.top), Math.round(range.bottom)], vals };
         };
         const before = at();
@@ -2915,7 +2921,7 @@ for (const w of [360, 390]) {
         await frames();
         const warn = document.querySelector('#lab-knob-ratePct .lab-note-warn');
         const w = warn && warn.getClientRects().length ? warn.getBoundingClientRect() : null;
-        const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
+        const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade' && n.checkVisibility()).map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
         return { under: Math.round(under), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), rate: nb.value, warn: w ? [Math.round(w.top), Math.round(w.bottom), warn.textContent] : null, vals };
       })()`);
       said.lab.push([font ? 'Verdana' : 'page font', Math.max(...r.vals.map(v => v[2]))]);
@@ -2966,11 +2972,16 @@ for (const w of [360, 390]) {
    Property's landing opens the Scenario Lab on the calculator's deal, and a
    first visit sees, without scrolling, at 1440×900 and at 390×844, in the
    page's font and in Verdana (CI's Linux sans is as wide): the identity line,
-   the four tiles — Cash required, Monthly position, Net yield, Next step —
-   and the first slider, each whole inside the window. /property served the
+   the four tiles — Purchase price, Cash required, Monthly position, Net yield
+   (the 30 Oct 2026 audit and Day 18's order, QT-D18-01; the Next step tile
+   went, its link is in "What these figures rest on") — and, since Day 18, the
+   one primary "Enter your property figures" in place of the first slider,
+   each whole inside the window; pressing it puts the price box on this screen
+   with the keyboard in it. /property served the
    calculator, whose first field sat about 2,400px down at 1440 and 3,650px
-   at 390. On a phone the identity line's Save and the next step are 44px
-   targets, and nothing scrolls sideways.
+   at 390. On a phone the action bar's Save and the call are 44px targets,
+   and nothing scrolls sideways. The sentence over the boxes, "Fields marked
+   Default…", follows the slider on a phone.
    ON THE LAYOUT SYSTEM (7 Oct 2026): on a phone Save is the sticky action
    bar's (Analyse · Compare · Save this), and "the first screen" ends where
    the bar begins — the slider must be whole above it, not under it. The
@@ -3019,15 +3030,16 @@ for (const w of [360, 390]) {
         const range = [...document.querySelectorAll('#views input[type=range]')].find(n => n.getClientRects().length);
         return { y: Math.round(scrollY), vw: innerWidth, vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           identity: box(document.querySelector('#views .lab-identity')), name: (document.getElementById('lab-status')?.textContent || '').trim(),
-          assume: box(document.querySelector('#views .lab-id-assume')), assumeText: (document.querySelector('#views .lab-id-assume')?.textContent || '').trim(),
-          described: (() => { const s = document.querySelector('#views .lab-identity'), a = document.querySelector('#views .lab-id-assume');
-            return !!(s && a && a.id && s.getAttribute('aria-describedby') === a.id && (document.getElementById(s.getAttribute('aria-labelledby'))?.textContent || '').trim() === 'Sample deal'); })(),
+          assume: !!document.querySelector('#views .lab-id-assume'), intro: box(document.querySelector('#views .lab-page-hd .page-lede')), introText: (document.querySelector('#views .lab-page-hd .page-lede')?.textContent || '').trim(),
+          described: (() => { const s = document.querySelector('#views .lab-identity');
+            return !!(s && !s.getAttribute('aria-describedby') && (document.getElementById(s.getAttribute('aria-labelledby'))?.textContent || '').trim() === 'Sample deal'); })(),
           questions: ['what', 'how'].map(q => box(document.getElementById('lab-q-' + q))),
           summary: box(document.querySelector('#views .lab-id-meta.has-sum')), summaryWords: (document.getElementById('lab-q-sum')?.textContent || '').trim(),
           change: box(document.getElementById('lab-q-change')), folded: document.getElementById('lab-q-change')?.getAttribute('aria-expanded') === 'false',
           tiles: [...document.querySelectorAll('#views .lab-tile')].map(n => ({ label: n.querySelector('.lab-tile-label')?.textContent.trim(), at: box(n) })),
           slider: box(range), sliderOf: range?.id || null,
-          save: box(document.getElementById(innerWidth < 640 ? 'ls-act-save' : 'lab-id-save')), next: box(document.querySelector('#views .lab-tile-next')),
+          save: box(document.getElementById(innerWidth < 640 ? 'ls-act-save' : 'lab-id-save')), cta: box(document.getElementById('lab-enter')), ctaPrimary: document.getElementById('lab-enter')?.classList.contains('btn-primary'),
+          primaries: [...document.querySelectorAll('#views .btn-primary, body > .dock .btn-primary, body > .dock .ls-act-primary')].filter(n => n.getClientRects().length).map(n => n.textContent.trim()),
           face: getComputedStyle(document.querySelector('#views .lab-tile-val') || document.body).fontFamily };
       })()`);
       const whole = (b) => !!b && b.t >= 0 && b.b <= r.vh && b.l >= 0 && b.r <= r.vw;
@@ -3035,15 +3047,12 @@ for (const w of [360, 390]) {
       if (r.y !== 0) fails.push(`${at}: the page opened scrolled to ${r.y}px, not at its top`);
       if (!/^Sample deal/.test(r.name)) fails.push(`${at}: the identity line reads "${r.name.slice(0, 60)}", not the sample deal's on a first visit`);
       if (!whole(r.identity)) fails.push(`${at}: the identity line ${r.identity ? `(${r.identity.t}–${r.identity.b}px)` : '(none)'} is not whole in the first ${r.vh}px`);
-      /* The sample's line under its name (QT-D08-02): whole on the first
-         screen, above the figures, word for word; the section named "Sample
-         deal" and described by it. */
-      if (!whole(r.assume)) fails.push(`${at}: the sample's line under its name ${r.assume ? `(${r.assume.t}–${r.assume.b}px)` : '(none)'} is not whole in the first ${r.vh}px`);
-      if (r.assumeText !== 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.') fails.push(`${at}: the sample's line under its name reads "${r.assumeText}"`);
-      if (r.assume && r.tiles[0]?.at && r.assume.b > r.tiles[0].at.t) fails.push(`${at}: the sample's line under its name stands below the figures`);
-      if (!r.described) fails.push(`${at}: the identity section is not named "Sample deal" and described by the line under it (aria-labelledby, aria-describedby)`);
-      const labels = r.tiles.map(t => t.label);
-      if (JSON.stringify(labels) !== JSON.stringify(['Cash required', 'Monthly position', 'Net yield', 'Next step'])) fails.push(`${at}: the tiles are ${JSON.stringify(labels)}`);
+      /* The line under the sample's name went (31 Oct 2026, the Day 18 follow-up: "Sample figures are illustrative…" beside the chip says it); the section is named "Sample deal". The introduction shows at every width, whole, above the call. */
+      if (r.assume) fails.push(`${at}: the old line under the sample's name, "Illustrative scenario: …", is still drawn`);
+      if (!r.described) fails.push(`${at}: the identity section is not named "Sample deal" (aria-labelledby)`);
+      if (r.introText !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.' || !whole(r.intro) || (r.cta && r.intro && r.intro.b > r.cta.t + 1)) fails.push(`${at}: the introduction reads "${r.introText}" at ${r.intro ? `${r.intro.t}–${r.intro.b}px` : 'nowhere in sight'}, not whole in the first screen above "Enter your property figures"`);
+            const labels = r.tiles.map(t => t.label);
+      if (JSON.stringify(labels) !== JSON.stringify(['Purchase price', 'Cash required', 'Monthly position', 'Net yield'])) fails.push(`${at}: the tiles are ${JSON.stringify(labels)}`);
       r.tiles.forEach(t => { if (!whole(t.at)) fails.push(`${at}: the "${t.label}" tile ${t.at ? `(${t.at.t}–${t.at.b}px)` : ''} is not whole in the first ${r.vh}px`); });
       if (w >= 600) {
         r.questions.forEach((q, i) => { if (!whole(q)) fails.push(`${at}: "${['What are you buying?', 'How are you buying?'][i]}" ${q ? `(${q.t}–${q.b}px)` : '(none)'} is not whole in the first ${r.vh}px`); });
@@ -3054,20 +3063,36 @@ for (const w of [360, 390]) {
         if (r.summaryWords !== 'Residential · Subsale' || !r.folded) fails.push(`${at}: the summary reads "${r.summaryWords}"${r.folded ? '' : ' and the questions are open'} on a first visit, not "Residential · Subsale", folded`);
         if (r.questions.some(Boolean)) fails.push(`${at}: the questions are drawn open on a first visit`);
       }
-      if (!whole(r.slider)) fails.push(`${at}: the first slider${r.sliderOf ? ` (#${r.sliderOf})` : ''} ${r.slider ? `(${r.slider.t}–${r.slider.b}px)` : '(none in sight)'} is not whole in the first ${r.vh}px`);
+      /* Day 18 (QT-D18-01, 31 Oct 2026): the page's one primary, "Enter your property figures", stands under the introduction, whole on the first screen and a 44px
+         target, and is the only primary in sight (Save is a secondary); the first slider is no longer on the first screen — pressing the call brings the purchase
+         price box into it, with the keyboard in it. */
+      if (!whole(r.cta) || r.cta.h < 43.5) fails.push(`${at}: "Enter your property figures" ${r.cta ? `(${r.cta.t}–${r.cta.b}px, ${r.cta.h}px high)` : '(none)'} is not a whole 44px target in the first ${r.vh}px`);
+      if (!r.ctaPrimary || r.primaries.join('|') !== 'Enter your property figures') fails.push(`${at}: the primary buttons in sight are ${JSON.stringify(r.primaries)}, not the one "Enter your property figures"`);
+      /* As answered on 31 Oct 2026: the call is a real link to the calculator's price box, and pressing it puts the keyboard there. */
+      {
+        const p = await ev(`(async () => {
+          const a = document.getElementById('lab-enter');
+          const out = { tag: a.tagName, href: a.getAttribute('href') };
+          a.click();
+          for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await new Promise(r => setTimeout(r, 150));
+          const n = document.getElementById('d-price'), b = n ? n.getBoundingClientRect() : null;
+          const dock = document.querySelector('body > .dock'), foot = dock && dock.getClientRects().length && getComputedStyle(dock).position === 'fixed' ? dock.getBoundingClientRect().top : innerHeight;
+          return { ...out, focus: document.activeElement && document.activeElement.id, t: b && Math.round(b.top), b: b && Math.round(b.bottom), foot: Math.round(foot) }; })()`);
+        if (p.tag !== 'A' || p.href !== '/property/calculator#d-price') fails.push(`${at}: "Enter your property figures" is ${p.tag} to ${p.href}, not a link to /property/calculator#d-price`);
+        if (p.focus !== 'd-price' || p.t == null || p.t < 0 || p.b > p.foot) fails.push(`${at}: after "Enter your property figures" the keyboard is on #${p.focus} and the calculator's price box at ${p.t}–${p.b}px, not whole above ${p.foot}px`);
+      }
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
       if (w < 600) {
         if (!r.save || r.save.h < 43.5 || r.save.w < 43.5) fails.push(`${at}: Save (the action bar's, on a phone) is ${r.save ? `${r.save.w}×${r.save.h}px` : 'not there'}, not a 44px target`);
-        if (!r.next || r.next.h < 43.5) fails.push(`${at}: the next step is ${r.next ? `${r.next.w}×${r.next.h}px` : 'not there'}, not a 44px target`);
       }
-      said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b} (the sample's line ${r.assume?.t}–${r.assume?.b}), ${w >= 600 ? `questions to ${r.questions[1]?.b}` : `summary ${r.summary?.t}–${r.summary?.b}`}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
+      said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b} (the introduction ${r.intro?.t}–${r.intro?.b}), ${w >= 600 ? `questions to ${r.questions[1]?.b}` : `summary ${r.summary?.t}–${r.summary?.b}`}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
     }
   } finally {
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL n3-first-view — /property's first screen (N3, D18): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, the two questions (at 1440 whole; on a phone their 44px summary line, folded), its four tiles and its first slider whole on the first screen — ${said.join('; ')}; on a phone Save and the next step are 44px targets and nothing scrolls sideways`);
+  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, the two questions (at 1440 whole; on a phone their 44px summary line, folded), its four tiles and its one primary, "Enter your property figures" (which puts the price box on the first screen), whole on it — ${said.join('; ')}; on a phone Save and the price’s Replace link are 44px targets and nothing scrolls sideways`);
 }
 /* ---- end n3-first-view ---- */
 /* ---- layout-system ---- */
@@ -3446,7 +3471,7 @@ for (const w of [360, 390]) {
       alert: (document.querySelector('#${sec} .au-alert .ls-card-title')?.textContent || '').trim(),
       l1: [...s.querySelectorAll('[data-au-fig][data-level="1"]')].map(n => n.dataset.auFig), forfeit: s.querySelector('[data-au-fig="forfeiture"] [data-value]')?.dataset.value || '',
       rows: s.querySelectorAll('.au-wf-row').length, controls: ctrls.length,
-      bar: box(bar), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
+      bar: box(bar), cta: box(document.getElementById('lab-enter')), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
       face: getComputedStyle(s.querySelector('.au-wf-amt') || s).fontFamily };
   })()`;
   try {
@@ -3462,7 +3487,7 @@ for (const w of [360, 390]) {
         /* The first screen first: the slider above the bar (the Lab). */
         if (view === 'propertyLab') {
           const top = await ev(read(sec));
-          if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
+          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
         }
         await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
@@ -3547,7 +3572,7 @@ for (const w of [360, 390]) {
       l1: [...s.querySelectorAll('[data-nd-fig][data-level="1"]')].map(n => n.dataset.ndFig), premium: s.querySelector('[data-nd-fig="premium"] [data-value]')?.dataset.value || '',
       idc: s.querySelector('[data-nd-fig="idc"]')?.dataset.status || '', rows: s.querySelectorAll('.nd-exit .au-wf-row').length, stages: roots.flatMap(r => [...r.querySelectorAll('.nd-stage')]).length, controls: ctrls.length,
       dlp: !!s.querySelector('.nd-dlp'),
-      bar: box(bar), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
+      bar: box(bar), cta: box(document.getElementById('lab-enter')), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
       face: getComputedStyle(s.querySelector('.ls-card-value') || s).fontFamily };
   })()`;
   try {
@@ -3562,7 +3587,7 @@ for (const w of [360, 390]) {
         if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
         if (view === 'propertyLab') {
           const top = await ev(read(sec));
-          if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
+          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
         }
         await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
@@ -3652,7 +3677,7 @@ for (const w of [360, 390]) {
       l1: [...s.querySelectorAll('[data-cm-fig][data-level="1"]')].map(n => n.dataset.cmFig), sustain: s.querySelector('[data-cm-fig="sustain"]')?.dataset.status || '',
       r12: s.querySelector('[data-cm-fig="reserve-12"] [data-value]')?.dataset.value || '', rents: s.querySelectorAll('[data-rent]').length,
       cards: [...s.querySelectorAll('.cm-ld-table tbody tr')].filter(n => shown(n) && getComputedStyle(n).display === 'block').length, headHidden: !shown(head),
-      controls: ctrls.length, bar: box(bar), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
+      controls: ctrls.length, bar: box(bar), cta: box(document.getElementById('lab-enter')), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
       face: getComputedStyle(s.querySelector('.ls-card-value') || s).fontFamily };
   })()`;
   try {
@@ -3669,7 +3694,7 @@ for (const w of [360, 390]) {
         if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
         if (view === 'propertyLab') {
           const top = await ev(read(sec));
-          if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
+          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
         }
         await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
@@ -3756,7 +3781,7 @@ for (const w of [360, 390]) {
       shownCols: [...new Set([...s.querySelectorAll('.lab-xr-cell')].filter(shown).map(n => n.dataset.col))].join(''),
       allCols: [...new Set([...s.querySelectorAll('.lab-xr-cell')].map(n => n.dataset.col))].join(''),
       showChips: [...s.querySelectorAll('.lab-xr-show input')].length, lensLines: lines('.lab-pick-lens'), showLines: lines('.lab-xr-show'),
-      bar: box(bar), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
+      bar: box(bar), cta: box(document.getElementById('lab-enter')), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
       face: getComputedStyle(s.querySelector('.lab-xr-v') || s).fontFamily };
   })()`;
   try {
@@ -3772,7 +3797,7 @@ for (const w of [360, 390]) {
       if (got !== 'propertyLab') { fails.push(`${at}: opened ${got}`); continue; }
       if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const top = await ev(read);
-      if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
+      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
       await ev(`(() => { const s = document.getElementById('lab-xr'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
       await sleep(200);
       const r = await ev(read);
@@ -3852,7 +3877,7 @@ for (const w of [360, 390]) {
       shownCols: [...new Set([...s.querySelectorAll('.lab-xr-cell')].filter(shown).map(n => n.dataset.col))].join(','),
       allCols: [...new Set([...s.querySelectorAll('.lab-xr-cell')].map(n => n.dataset.col))].join(','),
       showChips: [...s.querySelectorAll('.lab-xr-show input')].length, lensLines: lines('.lab-pick-lens'), showLines: lines('.lab-xr-show'),
-      bar: box(bar), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
+      bar: box(bar), cta: box(document.getElementById('lab-enter')), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
       face: getComputedStyle(s.querySelector('.lab-xr-v') || s).fontFamily };
   })()`;
   try {
@@ -3866,7 +3891,7 @@ for (const w of [360, 390]) {
       if (got !== 'propertyLab') { fails.push(`${at}: opened ${got}`); continue; }
       if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const top = await ev(read);
-      if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
+      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
       await ev(`(() => { const s = document.getElementById('lab-rf'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
       await sleep(200);
       const r = await ev(read);
@@ -4172,10 +4197,9 @@ for (const w of [360, 390]) {
        answered Auction, "Not final: 6 checks open".
    THE SAMPLE'S LINE UNDER ITS NAME (the Day-8 report's QT-D08-02, the
    owner's decision of 20 Oct 2026) — "Illustrative scenario: price, rent,
-   growth and some costs are assumptions, not market evidence." — is in
-   sight word for word and is not counted, as the homepage's boundary line
-   is not; it took the place of "— not a real listing" (four words fewer
-   counted), and no bound moved.
+   growth and some costs are assumptions, not market evidence." — went on
+   31 Oct 2026 (Day 18 follow-up, "remove before adding"): the chip's "Sample
+   figures are illustrative, not market evidence…" says it.
    Fails on 58dbc0b4: 189 and 145 words before the slider, 799 and 608 in
    all, the tiles four alike on a phone, the saving prerequisites a
    paragraph of 76 words in sight, and the auction's notes standing open. */
@@ -4197,8 +4221,8 @@ for (const w of [360, 390]) {
   };
   const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
   const TERMS = 'route:auction~reservePrice:420000~auctionDepositPct:10~auctionDepositOf:reserve~auctionBalanceDays:90~auctionComp1:600000~auctionComp2:640000~auctionRepairs:15000~arrearsMaintenance:3000~auctionHoldMonths:3';
-  const BOUND = { 1440: { before: 184, all: 574 }, 390: { before: 138, all: 485 } };
-  const LAB_SAMPLE_ASSUME = 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.';
+  /* 390's `before` rose from 138 to 154 on 31 Oct 2026 (Day 18 follow-up, QT-D18-01): the introduction (14 words) shows on a phone, between the heading and its button (4), measured 147; the old line under the sample's name, which was not counted, went. */
+  const BOUND = { 1440: { before: 184, all: 574 }, 390: { before: 154, all: 485 } };
   /* What the eye can see, as a reader who opens nothing does. */
   const SEEN = `const seen = (n, root = document.querySelector('main') || document.body) => {
       const p = n.nodeType === 3 ? n.parentElement : n;
@@ -4223,13 +4247,10 @@ for (const w of [360, 390]) {
     const tw = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
     for (let n = tw.nextNode(); n; n = tw.nextNode()) {
       if (!seen(n)) continue;
-      /* The sample's line under its name: held word for word, not counted (QT-D08-02). */
-      if (n.parentElement?.closest('.lab-id-assume')) continue;
       const w = words(n.data).length;
       all += w;
       if (slider && (slider.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_PRECEDING)) before += w;
     }
-    const assumeAt = document.querySelector('#views .lab-id-assume');
     const box = (n) => { if (!n || !n.getClientRects().length) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), h: Math.round(b.height) }; };
     const tiles = [...document.querySelectorAll('#views .lab-tile')].map(n => ({ label: (n.querySelector('.lab-tile-label')?.textContent || '').trim(), level: n.dataset.level || (n.dataset.card === 'action' ? 'next' : ''),
       at: box(n), value: parseFloat(getComputedStyle(n.querySelector('.ls-card-value, .lab-next-what') || n).fontSize),
@@ -4240,14 +4261,13 @@ for (const w of [360, 390]) {
     const strip = document.getElementById('disclosureText');
     const head = document.querySelector('#views .lab-page-hd');
     return { before, all, sliderOf: slider?.id || null, slider: box(slider), vh: innerHeight, vw: innerWidth,
-      barTop: bar && bar.getClientRects().length && getComputedStyle(bar).position === 'fixed' ? Math.round(bar.getBoundingClientRect().top) : innerHeight,
+      cta: box(document.getElementById('lab-enter')), barTop: bar && bar.getClientRects().length && getComputedStyle(bar).position === 'fixed' ? Math.round(bar.getBoundingClientRect().top) : innerHeight,
       over: document.documentElement.scrollWidth - document.documentElement.clientWidth, tiles,
       line: line && seen(line.firstChild || line) ? line.textContent.trim() : null,
       more: more ? { tag: more.tagName, open: more.open, sum: (more.querySelector(':scope > summary')?.textContent || '').trim(), words: words(more.textContent).length } : null,
       commitSeen,
       claimMore: (() => { const d = document.getElementById('lab-claim-more'); return d ? { tag: d.tagName, open: d.open, sum: (d.querySelector(':scope > summary')?.textContent || '').trim(), text: d.textContent, hit: Math.round(parseFloat(getComputedStyle(d.querySelector(':scope > summary'), '::after').height)) } : null; })(),
       strip: strip ? seenText(strip) : '', beta: head ? seenText(head) : '', page: seenText(main),
-      assume: assumeAt && seen(assumeAt.firstChild || assumeAt) ? assumeAt.textContent.trim() : null,
       firstKnob: (() => { const k = slider?.closest('.lab-knob'); return k ? seenText(k) : ''; })() };
   })()`;
   try {
@@ -4273,18 +4293,20 @@ for (const w of [360, 390]) {
       /* Two figures lead on a phone. */
       const t = r.tiles;
       if (w < 640) {
-        const [a, b, ...rest] = t;
-        if (!a || !b || a.level !== '1' || b.level !== '1') fails.push(`${at}: the first two tiles are ${JSON.stringify(t.slice(0, 2).map(x => `${x.label} (L${x.level})`))}, not the decision's two (L1)`);
+        /* The 30 Oct 2026 audit's order: the purchase price (context, a compact row) first, then the decision's two side by side, then the yield. */
+        const [a, b] = t.filter(x => x.level === '1'), rest = t.filter(x => x.level !== '1');
+        if (!a || !b || t.filter(x => x.level === '1').length !== 2) fails.push(`${at}: the tiles are ${JSON.stringify(t.map(x => `${x.label} (L${x.level})`))}, not the decision's two (L1) with the others of context`);
         else {
           if (Math.abs(a.at.t - b.at.t) > 1) fails.push(`${at}: the two lead tiles are not side by side (${a.at.t}px and ${b.at.t}px)`);
           for (const x of rest) {
-            if (!x.at || x.at.t < Math.max(a.at.b, b.at.b) - 1) fails.push(`${at}: "${x.label}" does not stand under the two lead figures`);
+            if (!x.at || (x.label === 'Purchase price' ? x.at.b > Math.min(a.at.t, b.at.t) + 1 : x.at.t < Math.max(a.at.b, b.at.b) - 1)) fails.push(`${at}: "${x.label}" does not stand ${x.label === 'Purchase price' ? 'above' : 'under'} the two lead figures`);
             if (x.at && x.at.h > 0.8 * Math.min(a.at.h, b.at.h)) fails.push(`${at}: "${x.label}" is ${x.at.h}px tall, not a compact row under the lead tiles (${Math.min(a.at.h, b.at.h)}px; at most 80% of it)`);
             if (x.level === '2' && !(x.value <= 0.75 * a.value)) fails.push(`${at}: "${x.label}"'s figure is ${x.value}px, not a step under the lead figures' ${a.value}px (at most 75% of it)`);
           }
-          if (JSON.stringify([a.label, b.label]) !== JSON.stringify(['Cash required', 'Monthly position'])) fails.push(`${at}: the lead tiles are ${a.label} and ${b.label}, not Cash required and Monthly position`);
+          if (JSON.stringify(t.map(x => x.label)) !== JSON.stringify(['Purchase price', 'Cash required', 'Monthly position', 'Net yield'])) fails.push(`${at}: the tiles are ${JSON.stringify(t.map(x => x.label))}, not Purchase price, Cash required, Monthly position, Net yield`);
         }
-        if (w === 390 && (!r.slider || r.slider.t < 0 || r.slider.b > r.barTop)) fails.push(`${at}: the first slider ${r.slider ? `(${r.slider.t}–${r.slider.b}px)` : '(none in sight)'} is not whole above the action bar (from ${r.barTop}px)`);
+        /* Day 18 (QT-D18-01, 31 Oct 2026): "Enter your property figures" stands in the head, and the first slider is its press away (n3-first-view), no longer on the first screen of a phone. */
+        if (w === 390 && (!r.cta || r.cta.t < 0 || r.cta.b > r.barTop || r.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${r.cta ? `(${r.cta.t}–${r.cta.b}px, ${r.cta.h}px high)` : '(none in sight)'} is not a whole 44px target above the action bar (from ${r.barTop}px)`);
       }
       t.forEach(x => { if (!x.badge) fails.push(`${at}: the "${x.label}" tile shows no kind badge`); });
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
@@ -4299,13 +4321,14 @@ for (const w of [360, 390]) {
       if (commitWords > 40) fails.push(`${at}: ${commitWords} words in sight in the commit card ("${r.commitSeen.slice(0, 80)}…"), not its buttons and one line`);
       /* The disclosures in sight, nothing opened. */
       const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.beta, 'Beta', 'the Beta badge beside the title'], [r.page, 'Not a valuation', 'the chip'],
-        [r.page, 'They are not a property valuation or investment recommendation', 'the claim'],
-        [r.page, 'on estimated lines', 'the cash required\'s estimated lines'], [r.firstKnob, 'Illustrative default', 'the first knob\'s evidence tag']];
+        [r.page, 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.', 'the supporting line beside the chip'],
+        [r.page, 'Enter your property figures', 'the one call to action'],
+        [r.page, 'on estimated lines', 'the cash required\'s estimated lines'], [r.firstKnob, 'Default', 'the first knob\'s Default tag'],
+        [r.page, 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.', 'the one sentence over the boxes']];
       for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
       /* The registered valuer's line, whole and one tap away (QT-D15-02). */
       if (!r.claimMore || r.claimMore.tag !== 'DETAILS' || r.claimMore.open || r.claimMore.sum !== 'Why this is not a valuation' || !r.claimMore.text.includes('Not an official property valuation') || !r.claimMore.text.includes('registered valuer')) fails.push(`${at}: "Why this is not a valuation" is ${JSON.stringify(r.claimMore)}, not a closed <details> holding the registered valuer's line`);
       if (r.claimMore && !(r.claimMore.hit >= 44)) fails.push(`${at}: "Why this is not a valuation" has a ${r.claimMore.hit}px target, under 44px`);
-      if (r.assume !== LAB_SAMPLE_ASSUME) fails.push(`${at}: the sample's line under its name reads ${r.assume === null ? 'nothing in sight' : `"${r.assume}"`}, not "${LAB_SAMPLE_ASSUME}" word for word`);
       const tileDefaults = t.filter(x => x.badge === 'Illustrative default').length;
       if (tileDefaults < 3) fails.push(`${at}: ${tileDefaults} tiles show "Illustrative default" on the sample, not every figure's`);
     }
@@ -4335,7 +4358,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL lab-words — the Scenario Lab's words before its figures (the 9 Oct audit, #5): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, the sample's assumptions line word for word (not counted), the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
+  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 154/485 at 390); on a phone Cash required and Monthly position lead, side by side, the purchase price a compact row above them and the yield one under them, each with its tag or badge, "Enter your property figures" above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the supporting line beside the chip, the one sentence over the boxes and each box's Default tag, and the unverified lines, in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
 }
 /* ---- end lab-words ---- */
 /* ---- lab-row-kinds ---- */
@@ -4371,6 +4394,8 @@ for (const w of [360, 390]) {
   const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
   const read = `(async () => {
     await document.fonts.ready;
+    /* Four of the eight rows sit in the closed "4 more figures" (the 30 Oct 2026 audit): the reader opens it, and all eight are laid out as before. */
+    const fold = document.getElementById('lab-chain-more'); if (fold) fold.open = true;
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const lines = (n) => { if (!n || !n.firstChild) return 0; const r = document.createRange(); r.selectNodeContents(n); return new Set([...r.getClientRects()].filter(q => q.width > 1).map(q => Math.round(q.top))).size; };
     const box = (n) => { const b = n.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, w: b.width, h: b.height }; };
