@@ -352,8 +352,12 @@ jobs:
       # feature meeting another written on a different day goes wrong. A demand
       # record silently disabled undo for the whole register and every check
       # here stayed green through three commits.
+      # (The 31 Oct 2026 operational audit, #5: this step had no `if`, so an
+      # earlier failure skipped it silently, and it was not run through
+      # checks-record.mjs, so /status listed 14 suites and never this one.)
       - name: the register survives record, edit, undo and replay
-        run: node register-test.mjs http://localhost:8123
+        if: ${{ !cancelled() && steps.serve.outcome == 'success' }}
+        run: node checks-record.mjs run register-test -- node register-test.mjs http://localhost:8123
       # register-test drives a SEQUENCE; this drives ARITHMETIC. Every check in
       # it is a definition rather than an expected value — the NPV of the
       # published flows at the published IRR must be zero, the break-even rent

@@ -86,6 +86,10 @@ export const ANNOTATION = 'qt-check';
 export const SUITES = Object.freeze([
   { id: 'model-test', run: 'model-test', job: 'runtime', kind: 'numbers', name: 'model-test', what: 'the property model: every published figure the quantity its label claims' },
   { id: 'equity-test', run: 'equity-test', job: 'runtime', kind: 'numbers', name: 'equity-test', what: 'the filed statements labelled and derived as they claim' },
+  /* The 31 Oct 2026 operational audit, #5: the save-sequence suite ran as a
+     bare step with no `if: !cancelled()`, was skipped when an earlier step
+     failed, and was recorded nowhere — /status listed 14 suites, not 15. */
+  { id: 'register-test', run: 'register-test', job: 'runtime', kind: 'numbers', name: 'register-test', what: 'the register survives record, edit, undo and replay' },
   { id: 'scanner-test', run: 'scanner-test', job: 'static', kind: 'numbers', name: 'scanner-test', what: 'the scanner engine on hand-computed series and its fixture' },
   { id: 'ingest-test', run: 'ingest-test', job: 'static', kind: 'numbers', name: 'ingest-test', what: 'the SEC ingest picks the year-end figure' },
   { id: 'history-store-test', run: 'history-store-test', job: 'static', kind: 'numbers', name: 'history-store-test', what: 'the price-history store validates, ranks, trims and dates bars' },
@@ -124,6 +128,13 @@ const passedFailed = (log) => { const m = last(log, /^(\d+) passed, (\d+) failed
 const PARSE = {
   'model-test': allHold(/all (\d+) model invariants hold/),
   'equity-test': passedFailed,
+  /* Prints an "ok" line a check, "FAIL" lines on stderr, and ends "register holds: …" or "N invariants broken." */
+  'register-test': (log) => {
+    const t = tallyLines(log), end = last(log, /^(register holds: [^\n]*|(\d+) invariants? broken\.)$/m);
+    if (!end) return null;
+    const failed = end[2] ? +end[2] : t.failed;
+    return { passed: t.passed, failed, said: `${t.passed} ok, ${failed} FAIL — ${end[1]}` };
+  },
   'scanner-test': allHold(/all (\d+) scanner checks hold/),
   'ingest-test': allHold(/all (\d+) ingest rules hold/),
   'history-store-test': allHold(/all (\d+) history-store checks hold/),
@@ -443,6 +454,11 @@ function selfTest() {
   const b = j('build-check', OUT['build-check'], 0), pr = j('prerender-check', OUT['prerender-check'], 0), sw = j('sweep', OUT.sweep, 0), cfr = j('coverage-frames', OUT['coverage-frames'], 1), mo = j('mobile', OUT.mobile, 0);
   t(b.passed === 181 && b.failed === 0 && pr.passed === 181 && sw.passed === 70 && sw.failed === 0 && cfr.passed === 2 && cfr.failed === 1 && cfr.status === 'FAIL' && mo.passed === 2 && mo.status === 'PASS',
     `counts from the output: build --check 181 renders, prerender 181 of 181, sweep 70/70 routes, coverage-frames and mobile by their ok and FAIL lines (${b.passed}, ${pr.passed}, ${sw.passed}, ${cfr.passed}+${cfr.failed}, ${mo.passed})`);
+  /* register-test (the 31 Oct 2026 operational audit, #5): recorded like its neighbours, by its own ok and FAIL lines. */
+  const rt = j('register-test', 'ok    undo after a demand record …\nok    replay …\n\nregister holds: record, edit, undo and replay agree across every entity.\n', 0);
+  const rtb = j('register-test', 'ok    undo …\nFAIL  a replay disagrees\n\n1 invariant broken.\n', 1);
+  t(rt.status === 'PASS' && rt.passed === 2 && rt.failed === 0 && rtb.status === 'FAIL' && rtb.passed === 1 && rtb.failed === 1 && j('register-test', null, null).status === 'NOT RUN' && SUITES.length === 15 && S('register-test').job === 'runtime',
+    `register-test is the fifteenth suite, in the runtime job: its ok and FAIL lines are its counts (${rt.passed}/${rt.failed}; failing ${rtb.status} ${rtb.passed}+${rtb.failed}), a missing step NOT RUN (${SUITES.length} suites)`);
   /* The annotation, round trip. */
   const ann = annotation({ ...m, said: 'all 195 hold: 4.80%, a, b' });
   const msg = ann.slice(ann.indexOf('::', 2) + 2).replace(/%0D/g, '\r').replace(/%0A/g, '\n').replace(/%25/g, '%');
@@ -466,13 +482,13 @@ function selfTest() {
   t(ok.status.numbers === 'PASS' && ok.status.data === 'PASS' && ok.status.layout === 'PASS' && ok.status.journeys === 'FAIL', `served: the four kinds, each its own status (${JSON.stringify(ok.status)})`);
   const rowOf = (out, id) => new RegExp(`<li class="kind-row" id="kind-${id}"[\\s\\S]*?</div></li>`).exec(out.kinds)?.[0] || '';
   const nums = rowOf(ok, 'numbers');
-  t(/data-status="PASS"/.test(nums) && words(nums).includes('5 of 5 suites pass · 50 of 50 checks · CI on abcdef1, 10 Oct 2026, 12:30 UTC · run log') && /href="https:\/\/github\.com\/georgewong1014-pixel\/quantum-tradeworks\/actions\/runs\/1"/.test(nums),
+  t(/data-status="PASS"/.test(nums) && words(nums).includes('6 of 6 suites pass · 60 of 60 checks · CI on abcdef1, 10 Oct 2026, 12:30 UTC · run log') && /href="https:\/\/github\.com\/georgewong1014-pixel\/quantum-tradeworks\/actions\/runs\/1"/.test(nums),
     `served: Numbers — its counts, generated from the record, the commit, the time and the run (${words(nums).slice(0, 110)}…)`);
   t(words(rowOf(ok, 'journeys')).includes('1 of 2 journeys pass, 1 failed (B &lt;x&gt;) · the live site, 10 Oct 2026, 11:17 UTC · abcdef1 · run log'), `served: Journeys — counted from the journeys' record, a failure named and escaped (${words(rowOf(ok, 'journeys')).slice(0, 110)})`);
   const gone = checksServed(missing, jrec, SUITES);
   const gnums = rowOf(gone, 'numbers');
   t(gone.status.numbers === 'NOT RUN' && /data-status="NOT-RUN"/.test(gnums) && /<span class="chip health-chip">Not run<\/span>/.test(gnums) && !/chip-ok/.test(gnums)
-    && words(gnums).includes('Not run for abcdef1: 1 of its 5 suites has no result for this commit; 4 passed') && /<li data-mark="notrun"><span class="kind-mark">Not run<\/span> model-test<span class="kind-said"> — not run for abcdef1<\/span><\/li>/.test(gnums),
+    && words(gnums).includes('Not run for abcdef1: 1 of its 6 suites has no result for this commit; 5 passed') && /<li data-mark="notrun"><span class="kind-mark">Not run<\/span> model-test<span class="kind-said"> — not run for abcdef1<\/span><\/li>/.test(gnums),
     `a missing suite reads "Not run for <commit>", never PASS: Numbers ${gone.status.numbers} — ${words(gnums).slice(0, 120)}`);
   t(!/Numbers PASS/.test(words(gone.ci)) && /Numbers not run for abcdef1/.test(words(gone.ci)), `the line beside the in-browser checks: "${words(gone.ci).slice(0, 120)}"`);
   const failing = checksServed(record({ commit: sha, entries: entries.map(x => (x.id === 'mobile' ? { ...x, status: 'FAIL', failed: 1 } : x.id === 'sweep' ? { id: 'sweep', status: 'NOT RUN' } : x)) }), jrec, SUITES);
@@ -490,7 +506,7 @@ function selfTest() {
   const pending = checksServed(pend, jrec, SUITES);
   const pnums = rowOf(pending, 'numbers');
   t(['numbers', 'data', 'layout'].every(k => pending.status[k] === 'PENDING') && /data-status="PENDING"/.test(pnums) && /<span class="chip health-chip chip-warn">Pending<\/span>/.test(pnums) && !/chip-ok/.test(pnums)
-    && words(pnums).includes('Pending for abcdef1: CI was still running on this commit when it was recorded (13 Oct 2026, 00:15 UTC); its 5 suites are recorded here when the run ends · run history')
+    && words(pnums).includes('Pending for abcdef1: CI was still running on this commit when it was recorded (13 Oct 2026, 00:15 UTC); its 6 suites are recorded here when the run ends · run history')
     && /<li data-mark="pending"><span class="kind-mark">Pending<\/span> model-test<span class="kind-said"> — running in CI on abcdef1<\/span><\/li>/.test(pnums),
     `CI still running reads "Pending for <commit>", not Not run and never a pass: Numbers ${pending.status.numbers} — ${words(pnums).slice(0, 120)}`);
   t(/Numbers pending for abcdef1 \(CI still running\)/.test(words(pending.ci)) && !/Numbers PASS|not run/.test(words(pending.ci)), `the line beside the in-browser checks, pending: "${words(pending.ci).slice(0, 120)}"`);
@@ -499,7 +515,7 @@ function selfTest() {
   t(['numbers', 'data', 'layout'].every(k => pendOther.status[k] === 'NOT RUN' && pendDone.status[k] === 'PASS'),
     'pending counts for the site\'s commit only, and a record with results is read by its results');
   const none = checksServed(placeholder(), jrec, SUITES), nothing = checksServed(null, null, SUITES);
-  t(['numbers', 'data', 'layout'].every(k => none.status[k] === 'NOT RUN' && nothing.status[k] === 'NOT RUN') && nothing.status.journeys === 'NOT RUN' && /Not run for abcdef1: none of its 5 suites has a result recorded for this commit/.test(words(rowOf(none, 'numbers'))),
+  t(['numbers', 'data', 'layout'].every(k => none.status[k] === 'NOT RUN' && nothing.status[k] === 'NOT RUN') && nothing.status.journeys === 'NOT RUN' && /Not run for abcdef1: none of its 6 suites has a result recorded for this commit/.test(words(rowOf(none, 'numbers'))),
     'the placeholder, and no record at all: every kind Not run, for the site\'s commit where one is named');
   const recPass = record({ commit: sha, entries: entries.map(x => ({ ...x, status: 'NOT RUN' })) });
   t(checksServed(recPass, jrec, SUITES).status.numbers === 'NOT RUN', 'suites recorded NOT RUN are not run, whatever else the record says');
