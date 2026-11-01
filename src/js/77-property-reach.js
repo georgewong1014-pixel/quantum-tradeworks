@@ -116,13 +116,13 @@ function everydayReachPanel(city, area) {
      was wider than a phone's card, and its words were cut. */
   const table = (label, rows) => {
     const t = el('table', { class: 'dt', style: 'table-layout:fixed;width:100%' });
-    t.append(el('colgroup', {}, ['36%', '64%'].map(w => el('col', { style: `width:${w}` }))));
+    t.append(el('colgroup', {}, ['42%', '58%'].map(w => el('col', { style: `width:${w}` }))));
     t.append(el('thead', {}, el('tr', {}, ['Measure', 'Figure, source and date'].map(h => el('th', { style: 'text-align:left' }, h)))));
     t.append(el('tbody', {}, rows.map(x => x.group
       ? el('tr', {}, el('th', { scope: 'colgroup', colspan: '2', class: 'eyebrow', style: 'text-align:left;white-space:normal' }, x.group))
       : el('tr', { 'data-reach-row': x.id }, [
-          el('th', { scope: 'row', style: 'text-align:left;white-space:normal;overflow-wrap:normal' }, x.label),
-          el('td', { style: 'text-align:left;white-space:normal;overflow-wrap:normal' }, [
+          el('th', { scope: 'row', style: 'text-align:left;white-space:normal;overflow-wrap:break-word;hyphens:auto' }, x.label),
+          el('td', { style: 'text-align:left;white-space:normal;overflow-wrap:break-word' }, [
             x.figure,
             x.sub ? el('div', { class: 'metaline' }, x.sub) : null,
             el('div', { class: 'metaline', 'data-reach-src': '' }, x.src),
