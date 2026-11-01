@@ -2839,6 +2839,9 @@ function balanceAfter(principal, annualRatePct, years, monthsElapsed) {
    in the right neighbourhood and no more precise than that.
    ========================================================================== */
 let sarawakGeo = null, sarawakIncome = null, geoLoadState = 'idle';
+/* The everyday-reach evidence (data/sarawak-reach.json; 77-property-reach.js), asked for on its own so a page that
+   needs only it — the Scenario Lab, the data-sources page — does not fetch the positions and the income cache too. */
+let sarawakReach = null, reachLoadState = 'idle';
 
 /* 'failed' when the positions did not arrive. The file ships with the site,
    so an absence is a failed load, not a build without it — and a request
@@ -2849,6 +2852,7 @@ let sarawakGeo = null, sarawakIncome = null, geoLoadState = 'idle';
 async function loadSarawakLayers() {
   if (geoLoadState !== 'idle') return;
   geoLoadState = 'loading';
+  loadReach();
   sarawakGeo = await fetchJson(dataUrl('sarawak-geo.json')).catch(() => null);
   /* Git-ignored while its licence is unconfirmed, so absent is the normal
      case rather than an error — and asked for only on the owner's machine
@@ -2859,6 +2863,18 @@ async function loadSarawakLayers() {
   /* Both views that draw localities, or the second one paints an empty map
      forever: the fetch resolves, the flag flips, and nothing asks again. */
   if (State.view === 'property' || State.view === 'areas' || State.view === 'areaMap') render();
+}
+
+/* The owner, 1 Nov 2026: the file that says who lives in a district and what is
+   mapped within 5 km of an area. Not retried on every redraw; a reload asks
+   again. A failed load leaves every reach line out — nothing is shown in its
+   place, and nothing else on the page depends on it. */
+async function loadReach() {
+  if (reachLoadState !== 'idle') return;
+  reachLoadState = 'loading';
+  sarawakReach = await fetchJson(dataUrl('sarawak-reach.json')).catch(() => null);
+  reachLoadState = sarawakReach ? 'done' : 'failed';
+  if (['property', 'areas', 'areaMap', 'propertyLab', 'learn'].includes(State.view)) render();
 }
 
 /* THE CONTROL IN USE SURVIVES A REDRAW THE READER DID NOT ASK FOR.
@@ -2882,7 +2898,7 @@ async function loadSarawakLayers() {
 function propertyPagesSettled() {
   /* And no NAPIC division file in flight: the area screen's panel redraws
      the page when one lands (loadNapic, 81-napic.js). */
-  return (!realEnabled() || realStatus !== null) && !realPending && geoLoadState !== 'loading' && !napicLoading();
+  return (!realEnabled() || realStatus !== null) && !realPending && geoLoadState !== 'loading' && reachLoadState !== 'loading' && !napicLoading();
 }
 
 /* ==========================================================================
@@ -3199,6 +3215,38 @@ const landUnit = () => State.rateUnits.land;
    stored figure never changes; only the divisor does. */
 const rateInUnit = (perSqft, unit) => (isNum(perSqft) ? perSqft * areaUnit(unit).per : null);
 
+/* THE EVERYDAY-REACH LAYERS (the owner, 1 Nov 2026). Sourced, not recorded by
+   the reader: each value comes from data/sarawak-reach.json (DOSM population,
+   and what OpenStreetMap maps within 5 km, straight line, of the area's point;
+   77-property-reach.js). They display a value and shade by it; they never
+   sort, rank or add up to a score, and an area with no record stays hollow.
+   `badge` is the map card's kind badge: Derived, since a count or a growth is
+   arithmetic on what the source publishes. */
+const REACH_BADGE = { kind: 'derived', fine: 'Counts of OpenStreetMap features within 5 km, or arithmetic on DOSM population' };
+const REACH_MAPPED_WHY = ' Counted within 5 km, straight line, of the area’s single point — not travel time — and “mapped” means at least this many are in OpenStreetMap: it is incomplete, and a count is not a total.';
+const REACH_LAYERS = [
+  { id:'reachHospitals', label:'Hospitals within 5 km (mapped)', kind:'quantity', unit:'mapped', badge: REACH_BADGE,
+    why:'Hospitals mapped in OpenStreetMap near each area.' + REACH_MAPPED_WHY,
+    caveat:'OpenStreetMap, as of the date on the area’s “Everyday reach” panel. Where none is mapped, a hospital may exist and not yet be mapped.',
+    value:(c, a) => reachCount(c, a, 'hospitals'),
+    text:(c, a) => reachCountText(c, a, 'hospitals') },
+  { id:'reachSchools', label:'Schools within 5 km (mapped)', kind:'quantity', unit:'mapped', badge: REACH_BADGE,
+    why:'Schools mapped in OpenStreetMap near each area; kindergartens, colleges and universities are counted apart.' + REACH_MAPPED_WHY,
+    caveat:'Schools are the most under-mapped of these: Sarawak has well over a thousand, and OpenStreetMap holds far fewer.',
+    value:(c, a) => reachCount(c, a, 'schools'),
+    text:(c, a) => reachCountText(c, a, 'schools') },
+  { id:'reachGrowth', label:'District population change since 2020', kind:'quantity', unit:'%', badge: REACH_BADGE,
+    why:'How much the population of the district an area lies in has changed between 1 January 2020 and the latest 1 January, as the Department of Statistics Malaysia (DOSM) publishes it.',
+    caveat:'District-wide: every area in a district shares one value, and it says nothing of any one area. Districts DOSM redrew in 2025 show no figure, and so are drawn hollow.',
+    value:(c, a) => reachGrowth(c, a),
+    text:(c, a) => { const v = reachGrowth(c, a); return isNum(v) ? withSign(v, 1, '%') : null; } },
+  { id:'reachWork', label:'Places of work mapped within 5 km', kind:'quantity', unit:'mapped', badge: REACH_BADGE,
+    why:'Offices, industrial, commercial and retail land-use areas and malls mapped in OpenStreetMap near each area, added as objects.' + REACH_MAPPED_WHY,
+    caveat:'These are places of work that are mapped, not jobs: an office and a whole industrial estate count once each, and nothing here knows how many people work in either.',
+    value:(c, a) => reachWorkCount(c, a),
+    text:(c, a) => { const v = reachWorkCount(c, a); return isNum(v) ? (v ? `${fmtNum(v, 0)} mapped` : 'none mapped') : null; } },
+];
+
 const AREA_LAYERS = [
   /* The recorded attributes, in registry order, so adding one adds a layer. */
   ...AREA_ATTRS.map(attr => attr.kind === 'class' ? {
@@ -3262,6 +3310,9 @@ const AREA_LAYERS = [
     unit:'records', why:'How much evidence you hold for this area at all. An area with none is not a low-risk area; it is an unexamined one.',
     value:(c, a) => areaMetrics(c, a).total || null,
     text:(c, a) => { const v = areaMetrics(c, a).total; return v ? `${v}` : null; } },
+
+  /* Last: the sourced layers, after the ones a reader records. */
+  ...REACH_LAYERS,
 ];
 
 /* Whole months between a recorded date and today. Null for an unparseable or

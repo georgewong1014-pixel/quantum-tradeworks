@@ -43,7 +43,7 @@ const DATA_LICENCES = [
 
   { id: 'open-attrib', label: 'Open, with attribution', rank: 3,
     show: true, export: true, publish: true,
-    note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap’s data sits here, under ODbL: the locality geocoding, and the Kuching map — its basemap, its scheme positions and its recorded building heights.' },
+    note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap’s data sits here, under ODbL: the locality geocoding, and the Kuching map — its basemap, its scheme positions and its recorded building heights — and what is mapped within 5 km of an area. So does the Department of Statistics Malaysia’s district population, under CC BY 4.0.' },
 
   /* Not exported. The row said it was, beside the data-sources page's own
      sentence that licence-pending records are "excluded from export and never
@@ -140,6 +140,23 @@ const MAP_DATA_SOURCES = [
     licence: null, terms: 'BSD-3-Clause (MapLibre, pmtiles), MIT (fflate) — open-source code, not data' },
   { name: 'Its style, lettering and symbols', from: 'A style made with @protomaps/basemaps, Noto Sans glyphs and Protomaps’ sprites, served from this site',
     licence: null, terms: 'BSD-3-Clause (the style’s code; its design CC0), SIL Open Font License 1.1 (the glyphs), MIT (the sprites) — open-source, not data' },
+];
+
+/* ---- THE EVERYDAY REACH'S OWN FILE (the owner, 1 Nov 2026) ---------------
+   data/sarawak-reach.json (ingest/sarawak-reach.mjs): who lives in each
+   Sarawak district and what OpenStreetMap maps within 5 km of an area's point,
+   shown beside the area on the area screen, the demand test and the Scenario
+   Lab. Published on the data-sources page with each source's terms and the
+   dates the file itself carries. Both licences permit publishing with
+   attribution. The DOSM terms page could not be retrieved; the portal
+   statement is what is recorded. */
+const REACH_DATA_SOURCES = [
+  { name: 'District population, 1 January each year from 2020', from: 'Department of Statistics Malaysia (DOSM), the district population file on storage.dosm.gov.my: both sexes, all ethnic groups, in thousands as published',
+    licence: 'open-attrib', terms: 'CC BY 4.0 — Source: Department of Statistics Malaysia (DOSM), CC BY 4.0. The licence is the one developer.data.gov.my states; DOSM’s own terms page could not be retrieved.' },
+  { name: 'Working-age (20–64) and children’s (0–14) shares', from: 'The same DOSM file’s five-year age bands, added and divided by the district total',
+    licence: 'open-attrib', terms: 'CC BY 4.0 — arithmetic on the figures above.' },
+  { name: 'Hospitals, clinics, schools, colleges, universities, offices, land-use areas and malls within 5 km', from: 'OpenStreetMap through the Overpass API, counted from each area’s point (straight line); at least this many are mapped, never a total',
+    licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors. Places of work are places mapped, not jobs.' },
 ];
 
 /* The questions that have to be answered before record-level NAPIC data can be

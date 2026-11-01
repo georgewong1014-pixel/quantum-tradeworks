@@ -175,6 +175,7 @@ const HEALTH_QUICK = [
       /* With the filed statements switched off in this browser the page
          asks for neither of the files loaded with them (loadRealData): that
          is the reader's choice, not a file failing to load. */
+      const reach = await fetchJson(dataUrl('sarawak-reach.json')).catch(() => null);
       const OFF = { ok: null, off: true, text: 'not asked for: the filed statements are switched off in this browser' };
       const FILES = [
         { file: 'us.json', uses: 'the filed statements, for Equities Research', essential: true,
@@ -190,6 +191,12 @@ const HEALTH_QUICK = [
           loaded: () => ({ ok: null, text: null }) },
         /* Read by the property pages only, so this page has no copy of it. */
         { file: 'sarawak-geo.json', uses: 'the area map, for Property Intelligence', loaded: () => ({ ok: null, text: null }) },
+        /* The everyday-reach evidence (the owner, 1 Nov 2026): read here too, so
+           the line can say which licences it stands under and as of when. */
+        { file: 'sarawak-reach.json', uses: 'the everyday reach beside an area, for Property Intelligence',
+          loaded: () => (reach?.populationAsOf && reach?.osmBase
+            ? { ok: true, text: `read here: population as of ${reachDay(reach.populationAsOf)} (DOSM, CC BY 4.0), places as of ${reachDay(reach.osmBase)} (OpenStreetMap, ODbL 1.0)` }
+            : { ok: false, text: 'not read here' }) },
       ];
       const head = async (file) => {
         try {
@@ -262,7 +269,7 @@ const HEALTH_FULL = [
   {
     id: 'data-read', title: 'The data files, read in full',
     async run() {
-      const files = ['us.json', 'instruments.json', ...napicFiles(), 'sarawak-geo.json'];
+      const files = ['us.json', 'instruments.json', ...napicFiles(), 'sarawak-geo.json', 'sarawak-reach.json'];
       const out = await Promise.all(files.map(async (f) => {
         try {
           const r = await fetch(dataUrl(f));

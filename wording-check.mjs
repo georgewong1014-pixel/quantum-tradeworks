@@ -515,6 +515,49 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
   }
 }
 /* ---- end property-investing ---- */
+/* ---- reach ---- */
+/* THE EVERYDAY REACH SHOWS EVIDENCE; IT NEVER SCORES, RANKS OR RECOMMENDS
+   (the owner, 1 Nov 2026). In the text of the reach module
+   (77-property-reach.js), of its four area layers (REACH_LAYERS,
+   70-property.js), of its data-sources rows (REACH_DATA_SOURCES,
+   19-data-licence.js) and of the demand panel that carries its hint
+   (79-ips-views.js) — comments left out — none of "best", "recommend",
+   "undervalued", "demand score", a rank, a score or "jobs" is used as a
+   claim: only in a sentence that denies it ("not scored, ranked or turned
+   into a grade", "places of work, not jobs"). Absent, a part is said to be:
+   the check cannot pass on code that is not there. */
+{
+  const REACH_BANNED = /\b(best|recommend\w*|undervalued|overvalued|bargains?|top picks?|winners?|forecasts?|demand scores?|ranks?|ranked|rankings?|scores?|jobs?)\b/gi;
+  const DENIAL_REACH = new RegExp(`${DENIAL.source}|\\bno\\b|\\bnot\\b|nothing|never|neither|nor\\b`, 'i');
+  const read = (f) => { try { return readFileSync(join(ROOT, 'src', 'js', f), 'utf8'); } catch { return null; } };
+  const slice = (src, from, to) => { const a = src === null ? -1 : src.indexOf(from), b = a < 0 ? -1 : src.indexOf(to, a); return a < 0 || b < 0 ? null : src.slice(a, b); };
+  const prop = read('70-property.js'), lic = read('19-data-licence.js'), ips = read('79-ips-views.js');
+  const parts = [
+    ['77-property-reach.js', read('77-property-reach.js')],
+    ['REACH_LAYERS (70-property.js)', slice(prop, 'const REACH_BADGE', 'const AREA_LAYERS')],
+    ['REACH_DATA_SOURCES (19-data-licence.js)', slice(lic, 'const REACH_DATA_SOURCES', 'const NAPIC_LICENCE_QUESTIONS')],
+    ['the demand panel (79-ips-views.js)', slice(ips, 'function demandPanel', '/* ---- §6.7 environmental depreciation')],
+  ];
+  let reachBad = 0, reachSeen = 0;
+  const missing = parts.filter(([, s]) => s === null).map(([n]) => n);
+  if (missing.length) { bad++; console.error(`FAIL  the everyday-reach wording check could not read ${missing.join(', ')}`); }
+  for (const [where, src] of parts) {
+    if (src === null) continue;
+    const text = uncommented(src);
+    for (const m of text.matchAll(REACH_BANNED)) {
+      reachSeen++;
+      const s = sentenceAt(text, m.index, m[0].length);
+      if (DENIAL_REACH.test(s)) continue;
+      reachBad++;
+      console.error(`FAIL  "${m[0]}" used as a claim in ${where}`);
+      console.error(`      “${s.slice(0, 220)}”`);
+    }
+  }
+  bad += reachBad;
+  if (!missing.length && !reachBad) console.log(`ok    the everyday reach (its module, its four layers, its data-sources rows, its demand panel) says no "best", "recommend", "undervalued", "demand score", rank, score or "jobs" as a claim — ${reachSeen} use${reachSeen === 1 ? '' : 's'}, each in a sentence that denies it`);
+}
+/* ---- end reach ---- */
+
 
 /* ---- positioning ---- */
 /* ONE SOURCE FOR THE POSITIONING COPY (plan item 3.5, 2026-10-07). What the

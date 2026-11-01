@@ -523,6 +523,35 @@ function learnData() {
     '. NAPIC’s figures are not part of the map: they stay in its list, under each scheme, as on the area screen.']));
   wrap.append(mp);
 
+  /* THE EVERYDAY REACH'S OWN FILE (the owner, 1 Nov 2026; REACH_DATA_SOURCES,
+     19-data-licence.js): where the population and the mapped places beside an
+     area come from, under what terms, and as of when — the dates are the
+     file's own, read once the page has it. */
+  loadReach();
+  const rc = el('section', { class: 'card', id: 'reach-data', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'reach-data-h' });
+  rc.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'reach-data-h' }, 'Everyday reach: population and mapped places'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' }, 'Beside an area, the Property tools show who lives in its district and what is mapped within 5 km of it. Shown as found: nothing here is scored, ranked or turned into a grade.'),
+  ])));
+  const rt = el('table', { class: 'dt' });
+  rt.append(el('thead', {}, el('tr', {}, ['What', 'From', 'Terms'].map(h => el('th', { style: 'text-align:left' }, h)))));
+  rt.append(el('tbody', {}, REACH_DATA_SOURCES.map(m => el('tr', {}, [
+    el('th', { scope: 'row', style: 'text-align:left;white-space:normal' }, m.name),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, m.from),
+    el('td', { style: 'text-align:left;white-space:normal' }, [
+      el('span', { class: 'chip', title: LICENCE_BY_ID[m.licence].note }, LICENCE_BY_ID[m.licence].label),
+      el('span', { class: 'caption', style: 'display:block;margin-top:4px' }, m.terms),
+    ]),
+  ]))));
+  rc.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, rt));
+  /* The dates are read from the file by the page that loads it: served, they are the file's own and say so (data-now, 35-ui.js). */
+  rc.append(el('p', { class: 'metaline', id: 'reach-data-dates', 'data-now': 'The dates, and the attribution that goes with them, are held in the file itself, data/sarawak-reach.json.', style: 'margin-top:var(--sm)' }, sarawakReach
+    ? `data/sarawak-reach.json: population as of ${reachDay(sarawakReach.populationAsOf)}; OpenStreetMap as of ${reachDay(sarawakReach.osmBase)}; retrieved ${reachDay(sarawakReach.retrieved)}. ${sarawakReach.attribution}`
+    : reachLoadState === 'failed' ? 'The file’s dates could not be read here: data/sarawak-reach.json did not load.' : 'Reading the file’s dates…'));
+  rc.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Every OpenStreetMap count is the number mapped there — at least this many, never a total; schools and clinics in particular are under-mapped. Distances are straight line, not travel time.'));
+  wrap.append(rc);
+
   /* The licence ladder itself, because it is new and orthogonal to the evidence
      ladder a reader already knows. */
   const lic = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });

@@ -5008,6 +5008,59 @@ const HOME_PAGE = read(HOME);
     'a site page reads as the Day-10 pre-audit found it');
 }
 /* ---- end site-pages ---- */
+/* ---- reach-served ---- */
+/* THE EVERYDAY REACH, AS SERVED (the owner, 1 Nov 2026). The area screen's
+   panel opens on a locality the reader picks, so it is not in a served page;
+   what is served is the file it reads and the words around it.
+   1. data/sarawak-reach.json is served 200 as JSON at its versioned address
+      and its bare one, byte for byte the checkout's file, and the app's
+      DATA_VERSIONS carries it — so it is cached by its content, like the
+      positions beside it — and it names both licences and both attributions
+      with the dates it carries.
+   2. /property/areas serves the four sourced layers among its "Shade by"
+      choices, each in the words the screen gives it, and does not serve the
+      panel (nothing is opened) nor a count.
+   3. /data-sources serves the card on this file: its three rows with their
+      licences (CC BY 4.0, ODbL 1.0), "at least this many", "straight line",
+      the DOSM and OpenStreetMap attributions, and — with no script — a line
+      saying the dates are in the file, not a "Reading…" that never ends. */
+{
+  const p = [];
+  const V = DATA_VERSIONS['sarawak-reach.json'];
+  if (!V) p.push('the app\'s DATA_VERSIONS does not carry sarawak-reach.json, so it would be asked for by a plain address and never cached by its content');
+  const got = await getAll([`/data/sarawak-reach.json?v=${V}`, '/data/sarawak-reach.json', '/property/areas', '/data-sources']);
+  const want = read('data/sarawak-reach.json');
+  let doc = null;
+  for (const path of [`/data/sarawak-reach.json?v=${V}`, '/data/sarawak-reach.json']) {
+    const r = got.get(path);
+    if (r.status !== 200 || !/json/i.test(r.type)) p.push(`${path}: ${described(r)}, not 200 JSON`);
+    else if (r.body !== want) p.push(`${path}: not this checkout's data/sarawak-reach.json`);
+    else { try { doc = JSON.parse(r.body); } catch { p.push(`${path}: does not parse`); } p.push(...headerProblems(r, { html: false })); }
+  }
+  if (doc) {
+    if (doc.sources?.population?.licence !== 'CC BY 4.0' || doc.sources?.places?.licence !== 'ODbL 1.0') p.push('the served file does not name CC BY 4.0 and ODbL 1.0');
+    if (!doc.attribution?.includes('Source: Department of Statistics Malaysia (DOSM), CC BY 4.0') || !doc.attribution.includes('© OpenStreetMap contributors')) p.push('the served file does not carry both attributions');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(doc.populationAsOf || '') || !/^\d{4}-\d{2}-\d{2}T/.test(doc.osmBase || '') || !/^\d{4}-\d{2}-\d{2}$/.test(doc.retrieved || '')) p.push('the served file does not carry its dates (populationAsOf, osmBase, retrieved)');
+  }
+  const areas = pageText(got.get('/property/areas').body || '');
+  for (const label of ['Hospitals within 5 km (mapped)', 'Schools within 5 km (mapped)', 'District population change since 2020', 'Places of work mapped within 5 km'])
+    if (!areas.includes(label)) p.push(`/property/areas does not serve the layer "${label}"`);
+  if (/Everyday reach —/.test(areas) || /\bat least \d/.test(areas)) p.push('/property/areas serves the Everyday reach panel or a count, which only an opened locality shows');
+  const ds = pageText(got.get('/data-sources').body || '');
+  const dsHas = (s, why) => { if (!ds.includes(s)) p.push(`/data-sources: ${why} ("${s}")`); };
+  dsHas('Everyday reach: population and mapped places', 'the card on the reach file is missing');
+  dsHas('Source: Department of Statistics Malaysia (DOSM), CC BY 4.0', 'the DOSM attribution is not there');
+  dsHas('© OpenStreetMap contributors', 'the OpenStreetMap attribution is not there');
+  dsHas('ODbL 1.0', 'the OpenStreetMap licence is not named');
+  dsHas('at least this many, never a total', 'the "at least" caveat is not said');
+  dsHas('straight line, not travel time', 'straight line is not said');
+  dsHas('held in the file itself, data/sarawak-reach.json', 'the dates line does not say where the dates are');
+  if (/Reading the file’s dates…/.test(ds)) p.push('/data-sources serves "Reading the file’s dates…", which a reader with no script would see for good');
+  judge(p, `data/sarawak-reach.json is served 200 as JSON at /data/sarawak-reach.json?v=${V} and bare, the checkout's file, versioned in DATA_VERSIONS, naming CC BY 4.0 and ODbL 1.0, both attributions and its dates${doc ? ` (population as of ${doc.populationAsOf}, OpenStreetMap ${doc.osmBase.slice(0, 10)})` : ''}; /property/areas serves its four sourced layers and no panel; /data-sources serves the card on the file with both licences, both attributions, "at least this many" and "straight line, not travel time", and says where its dates are`,
+    'the everyday-reach file or the words about it are not served as intended', 'data');
+}
+/* ---- end reach-served ---- */
+
 
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
