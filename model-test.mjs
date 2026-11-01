@@ -12787,6 +12787,345 @@ try {
   /* ---- end reach ---- */
 
 
+  /* ---- market-pulse ---- */
+  /* THE MARKET PULSE (the owner, 1 Nov 2026; 94-market-pulse.js). A scripted
+     set of synthetic register records gives the figures worked out here by
+     hand: the medians and their n, the change against the earlier period,
+     the ask–transacted gap, the months of supply and the rental gap, a
+     median withheld below n = 3, a cell with nothing recorded hollow, a
+     worked-example row left out, and NAPIC's count labelled with its own
+     division and kept apart from the reader's. Synthetic data, in this
+     isolated browser only. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      const T = 'Terrace (2 storey)';
+      const rec = (o) => ({ id: 'mp-' + Math.random(), evidence: 'user', scope: 'area', ...o });
+      const snap = (id, date, count, med, lo, hi) => [
+        ...(count != null ? [rec({ city:'kuching', area:'Tabuan', propertyType:T, kind:'listed', value:count, date, snapshotId:id, snapshotRole:'count', sourceRef:'Mudah search, ' + date })] : []),
+        rec({ city:'kuching', area:'Tabuan', propertyType:T, kind:'ask-price', value:med, date, snapshotId:id, snapshotRole:'median' }),
+        ...(lo ? [rec({ city:'kuching', area:'Tabuan', propertyType:T, kind:'ask-price', value:lo, date, snapshotId:id, snapshotRole:'low' })] : []),
+        ...(hi ? [rec({ city:'kuching', area:'Tabuan', propertyType:T, kind:'ask-price', value:hi, date, snapshotId:id, snapshotRole:'high' })] : [])];
+      const sold = (area, type, date, v, extra) => rec({ city:'kuching', area, propertyType:type, kind:'sold-price', value:v, date, ...extra });
+      const rows = [
+        ...snap('s1', '2026-07-10', null, 585000), ...snap('s2', '2026-08-03', null, 590000), ...snap('s3', '2026-09-05', null, 595000),
+        ...snap('s4', '2026-10-05', 35, 605000, 520000, 690000), ...snap('s5', '2026-10-18', 38, 610000), ...snap('s6', '2026-11-01', 44, 620000, 560000, 710000),
+        sold('Tabuan', T, '2026-07-22', 555000), sold('Tabuan', T, '2026-08-20', 560000), sold('Tabuan', T, '2026-09-12', 575000),
+        sold('Tabuan', T, '2026-10-02', 585000), sold('Tabuan', T, '2026-10-21', 590000), sold('Tabuan', T, '2026-11-01', 600000),
+        sold('Tabuan', T, '2026-11-01', 9999999, { sample: true }),
+        sold('Tabuan', T, '2026-11-01', 0),
+        rec({ city:'kuching', area:'Stutong', propertyType:'Condominium', kind:'ask-price', value:400000, date:'2026-10-10' }),
+        rec({ city:'kuching', area:'Stutong', propertyType:'Condominium', kind:'ask-price', value:420000, date:'2026-10-12' }),
+        sold('Stutong', 'Condominium', '2026-10-15', 380000), sold('Stutong', 'Condominium', '2026-10-20', 390000),
+        rec({ city:'kuching', area:'Stutong', propertyType:'Condominium', kind:'listed', value:20, date:'2026-10-20' }),
+        ...[2200, 2300, 2250].map((v, i) => rec({ city:'miri', area:'Marina', kind:'ask-rent', value:v, date:'2026-10-0' + (i + 3) })),
+        ...[2000, 2100, 2050].map((v, i) => rec({ city:'miri', area:'Marina', kind:'let-rent', value:v, date:'2026-10-1' + i })),
+        ...[4, 6].map((v, i) => rec({ city:'miri', area:'Marina', kind:'vacancy', value:v, date:'2026-10-2' + i })),
+      ];
+      const m = marketPulseModel(rows);
+      const cell = (a, t) => m.cells.find(c => c.area === a && c.type === t);
+      const A = cell('Tabuan', T), B = cell('Stutong', 'Condominium'), C = cell('Marina', '');
+      const WA = mpWords(A), WB = mpWords(B), WC = mpWords(C);
+      const pick = (x, keys) => Object.fromEntries(keys.map(k => [k, x?.[k]]));
+      const out = {
+        n: m.cells.length, examples: m.examples, order: m.cells.map(c => c.area),
+        A: { gran: A.gran, supply: pick(A.supply, ['n']), cur: A.supply.cur.value, prev: A.supply.prev.value, change: A.supply.change, pct: A.supply.pct,
+          ask: A.ask.buckets.map(b => [b.key, b.n, b.median, b.lo, b.hi]), bid: A.bid.buckets.map(b => [b.key, b.n, b.median]),
+          askTrend: mpTrend(A.ask), bidTrend: mpTrend(A.bid), gap: A.gap && { status: A.gap.status, key: A.gap.key, pct: A.gap.pct, an: A.gap.a.n, bn: A.gap.b.n },
+          months: A.months, words: { supply: WA.supply, ask: WA.ask, demand: WA.demand, bid: WA.bid } },
+        B: { gran: B.gran, askN: B.ask.latest.n, askMedian: B.ask.latest.median, bidMedian: B.bid.latest.median, gap: B.gap && { status: B.gap.status, an: B.gap.a.n, bn: B.gap.b.n },
+          months: B.months, words: { ask: WB.ask, bid: WB.bid, demand: WB.demand } },
+        C: { type: C.type, supply: C.supply, words: { supply: WC.supply, ask: WC.ask, bid: WC.bid }, gap: C.gap, months: C.months,
+          rentGap: C.rentGap && { status: C.rentGap.status, key: C.rentGap.key, pct: C.rentGap.pct, an: C.rentGap.a.n, bn: C.rentGap.b.n, am: C.rentGap.a.median, bm: C.rentGap.b.median },
+          vac: [C.rVac.latest.n, C.rVac.latest.median] },
+      };
+      await loadNapic('Kuching'); await loadNapic('Miri');
+      State.observations = rows; navigate('/property/market');
+      await new Promise(res => setTimeout(res, 600));
+      const q = (c, s) => document.querySelector('[data-mp-cell="' + c + '"] [data-mp-series="' + s + '"]');
+      const tab = 'kuching|Tabuan|' + T;
+      const demand = q(tab, 'demand'), bid = q(tab, 'bid'), ask = q(tab, 'ask'), sup = q(tab, 'supply');
+      out.dom = {
+        view: State.view, cells: document.querySelectorAll('[data-mp-cell]').length,
+        demandText: demand?.textContent || '', demandCtx: demand?.querySelector('.mp-ctx')?.textContent || '',
+        bidText: bid?.textContent || '', askText: ask?.textContent || '', supText: sup?.textContent || '',
+        hollowMiriSupply: q('miri|Marina|', 'supply')?.className || '',
+        miriCtx: q('miri|Marina|', 'demand')?.querySelector('.mp-ctx')?.textContent || '',
+        sigs: [...document.querySelectorAll('[data-mp-cell="' + tab + '"] [data-mp-signal]')].map(s => s.textContent),
+        h1: document.querySelector('main h1')?.textContent, tabs: [...document.querySelectorAll('nav a')].map(a => a.textContent.trim()).filter(t => t === 'Market pulse' || t === 'Comparables').length,
+        napicInDemandNumber: /1,?983/.test(demand?.textContent || ''),
+      };
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog);
+      return JSON.stringify(out);
+    })()`));
+    const p = [], near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
+    const A = r.A, B = r.B, C = r.C;
+    if (r.n !== 3 || r.examples !== 1) p.push(`${r.n} cells and ${r.examples} examples left out, not 3 and 1 (the worked-example row is not counted, a zero is not used)`);
+    if (JSON.stringify(r.order) !== '["Tabuan","Stutong","Marina"]') p.push(`the cells are in the order ${JSON.stringify(r.order)}, not the register's own (Kuching's list, then Miri)`);
+    if (A.gran !== 'q') p.push(`Tabuan is ${A.gran}ly, not by quarter though its latest month holds one asking price`);
+    if (A.cur !== 44 || A.prev !== 38 || A.change !== 6 || !near(A.pct, 6 / 38 * 100) || A.supply.n !== 3) p.push(`supply: ${JSON.stringify([A.cur, A.prev, A.change, A.pct, A.supply])}`);
+    if (JSON.stringify(A.ask) !== JSON.stringify([['2026-Q3', 3, 590000, null, null], ['2026-Q4', 3, 610000, 520000, 710000]])) p.push(`asking by quarter, a snapshot's low, median and high counted once as its median: ${JSON.stringify(A.ask)}`);
+    if (JSON.stringify(A.bid) !== JSON.stringify([['2026-Q3', 3, 560000], ['2026-Q4', 3, 590000]])) p.push(`transacted by quarter: ${JSON.stringify(A.bid)}`);
+    if (!A.askTrend || A.askTrend.dir !== 1 || !near(A.askTrend.pct, 20000 / 590000 * 100) || A.askTrend.from !== 590000) p.push(`the asking trend: ${JSON.stringify(A.askTrend)}`);
+    if (!A.bidTrend || A.bidTrend.dir !== 1 || !near(A.bidTrend.pct, 30000 / 560000 * 100)) p.push(`the transacted trend: ${JSON.stringify(A.bidTrend)}`);
+    if (!A.gap || A.gap.status !== 'ok' || A.gap.key !== '2026-Q4' || !near(A.gap.pct, (610000 - 590000) / 590000 * 100) || A.gap.an !== 3 || A.gap.bn !== 3) p.push(`the ask–transacted gap: ${JSON.stringify(A.gap)}`);
+    if (!A.months || A.months.status !== 'ok' || A.months.n !== 5 || !near(A.months.months, 44 * 3 / 5) || !near(A.months.perMonth, 5 / 3)) p.push(`months of supply: ${JSON.stringify(A.months)}`);
+    if (A.words.ask.value !== 'RM610,000' || A.words.bid.value !== 'RM590,000' || A.words.supply.value !== '44 listings counted' || A.words.demand.value !== '3 sales recorded') p.push(`the words: ${JSON.stringify(A.words)}`);
+    if (!/^↑ up 6 \(\+15\.8%\) from 38 on 18 Oct 2026$/.test(A.words.supply.trend)) p.push(`the supply trend reads "${A.words.supply.trend}"`);
+    if (!/^↑ up 3\.4% from RM590,000 in Q3 2026$/.test(A.words.ask.trend)) p.push(`the asking trend reads "${A.words.ask.trend}"`);
+    if (!/^Q4 2026: n = 3, 2 Oct 2026 to 1 Nov 2026$/.test(A.words.bid.meta)) p.push(`the transacted figure's n and dates read "${A.words.bid.meta}"`);
+    if (B.askN !== 2 || B.askMedian !== null || B.bidMedian !== null) p.push(`two asking and two transacted prices give medians ${B.askMedian} and ${B.bidMedian}`);
+    if (B.words.ask.value !== 'n = 2 — too few' || B.words.bid.value !== 'n = 2 — too few') p.push(`below three the words read "${B.words.ask.value}" and "${B.words.bid.value}"`);
+    if (!B.gap || B.gap.status !== 'few' || !B.months || B.months.status !== 'few' || B.months.n !== 2) p.push(`two sales and two asking prices still give a signal: ${JSON.stringify([B.gap, B.months])}`);
+    if (C.type !== '' || C.supply !== null || C.words.supply.value !== 'No record' || !C.words.supply.hollow || C.words.ask.value !== 'No record' || C.words.bid.value !== 'No record') p.push(`a cell with no listings or prices is not "No record": ${JSON.stringify(C.words)}`);
+    if (C.gap !== null || C.months !== null) p.push(`signals shown with no two sides: ${JSON.stringify([C.gap, C.months])}`);
+    if (!C.rentGap || C.rentGap.status !== 'ok' || C.rentGap.key !== '2026-10' || C.rentGap.am !== 2250 || C.rentGap.bm !== 2050 || !near(C.rentGap.pct, 200 / 2050 * 100)) p.push(`the rental gap: ${JSON.stringify(C.rentGap)}`);
+    if (JSON.stringify(C.vac) !== '[2,null]') p.push(`two weeks-vacant records give ${JSON.stringify(C.vac)}`);
+    const D = r.dom;
+    if (D.view !== 'marketPulse' || D.cells !== 3 || D.h1 !== 'Market pulse' || D.tabs !== 2) p.push(`the page: ${JSON.stringify({ view: D.view, cells: D.cells, h1: D.h1, tabs: D.tabs })}`);
+    if (!/^Official \(NAPIC\) Kuching division, H1 2025 \(NAPIC\): 1,980 residential transactions, the whole division\./.test(D.demandCtx)) p.push(`Tabuan's NAPIC line reads "${D.demandCtx}"`);
+    if (!/^Official \(NAPIC\) Miri division, H1 2025 \(NAPIC\): 920 residential transactions/.test(D.miriCtx)) p.push(`Marina's NAPIC line reads "${D.miriCtx}"`);
+    if (!/3 sales recorded/.test(D.demandText) || D.napicInDemandNumber || /NAPIC/.test(D.bidText) || /NAPIC/.test(D.askText) || /NAPIC/.test(D.supText)) p.push('NAPIC is merged into a figure or shown beside a series it does not belong to');
+    if (!/is-hollow/.test(D.hollowMiriSupply)) p.push(`Marina's empty supply is not drawn hollow: "${D.hollowMiriSupply}"`);
+    if (D.sigs.length !== 2 || !/Ask–transacted gap\+3\.4% in Q4 2026/.test(D.sigs[0]) || !/Months of supply26\.4 months/.test(D.sigs[1])) p.push(`the signals read ${JSON.stringify(D.sigs)}`);
+    if (p.length) fail('market pulse: figures from a scripted set of records', p.join('\n      '));
+    else ok('market pulse: from synthetic records the supply is 44 (up 6, +15.8%), the asking median RM610,000 and the transacted median RM590,000 (n = 3 each, by quarter, a snapshot counted once), the gap +3.4%, the months of supply 26.4, the rental gap +9.8%; two prices read "n = 2 — too few"; an empty cell is "No record"; NAPIC\'s 1,980 is labelled "Kuching division, H1 2025 (NAPIC)" and kept apart');
+  } catch (e) { fail('market pulse: the figures could not be run', String(e.message).split('\n')[0]); }
+  /* THE SNAPSHOT FORM. Saved with a count and three prices it writes one
+     listed record and three asking prices with one date, area and type;
+     with a bad entry it writes nothing; it remembers the town and type;
+     Undo takes the snapshot back in one step. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      State.observations = []; localStorage.removeItem('vl.registerLog'); loadRegisterLog();
+      navigate('/property/market'); await new Promise(res => setTimeout(res, 400));
+      const set = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      const press = async (id) => { document.getElementById(id).click(); await new Promise(res => setTimeout(res, 300)); };
+      const out = { size: ['mp-town', 'mp-area', 'mp-type', 'mp-date', 'mp-count', 'mp-low', 'mp-med', 'mp-high', 'mp-src', 'mp-save', 'mp-undo'].map(id => { const r = document.getElementById(id)?.getBoundingClientRect(); return [id, r ? Math.round(r.height) : null]; }) };
+      out.dateToday = document.getElementById('mp-date').value === localDay();
+      set('mp-town', 'miri'); set('mp-area', 'Marina'); set('mp-type', 'Condominium'); set('mp-count', '0'); await press('mp-save'); out.zero = State.observations.length;
+      set('mp-count', '25'); set('mp-low', '500000'); set('mp-med', '450000'); await press('mp-save'); out.unordered = State.observations.length;
+      set('mp-count', ''); set('mp-low', ''); set('mp-med', ''); await press('mp-save'); out.empty = State.observations.length;
+      set('mp-count', '25'); set('mp-low', '400000'); set('mp-med', '450000'); set('mp-high', '520000'); set('mp-src', 'PropertyGuru search, 30 Oct'); set('mp-date', '2026-10-30');
+      await press('mp-save');
+      out.rows = State.observations.map(o => [o.kind, o.value, o.date, o.city, o.area, o.propertyType, o.sourceRef, o.snapshotRole]).reverse();
+      out.remembered = [document.getElementById('mp-town').value, document.getElementById('mp-area').value, document.getElementById('mp-type').value];
+      out.cleared = [document.getElementById('mp-count').value, document.getElementById('mp-low').value, document.getElementById('mp-src').value];
+      out.status = document.getElementById('mp-status')?.textContent || '';
+      out.undoLabel = document.getElementById('mp-undo')?.textContent;
+      await press('mp-undo');
+      out.afterUndo = State.observations.length; out.integrity = registerIntegrity().state;
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog); else localStorage.removeItem('vl.registerLog');
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (r.zero !== 0 || r.unordered !== 0 || r.empty !== 0) p.push(`a bad entry wrote records: a count of 0 → ${r.zero}, a low above the median → ${r.unordered}, nothing entered → ${r.empty}`);
+    const W = ['Marina', 'Condominium', 'PropertyGuru search, 30 Oct'];
+    if (JSON.stringify(r.rows) !== JSON.stringify([['listed', 25, '2026-10-30', 'miri', W[0], W[1], W[2], 'count'], ['ask-price', 400000, '2026-10-30', 'miri', W[0], W[1], W[2], 'low'],
+      ['ask-price', 450000, '2026-10-30', 'miri', W[0], W[1], W[2], 'median'], ['ask-price', 520000, '2026-10-30', 'miri', W[0], W[1], W[2], 'high']])) p.push(`the snapshot wrote ${JSON.stringify(r.rows)}`);
+    if (JSON.stringify(r.remembered) !== '["miri","Marina","Condominium"]') p.push(`the form does not remember the last town, area and type: ${JSON.stringify(r.remembered)}`);
+    if (JSON.stringify(r.cleared) !== '["","",""]' || !r.dateToday) p.push(`the form keeps the last count, price or source, or the date is not today: ${JSON.stringify([r.cleared, r.dateToday])}`);
+    if (!/^Saved 4 records for Marina, Miri · Condominium, 30 Oct 2026\.$/.test(r.status) || r.undoLabel !== 'Undo last snapshot (4)') p.push(`status "${r.status}", button "${r.undoLabel}"`);
+    if (r.afterUndo !== 0 || r.integrity !== 'ok') p.push(`Undo left ${r.afterUndo} records, integrity ${r.integrity}`);
+    const small = r.size.filter(([id, h]) => h == null || h < 44);
+    if (small.length) p.push(`controls under 44px or missing: ${JSON.stringify(small)}`);
+    if (p.length) fail('market pulse: the snapshot form', p.join('\n      '));
+    else ok('market pulse: the snapshot form refuses a count of 0, an unordered low–median–high and an empty entry; saved, it writes one Listings counted and three Asking price records with one date, area, type and source, remembers the town, area and type, clears the numbers, and Undo takes all four back; every control is at least 44px');
+  } catch (e) { fail('market pulse: the snapshot form could not be run', String(e.message).split('\n')[0]); }
+
+  /* FURNISHING (the owner, 1 Nov 2026: the furnished-rent premium, starting
+     with Sibu). An optional field on the rent and price records the snapshot
+     writes; a record with none reads as Not stated. Where a cell has rent
+     records in more than one furnishing state the medians sit side by side
+     with each n, Not stated its own count in neither side, and the
+     difference appears only between two states that both reach n = 3. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      const rec = (o) => ({ id: 'mf-' + Math.random(), evidence: 'user', scope: 'area', kind: 'ask-rent', city: 'sibu', propertyType: 'Apartment / flat', ...o });
+      const rent = (area, furnishing, vals, extra) => vals.map((v, i) => rec({ area, value: v, date: '2026-10-' + String(i + 3).padStart(2, '0'), ...(furnishing ? { furnishing } : {}), ...extra }));
+      const rows = [
+        /* Rejang Park: unfurnished 4 (median 900), partly 3 (1,150), fully 2 (too few), Not stated 5 (one a pre-field record with none) */
+        ...rent('Rejang Park', 'unfurnished', [900, 850, 950, 900]), ...rent('Rejang Park', 'partly', [1100, 1150, 1200]), ...rent('Rejang Park', 'fully', [1400, 1500]),
+        ...rent('Rejang Park', '', [700, 2000, 800, 1900, 1000]),
+        /* Lanang: unfurnished 4, partly 2 — a second state, but under 3: no difference */
+        ...rent('Lanang', 'unfurnished', [800, 820, 780, 810]), ...rent('Lanang', 'partly', [1000, 1050]),
+        /* Permai: one stated state and Not stated only: no comparison */
+        ...rent('Permai', 'unfurnished', [800, 820, 780]), ...rent('Permai', '', [900, 950, 1000]),
+        /* Achieved rents of Rejang Park: fully 3 against unfurnished 3 */
+        ...rent('Rejang Park', 'unfurnished', [800, 820, 780], { kind: 'let-rent' }), ...rent('Rejang Park', 'fully', [1300, 1250, 1350], { kind: 'let-rent' }),
+      ];
+      const m = marketPulseModel(rows);
+      const cell = (a) => m.cells.find(c => c.area === a);
+      const RP = cell('Rejang Park'), LN = cell('Lanang'), PM = cell('Permai');
+      const g = (c, k) => c.furnish[k];
+      const out = {
+        old: [mpFurnishing({}), mpFurnishing({ furnishing: 'partly' }), mpFurnishing({ furnishing: 'luxury' }), mpFurnishLabel('')],
+        rp: g(RP, 'ask-rent') && { u: g(RP, 'ask-rent').groups.unfurnished.median, un: g(RP, 'ask-rent').groups.unfurnished.n, p: g(RP, 'ask-rent').groups.partly.median, pn: g(RP, 'ask-rent').groups.partly.n,
+          f: g(RP, 'ask-rent').groups.fully.median, fn: g(RP, 'ask-rent').groups.fully.n, ns: g(RP, 'ask-rent').notStated.n, diffs: g(RP, 'ask-rent').diffs, words: mpFurnishWords(g(RP, 'ask-rent')) },
+        rpLet: g(RP, 'let-rent') && { diffs: g(RP, 'let-rent').diffs },
+        ln: g(LN, 'ask-rent') && { diffs: g(LN, 'ask-rent').diffs, words: mpFurnishWords(g(LN, 'ask-rent')) },
+        pm: g(PM, 'ask-rent'), pmLet: g(PM, 'let-rent'),
+      };
+      State.observations = rows; navigate('/property/market'); await new Promise(res => setTimeout(res, 600));
+      const at = (a, k) => document.querySelector('[data-mp-cell="sibu|' + a + '|Apartment / flat"] [data-mp-furnish="' + k + '"]');
+      out.dom = { rp: at('Rejang Park', 'ask-rent')?.textContent || '', ln: at('Lanang', 'ask-rent')?.textContent || '', pm: !!at('Permai', 'ask-rent'),
+        rpLabel: [...document.querySelectorAll('[data-mp-cell="sibu|Rejang Park|Apartment / flat"] .mp-dl dt')].map(d => d.textContent) };
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog);
+      return JSON.stringify(out);
+    })()`));
+    const p = [], near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
+    if (JSON.stringify(r.old) !== '["","partly","","Not stated"]') p.push(`a record with no furnishing, or an unknown one, does not read as Not stated: ${JSON.stringify(r.old)}`);
+    const R = r.rp;
+    if (!R || R.u !== 900 || R.un !== 4 || R.p !== 1150 || R.pn !== 3 || R.f !== null || R.fn !== 2 || R.ns !== 5) p.push(`Rejang Park's asking rents by furnishing: ${JSON.stringify(R && { u: R.u, un: R.un, p: R.p, pn: R.pn, f: R.f, fn: R.fn, ns: R.ns })}`);
+    if (!R || R.diffs.length !== 1 || R.diffs[0].a !== 'partly' || R.diffs[0].b !== 'unfurnished' || R.diffs[0].amount !== 250 || !near(R.diffs[0].pct, 250 / 900 * 100)) p.push(`the difference: ${JSON.stringify(R?.diffs)} — only partly against unfurnished reach n = 3 (fully has 2)`);
+    if (!R || R.words.line !== 'unfurnished RM900 (n = 4, 3 Oct 2026 to 6 Oct 2026) · partly furnished RM1,150 (n = 3, 3 Oct 2026 to 5 Oct 2026) · fully furnished: n = 2 — too few (3 Oct 2026 to 4 Oct 2026)' || R.words.notStated !== 'Not stated: n = 5, kept apart and in neither side.'
+      || R.words.diffs[0] !== 'Partly furnished against unfurnished: +RM250 a month (+27.8%)') p.push(`the words: ${JSON.stringify(R?.words)}`);
+    if (!r.rpLet || r.rpLet.diffs.length !== 1 || r.rpLet.diffs[0].a !== 'fully' || r.rpLet.diffs[0].amount !== 500) p.push(`achieved rents, fully 1,300 against unfurnished 800: ${JSON.stringify(r.rpLet)}`);
+    if (!r.ln || r.ln.diffs.length !== 0 || !/^No difference shown: it needs 3 or more records in each of the two states\.$/.test(r.ln.words.noDiff) || !/partly furnished: n = 2 — too few/.test(r.ln.words.line)) p.push(`two partly-furnished rents still give a difference: ${JSON.stringify(r.ln)}`);
+    if (r.pm !== null || r.pmLet !== null) p.push(`one stated state and Not stated give a comparison: ${JSON.stringify(r.pm)}`);
+    if (!/Asking rent by furnishing/.test(r.dom.rp) || !/Partly furnished against unfurnished: \+RM250 a month \(\+27\.8%\)/.test(r.dom.rp) || !/Not stated: n = 5/.test(r.dom.rp)) p.push(`the page reads "${r.dom.rp}"`);
+    if (!/No difference shown/.test(r.dom.ln) || /\+RM/.test(r.dom.ln)) p.push(`Lanang's page reads "${r.dom.ln}"`);
+    if (r.dom.pm) p.push('Permai, with one stated state, shows a furnishing comparison');
+    if (!r.dom.rpLabel.some(t => /Asking rent, median, all furnishing states/.test(t))) p.push(`the all-states rent median is not labelled: ${JSON.stringify(r.dom.rpLabel)}`);
+    if (/worth/i.test(r.dom.rp + r.dom.ln)) p.push('the furnishing words pass a judgement');
+    if (p.length) fail('market pulse: the furnishing comparison', p.join('\n      '));
+    else ok('market pulse: with furnishing, Rejang Park reads "unfurnished RM900 (n = 4) · partly furnished RM1,150 (n = 3) · fully furnished: n = 2 — too few", Not stated n = 5 kept apart, and the difference (+RM250 a month, +27.8%) only between the two states that reach n = 3; two partly-furnished rents give no difference; one stated state shows no comparison; a record with no furnishing reads Not stated');
+  } catch (e) { fail('market pulse: the furnishing comparison could not be run', String(e.message).split('\n')[0]); }
+  /* The form writes the furnishing and the rent: on the asking prices and the asking rent, and on nothing when Not stated. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      State.observations = []; localStorage.removeItem('vl.registerLog'); loadRegisterLog();
+      navigate('/property/market'); await new Promise(res => setTimeout(res, 400));
+      const set = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      const press = async (id) => { document.getElementById(id).click(); await new Promise(res => setTimeout(res, 300)); };
+      const out = { options: [...document.getElementById('mp-furn').options].map(o => o.textContent), dflt: document.getElementById('mp-furn').value,
+        h: [document.getElementById('mp-furn'), document.getElementById('mp-rent')].map(n => Math.round(n.getBoundingClientRect().height)) };
+      set('mp-town', 'sibu'); set('mp-area', 'Rejang Park'); set('mp-type', 'Apartment / flat'); set('mp-date', '2026-10-30');
+      set('mp-count', '12'); set('mp-med', '300000'); set('mp-rent', '1150'); set('mp-furn', 'partly'); set('mp-src', 'Mudah search, 30 Oct');
+      await press('mp-save');
+      out.partly = State.observations.map(o => [o.kind, o.value, o.furnishing || null]).reverse();
+      set('mp-count', '12'); set('mp-med', ''); set('mp-rent', '900'); set('mp-furn', ''); await press('mp-save');
+      out.none = State.observations.slice(0, 2).map(o => [o.kind, o.value, o.furnishing || null]).reverse();
+      out.integrity = registerIntegrity().state;
+      const exp = exportEverything();
+      out.exported = (exp.data.observations || []).filter(x => x.furnishing === 'partly').map(x => x.kind).sort();
+      out.shape = storedShapeFault('observations', exp.data.observations);
+      const rep = replayRegister(); out.replayed = rep.observations.filter(x => x.furnishing === 'partly').map(x => x.kind).sort();
+      await press('mp-undo'); out.afterUndo = State.observations.length; out.integrityUndo = registerIntegrity().state;
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog); else localStorage.removeItem('vl.registerLog');
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (JSON.stringify(r.options) !== '["Not stated","Unfurnished","Partly furnished","Fully furnished"]' || r.dflt !== '') p.push(`the furnishing choice reads ${JSON.stringify(r.options)} with "${r.dflt}" chosen`);
+    if (r.h.some(x => x < 44)) p.push(`the furnishing and rent fields are ${r.h} px tall`);
+    if (JSON.stringify(r.partly) !== '[["listed",12,null],["ask-price",300000,"partly"],["ask-rent",1150,"partly"]]') p.push(`a stated furnishing is on the count or missing from a price or rent: ${JSON.stringify(r.partly)}`);
+    if (JSON.stringify(r.none) !== '[["listed",12,null],["ask-rent",900,null]]') p.push(`Not stated wrote a furnishing: ${JSON.stringify(r.none)}`);
+    if (r.integrity !== 'ok' || JSON.stringify(r.exported) !== '["ask-price","ask-rent"]' || r.shape || JSON.stringify(r.replayed) !== '["ask-price","ask-rent"]') p.push(`the field in the register: integrity ${r.integrity}, exported ${JSON.stringify(r.exported)}, shape fault ${r.shape}, replayed ${JSON.stringify(r.replayed)}`);
+    if (r.afterUndo !== 3 || r.integrityUndo !== 'ok') p.push(`Undo of the second snapshot left ${r.afterUndo} records (3 expected), integrity ${r.integrityUndo}`);
+    if (p.length) fail('market pulse: the form writes the furnishing', p.join('\n      '));
+    else ok('market pulse: the form offers Not stated (the default), Unfurnished, Partly furnished and Fully furnished with an asking rent; it puts the furnishing on the asking prices and the rent only, none when Not stated; the field is in the register, Export everything, replay and Undo');
+  } catch (e) { fail('market pulse: the furnishing form could not be run', String(e.message).split('\n')[0]); }
+  /* LET AS (the owner, 1 Nov 2026): how a rent is let. Optional on the rent
+     records; none is Not stated. Rent medians split by it side by side with
+     each n, Not stated its own count, a difference only between the two
+     states of a whole unit (a company or worker lease against a whole unit)
+     and only when both reach n = 3; a rent by the room or bed is per room or
+     bed — in no whole-unit median and not set against one. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      const rec = (o) => ({ id: 'ml-' + Math.random(), evidence: 'user', scope: 'area', kind: 'ask-rent', city: 'sibu', propertyType: 'Apartment / flat', ...o });
+      const rent = (area, letAs, vals, extra) => vals.map((v, i) => rec({ area, value: v, date: '2026-10-' + String(i + 3).padStart(2, '0'), ...(letAs ? { letAs } : {}), ...extra }));
+      const rows = [
+        ...rent('Permai', 'whole', [900, 850, 950, 900]), ...rent('Permai', 'room', [400, 450, 420]), ...rent('Permai', 'lease', [1500, 1600, 1550]), ...rent('Permai', '', [1000, 1100]),
+        ...rent('Sibujaya', 'whole', [800, 820, 780, 810]), ...rent('Sibujaya', 'lease', [1400, 1450]),
+        ...rent('Lanang', 'whole', [800, 820, 780]), ...rent('Lanang', '', [900, 950, 1000]),
+        ...rent('Town centre', 'room', [400, 450, 420]), ...rent('Town centre', 'whole', [900, 850, 950]),
+        ...rent('Jalan Salim', 'room', [400, 450, 420]),
+      ];
+      const m = marketPulseModel(rows);
+      const cell = (a) => m.cells.find(c => c.area === a);
+      const P = cell('Permai'), S = cell('Sibujaya'), L = cell('Lanang'), T = cell('Town centre'), J = cell('Jalan Salim');
+      const ga = (c) => c.letAs['ask-rent'];
+      const out = {
+        old: [mpLetAs({}), mpLetAs({ letAs: 'room' }), mpLetAs({ letAs: 'attic' }), mpLetAsLabel('')],
+        P: { g: ['whole', 'room', 'lease'].map(k => [ga(P).groups[k].n, ga(P).groups[k].median]), ns: ga(P).notStated.n, diffs: ga(P).diffs, words: mpLetAsWords(ga(P)),
+          main: [P.rAsk.latest.n, P.rAsk.latest.median], furn: P.furnish['ask-rent'] },
+        S: { diffs: ga(S).diffs, words: mpLetAsWords(ga(S)) },
+        L: ga(L), T: { diffs: ga(T).diffs, words: mpLetAsWords(ga(T)), main: [T.rAsk.latest.n, T.rAsk.latest.median] },
+        J: { split: ga(J), rAsk: J.rAsk.n, rooms: J.roomRents },
+      };
+      State.observations = rows; navigate('/property/market'); await new Promise(res => setTimeout(res, 600));
+      const at = (a, k) => document.querySelector('[data-mp-cell="sibu|' + a + '|Apartment / flat"] [data-mp-letas="' + k + '"]');
+      const cellEl = (a) => document.querySelector('[data-mp-cell="sibu|' + a + '|Apartment / flat"]');
+      out.dom = { P: at('Permai', 'ask-rent')?.textContent || '', S: at('Sibujaya', 'ask-rent')?.textContent || '', L: !!at('Lanang', 'ask-rent'),
+        Pdt: [...cellEl('Permai').querySelectorAll('.mp-dl dt')].map(d => d.textContent), Jrent: !!cellEl('Jalan Salim')?.querySelector('[data-mp-rent]') };
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog);
+      return JSON.stringify(out);
+    })()`));
+    const p = [], near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
+    if (JSON.stringify(r.old) !== '["","room","","Not stated"]') p.push(`a record with no "Let as", or an unknown one, does not read as Not stated: ${JSON.stringify(r.old)}`);
+    const P = r.P;
+    if (JSON.stringify(P.g) !== '[[4,900],[3,420],[3,1550]]' || P.ns !== 2) p.push(`Permai's rents by how they are let: ${JSON.stringify([P.g, P.ns])}`);
+    if (P.diffs.length !== 1 || P.diffs[0].a !== 'lease' || P.diffs[0].b !== 'whole' || P.diffs[0].amount !== 650 || !near(P.diffs[0].pct, 650 / 900 * 100)) p.push(`the difference is only a lease against a whole unit, never the room or bed: ${JSON.stringify(P.diffs)}`);
+    if (P.words.line !== 'whole unit RM900 (n = 4, 3 Oct 2026 to 6 Oct 2026) · by the room or bed RM420 per room or bed (n = 3, 3 Oct 2026 to 5 Oct 2026) · company or worker lease RM1,550 (n = 3, 3 Oct 2026 to 5 Oct 2026)'
+      || P.words.notStated !== 'Not stated: n = 2, kept apart and in neither side.' || P.words.diffs[0] !== 'Company or worker lease against whole unit: +RM650 a month (+72.2%)'
+      || P.words.note !== 'A rent by the room or bed is per room or bed: it is not set against a whole-unit rent.') p.push(`the words: ${JSON.stringify(P.words)}`);
+    if (P.main[0] !== 9 || P.main[1] !== 1000) p.push(`the whole-unit asking median has n ${P.main[0]}, median ${P.main[1]} — 9 and 1,000 without the room or bed rents; they were mixed in`);
+    if (r.S.diffs.length !== 0 || !/company or worker lease: n = 2 — too few/.test(r.S.words.line) || !/^No difference shown/.test(r.S.words.noDiff)) p.push(`two lease rents still give a difference: ${JSON.stringify(r.S)}`);
+    if (r.L !== null) p.push(`one stated state and Not stated give a comparison: ${JSON.stringify(r.L)}`);
+    if (r.T.diffs.length !== 0 || r.T.main[0] !== 3 || r.T.main[1] !== 900) p.push(`a room or bed (n = 3) and a whole unit (n = 3) give a difference or a mixed median: ${JSON.stringify(r.T)}`);
+    if (r.J.split !== null || r.J.rAsk !== 0 || r.J.rooms !== 3 || !r.dom.Jrent) p.push(`rents by the room or bed only: ${JSON.stringify(r.J)}, rental side drawn ${r.dom.Jrent}`);
+    if (!/Asking rent by how it is let/.test(r.dom.P) || !/Company or worker lease against whole unit: \+RM650 a month \(\+72\.2%\)/.test(r.dom.P) || !/by the room or bed RM420 per room or bed \(n = 3/.test(r.dom.P) || !/Not stated: n = 2/.test(r.dom.P)) p.push(`the page reads "${r.dom.P}"`);
+    if (!/No difference shown/.test(r.dom.S) || /\+RM/.test(r.dom.S)) p.push(`Sibujaya's page reads "${r.dom.S}"`);
+    if (r.dom.L) p.push('Lanang, with one stated state, shows a "Let as" comparison');
+    if (!r.dom.Pdt.some(t => /Asking rent, median, not by the room or bed/.test(t))) p.push(`the whole-unit rent median is not labelled: ${JSON.stringify(r.dom.Pdt)}`);
+    if (/worth/i.test(r.dom.P + r.dom.S)) p.push('the "Let as" words pass a judgement');
+    if (p.length) fail('market pulse: rents split by how they are let', p.join('\n      '));
+    else ok('market pulse: rents split by "Let as": Permai reads whole unit RM900 (n = 4) · by the room or bed RM420 per room or bed (n = 3) · company or worker lease RM1,550 (n = 3), Not stated n = 2 apart, the one difference (lease against whole unit, +RM650, +72.2%) only where both reach n = 3, and the room or bed in no whole-unit median (n = 9, RM1,000 without it) and set against none; two lease rents give no difference');
+  } catch (e) { fail('market pulse: the "Let as" comparison could not be run', String(e.message).split('\n')[0]); }
+  /* The form writes "Let as" on the asking rent only, and nothing when Not stated. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      State.observations = []; localStorage.removeItem('vl.registerLog'); loadRegisterLog();
+      navigate('/property/market'); await new Promise(res => setTimeout(res, 400));
+      const set = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      const press = async (id) => { document.getElementById(id).click(); await new Promise(res => setTimeout(res, 300)); };
+      const out = { options: [...document.getElementById('mp-letas').options].map(o => o.textContent), dflt: document.getElementById('mp-letas').value,
+        h: Math.round(document.getElementById('mp-letas').getBoundingClientRect().height), hint0: document.getElementById('mp-letas-hint').textContent };
+      set('mp-town', 'sibu'); set('mp-area', 'Permai'); set('mp-type', 'Apartment / flat'); set('mp-date', '2026-10-30');
+      set('mp-letas', 'room'); out.hintRoom = document.getElementById('mp-letas-hint').textContent;
+      set('mp-count', '8'); set('mp-med', '250000'); set('mp-rent', '400'); set('mp-src', 'Mudah search, 30 Oct');
+      await press('mp-save');
+      out.room = State.observations.map(o => [o.kind, o.value, o.letAs || null]).reverse();
+      set('mp-rent', '1200'); set('mp-letas', ''); await press('mp-save');
+      out.none = State.observations[0] && [State.observations[0].kind, State.observations[0].letAs || null];
+      out.integrity = registerIntegrity().state;
+      const exp = exportEverything();
+      out.exported = (exp.data.observations || []).filter(x => x.letAs === 'room').map(x => x.kind);
+      out.shape = storedShapeFault('observations', exp.data.observations);
+      out.replayed = replayRegister().observations.filter(x => x.letAs).map(x => x.kind);
+      await press('mp-undo'); out.afterUndo = State.observations.length; out.integrityUndo = registerIntegrity().state;
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog); else localStorage.removeItem('vl.registerLog');
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (JSON.stringify(r.options) !== '["Not stated","Whole unit","By the room or bed","Company or worker lease"]' || r.dflt !== '' || r.h < 44) p.push(`the "Let as" choice reads ${JSON.stringify(r.options)} with "${r.dflt}" chosen, ${r.h}px tall`);
+    if (!/per room or bed/.test(r.hintRoom) || /per room or bed/.test(r.hint0)) p.push(`the hint for the room or bed reads "${r.hintRoom}" (before: "${r.hint0}")`);
+    if (JSON.stringify(r.room) !== '[["listed",8,null],["ask-price",250000,null],["ask-rent",400,"room"]]') p.push(`"Let as" is on a price or the count, or missing from the rent: ${JSON.stringify(r.room)}`);
+    if (JSON.stringify(r.none) !== '["ask-rent",null]') p.push(`Not stated wrote a "Let as": ${JSON.stringify(r.none)}`);
+    if (r.integrity !== 'ok' || JSON.stringify(r.exported) !== '["ask-rent"]' || r.shape || JSON.stringify(r.replayed) !== '["ask-rent"]') p.push(`the field in the register: integrity ${r.integrity}, exported ${JSON.stringify(r.exported)}, shape fault ${r.shape}, replayed ${JSON.stringify(r.replayed)}`);
+    if (r.afterUndo !== 3 || r.integrityUndo !== 'ok') p.push(`Undo of the second snapshot left ${r.afterUndo} records (3 expected), integrity ${r.integrityUndo}`);
+    if (p.length) fail('market pulse: the form writes "Let as"', p.join('\n      '));
+    else ok('market pulse: the form offers Not stated (the default), Whole unit, By the room or bed and Company or worker lease; it puts "Let as" on the asking rent only, none when Not stated, and asks for the rent per room or bed when that is chosen; the field is in the register, Export everything, replay and Undo');
+  } catch (e) { fail('market pulse: the "Let as" form could not be run', String(e.message).split('\n')[0]); }
+  /* ---- end market-pulse ---- */
+
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

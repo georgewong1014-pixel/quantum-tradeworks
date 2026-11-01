@@ -37,7 +37,7 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator', '/pr
                 /* Added after the decision record shipped 186px of overflow at 390:
                    four columns of nowrap text in a bare div rather than a
                    .tablewrap. Nothing else in the suite looks below 1440. */
-                '/decision-record', '/property/comparables', '/property/areas', '/start',
+                '/decision-record', '/property/comparables', '/property/market', '/property/areas', '/start',
                 '/methodology/ips',
                 '/my/scanner', '/app/equities', '/app/watchlists',
                 /* The front door, the discover hub and two company pages — one
@@ -6225,6 +6225,91 @@ await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, devi
   if (fails.length) { bad++; console.log(`FAIL evidence-bands — the Strategy Lens's results on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
   else console.log(`ok   evidence-bands: the Strategy Lens's results read "Evidence band" inside their card, the explanation line is whole and directly under them, and the disclosure's meanings fit, at 360, 390, 430, 768 and 1440 in the page's font and in Verdana (${said.length} frames)`);
 }
+/* ---- market-pulse-phone ---- */
+/* THE MARKET PULSE ON A PHONE (the owner, 1 Nov 2026; 94-market-pulse.js).
+   At 360×640, 390×844 and 430×932, in the page's font and in Verdana, on a
+   first visit (the form and the explanation) and with a synthetic set of
+   records across two areas of two towns (four series a cell, the signals,
+   the rental side, NAPIC's line and its scheme ranges): the page inside the
+   screen's width, nothing of a figure cut off inside its box, every control
+   of the form — the selects, the date, the five number and text fields, Save
+   and Undo — and the closed scheme list a 44px target, and each series a
+   box inside its card. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`) : null);
+  const SEED = `(async () => {
+    const T = 'Terrace (2 storey)';
+    mpRecordSnapshot({ city:'kuching', area:'Tabuan', propertyType:T, date:'2026-10-05', count:35, low:520000, median:605000, high:690000, source:'Mudah search, 5 Oct' });
+    mpRecordSnapshot({ city:'kuching', area:'Tabuan', propertyType:T, date:'2026-10-18', count:38, median:610000, source:'Mudah search, 18 Oct' });
+    mpRecordSnapshot({ city:'kuching', area:'Tabuan', propertyType:T, date:'2026-11-01', count:44, low:560000, median:620000, high:710000, source:'Mudah search, 1 Nov' });
+    [['2026-10-02', 585000], ['2026-10-21', 590000], ['2026-11-01', 600000]].forEach(([date, value]) => addObservation({ city:'kuching', area:'Tabuan', propertyType:T, kind:'sold-price', value, date, evidence:'user', sourceRef:'SPA seen', scope:'area' }));
+    mpRecordSnapshot({ city:'miri', area:'Marina', propertyType:'Condominium', date:'2026-09-20', count:22, median:450000, source:'PropertyGuru search, 20 Sep' });
+    mpRecordSnapshot({ city:'miri', area:'Marina', propertyType:'Condominium', date:'2026-10-30', count:25, source:'PropertyGuru search, 30 Oct' });
+    [['ask-rent', 2200, '2026-10-03'], ['ask-rent', 2300, '2026-10-12'], ['ask-rent', 2250, '2026-10-28'], ['let-rent', 2000, '2026-10-05'], ['let-rent', 2100, '2026-10-15'], ['let-rent', 2050, '2026-10-26'], ['vacancy', 4, '2026-10-06'], ['vacancy', 6, '2026-10-16'], ['vacancy', 9, '2026-10-27']]
+      .forEach(([kind, value, date]) => addObservation({ city:'miri', area:'Marina', propertyType:'Condominium', kind, value, date, evidence:'user', sourceRef:'tenancy', scope:'area',
+        ...(kind === 'ask-rent' ? { furnishing: value > 2220 ? 'partly' : 'unfurnished', letAs: value === 2300 ? 'room' : 'whole' } : kind === 'let-rent' ? { furnishing: value > 2060 ? 'fully' : 'unfurnished' } : {}) }));
+    await loadNapic('Kuching'); await loadNapic('Miri');
+    render(); await new Promise(r => setTimeout(r, 500));
+    document.querySelectorAll('.mp-schemes').forEach(d => d.open = true);
+    return State.observations.length; })()`;
+  const MEASURE = `(async () => { await document.fonts.ready; await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const root = document.querySelector('#views .mp-page');
+    const small = [...root.querySelectorAll('input, select, button, summary, a[href]')].filter(shown).filter(n => !n.closest('.pf-flow, .start-here'))
+      .map(n => [n.id || n.textContent.trim().slice(0, 24), n.getBoundingClientRect()]).filter(([, b]) => b.height < 43.5).map(([n, b]) => n + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    const outside = [...root.querySelectorAll('.mp-cell')].flatMap(c => { const cb = c.getBoundingClientRect();
+      return [...c.querySelectorAll('.mp-fig, .mp-sig, .mp-dl, .tablewrap')].filter(shown).filter(n => { const b = n.getBoundingClientRect(); return b.left < cb.left - 0.5 || b.right > cb.right + 0.5; }).map(n => n.className.split(' ')[0]); });
+    const cut = [...root.querySelectorAll('.mp-fig p, .mp-sig p, .mp-dl dd, .mp-dl dt, .mp-ctx, .mp-field label, .mp-hint')].filter(shown).filter(n => n.scrollWidth > n.clientWidth + 1).map(n => n.textContent.trim().slice(0, 40));
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, vw: innerWidth, small, outside, cut, cells: root.querySelectorAll('.mp-cell').length,
+      figs: root.querySelectorAll('.mp-fig').length, empty: !!document.getElementById('mp-empty'), formW: Math.round(document.getElementById('mp-form').getBoundingClientRect().width) }; })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy');
+      await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+      for (const seeded of [false, true]) {
+        await load('/property/market');
+        /* The page can still be booting when the load check passes: asked again, not skipped. */
+        if (seeded) for (let k = 0; ; k++) { try { await ev(SEED); break; } catch (e) { if (k >= 3) throw e; await sleep(1000); } }
+        await face(font);
+        const r = await ev(MEASURE);
+        const where = `${at}${seeded ? ' with records' : ', first visit'}`;
+        if (r.over > 0) fails.push(`${where}: the page scrolls ${r.over}px sideways`);
+        if (r.small.length) fails.push(`${where}: controls under 44px: ${r.small.slice(0, 6).join('; ')}`);
+        if (r.outside.length) fails.push(`${where}: ${r.outside.length} box(es) run outside their card: ${[...new Set(r.outside)].join(', ')}`);
+        if (r.cut.length) fails.push(`${where}: text cut off inside its box: ${r.cut.slice(0, 3).join(' | ')}`);
+        if (seeded ? (r.cells !== 2 || r.figs !== 8 || r.empty) : (r.cells !== 0 || !r.empty)) fails.push(`${where}: ${r.cells} cells and ${r.figs} series drawn${r.empty ? ', the first-visit card shown' : ''}`);
+        said.push(`${at}${seeded ? '+' : ''} ${r.formW}`);
+      }
+      await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL market-pulse-phone — the Market pulse on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   market-pulse-phone: at 360, 390 and 430 in the page's font and in Verdana, the first visit and a page of two areas' records stay inside the screen, every control of the form and the scheme list is a 44px target, each series sits inside its card and no text is cut off`);
+}
+/* ---- end market-pulse-phone ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

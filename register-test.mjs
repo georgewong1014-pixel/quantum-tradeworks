@@ -881,6 +881,129 @@ try {
   }
   /* ---- end bugfix: property-focus ---- */
 
+  /* ---- market-pulse ---- */
+  /* 11 — the Listings counted kind (the owner, 1 Nov 2026, Market pulse): a
+          dated count of listings by area and type is a register record like
+          any other — it records, edits, undoes and replays; it is in the
+          register's shape, in Export everything and in the backup; and a
+          snapshot's count and asking prices are written through the
+          register's own writer and undone together. */
+  {
+    await load('/property/comparables');
+    const r = JSON.parse(await evaluate(`(() => {
+      const reset = () => { ['registerLog','observations'].forEach(k => localStorage.removeItem('vl.' + k)); State.observations = []; loadRegisterLog(); };
+      reset();
+      const out = { kind: OBSERVATION_KINDS.find(k => k.id === 'listed') || null };
+      const rec = addObservation({ city:'kuching', area:'Tabuan', propertyType:'Terrace (2 storey)', kind:'listed', value: 42, date:'2026-11-01', evidence:'user', sourceRef:'Mudah search, 1 Nov', scope:'area' });
+      out.held = State.observations.filter(o => o.kind === 'listed').length;
+      out.shape = storedShapeFault('observations', store.read('observations', []));
+      const o = State.observations[0];
+      recordObservationEdited(o.id, 'value', o.value, 47); State.observations[0] = { ...o, value: 47 }; saveObservations();
+      out.edited = State.observations[0].value;
+      out.replayEdit = replayRegister().observations.find(x => x.id === rec.id)?.value;
+      out.integrityRecord = registerIntegrity().state;
+      undoLastRegisterChange(); out.undoEdit = State.observations[0].value;
+      undoLastRegisterChange(); out.undoAdd = State.observations.length;
+      out.integrityUndone = registerIntegrity().state;
+      reset();
+      /* A snapshot: one count and three asking prices, one writer, one undo. */
+      const made = typeof mpRecordSnapshot === 'function'
+        ? mpRecordSnapshot({ city:'kuching', area:'Tabuan', propertyType:'Terrace (2 storey)', date:'2026-11-01', count: 44, low: 560000, median: 620000, high: 710000, source:'Mudah search, 1 Nov' }) : [];
+      out.snap = made.map(m => [m.kind, m.value, m.date, m.area, m.propertyType, m.snapshotRole]);
+      out.sameSnapshot = new Set(made.map(m => m.snapshotId)).size;
+      out.logged = registerLog().filter(e => e.entity === 'observation' && e.op === 'add').length;
+      out.integritySnap = registerIntegrity().state;
+      const exp = exportEverything();
+      out.exported = (exp.data.observations || []).filter(x => x.kind === 'listed' && x.value === 44).length;
+      out.exportShape = storedShapeFault('observations', exp.data.observations);
+      out.undoCount = typeof mpUndoSnapshot === 'function' ? mpUndoSnapshot() : null;
+      out.afterUndo = State.observations.length;
+      out.integrityAfter = registerIntegrity().state;
+      out.canUndo = canUndoRegister();
+      reset();
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (!r.kind || r.kind.unit !== 'listings' || r.kind.asking !== false) p.push(`OBSERVATION_KINDS has no Listings counted kind (id listed, unit listings): ${JSON.stringify(r.kind)}`);
+    if (r.held !== 1 || r.shape) p.push(`a listed record is held ${r.held} times, shape fault: ${r.shape}`);
+    if (r.edited !== 47 || r.replayEdit !== 47 || r.undoEdit !== 42 || r.undoAdd !== 0) p.push(`edit and undo: edited ${r.edited}, replayed ${r.replayEdit}, undone to ${r.undoEdit}, then ${r.undoAdd} records`);
+    if (r.integrityRecord !== 'ok' || r.integrityUndone !== 'ok') p.push(`integrity ${r.integrityRecord} / ${r.integrityUndone}`);
+    const T = 'Terrace (2 storey)';
+    if (JSON.stringify(r.snap) !== JSON.stringify([['listed', 44, '2026-11-01', 'Tabuan', T, 'count'], ['ask-price', 560000, '2026-11-01', 'Tabuan', T, 'low'],
+      ['ask-price', 620000, '2026-11-01', 'Tabuan', T, 'median'], ['ask-price', 710000, '2026-11-01', 'Tabuan', T, 'high']])) p.push(`a snapshot wrote ${JSON.stringify(r.snap)}`);
+    if (r.sameSnapshot !== 1 || r.logged !== 4 || r.integritySnap !== 'ok') p.push(`snapshot: ${r.sameSnapshot} ids, ${r.logged} logged adds, integrity ${r.integritySnap}`);
+    if (r.exported !== 1 || r.exportShape) p.push(`Export everything carries ${r.exported} listed records, shape fault: ${r.exportShape}`);
+    if (r.undoCount !== 4 || r.afterUndo !== 0 || r.integrityAfter !== 'ok' || r.canUndo !== false) p.push(`undoing the snapshot: ${r.undoCount} records, ${r.afterUndo} left, integrity ${r.integrityAfter}, can still undo ${r.canUndo}`);
+    if (p.length) fail('the Listings counted kind and the Market pulse snapshot go through the register', p.join('\n      '));
+    else console.log('ok    Listings counted records, edits, undoes and replays; a snapshot writes its count and asking prices through the register, travels in Export everything and is undone in one step');
+  }
+  /* 12 — the furnishing field (the owner, 1 Nov 2026): optional on the rent and
+          price records a snapshot writes, in the register's shape, in Export
+          everything, replayed from the log and undone with its snapshot; an
+          older record with none is unchanged and reads as Not stated. */
+  {
+    const r = JSON.parse(await evaluate(`(() => {
+      ['registerLog','observations'].forEach(k => localStorage.removeItem('vl.' + k)); State.observations = []; loadRegisterLog();
+      const old = addObservation({ city:'sibu', area:'Rejang Park', propertyType:'Apartment / flat', kind:'ask-rent', value: 800, date:'2026-09-01', evidence:'user', sourceRef:'old', scope:'area' });
+      const made = typeof mpRecordSnapshot === 'function'
+        ? mpRecordSnapshot({ city:'sibu', area:'Rejang Park', propertyType:'Apartment / flat', date:'2026-11-01', count: 12, median: 300000, rent: 1150, furnishing: 'partly', source:'Mudah search, 1 Nov' }) : [];
+      const none = typeof mpRecordSnapshot === 'function'
+        ? mpRecordSnapshot({ city:'sibu', area:'Rejang Park', propertyType:'Apartment / flat', date:'2026-11-02', rent: 900, source:'x' }) : [];
+      const out = { made: made.map(m => [m.kind, m.value, m.furnishing || null]), none: none.map(m => [m.kind, m.furnishing || null]), oldHas: 'furnishing' in old,
+        read: typeof mpFurnishing === 'function' ? [mpFurnishing(old), mpFurnishing(made[2])] : null };
+      out.shape = storedShapeFault('observations', store.read('observations', []));
+      out.integrity = registerIntegrity().state;
+      out.replayed = replayRegister().observations.filter(o => o.furnishing).map(o => o.kind).sort();
+      out.exported = (exportEverything().data.observations || []).filter(o => o.furnishing === 'partly').map(o => o.kind).sort();
+      out.undo = [mpUndoSnapshot(), mpUndoSnapshot()]; out.left = State.observations.map(o => o.id === old.id);
+      out.integrityAfter = registerIntegrity().state;
+      ['registerLog','observations'].forEach(k => localStorage.removeItem('vl.' + k)); State.observations = []; loadRegisterLog();
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (JSON.stringify(r.made) !== '[["listed",12,null],["ask-price",300000,"partly"],["ask-rent",1150,"partly"]]') p.push(`a furnished snapshot wrote ${JSON.stringify(r.made)}`);
+    if (JSON.stringify(r.none) !== '[["ask-rent",null]]') p.push(`a snapshot with no furnishing wrote ${JSON.stringify(r.none)}`);
+    if (r.oldHas || JSON.stringify(r.read) !== '["","partly"]') p.push(`an older record: has the field ${r.oldHas}, reads ${JSON.stringify(r.read)}`);
+    if (r.shape || r.integrity !== 'ok') p.push(`shape fault ${r.shape}, integrity ${r.integrity}`);
+    if (JSON.stringify(r.replayed) !== '["ask-price","ask-rent"]' || JSON.stringify(r.exported) !== '["ask-price","ask-rent"]') p.push(`the field is replayed on ${JSON.stringify(r.replayed)}, exported on ${JSON.stringify(r.exported)}`);
+    if (JSON.stringify(r.undo) !== '[1,3]' || JSON.stringify(r.left) !== '[true]' || r.integrityAfter !== 'ok') p.push(`undo took ${JSON.stringify(r.undo)} records (the unfurnished rent, then the furnished three), left ${JSON.stringify(r.left)}, integrity ${r.integrityAfter}`);
+    if (p.length) fail('the furnishing field goes through the register', p.join('\n      '));
+    else console.log('ok    the furnishing field is optional on a snapshot\'s asking prices and rent, absent when Not stated and on older records, in the register\'s shape, in Export everything, replayed and undone with its snapshot');
+  }
+  /* 13 — "Let as" (the owner, 1 Nov 2026): optional on a snapshot's asking
+          rent only, in the register's shape, in Export everything, replayed
+          and undone with its snapshot; an older record with none reads as
+          Not stated. */
+  {
+    const r = JSON.parse(await evaluate(`(() => {
+      ['registerLog','observations'].forEach(k => localStorage.removeItem('vl.' + k)); State.observations = []; loadRegisterLog();
+      const old = addObservation({ city:'sibu', area:'Permai', propertyType:'Apartment / flat', kind:'ask-rent', value: 800, date:'2026-09-01', evidence:'user', sourceRef:'old', scope:'area' });
+      const ok = typeof mpRecordSnapshot === 'function';
+      const made = ok ? mpRecordSnapshot({ city:'sibu', area:'Permai', propertyType:'Apartment / flat', date:'2026-11-01', count: 8, median: 250000, rent: 400, letAs: 'room', source:'Mudah search, 1 Nov' }) : [];
+      const none = ok ? mpRecordSnapshot({ city:'sibu', area:'Permai', propertyType:'Apartment / flat', date:'2026-11-02', rent: 900, source:'x' }) : [];
+      const out = { made: made.map(m => [m.kind, m.letAs || null]), none: none.map(m => [m.kind, m.letAs || null]), oldHas: 'letAs' in old,
+        read: typeof mpLetAs === 'function' ? [mpLetAs(old), mpLetAs(made[2])] : null };
+      out.shape = storedShapeFault('observations', store.read('observations', []));
+      out.integrity = registerIntegrity().state;
+      out.replayed = replayRegister().observations.filter(o => o.letAs).map(o => o.kind);
+      out.exported = (exportEverything().data.observations || []).filter(o => o.letAs === 'room').map(o => o.kind);
+      out.undo = [mpUndoSnapshot(), mpUndoSnapshot()]; out.left = State.observations.map(o => o.id === old.id);
+      out.integrityAfter = registerIntegrity().state;
+      ['registerLog','observations'].forEach(k => localStorage.removeItem('vl.' + k)); State.observations = []; loadRegisterLog();
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (JSON.stringify(r.made) !== '[["listed",null],["ask-price",null],["ask-rent","room"]]') p.push(`a snapshot let by the room wrote ${JSON.stringify(r.made)}`);
+    if (JSON.stringify(r.none) !== '[["ask-rent",null]]') p.push(`a snapshot with no "Let as" wrote ${JSON.stringify(r.none)}`);
+    if (r.oldHas || JSON.stringify(r.read) !== '["","room"]') p.push(`an older record: has the field ${r.oldHas}, reads ${JSON.stringify(r.read)}`);
+    if (r.shape || r.integrity !== 'ok') p.push(`shape fault ${r.shape}, integrity ${r.integrity}`);
+    if (JSON.stringify(r.replayed) !== '["ask-rent"]' || JSON.stringify(r.exported) !== '["ask-rent"]') p.push(`the field is replayed on ${JSON.stringify(r.replayed)}, exported on ${JSON.stringify(r.exported)}`);
+    if (JSON.stringify(r.undo) !== '[1,3]' || JSON.stringify(r.left) !== '[true]' || r.integrityAfter !== 'ok') p.push(`undo took ${JSON.stringify(r.undo)} records, left ${JSON.stringify(r.left)}, integrity ${r.integrityAfter}`);
+    if (p.length) fail('"Let as" goes through the register', p.join('\n      '));
+    else console.log('ok    "Let as" is optional on a snapshot\'s asking rent only, absent when Not stated and on older records, in the register\'s shape, in Export everything, replayed and undone with its snapshot');
+  }
+  /* ---- end market-pulse ---- */
+
   console.log(failures
     ? `\n${failures} invariant${failures === 1 ? '' : 's'} broken.`
     : '\nregister holds: record, edit, undo and replay agree across every entity.');
