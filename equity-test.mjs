@@ -2360,6 +2360,102 @@ try {
     else ok(`the workspace lists all ${r.n} saved items across five kinds with stamps, the export carries every kind plus the data versions, an imported run replays to its saved base case, and a reopened comparison reports itself unchanged`);
   }
 
+  /* THE FEE RULEBOOK ON A SAVED PROPERTY (the 31 Oct 2026 operational audit,
+     #3). A saved property was stamped with the Equities model and compared
+     against it, and never against the fee rulebook that prices it: after
+     rulebook 1.5.0 changed the valuation fee a property saved under 1.4.0
+     still read Current, and an Equities-only model change would have read
+     "Model moved" on every one. A property is stamped with the rulebook and
+     compared against it and its own data files; one saved before says so;
+     Equities items still follow the model; the export names the rulebook, and
+     a file without it restores as before. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = localStorage.getItem('vl.savedWork');
+      const out = { cur: FEE_TABLE.version };
+      try {
+        const s = buildStamp('property');
+        out.stampFees = s.fees;
+        out.notOnOthers = ['wheel', 'trading'].map(k => 'fees' in buildStamp(k)).concat('fees' in buildStamp(BY_ID.get('AAPL-SEC').c));
+        const { fees, ...noFees } = s;
+        const oldModel = 'metrics 1.5.0 · scores 1.3.0 · valuation 1.4.0';
+        const d = (st, legacy) => { const x = stampDiff(st, legacy || null, 'property'); return { status: x.status, label: x.label, text: x.text, modelMoved: x.modelMoved, feesMoved: x.feesMoved }; };
+        out.moved = d({ ...s, fees: '1.4.0' });
+        out.current = d(s);
+        out.none = d(noFees, { model: MODEL_VERSION });
+        out.unstamped = d(null, { model: oldModel });
+        out.modelAlone = d({ ...s, model: oldModel });
+        out.modelAloneNoFees = d({ ...noFees, model: oldModel });
+        out.dataMoved = d({ ...s, data: { 'sarawak-geo.json': { v: 'ffffffffffff' } } });
+        out.equity = {
+          model: stampDiff({ ...buildStamp(BY_ID.get('AAPL-SEC').c), model: oldModel }).status,
+          current: stampDiff(buildStamp(BY_ID.get('AAPL-SEC').c)).status,
+          wheel: stampDiff({ ...buildStamp('wheel'), model: oldModel }).label };
+
+        /* Four saved properties and a Cash Wheel snapshot, read by Saved work. */
+        const at = '2026-10-20T02:00:00.000Z';
+        const mk = (id, name, stamp) => ({ id, kind: 'property', name, createdAt: at, updatedAt: at, savedAt: '2026-10-20 02:00', modelVersion: MODEL_VERSION, asOf: AS_OF,
+          editor: 'this browser', ...(stamp ? { stamp } : {}), payload: { deal: { ...PROPERTY_DEFAULT_DEAL, touched: { price: true }, price: 480000 } }, scenarios: [] });
+        const wheelRec = { id: 'w-wheel-fees-test', kind: 'wheel', name: 'Wheel under an older model', savedAt: '2026-10-20 02:00', modelVersion: oldModel, asOf: AS_OF, editor: 'this browser',
+          stamp: { ...buildStamp('wheel'), model: oldModel }, payload: { wheelPlan: { isWorkedExample: false, symbol: 'KO' } } };
+        persistWork([mk('w-property-fees-old', 'Saved on 1.4.0', { ...s, fees: '1.4.0' }), mk('w-property-fees-now', 'Saved on current', s),
+          mk('w-property-fees-none', 'Saved before the rulebook', noFees), mk('w-property-fees-model', 'Saved under an older Equities model', { ...s, model: oldModel }), wheelRec]);
+        const by = Object.fromEntries(workspaceItems().map(i => [i.key, i.diff.label]));
+        out.items = by;
+        navigate('/my/workspace'); await wait(250);
+        const page = document.getElementById('views')?.textContent || '';
+        out.pageHas = { moved: page.includes('Fee rulebook moved'), versions: page.includes('saved on 1.4.0, now ' + FEE_TABLE.version),
+          before: page.includes('Saved before the rulebook was recorded'), vers: page.includes('Fee rulebook 1.4.0'),
+          disclosure: /Fee rulebook moved” means/.test(page) };
+        out.summary = (document.querySelector('.ws-filters .metaline') || {}).textContent || '';
+
+        /* The export and a restore. */
+        const doc = JSON.parse(JSON.stringify(exportEverything()));
+        out.exportFees = doc.feeRulebook;
+        out.inExport = (doc.data.savedWork || []).filter(x => x.id.startsWith('w-property-fees')).map(x => x.stamp?.fees || null);
+        const { feeRulebook, ...old } = doc;
+        const a = importEverything(JSON.parse(JSON.stringify(old)));
+        out.old = { ok: a.ok, fees: a.feeRulebook, newer: a.newerRulebook, refused: (a.refused || []).length };
+        if (a.ok) out.oldApply = a.apply();
+        out.afterOld = store.read('savedWork', []).filter(x => x.id.startsWith('w-property-fees')).map(x => x.stamp?.fees || null);
+        const later = (v) => { const x = importEverything({ ...doc, feeRulebook: v }); return x.ok ? { newer: x.newerRulebook, fees: x.feeRulebook } : { err: x.err }; };
+        out.later = later('9.0.0'); out.laterTen = later('1.10.0'); out.same = later(FEE_TABLE.version); out.junk = later('next'); out.numeric = later(7);
+        openRestoreDrawer(); await wait(300);
+        document.querySelector('#drawerBody textarea').value = JSON.stringify({ ...doc, feeRulebook: '9.0.0' });
+        [...document.querySelectorAll('#drawerBody button')].find(b => b.textContent.trim() === 'Check this file').click(); await wait(150);
+        out.drawer = document.getElementById('drawerBody').textContent;
+        closeDrawer({ restore: false }); await wait(300);
+      } catch (e) { out.threw = String(e && e.message || e); }
+      if (keep === null) localStorage.removeItem('vl.savedWork'); else localStorage.setItem('vl.savedWork', keep);
+      return out;
+    })()`);
+    const p = [];
+    if (r.threw) p.push(`threw: ${r.threw}`);
+    if (r.stampFees !== r.cur) p.push(`a saved property is stamped with fee rulebook ${r.stampFees}, not ${r.cur}`);
+    if (r.notOnOthers?.some(Boolean)) p.push(`a stamp that is not a property's carries a rulebook: ${r.notOnOthers}`);
+    if (r.moved?.label !== 'Fee rulebook moved' || !r.moved.text.includes(`saved on 1.4.0, now ${r.cur}`) || r.moved.status !== 'fees' || r.moved.modelMoved) p.push(`1.4.0 reads ${JSON.stringify(r.moved)}`);
+    if (r.current?.label !== 'Current' || r.current.feesMoved !== false) p.push(`the current rulebook reads ${JSON.stringify(r.current)}`);
+    if (r.none?.label !== 'Saved before the rulebook was recorded' || r.none.status !== 'unstamped' || /Current|moved:/.test(r.none.text)) p.push(`no rulebook recorded reads ${JSON.stringify(r.none)}`);
+    if (r.unstamped?.label !== 'Saved before versions were recorded' || r.unstamped.status !== 'unstamped' || /model/i.test(r.unstamped.text)) p.push(`no stamp reads ${JSON.stringify(r.unstamped)}`);
+    if (r.modelAlone?.label !== 'Current' || r.modelAlone.modelMoved) p.push(`a change to the Equities model alone moves a property: ${JSON.stringify(r.modelAlone)}`);
+    if (r.modelAloneNoFees?.label !== 'Saved before the rulebook was recorded') p.push(`an older model and no rulebook reads ${JSON.stringify(r.modelAloneNoFees)}`);
+    if (r.dataMoved?.label !== 'Data moved' || r.dataMoved.feesMoved) p.push(`a property's data file moved reads ${JSON.stringify(r.dataMoved)}`);
+    if (r.equity?.model !== 'model' || r.equity.current !== 'current' || r.equity.wheel !== 'Model moved') p.push(`Equities items no longer follow the model: ${JSON.stringify(r.equity)}`);
+    const it = r.items || {};
+    if (it['w-property-fees-old'] !== 'Fee rulebook moved' || it['w-property-fees-now'] !== 'Current' || it['w-property-fees-none'] !== 'Saved before the rulebook was recorded'
+      || it['w-property-fees-model'] !== 'Current' || it['w-wheel-fees-test'] !== 'Model moved') p.push(`Saved work reads ${JSON.stringify(it)}`);
+    if (!r.pageHas || Object.values(r.pageHas).some(v => !v)) p.push(`Saved work page: ${JSON.stringify(r.pageHas)}`);
+    if (!/saved under a model, fee rulebook or data version that has since changed/.test(r.summary || '')) p.push(`the summary line reads "${r.summary}"`);
+    if (r.exportFees !== r.cur) p.push(`the export names fee rulebook ${r.exportFees}`);
+    if (r.inExport?.slice().sort().join() !== ['1.4.0', r.cur, null, r.cur].sort().join()) p.push(`stamps in the export: ${JSON.stringify(r.inExport)}`);
+    if (!r.old?.ok || r.old.fees !== null || r.old.newer !== false || r.old.refused || !r.oldApply?.ok || r.afterOld?.length !== 4) p.push(`an older export without a rulebook: ${JSON.stringify(r.old)} ${JSON.stringify(r.oldApply)} ${JSON.stringify(r.afterOld)}`);
+    if (!r.later?.newer || !r.laterTen?.newer || r.same?.newer || r.junk?.newer || r.numeric?.newer || r.numeric?.fees !== null) p.push(`newer rulebook: later ${JSON.stringify(r.later)}, 1.10.0 ${JSON.stringify(r.laterTen)}, same ${JSON.stringify(r.same)}, junk ${JSON.stringify(r.junk)}, numeric ${JSON.stringify(r.numeric)}`);
+    if (!new RegExp(`The file was exported under fee rulebook 9\\.0\\.0; this version is ${r.cur.replace(/\./g, '\\.')}`).test(r.drawer || '')) p.push(`the restore drawer does not name the newer rulebook: "${(r.drawer || '').slice(0, 300)}"`);
+    if (p.length) fail('a saved property is stamped with, and compared against, the fee rulebook; the export names it', p);
+    else ok('a saved property is stamped with the fee rulebook: saved under 1.4.0 reads "Fee rulebook moved", the current one "Current", one with no rulebook recorded "Saved before the rulebook was recorded"; an Equities-model change alone moves no property, Equities items still follow the model; the export names the rulebook, an older file restores in full, a later rulebook is named');
+  }
+
   /* THE REPORT. A filed company's cover says SEC-filed, an illustrative
      one's says illustrative; the five figure kinds are legended; every
      absent metric prints a reason; a report from a saved run prints the
@@ -8007,7 +8103,8 @@ try {
         view: State.view,
         primary: [...h.querySelectorAll('.btn-primary')].map(b => b.getAttribute('href')),
         sections: P.map(p => { const s = h.querySelector('#hiw-' + p.id);
-          return s ? { id: p.id, built: !!p.path, steps: s.querySelectorAll('.hiw-step').length, links: s.querySelectorAll('a').length } : { id: p.id, missing: true }; }),
+          return s ? { id: p.id, built: !!p.path, steps: s.querySelectorAll('.hiw-step').length, links: s.querySelectorAll('a').length } : { id: p.id, built: !!p.path, missing: true }; }),
+        unbuilt: [...h.querySelectorAll('.hiw-unbuilt')].map(x => x.textContent.replace(/\\s+/g, ' ').trim()),
         legend: h.querySelectorAll('.hiw-status-item').length,
         journey: h.querySelectorAll('.hiw-path-step').length,
         proofs: [...h.querySelectorAll('.proof-card .proof-hd')].map(x => x.firstElementChild?.textContent),
@@ -8038,7 +8135,8 @@ try {
       p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
     if (home.explore !== null) p.push(`"Explore products" is back on the homepage (${home.explore})`);
     if (home.cards.length !== home.want.filter(w => w.path).length) p.push(`${home.cards.length} product cards for ${home.want.filter(w => w.path).length} built products`);
-    if (!home.soon || home.soon.links || home.soon.badge !== 'Coming soon') p.push(`Business on the homepage: ${JSON.stringify(home.soon)}`);
+    /* The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the line for the unbuilt product left the homepage. */
+    if (home.soon) p.push(`Business is back on the homepage: ${JSON.stringify(home.soon)}`);
     home.want.filter(w => w.path).forEach((want, i) => {
       const c = home.cards[i] || {};
       if (c.title !== want.task) p.push(`card ${i + 1} is titled "${c.title}", not "${want.task}"`);
@@ -8057,10 +8155,13 @@ try {
     if (hiw.view !== 'howItWorks') p.push(`/how-it-works renders ${hiw.view}`);
     if (!hiw.primary.length || hiw.primary.some(x => !/\/app$/.test(x || ''))) p.push(`/how-it-works primary actions: ${JSON.stringify(hiw.primary)}`);
     hiw.sections.forEach(s => {
-      if (s.missing) p.push(`/how-it-works has no section for ${s.id}`);
+      /* 1 Nov 2026 (QT-SCOPE-02): a product that is not built has no section, only the one "Not built yet" line below the three. */
+      if (s.missing && s.built) p.push(`/how-it-works has no section for ${s.id}`);
+      else if (s.missing) return;
       else if (s.built && s.steps !== 5) p.push(`${s.id}: ${s.steps} workflow steps, not 5`);
       else if (!s.built && (s.steps || s.links)) p.push(`${s.id} is not built and shows ${s.steps} steps and ${s.links} links`);
     });
+    if (hiw.unbuilt.length !== 1 || !/^Not built yet: Business Intelligence/.test(hiw.unbuilt[0]) || hiw.unbuilt[0].split(/\s+/).length > 25) p.push(`/how-it-works: the unbuilt product is ${JSON.stringify(hiw.unbuilt)}, not one short "Not built yet" line`);
     if (hiw.legend !== 6) p.push(`${hiw.legend} status meanings, not 6 (the four written, and Delayed and Unavailable)`);
     if (hiw.journey !== 5) p.push(`${hiw.journey} journey steps, not 5`);
     for (const t of ['Sarawak property', 'US options Cash Wheel', 'QT Trading Index'])
@@ -8073,7 +8174,7 @@ try {
     if (pick.illus && !/illustrative figures/.test(pick.illus.label)) p.push(`an illustrative company's preview is not labelled: "${pick.illus.label}"`);
     if (pick.real && !/filed with the SEC/.test(pick.real.label)) p.push(`a filed company's preview does not say so: "${pick.real.label}"`);
     if (p.length) fail('release-a public: the homepage and /how-it-works say what the brief says, and every link on them opens a page', p);
-    else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS with ${home.figures} charts and Business as text; /how-it-works has the steps, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
+    else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS with ${home.figures} charts and no line for the unbuilt Business product; /how-it-works has the three products' steps, one "Not built yet" line, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
   }
   /* ---- end release-a: public ---- */
   /* ---- home: example outputs ---- */
@@ -11157,6 +11258,174 @@ try {
       p.push(`with an address set, Privacy reads: ${(r.setPrivacy.match(/[^.]*(contact address|support@example\.test|send requests)[^.]*\./gi) || []).join(' | ').slice(0, 400)}`);
     if (p.length) fail('the support route switches on with LAUNCH.contactEmail and leaves the waitlist off; with no address nothing changes', p);
     else ok('the support route: with no address /contact, the report form and the waitlist read as before; with an address set at run time /contact shows it once and Privacy says what writing to it hands over, the report\'s last step offers "Copy the report", the address as text and a mailto, the case reads "recorded here, not confirmed received", and the waitlist stays off');
+  }
+
+  /* THE REPORT FORM FOLLOWS THE PAGE IT WAS OPENED OVER (the 31 Oct 2026
+     operational audit, #2). It offered only the equity metrics, ROIC first, and
+     recorded the equities model and the illustrative set's date on every page,
+     so a Property report arrived labelled "Return on invested capital" under
+     Equities versions. From the calculator the first item is a property figure
+     and the text holds the fee rulebook's version (read from FEE_TABLE, not
+     written here) and the build, with none of the deal and none of the equities
+     lines; from a company page the company is filled in and the equities
+     versions are there; the Scanner and any other page get their own lists. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const had = new Set(State.corrections || []);
+      const out = { fee: FEE_TABLE.version, feeLabels: Object.values(FEE_TABLE.lines).map(l => l.label), cash: METRIC_HELP.propSafeCash.label,
+        roic: FIELDS[0].label, model: MODEL_VERSION, price: String(State.deal && State.deal.price) };
+      const raise = async (path) => {
+        navigate(path); await w(400);
+        openReportError(); await w(200);
+        const sel = document.getElementById('errItem');
+        const o = { path: location.pathname + location.search, items: [...sel.options].map(x => x.value), first: sel.value, subject: document.getElementById('err-subject').value };
+        const d = document.getElementById('err-description'); d.value = 'the figure is wrong'; d.dispatchEvent(new Event('input'));
+        [...document.querySelectorAll('#drawer button')].find(b => b.textContent.trim() === 'Save this case here').click(); await w(400);
+        o.text = document.querySelector('#drawer textarea')?.value || '';
+        closeDrawer({ restore: false }); await w(300);
+        return o;
+      };
+      try {
+        out.property = await raise('/property/calculator?city=Sibu');
+        out.lab = await raise('/property/lab');
+        const c = (U.find(x => x.c.real) || U[0]).c;
+        out.co = { tk: c.tk || c.id, name: c.name };
+        out.company = await raise(companyPath(c));
+        out.scanner = await raise('/app/scanner');
+        out.general = await raise('/about');
+      } finally {
+        State.corrections = (State.corrections || []).filter(c => had.has(c));
+        saveCorrections();
+      }
+      return out;
+    })()`);
+    const p = [];
+    const prop = r.property, lab = r.lab, co = r.company;
+    if (prop.first !== r.cash || /Return on invested capital/.test(prop.items.join('|')) || !prop.items.includes('Something else') || !prop.items.includes('A fee or duty line not listed') || !r.feeLabels.every(l => prop.items.includes(l)))
+      p.push(`from the calculator the items begin "${prop.first}" (want "${r.cash}") and hold ${prop.items.length}: ${prop.items.slice(0, 4).join(' | ')} …`);
+    if (!prop.text.includes('Fee rulebook ' + r.fee) || !/Build app\.[0-9a-f]{12}\.js/.test(prop.text)) p.push(`a property report lacks "Fee rulebook ${r.fee}" or "Build app.<hash>.js": ${prop.text.slice(-260)}`);
+    if (/Model version|Data as of|Universe at the time|metrics 1\.\d/.test(prop.text)) p.push('a property report carries the equities versions: ' + prop.text.slice(-260));
+    if (/Sibu|city=|\?d=/.test(prop.text) || (r.price.length > 3 && prop.text.includes(r.price)) || !/\nPage: \/property\/calculator\n/.test(prop.text)) p.push('a property report carries the address query or a deal figure: ' + prop.text.slice(0, 260));
+    if (prop.subject !== 'Property deal calculator' || !/\nSubject: Property deal calculator\n/.test(prop.text)) p.push('a property report\'s subject is "' + prop.subject + '" (want the page name only)');
+    if (lab.first !== r.cash || !lab.text.includes('Fee rulebook ' + r.fee)) p.push('the Scenario Lab offers "' + lab.first + '" first, or lacks the rulebook version');
+    if (co.first !== r.roic || !co.subject.includes(r.co.tk) || (r.co.name && !co.subject.includes(r.co.name)) || !co.text.includes('Subject: ' + co.subject)
+      || !co.text.includes('Model version: ' + r.model) || !/\nData as of: /.test(co.text) || !/\nUniverse at the time: /.test(co.text) || !/Build app\.[0-9a-f]{12}\.js/.test(co.text) || /Fee rulebook/.test(co.text))
+      p.push('a company page\'s report: first item "' + co.first + '", subject "' + co.subject + '" (want ' + r.co.tk + '), text ' + co.text.slice(0, 120));
+    if (r.scanner.first !== 'A scanner setup' || r.scanner.items.join('|') !== 'A scanner setup|An evaluation|An example|Something else' || /Model version|Fee rulebook/.test(r.scanner.text) || !/Build app\./.test(r.scanner.text))
+      p.push('the scanner\'s report: ' + r.scanner.items.join('|') + ' / ' + r.scanner.text.slice(-120));
+    if (r.general.items[r.general.items.length - 1] !== 'Something else' || r.general.items.length > 6 || r.general.items.includes(r.roic) || /Model version|Fee rulebook/.test(r.general.text) || !/Build app\./.test(r.general.text) || r.general.subject !== '')
+      p.push('the general report: ' + r.general.items.join('|') + ' / subject "' + r.general.subject + '"');
+    if (/received/i.test(prop.text)) p.push('a report text claims receipt');
+    if (p.length) fail('the report form follows the page: a property page offers the property figures and carries the fee rulebook version and the build, a company page its company and the equities versions', p);
+    else ok('the report form follows the page: the calculator and the Lab offer "' + r.cash + '" first with the fee lines and carry "Fee rulebook ' + r.fee + '" and the build, with the page name only and none of the deal or the equities lines; a company page fills in its company and keeps the equities versions; the Scanner and an unrelated page get their own short lists');
+  }
+
+  /* /STATUS SAYS WHICH BUILD ITS RESULTS ARE FOR (QT-D19-03). A record for
+     commit X can only be written after X's CI, so a later deployment carries
+     it, and the page said "CI on <commit>" without saying whether the results
+     are the build serving it. Drawn here from synthetic records (the page's
+     own function, as its script draws it): the same build, an earlier one,
+     and a record that names none (every record written before) each say so,
+     and a failed suite is FAIL under all three — the line changes no label. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = { build: reportBuild(), lines: {} };
+      navigate('/status');
+      for (let i = 0; i < 50 && !(HEALTH.journeys && HEALTH.checks); i++) await w(150);
+      const kept = HEALTH.checks;
+      /* The commit the journeys' record names, or the results read "Not run for" it: a record for another commit is no result for the site's. */
+      out.commit = (HEALTH.journeys.doc && HEALTH.journeys.doc.commit) || 'abcdef1234567890abcdef1234567890abcdef12';
+      const suites = CHECK_SUITES.map(s => ({ id: s.id, name: s.name, kind: s.kind, job: 'runtime', status: s.id === 'mobile' ? 'FAIL' : 'PASS', passed: 3, failed: s.id === 'mobile' ? 1 : 0, said: 'synthetic', exit: s.id === 'mobile' ? 1 : 0 }));
+      const doc = (app) => ({ kind: 'quantum-tradeworks-checks', schema: 1, commit: out.commit, recordedAt: '2026-11-01T00:00:00Z', run: null, ranAt: '2026-11-01T00:00:00Z', event: 'push', conclusion: 'failure', app, note: null, suites });
+      try {
+        for (const [name, app] of [['same', out.build], ['earlier', 'app.000000000000.js'], ['none', null]]) {
+          HEALTH.checks = { state: 'ok', doc: doc(app) };
+          kindsPaint(); await w(80);
+          const li = document.getElementById('health-build'), layout = document.getElementById('kind-layout');
+          out.lines[name] = { how: li?.dataset.build || null, text: li?.textContent.trim() || null, first: document.getElementById('health-kinds')?.firstElementChild === li,
+            layout: layout?.dataset.status || null, chip: layout?.querySelector('.health-chip')?.textContent.trim() || null, okChip: !!layout?.querySelector('.chip-ok') };
+        }
+      } finally { HEALTH.checks = kept; kindsPaint(); }
+      return out;
+    })()`);
+    const p = [];
+    const b = r.build, L = r.lines;
+    if (!/^app\.[0-9a-f]{12}\.js$/.test(b || '')) p.push(`the page knows no build (${b})`);
+    if (L.same.how !== 'same' || L.same.text !== `These results are for the build serving this page (${b}).`) p.push(`same build: ${JSON.stringify(L.same)}`);
+    if (L.earlier.how !== 'earlier' || !L.earlier.text.startsWith('These results are for an earlier build (app.000000000000.js, CI on ' + r.commit.slice(0, 7) + '); this build’s checks are not recorded yet.') || !L.earlier.text.includes(b)) p.push(`earlier build: ${JSON.stringify(L.earlier)}`);
+    if (L.none.how !== 'unknown' || !L.none.text.startsWith('It is not known which build these results ran on: the record does not name one.')) p.push(`record with no app: ${JSON.stringify(L.none)}`);
+    for (const [k, v] of Object.entries(L)) if (!v.first || v.layout !== 'FAIL' || v.chip !== 'Fail' || v.okChip) p.push(`${k}: the line is not first, or the failed suite no longer reads Fail (${JSON.stringify({ first: v.first, layout: v.layout, chip: v.chip, okChip: v.okChip })})`);
+    if (p.length) fail('/status says whether its CI results are for the build serving it — the same build, an earlier one, or a record that names none — and a failed suite stays Fail', p);
+    else ok('/status says whether its CI results are for the build serving it: "…for the build serving this page (' + b + ')", "…for an earlier build (app.…, CI on <commit>); this build’s checks are not recorded yet", and "It is not known which build these results ran on" for a record that names none — a failed suite stays Fail under all three');
+  }
+
+  /* THE CORRECTION-CASE JOURNEY, END TO END (QT-D17-01): report a wrong figure
+     from a page, see what is recorded with it (the page, the model version, the
+     data date), keep it in this browser, reload and reopen it from /corrections,
+     copy it, export it with everything else and recover it after it is deleted
+     — and nothing in it sends anything or claims it was received. Synthetic
+     figures only; the mailto is looked at, never opened. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const had = State.corrections;
+      const out = {};
+      const opened = []; const realOpen = window.open; window.open = (...a) => { opened.push(a[0]); return null; };
+      const page = location.pathname;
+      try {
+        State.corrections = []; saveCorrections();
+        const c0 = (U.find(x => x.c.real) || U[0]).c;
+        navigate(companyPath(c0)); await w(400);
+        out.page = location.pathname;
+        document.querySelector('[data-action="report-error"]').click(); await w(300);
+        out.recordedWith = document.querySelector('#drawer .sunk')?.textContent.replace(/\\s+/g, ' ').trim() || '';
+        const put = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input')); };
+        put('err-shownValue', '1,234'); put('err-expectedValue', '2,345'); put('err-description', 'synthetic: the figure does not match the filing');
+        [...document.querySelectorAll('#drawer button')].find(b => b.textContent.trim() === 'Save this case here').click(); await w(450);
+        const dr = document.getElementById('drawer');
+        out.confirmTitle = document.getElementById('drawerTitle')?.textContent.trim();
+        out.confirm = dr.querySelector('p.body')?.textContent.replace(/\\s+/g, ' ').trim() || '';
+        out.copied = dr.querySelector('textarea')?.value || '';
+        out.mailto = dr.querySelector('a[data-support-mailto]')?.getAttribute('href') || null;
+        out.copyButton = [...dr.querySelectorAll('button')].map(b => b.textContent.trim()).filter(t => /^Copy/.test(t));
+        closeDrawer({ restore: false }); await w(300);
+        out.id = State.corrections[0]?.id;
+        /* kept: in this browser's storage, and still there when read afresh */
+        out.stored = (store.read('corrections', []) || []).map(c => c.id);
+        State.corrections = store.read('corrections', []);
+        navigate('/corrections'); await w(300);
+        out.listed = document.getElementById('my-cases')?.innerText.replace(/\\s+/g, ' ') || '';
+        [...document.querySelectorAll('#my-cases button')].find(b => b.textContent.trim() === 'Open')?.click(); await w(300);
+        out.reopened = document.querySelector('#drawer textarea')?.value || '';
+        closeDrawer({ restore: false }); await w(300);
+        /* exported with everything, deleted, recovered */
+        const doc = JSON.parse(JSON.stringify(exportEverything()));
+        out.exported = (doc.data.corrections || []).map(c => c.id);
+        State.corrections = []; saveCorrections();
+        const imp = importEverything(doc); const done = imp.ok ? imp.apply() : { ok: false };
+        State.corrections = store.read('corrections', []);
+        out.recovered = { ok: done.ok, ids: State.corrections.map(c => c.id), text: State.corrections[0] ? correctionPayload(State.corrections[0]) : '' };
+        out.opened = opened.length; out.stayedOn = location.pathname;
+        out.model = MODEL_VERSION; out.asOf = AS_OF; out.tk = c0.tk || c0.id;
+      } finally { window.open = realOpen; State.corrections = had; saveCorrections(); }
+      return out;
+    })()`);
+    const p = [];
+    if (!r.id || r.stored.join() !== r.id || r.exported.join() !== r.id || r.recovered.ids.join() !== r.id) p.push(`the case is not kept, exported and recovered under one id: ${r.id} / stored ${r.stored} / exported ${r.exported} / recovered ${r.recovered.ids}`);
+    if (!r.recordedWith.includes(r.model) || !r.recordedWith.includes(r.asOf) || !/The page you were on/.test(r.recordedWith)) p.push(`what is recorded is not shown before saving (page, model version, data date): "${r.recordedWith}"`);
+    for (const [what, text] of [['the copied text', r.copied], ['the reopened case', r.reopened], ['the recovered case', r.recovered.text]]) {
+      if (!text.includes('Correction case ' + r.id) || !text.includes('Page: ' + r.page) || !text.includes('Model version: ' + r.model) || !text.includes('Data as of: ' + r.asOf) || !text.includes('Shown: 1,234') || !text.includes('Should be: 2,345') || !text.includes('Subject: ' + r.tk)) p.push(`${what} lacks the id, page, model version, data date or the figures: ${text.slice(0, 200)}`);
+    }
+    if (r.reopened !== r.copied || r.recovered.text !== r.copied) p.push('the reopened or recovered case differs from the one copied when it was saved');
+    if (!/^Case \S+ saved here, not sent$/.test(r.confirmTitle) || !/^Correction case saved in this browser\. Nothing has been sent\. Copy or export the case if you want to report it/.test(r.confirm)) p.push(`the confirmation reads "${r.confirmTitle}" / "${r.confirm}"`);
+    if (/\b(submitted|thank you|will be reviewed|will reply)\b/i.test(r.confirm) || /\breceived\b/i.test(r.confirm.replace(/not confirmed received/g, ''))) p.push(`the confirmation implies submission or receipt: "${r.confirm}"`);
+    if (!r.copyButton.length) p.push('the confirmation offers no copy');
+    if (!r.listed.includes(r.id)) p.push('/corrections does not list the case');
+    if (r.opened || r.stayedOn !== '/corrections') p.push(`the journey opened ${r.opened} window(s) or left /corrections (${r.stayedOn}) — nothing may be sent or mail opened`);
+    if (p.length) fail('the correction-case journey: report, review, keep, reopen, copy and recover a case, with nothing sent or implied as received', p);
+    else ok(`the correction-case journey: a wrong figure reported from ${r.page} shows the page, model version and data date it records, is kept in this browser (${r.id}), reopened from /corrections and copied, exported with everything and recovered after a delete — the same text each time, "Nothing has been sent", no mail opened`);
   }
   {
     const { readFileSync, readdirSync } = await import('node:fs');

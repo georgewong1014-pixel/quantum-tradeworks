@@ -3502,6 +3502,9 @@ function pcQuickView(d, m, g, DK) {
   const res = el('div', { class: 'pc-q-results' });
   const ans = el('div', { class: 'card ls-section pc-q-answer', id: 'pc-q-answer', 'aria-labelledby': 'pc-q-answer-h', style: `--pc-grade:var(${PC_GRADE_TONE[g.grade]})` });
   ans.append(el('h2', { class: 'h-card pc-q-h', id: 'pc-q-answer-h' }, 'The answer'));
+  /* The completion line (the owner's scope direction, 1 Nov 2026), not on the sample deal. */
+  const ready = propertyReadyLine(d);
+  if (ready) ans.append(ready);
   const figs = pcAnswerFigs(d, m);
   const cards = el('div', { class: 'grid pc-answers pc-q-cards' });
   const [sl, sv, ss] = figs.safe;
@@ -3571,7 +3574,11 @@ function pcQuickView(d, m, g, DK) {
 let pcElsOpen = false;
 let pcElsReq = '';
 const ELS_LINK_WORDS = 'Open the ELS website';
-const ELS_ACTION_WORDS = 'Explore design and renovation planning with ELS';
+/* The owner's Day 19 instructions (QT-D19-02, 1 Nov 2026): words only. The drawer's
+   heading is the question; the links to it keep "ELS" so the reader knows where
+   they lead. */
+const ELS_HEADING_WORDS = 'Need design or renovation planning?';
+const ELS_ACTION_WORDS = 'Need design or renovation planning? Copy a brief for ELS';
 /* Where the panel is addressed from, as a section is (#scenarios): no deal and
    nothing private in it; the calculator opens the full model for it
    (pcArrivalView) and keeps the deal it holds. */
@@ -3591,7 +3598,7 @@ function pcOpenElsPanel() {
 function pcElsPanel(d) {
   const det = el('details', { class: 'pc-more pc-els', id: 'els-plan', open: pcElsOpen ? '' : null });
   det.addEventListener('toggle', () => { pcElsOpen = det.open; });
-  det.append(el('summary', { class: 'pc-more-sum pc-els-sum', id: 'els-plan-sum' }, ELS_ACTION_WORDS));
+  det.append(el('summary', { class: 'pc-more-sum pc-els-sum', id: 'els-plan-sum' }, ELS_HEADING_WORDS));
 
   const status = el('span', { class: 'metaline pc-els-status', id: 'els-status', role: 'status' });
   const brief = el('textarea', { class: 'input pc-els-brief', id: 'els-brief', readonly: '', rows: '12', spellcheck: 'false' });
@@ -3609,7 +3616,7 @@ function pcElsPanel(d) {
     try {
       if (!navigator.clipboard) throw new Error('no clipboard');
       await navigator.clipboard.writeText(brief.value);
-      status.textContent = 'Copied';
+      status.textContent = 'Brief copied. Nothing has been sent to ELS. You decide whether to share it.';
     } catch {
       /* Refused (an insecure page, a policy, a browser that asks first): the
          brief is selected where the reader can see it, and how to copy it said. */
@@ -3619,7 +3626,8 @@ function pcElsPanel(d) {
   };
 
   det.append(el('div', { class: 'pc-els-body' }, [
-    el('p', { class: 'pc-els-lede' }, 'ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.'),
+    /* The owner's lede (Day 19), then the brief's own limit, unchanged. */
+    el('p', { class: 'pc-els-lede' }, 'Your Quantum assessment is complete independently of ELS. If you would like design or renovation assistance, you can review and copy a summary to share with ELS yourself. ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.'),
     el('div', { class: 'pc-els-field' }, [
       el('label', { for: 'els-requirements' }, 'Your requirements'),
       requirements,
@@ -3627,9 +3635,9 @@ function pcElsPanel(d) {
     el('div', { class: 'pc-els-field' }, [
       el('label', { for: 'els-brief' }, 'Your brief'),
       brief]),
-    el('p', { class: 'pc-els-before', id: 'els-before' }, 'Review and copy your brief. Nothing is sent to ELS: you paste it there yourself if you want to.'),
+    el('p', { class: 'pc-els-before', id: 'els-before' }, 'Nothing is sent to ELS. On its website, choose how to contact them and paste your brief there.'),
     el('div', { class: 'pc-els-acts' }, [
-      el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'els-copy', onclick: copy }, 'Copy brief'),
+      el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'els-copy', onclick: copy }, 'Copy my property brief'),
       el('a', { class: 'btn btn-ghost btn-sm', id: 'els-link', href: ELS_URL, target: '_blank', rel: 'noopener noreferrer',
         html: `${ELS_LINK_WORDS} ${icon('ext', 10)}` }),
       status]),
@@ -3755,6 +3763,9 @@ VIEWS.property = () => {
      the line that could not be priced — a tenure of 0 left it out of the
      total and the tile said it was in. A short total says it is short, as
      the ledger's does. */
+  /* The completion line over the figures (the owner's scope direction, 1 Nov 2026), not on the sample deal. */
+  const ready = propertyReadyLine(d, { full: true });
+  if (ready) onePage.append(ready);
   const answers = el('div', { class: 'grid g-4 pc-answers' });
   /* THE SYSTEM'S METRIC CARDS (37-layout-system.js): the safe cash and the
      month are the decision (L1, first and at the card-metric size), the

@@ -1213,6 +1213,15 @@ VIEWS.research = () => {
     head.append(rp);
   }
   wrap.append(head);
+  /* THE COMPANY PAGE SAYS ITS RESEARCH IS READY (the owner's scope direction,
+     1 Nov 2026, QT-SCOPE-03): one line under the identity header, naming only
+     what the header offers — "Add to watchlist" (the page's save: there is no
+     separate save of a company) and "Compare". Once the company is on the
+     list, it offers Compare alone. A filed company only: an illustrative one
+     carries synthetic figures, and "your research is ready" over them would
+     claim a result that is not real. No counter, no tracking. */
+  if (c.real) wrap.append(el('p', { class: 'body co-ready', id: 'co-ready' },
+    `Your company research is ready. Review the data sources and assumptions, then ${State.watchlist.includes(c.id) ? '' : 'add it to a watchlist or '}compare it with other companies.`));
 
   /* ---------- Strategy Lens (directive 7.1) ----------
      Above the research tabs, not replacing them. The tabs answer "what are the

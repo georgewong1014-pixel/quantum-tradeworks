@@ -986,6 +986,19 @@ const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that
    figure it named that the tiles' badges do not, is named by "What these
    figures rest on" (appreciation); the name "Sample deal" and the
    Illustrative badges still say it is a sample. */
+/* THE LAB'S COMPLETION LINE (the owner's scope direction, 1 Nov 2026, QT-SCOPE-03):
+   under the four figures, once, for a deal that is the reader's — a saved
+   property or a deal they have entered. "Save" and "export" are the page's own:
+   the identity line's Save (this property, or the column as a scenario) and the
+   Keep card's "Export PDF / Share with client", which opens once what is
+   shown is saved. Its words hold in either state, so a move that turns one off
+   does not leave the line wrong. The untouched sample deal gets none: "ready"
+   would claim the reader's own work is ready. */
+function labReadyLine(lab, sample) {
+  const d = labSubjectInputs(lab);
+  if (sample || !d || !(num0(d.price) > 0)) return null;
+  return el('p', { class: 'body lab-ready', id: 'lab-ready' }, 'Your property scenario is ready. Review the assumptions, save your analysis or export a copy.');
+}
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
@@ -1017,6 +1030,8 @@ function labHeader(P, lab) {
        83-property-decision.js) after the line that names the property and
        its disclosures, and before the figures their answers lead. */
     hd.append(labIdentity(P, lab, status, !rec && st.kind === 'sample'), labQuestions(P, lab), labTiles(P, lab));
+    const ready = labReadyLine(lab, !rec && st.kind === 'sample');
+    if (ready) hd.append(ready);
     /* The assumption the figures depend on most, from the model's own
        sensitivity, in four words under them: the cash and the month, the
        one they swing with, and — in the next-step tile and the count above

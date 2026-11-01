@@ -135,7 +135,7 @@ function workspaceItems() {
     const prop = w.kind === 'property' && typeof pmIsProperty === 'function' && pmIsProperty(w);
     const nSc = prop ? (w.scenarios || []).length : 0;
     items.push({
-      kind: prop ? 'property' : 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
+      kind: prop ? 'property' : 'work', key: w.id, prop, stampAs: w.kind === 'property' ? 'property' : null, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
       created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
       sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
       detail: (sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
@@ -150,11 +150,13 @@ function workspaceItems() {
     });
   });
 
-  items.forEach(it => { it.diff = stampDiff(it.stamp, it.legacy); });
+  /* A saved property is read against the fee rulebook and its property data,
+     not the Equities model (the 31 Oct 2026 operational audit, #3). */
+  items.forEach(it => { it.diff = stampDiff(it.stamp, it.legacy, it.stampAs || null); });
   return items;
 }
 
-const WS_STATUS_CLASS = { current: 'chip chip-ok', model: 'chip chip-warn', data: 'chip chip-warn', both: 'chip chip-warn', unstamped: 'chip' };
+const WS_STATUS_CLASS = { current: 'chip chip-ok', model: 'chip chip-warn', fees: 'chip chip-warn', data: 'chip chip-warn', both: 'chip chip-warn', unstamped: 'chip' };
 /* Every clock time saved here comes from toISOString, so it is UTC in both of
    its forms — the ISO one, and the tool snapshot's "2026-09-28 07:28", which
    was printed with no zone and read eight hours early in Malaysia. A bare
@@ -192,9 +194,9 @@ VIEWS.workspace = () => {
      How it works read. */
   const lim = savedProtection({ cls: 'ws-limits', own: all.some(i => !i.sample), badge: toolBadge('saved'),
     extra: all.length ? [el('details', { class: 'explain', 'data-version-flags': '' }, [
-      el('summary', {}, 'What “Model moved” and “Data moved” mean'),
+      el('summary', {}, 'What “Model moved”, “Fee rulebook moved” and “Data moved” mean'),
       el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--xs);max-width:72ch' },
-        `“Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`),
+        `“Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Fee rulebook moved” means a saved property was saved under another version of the duties and fees it is priced with (now ${FEE_TABLE.version}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`),
     ])] : [] });
   wrap.append(lim);
 
@@ -213,7 +215,7 @@ VIEWS.workspace = () => {
      Screens pressed left no button pressed and "Nothing saved matches that
      filter" over two saved cases. The filter goes back to All. */
   if (W.kind !== 'all' && !counts[W.kind]) W.kind = 'all';
-  const moved = all.filter(i => ['model', 'data', 'both'].includes(i.diff.status)).length;
+  const moved = all.filter(i => ['model', 'fees', 'data', 'both'].includes(i.diff.status)).length;
   const unstamped = all.filter(i => i.diff.status === 'unstamped').length;
   const bar = el('div', { class: 'card ws-filters' });
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Show saved items of one kind', style: 'flex-wrap:wrap' });
@@ -239,7 +241,7 @@ VIEWS.workspace = () => {
   const samplesN = all.filter(i => i.sample).length;
   const samplesSaid = !samplesN ? '' : samplesN === all.length ? (all.length === 1 ? ', a sample — not yours' : ', all samples — not yours') : `, ${samplesN} of them sample${samplesN === 1 ? '' : 's'} — not yours`;
   bar.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model or data version that has since changed` : ''}${unstamped ? `; ${unstamped} saved before versions were recorded, so whether the data under ${unstamped === 1 ? 'it' : 'them'} has moved cannot be said` : ''}${moved || unstamped ? '' : '; none saved under a model or data version that has since changed'}.`));
+    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model, fee rulebook or data version that has since changed` : ''}${unstamped ? `; ${unstamped} saved before versions were recorded, so whether the data or rulebook under ${unstamped === 1 ? 'it' : 'them'} has moved cannot be said` : ''}${moved || unstamped ? '' : '; none saved under a model, fee rulebook or data version that has since changed'}.`));
   /* The summary counted only the stamped items, so one saved before stamping
      read as current while its row said it cannot be told (the 20 Oct 2026
      sweep, copy-equities-25). */
@@ -302,7 +304,13 @@ VIEWS.workspace = () => {
       ]),
       el('div', { class: 'ws-cell' }, [el('span', { class: 'ws-label' }, 'Saved'), el('span', { class: 'num' }, fmtSaved(i.created))]),
       el('div', { class: 'ws-cell ws-ver' }, [el('span', { class: 'ws-label' }, 'Versions'),
-        ...(i.stamp || i.legacy?.model
+        /* A property shows the fee rulebook it was priced under; the Equities
+           model it also carries is not what its status reads. */
+        ...(i.stampAs === 'property'
+          ? (i.stamp?.model
+            ? [el('span', {}, i.stamp.fees ? `Fee rulebook ${i.stamp.fees}` : 'Fee rulebook not recorded'), el('span', { class: 'caption' }, stampDataText(i.stamp))]
+            : [el('span', { class: 'caption' }, 'not recorded')])
+          : i.stamp || i.legacy?.model
           ? [el('span', {}, i.stamp?.model || i.legacy?.model), el('span', { class: 'caption' }, i.stamp ? stampDataText(i.stamp) : 'data version not recorded')]
           : [el('span', { class: 'caption' }, 'not recorded')])]),
       el('div', { class: 'ws-cell' }, [el('span', { class: 'ws-label' }, 'Status'), status,

@@ -1012,7 +1012,8 @@ for (const route of ROUTES) {
   if (JSON.stringify(home.want.slice(0, 3).map(w => w.action)) !== JSON.stringify(words)) p.push(`PRODUCTS' actions: ${JSON.stringify(home.want.map(w => w.action))}`);
   home.cards.slice(0, 3).forEach((c, i) => { if (c.tag !== 'ARTICLE' || c.task !== home.want[i].task || c.href !== home.want[i].href) p.push(`homepage card ${i + 1}: ${JSON.stringify(c)}, not "${home.want[i].task}" to ${home.want[i].href}`); });
   if (home.cards.length !== 3) p.push(`${home.cards.length} homepage cards, not three`);
-  if (!home.soon || home.soon.links || !/Business Intelligence · Plan my business · Coming soon/.test(home.soon.text)) p.push(`Business on the homepage: ${JSON.stringify(home.soon)}, not "Coming soon" as text`);
+  /* 1 Nov 2026 (QT-SCOPE-02): the unbuilt product's line left the homepage. */
+  if (home.soon) p.push(`Business is back on the homepage: ${JSON.stringify(home.soon)}`);
   await load(BASE + '/how-it-works');
   const hiw = await ev(`[...document.querySelectorAll('#views .hiw-product-ft a')].map(a => a.textContent.trim())`);
   if (JSON.stringify(hiw) !== JSON.stringify(words)) p.push(`How it works' product actions: ${JSON.stringify(hiw)}`);

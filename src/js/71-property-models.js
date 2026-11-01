@@ -123,6 +123,8 @@ function pmStampRecord(rec, at) {
   rec.modelVersion = MODEL_VERSION;
   rec.asOf = AS_OF;
   rec.editor = 'this browser';
+  /* The stamp carries the fee rulebook beside the model (buildStamp; the
+     31 Oct 2026 operational audit, #3); modelVersion stays as it was. */
   rec.stamp = buildStamp('property');
 }
 /* When a property last changed. A record saved since this page loaded by
@@ -652,6 +654,28 @@ function usePlaceControl(city, area, { id } = {}) {
     `${area} is not one of ${town}'s listed districts, so the calculator cannot model it by name.`);
   return el('button', { class: 'btn btn-ghost btn-sm', id: id || null, onclick: () => usePlaceInCalculator(city, area) },
     `Use ${area} in the calculator`);
+}
+
+/* ---------------------------------------------------- the completion line */
+/* THE ANSWER SAYS IT IS READY (the owner's scope direction, 1 Nov 2026,
+   QT-SCOPE-03): one short line over the calculator's answer, so a first-time
+   visitor knows the result is there and what to do with it. It names only
+   actions that are on the page: "Save this property" (or "Save this scenario")
+   in the model bar and the action bar; in the full model, the Share / Export
+   row's proposal, report and decision record; once saved, the bar's "Compare
+   scenarios". The Quick model has no export of its own, so its line does not
+   offer one. THE SAMPLE DEAL GETS NO LINE: "Your property scenario is ready"
+   would claim the reader's own work is ready when nothing here is theirs yet
+   (dealIsTheReaders is false, propertyStatus 'sample'); nor does a deal with no
+   purchase price, which the model cannot answer. No counter, no tracking. */
+function propertyReadyLine(d = State.deal, { full = false } = {}) {
+  const st = propertyStatus(d);
+  if (st.kind === 'sample' || !(num0(d?.price) > 0)) return null;
+  const keep = st.kind !== 'model' || st.dirty;
+  const words = keep
+    ? `Your property scenario is ready. Review the assumptions, save ${st.kind === 'model' && st.sc ? 'this scenario' : 'this property'}${full ? ' or export a copy' : ''}.`
+    : `Your property scenario is ready and saved in this browser. Review the assumptions${full ? ', compare scenarios or export a copy' : ' or compare scenarios'}.`;
+  return el('p', { class: 'body pc-ready', id: full ? 'pc-ready' : 'pc-q-ready', 'data-state': keep ? 'unsaved' : 'saved' }, words);
 }
 
 /* ---------------------------------------------------------- the model bar */

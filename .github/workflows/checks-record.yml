@@ -28,6 +28,8 @@ permissions:
   actions: write
   checks: read
   contents: write
+  # The issue step at the end (the 31 Oct 2026 operational audit, #6).
+  issues: write
 
 jobs:
   record:
@@ -108,3 +110,40 @@ jobs:
           done
           echo "could not push the checks record after 5 attempts"
           exit 1
+
+      # A FAILED CHECK ON THE SERVED COMMIT ALERTS SOMEONE (the 31 Oct 2026
+      # operational audit, #6). health/checks.json could read FAIL for the
+      # commit the site serves, and /status showed it, but only journeys.yml
+      # opened an issue, and only for a journey. One issue, as that workflow's:
+      # opened or updated while the record holds a FAIL, or a required suite
+      # reading NOT RUN, for the commit it records; closed when that commit's
+      # record is all PASS. checks-record.mjs issue-body decides (exit 0 open,
+      # 1 close, 2 nothing to say: no commit, CI still running, an unreadable
+      # file) and is tested offline. It runs whether or not this run wrote the
+      # record, so a record journeys.yml wrote with a FAIL in it is alerted
+      # too; the job's own guards (not a cancelled run, main only) still hold.
+      # A close needs a line on stdout, so a crash (empty stdout) never closes.
+      - name: open, update or close the issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title='CI checks failing on the served commit'
+          action=0
+          node checks-record.mjs issue-body > "$RUNNER_TEMP/checks-issue.md" || action=$?
+          num=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" \
+                  --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n1)
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "$action" = 0 ]; then
+            if [ -n "$num" ]; then
+              gh issue edit "$num" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/checks-issue.md"
+              echo "updated #$num"
+            else
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$RUNNER_TEMP/checks-issue.md"
+            fi
+          elif [ "$action" = 1 ] && [ -s "$RUNNER_TEMP/checks-issue.md" ] && [ -n "$num" ]; then
+            gh issue close "$num" --repo "$GITHUB_REPOSITORY" \
+              --comment "$(cat "$RUNNER_TEMP/checks-issue.md") $run_url"
+          else
+            echo "no issue to open or close (decision=$action, open issue: ${num:-none})"
+          fi

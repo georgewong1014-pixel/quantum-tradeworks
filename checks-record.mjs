@@ -13,12 +13,20 @@
  *                        (::notice title=qt-check <id>::{…}), which the GitHub API serves
  *                        to anyone — no token — so the journeys workflow can read them
  *   node checks-record.mjs collect --commit <sha> [--repo <owner/name>] --out <file>
- *            [--wait <s>] [--entries <a.json,b.json>]
+ *            [--wait <s>] [--entries <a.json,b.json>] [--app <app.<hash>.js>]
  *                        health/checks.json for that commit: the latest finished run of
  *                        checks.yml on it, and each suite's annotation from that run's
  *                        jobs. A suite with none reads NOT RUN — never PASS. --wait polls
  *                        while a run on the commit is still going; --entries builds the
- *                        record from summarize's --json files instead (offline)
+ *                        record from summarize's --json files instead (offline). The record
+ *                        also names the app build the run tested (`app`, below)
+ *   node checks-record.mjs issue-body [--file <checks.json>]
+ *                        what checks-record.yml does with the record about the issue "CI
+ *                        checks failing on the served commit": exit 0 and the issue's body
+ *                        (markdown) on stdout when a suite of the commit it records FAILed
+ *                        or reads NOT RUN; exit 1 and a line to close with when every suite
+ *                        PASSed; exit 2 and nothing on stdout when there is nothing to say
+ *                        (no commit recorded, CI still running, an unreadable file)
  *   node checks-record.mjs --self-test
  *                        offline: a missing suite reads "Not run for <commit>", never PASS;
  *                        the counts are the ones the suites printed; the served block; the
@@ -58,7 +66,7 @@
  *      the page's script draws the same words with the same function.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -74,6 +82,15 @@ export const CHECKS_KIND = 'quantum-tradeworks-checks';
 export const CHECKS_FILE = 'health/checks.json';
 export const REPO = 'georgewong1014-pixel/quantum-tradeworks';
 export const STATUSES = ['PASS', 'FAIL', 'NOT RUN'];
+/* THE BUILD A RECORD IS FOR (QT-D19-03). A record for commit X can only be
+   written after X's CI, so a later deployment carries it, and /status said
+   "CI on <commit>" without saying which build serves the page or whether the
+   results are that build's. `app` is the hashed app file the commit
+   carries under assets/ (build.mjs, THE APP ONCE) — the build the run tested,
+   since build --check holds the committed files to the source. A record
+   without it (every record written before this) does not say, and /status
+   says so; `app` is optional in schema 1, so no record is rewritten. */
+export const APP_FILE = /^app\.[0-9a-f]{12}\.js$/;
 /* The annotation's title: what collect looks for in a job's annotations. */
 export const ANNOTATION = 'qt-check';
 
@@ -210,7 +227,7 @@ export function fromAnnotation(a) {
 
 /* ─── THE RECORD ──────────────────────────────────────────────────────────── */
 const RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/\d+$/;
-export const placeholder = () => ({ kind: CHECKS_KIND, schema: 1, commit: null, recordedAt: null, run: null, ranAt: null, event: null, conclusion: null,
+export const placeholder = () => ({ kind: CHECKS_KIND, schema: 1, commit: null, recordedAt: null, run: null, ranAt: null, event: null, conclusion: null, app: null,
   note: 'No CI result recorded yet. .github/workflows/journeys.yml replaces this file, with health/journeys.json, with the results of checks.yml on the commit the site serves (checks-record.mjs collect).', suites: [] });
 
 /* Every suite of SUITES, from what a run of checks.yml recorded on the
@@ -219,14 +236,14 @@ export const placeholder = () => ({ kind: CHECKS_KIND, schema: 1, commit: null, 
    recorded (the 13 Oct 2026 audit, #2). Its suites stay NOT RUN — no
    result — and /status reads "Pending for <commit>", not "Not run", until
    checks-record.yml records the run's end. */
-export function record({ commit, run = null, ranAt = null, event = null, conclusion = null, entries = [], note = null, pending = false, now = new Date() }) {
+export function record({ commit, run = null, ranAt = null, event = null, conclusion = null, app = null, entries = [], note = null, pending = false, now = new Date() }) {
   const by = new Map(entries.filter(Boolean).map(e => [e.id, e]));
   const suites = SUITES.map(s => {
     const e = by.get(s.id);
     if (!e || !STATUSES.includes(e.status)) return { id: s.id, name: s.name, kind: s.kind, job: s.job, status: 'NOT RUN', passed: null, failed: null, said: run ? 'no result from this run on the commit' : 'no run on the commit', exit: null };
     return { id: s.id, name: s.name, kind: s.kind, job: s.job, status: e.status, passed: Number.isFinite(e.passed) ? e.passed : null, failed: Number.isFinite(e.failed) ? e.failed : null, said: e.said ? String(e.said).slice(0, 220) : null, exit: Number.isFinite(e.exit) ? e.exit : null };
   });
-  return { kind: CHECKS_KIND, schema: 1, commit: commit || null, recordedAt: now.toISOString(), run: RUN_URL.test(String(run || '')) ? run : null, ranAt: ranAt || null, event, conclusion, note,
+  return { kind: CHECKS_KIND, schema: 1, commit: commit || null, recordedAt: now.toISOString(), run: RUN_URL.test(String(run || '')) ? run : null, ranAt: ranAt || null, event, conclusion, app: APP_FILE.test(String(app || '')) ? app : null, note,
     ...(pending && commit ? { pending: true } : {}), suites };
 }
 
@@ -236,12 +253,65 @@ export function checksProblem(doc) {
   if (!Array.isArray(doc.suites)) return 'it lists no suites';
   if (doc.commit == null && !doc.suites.length) return null;   /* the placeholder */
   if (doc.commit != null && !/^[0-9a-f]{7,40}$/.test(String(doc.commit))) return `commit is ${JSON.stringify(doc.commit)}`;
+  if (doc.app != null && !APP_FILE.test(String(doc.app))) return `app is ${JSON.stringify(doc.app)}, not a hashed app file (app.<12 hex>.js)`;
   if (doc.run != null && !RUN_URL.test(String(doc.run))) return `run is ${JSON.stringify(doc.run)}, not an Actions run's address`;
   for (const s of doc.suites) {
     if (!s || typeof s.id !== 'string' || !STATUSES.includes(s.status)) return `a suite has no id, or a status outside ${STATUSES.join(', ')}`;
     if (s.status === 'PASS' && s.failed > 0) return `suite ${s.id} passes with ${s.failed} failed`;
   }
   return null;
+}
+
+/* ─── THE ISSUE (checks-record.yml) ────────────────────────────────────────── */
+/* A FAILED CHECK ON THE SERVED COMMIT ALERTS SOMEONE (the 31 Oct 2026
+   operational audit, #6). health/checks.json could read FAIL for the commit
+   the site serves, and /status showed it, but only journeys.yml opened an
+   issue, and only for a journey; a failing suite, or a required one that
+   never reported, alerted nobody. One issue, this title: opened or updated
+   while the record of its commit holds a FAIL or a required suite reading
+   NOT RUN, closed when that commit's record is all PASS. Decided here, not
+   in the workflow's shell, so it is tested offline.
+   Nothing to say (exit 2): no commit recorded; the record unreadable or not a
+   checks record; CI still running on the commit (pending: nothing has
+   failed, and nothing has passed, until the run ends — checks-record.yml
+   writes it again then). A suite the record does not list at all is NOT RUN,
+   as /status reads it. */
+export const ISSUE_TITLE = 'CI checks failing on the served commit';
+export function issueDecision(doc, { now = new Date() } = {}) {
+  const problem = checksProblem(doc);
+  if (problem) return { action: 'none', why: `the record is not a valid checks record (${problem})`, bad: [], body: null };
+  if (!doc.commit) return { action: 'none', why: 'the record names no commit (the placeholder, or the commit the site serves was not identified)', bad: [], body: null };
+  const by = new Map((doc.suites || []).filter(x => x && typeof x.id === 'string').map(x => [x.id, x]));
+  const rows = SUITES.map(s => {
+    const r = by.get(s.id);
+    const status = r && STATUSES.includes(r.status) ? r.status : 'NOT RUN';
+    return { id: s.id, name: s.name, status, passed: r && Number.isFinite(r.passed) ? r.passed : null, failed: r && Number.isFinite(r.failed) ? r.failed : null,
+      said: r && r.said ? String(r.said) : status === 'NOT RUN' ? 'no result recorded for this commit' : '' };
+  });
+  const bad = rows.filter(r => r.status !== 'PASS');
+  const sha7 = doc.commit.slice(0, 7);
+  if (doc.pending === true && !rows.some(r => r.status === 'PASS' || r.status === 'FAIL')) return { action: 'none', why: `CI was still running on ${sha7} when it was recorded`, bad: [], body: null };
+  if (!bad.length) return { action: 'close', why: null, bad: [], body: `Every one of the ${rows.length} suites passes on ${doc.commit.slice(0, 12)}, the commit the record names.` };
+  const cell = (x) => String(x).replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
+  const count = (r) => (r.passed == null ? '—' : `${r.passed}/${r.passed + (r.failed || 0)}`);
+  const failed = bad.filter(r => r.status === 'FAIL'), notRun = bad.filter(r => r.status === 'NOT RUN');
+  const body = [
+    `CI is not clean on \`${doc.commit}\`, the commit the record in health/checks.json names (the commit the site serves): ${failed.length ? `${failed.length} suite${failed.length === 1 ? '' : 's'} failed` : ''}${failed.length && notRun.length ? ' and ' : ''}${notRun.length ? `${notRun.length} ${notRun.length === 1 ? 'has' : 'have'} no result (not run)` : ''}, of ${rows.length}.`,
+    '',
+    '| Suite | Result | Counts | As it printed |',
+    '| --- | --- | --- | --- |',
+    ...bad.map(r => `| ${cell(r.name)} | ${r.status} | ${count(r)} | ${cell(r.said)} |`),
+    '',
+    `- Commit: \`${doc.commit}\``,
+    ...(doc.run ? [`- CI run: ${doc.run}`] : ['- CI run: none recorded']),
+    `- Recorded: ${doc.recordedAt || 'time not recorded'}${doc.ranAt ? `, the run ${doc.ranAt}` : ''}`,
+    `- Passing: ${rows.length - bad.length} of ${rows.length} suites. \`/status\` shows every suite.`,
+    ...(doc.note ? [`- Note in the record: ${cell(doc.note)}`] : []),
+    '',
+    'Opened and updated by .github/workflows/checks-record.yml from the record; it closes itself when the record of the commit it names is all PASS. The journeys on the live site have their own issue.',
+    '',
+  ].join('\n');
+  return { action: 'open', why: null, bad, body };
 }
 
 /* ─── SERVED (/status) ────────────────────────────────────────────────────── */
@@ -267,8 +337,16 @@ export function checksProblem(doc) {
    A CI kind passes only when every one of its suites passed on the commit
    the site serves. The record names its commit; one for another commit than
    the journeys' (the site's) is no result for this one, and a suite missing
-   from it, or recorded NOT RUN, reads "Not run for <commit>". */
-export function checksServed(checks, journeys, suites) {
+   from it, or recorded NOT RUN, reads "Not run for <commit>".
+     build     the hashed app file serving the page (app.<12 hex>.js), or null
+               where it is not known. With a record, the first line of
+               #health-kinds says whether the results are for that build
+               (QT-D19-03): the same, an earlier one (the record's `app` and
+               its commit are named, and this build's checks are not recorded
+               yet), or not known (the record names none). It changes no
+               suite's status: a failed, missing or not-run suite reads as
+               it did. */
+export function checksServed(checks, journeys, suites, build) {
   const REPO_URL = 'https://github.com/georgewong1014-pixel/quantum-tradeworks';
   const KINDS = [['journeys', 'Journeys', 'journeys.mjs, on the live site'], ['numbers', 'Numbers', 'known-answer and invariant suites, in CI'],
     ['data', 'Data', 'the shipped data and the register, in CI'], ['layout', 'Layout & served pages', 'phone widths, first frames and served pages, in CI']];
@@ -300,6 +378,19 @@ export function checksServed(checks, journeys, suites) {
   const pending = forSite && cdoc.pending === true && !cdoc.suites.some(s => s && (s.status === 'PASS' || s.status === 'FAIL'));
   const pendingAt = pending ? when(cdoc.recordedAt) : null;
   const status = {};
+  /* THE BUILD THESE RESULTS ARE FOR (QT-D19-03). */
+  const appRe = /^app\.[0-9a-f]{12}\.js$/;
+  const serving = typeof build === 'string' && appRe.test(build) ? build : null;
+  const ran = cdoc && typeof cdoc.app === 'string' && appRe.test(cdoc.app) ? cdoc.app : null;
+  let buildLine = '';
+  if (cdoc) {
+    const [how, words] = !ran
+      ? ['unknown', 'It is not known which build these results ran on: the record does not name one.' + (serving ? ' This page is served by ' + serving + '.' : '')]
+      : !serving ? ['unknown', 'These results ran on ' + ran + ' (CI on ' + sha7(cdoc.commit) + '); which build serves this page is not known here.']
+      : ran === serving ? ['same', 'These results are for the build serving this page (' + serving + ').']
+      : ['earlier', 'These results are for an earlier build (' + ran + ', CI on ' + sha7(cdoc.commit) + '); this build’s checks are not recorded yet. This page is served by ' + serving + '.'];
+    buildLine = '<li class="kind-build caption" id="health-build" data-build="' + how + '">' + esc(words) + '</li>';
+  }
   const rows = KINDS.map(([id, name, of]) => {
     let st, line, items = '';
     if (id === 'journeys') {
@@ -362,7 +453,7 @@ export function checksServed(checks, journeys, suites) {
   });
   const ci = 'Runs in your browser when the page loads — results for this commit from CI: ' + ciSaid.join(' · ')
     + (forSite ? ' · ' + target + (ciAt ? ', ' + ciAt : '') : '') + ' · <a class="journey-line-link" href="#health-kinds-h">details</a>';
-  return { kinds: rows, ci, status, commit: target };
+  return { kinds: buildLine + rows, ci, status, commit: target };
 }
 
 /* ─── COLLECT (journeys.yml) ──────────────────────────────────────────────── */
@@ -386,6 +477,15 @@ export function pickRun(runs) {
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   return { run: done[0] || null, going: runs.some(r => r.status !== 'completed') };
 }
+/* The app build a commit carries: its one assets/app.<hash>.js. Null where
+   it cannot be read (the record then says it is not known). */
+async function appOfCommit(repo, commit) {
+  try {
+    const files = await api(`/repos/${repo}/contents/assets?ref=${commit}`);
+    const apps = (Array.isArray(files) ? files : []).map(f => f && f.name).filter(n => APP_FILE.test(String(n)));
+    return apps.length === 1 ? apps[0] : null;
+  } catch { return null; }
+}
 async function collect({ commit, repo, wait }) {
   if (!/^[0-9a-f]{7,40}$/.test(commit || '')) return record({ commit: null, note: 'the commit the site serves was not identified, so no CI run could be matched to it' });
   const deadline = Date.now() + wait * 1000;
@@ -401,7 +501,8 @@ async function collect({ commit, repo, wait }) {
     await sleep(60000);
   }
   const run = picked.run;
-  if (!run) return record({ commit, pending: picked.going,
+  const app = await appOfCommit(repo, commit);
+  if (!run) return record({ commit, app, pending: picked.going,
     note: picked.going ? `checks.yml was still running on this commit after ${wait}s — pending; checks-record.yml records it when the run ends` : 'checks.yml has no finished run on this commit' });
   const jobs = (await api(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=50`)).jobs || [];
   const entries = [];
@@ -409,7 +510,7 @@ async function collect({ commit, repo, wait }) {
     const notes = await api(`/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`).catch(() => []);
     for (const a of notes) { const e = fromAnnotation(a); if (e) entries.push(e); }
   }
-  return record({ commit, run: run.html_url, ranAt: run.updated_at, event: run.event, conclusion: run.conclusion, entries,
+  return record({ commit, app, run: run.html_url, ranAt: run.updated_at, event: run.event, conclusion: run.conclusion, entries,
     note: entries.length ? null : 'the run on this commit recorded no suite (it ran before checks.yml recorded them, or its jobs did not reach their last step)' });
 }
 
@@ -530,6 +631,56 @@ function selfTest() {
     && pickRun([{ status: 'in_progress', created_at: '2026-10-10T12:00:00Z' }]).going === true && pickRun([{ status: 'in_progress' }]).run === null,
     'the run read: the latest finished run on the commit, never a cancelled one; one still going is waited for');
 
+  /* THE BUILD A RECORD IS FOR (QT-D19-03). */
+  const A1 = 'app.0123456789ab.js', A2 = 'app.ba9876543210.js';
+  const withApp = record({ commit: sha, run: full.run, ranAt: full.ranAt, app: A1, entries });
+  t(withApp.app === A1 && checksProblem(withApp) === null && record({ commit: sha, app: 'app.js' }).app === null && record({ commit: sha }).app === null && placeholder().app === null,
+    'the record: `app` is the hashed app file the run tested, null where none is given or it is not an app.<12 hex>.js');
+  t(checksProblem({ ...withApp, app: 'main.js' }) !== null && checksProblem({ ...full, app: undefined }) === null && !('app' in JSON.parse(JSON.stringify({ ...full, app: undefined }))),
+    'the record: a malformed `app` is not a record; one with none (every record written before) still is, and is not rewritten');
+  const buildOf = (out) => /<li class="kind-build caption" id="health-build" data-build="(\w+)">([^<]*)<\/li>/.exec(out.kinds) || [];
+  const same = buildOf(checksServed(withApp, jrec, SUITES, A1)), earlier = buildOf(checksServed(withApp, jrec, SUITES, A2)), unknownRec = buildOf(checksServed(full, jrec, SUITES, A1));
+  t(same[1] === 'same' && same[2] === 'These results are for the build serving this page (' + A1 + ').', `served: the same build — "${same[2]}"`);
+  t(earlier[1] === 'earlier' && earlier[2] === 'These results are for an earlier build (' + A1 + ', CI on abcdef1); this build’s checks are not recorded yet. This page is served by ' + A2 + '.', `served: a different build — "${earlier[2]}"`);
+  t(unknownRec[1] === 'unknown' && /^It is not known which build these results ran on: the record does not name one\. This page is served by app\.0123456789ab\.js\.$/.test(unknownRec[2]), `served: a record with no app — "${unknownRec[2]}"`);
+  t(buildOf(checksServed(withApp, jrec, SUITES, null))[1] === 'unknown' && buildOf(checksServed(placeholder(), jrec, SUITES, A1)).length === 0 && buildOf(checksServed(null, null, SUITES, A1)).length === 0,
+    'served: no build to compare says it is not known here; no record, no line');
+  /* The statement changes no suite's label: a failed, missing or not-run suite reads exactly as before, whichever build serves. */
+  const failedRec = record({ commit: sha, app: A1, entries: entries.map(x => (x.id === 'mobile' ? { ...x, status: 'FAIL', failed: 1 } : x.id === 'sweep' ? { id: 'sweep', status: 'NOT RUN' } : x)) });
+  const noBuild = checksServed(failedRec, jrec, SUITES), onEarlier = checksServed(failedRec, jrec, SUITES, A2), onSame = checksServed(failedRec, jrec, SUITES, A1);
+  const bare = (o) => o.kinds.replace(/<li class="kind-build[^>]*>[^<]*<\/li>/, '');
+  t(JSON.stringify(onEarlier.status) === JSON.stringify(noBuild.status) && onEarlier.status.layout === 'FAIL' && bare(onEarlier) === bare(noBuild).replace(/<li class="kind-build[^>]*>[^<]*<\/li>/, '') && bare(onSame) === bare(onEarlier) && onEarlier.ci === onSame.ci && !/chip-ok/.test(onEarlier.kinds.slice(onEarlier.kinds.indexOf('id="kind-layout"'), onEarlier.kinds.indexOf('id="kind-layout"') + 120)),
+    'served: an earlier or the same build changes no suite\'s status, count or label — a failed suite is still FAIL, a not-run one still Not run');
+  t(/kind-build/.test(String(checksServed)) && !/\b(document|window|location|el|fetch|HEALTH|BASE|SUITES|KINDS_)\b\s*[.(]/.test(String(checksServed)), 'checksServed: still self-contained with the build line in it');
+
+  /* THE ISSUE (the 31 Oct 2026 operational audit, #6): decided here, offline. */
+  const oneFail = issueDecision(record({ commit: sha, run: full.run, ranAt: full.ranAt, entries: entries.map(x => (x.id === 'mobile' ? { ...x, status: 'FAIL', passed: 12, failed: 1, said: '12 ok, 1 FAIL — a focus stop is hidden | at 360' } : x)) }));
+  t(oneFail.action === 'open' && oneFail.bad.length === 1 && oneFail.bad[0].id === 'mobile' && /\| mobile \| FAIL \| 12\/13 \| 12 ok, 1 FAIL — a focus stop is hidden \\\| at 360 \|/.test(oneFail.body)
+    && oneFail.body.includes(sha) && !/\| (model-test|sweep) \|/.test(oneFail.body) && /1 suite failed/.test(oneFail.body),
+    'issue: a record with one FAIL opens the issue, names that suite (and only it) and the commit');
+  const allPass = issueDecision(full);
+  t(allPass.action === 'close' && allPass.bad.length === 0 && allPass.body.includes('abcdef123456'), 'issue: a record that is all PASS closes it');
+  const nr = issueDecision(missing);
+  t(nr.action === 'open' && nr.bad.length === 1 && nr.bad[0].id === 'model-test' && /\| model-test \| NOT RUN \|/.test(nr.body) && /1 has no result \(not run\)/.test(nr.body), 'issue: a required suite that reads NOT RUN opens it, naming that suite');
+  const listed = issueDecision({ ...full, suites: full.suites.filter(x => x.id !== 'register-test') });
+  t(listed.action === 'open' && listed.bad.map(x => x.id).join() === 'register-test', 'issue: a suite the record does not list at all is NOT RUN, as /status reads it');
+  const both = issueDecision(record({ commit: sha, entries: entries.map(x => (x.id === 'sweep' ? { ...x, status: 'FAIL', failed: 2 } : x.id === 'mobile' ? { id: 'mobile', status: 'NOT RUN' } : x)) }));
+  t(both.action === 'open' && both.bad.map(x => x.id).join() === 'sweep,mobile' && /1 suite failed and 1 has no result/.test(both.body), 'issue: a FAIL and a NOT RUN together are both listed');
+  t(issueDecision(pend).action === 'none' && issueDecision({ ...full, pending: true }).action === 'close' && issueDecision(placeholder()).action === 'none' && issueDecision(null).action === 'none' && issueDecision({ kind: 'other' }).action === 'none',
+    'issue: CI still running (pending), the placeholder and a file that is not a checks record say nothing — they neither open nor close it');
+  t(issueDecision(record({ commit: sha, note: 'checks.yml has no finished run on this commit' })).action === 'open', 'issue: a commit with no finished run (every suite NOT RUN, not pending) opens it');
+  {
+    /* The command, as the workflow calls it: its exit code and stdout. */
+    const dir = join(tmpdir(), `qt-issue-${process.pid}`);
+    mkdirSync(dir, { recursive: true });
+    const run = (doc) => { const file = join(dir, 'checks.json'); writeFileSync(file, typeof doc === 'string' ? doc : JSON.stringify(doc)); return spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'issue-body', '--file', file], { encoding: 'utf8' }); };
+    const o = run(record({ commit: sha, entries: entries.map(x => (x.id === 'data-check' ? { ...x, status: 'FAIL', failed: 3 } : x)) }));
+    const c = run(full), n = run(placeholder()), junk = run('not json'), nr2 = run(missing);
+    rmSync(dir, { recursive: true, force: true });
+    t(o.status === 0 && /\| data-check \| FAIL \|/.test(o.stdout) && c.status === 1 && c.stdout.trim().length > 0 && n.status === 2 && n.stdout === '' && junk.status === 2 && junk.stdout === '' && nr2.status === 0,
+      `issue-body: exit 0 and the body for a failing record, 1 and a line to close with for an all-PASS record, 2 and no stdout for the placeholder or a file that is not JSON (${[o.status, c.status, n.status, junk.status, nr2.status].join(',')})`);
+  }
+
   /* THE WORKFLOWS (read as text; no YAML parser here). */
   const cf = join(ROOT, '.github/workflows/checks.yml'), jf = join(ROOT, '.github/workflows/journeys.yml');
   if (existsSync(cf)) {
@@ -559,6 +710,20 @@ function selfTest() {
     const checked = others.filter(k => new RegExp(`needs\\.${k}\\.result`).test(gate) && new RegExp(`\\[ "\\$${k.toUpperCase()}" = success \\]`).test(gate));
     t(/^ {4}if: always\(\)$/m.test(gate) && !unneeded.length && checked.length === others.length,
       `checks.yml "release gate": runs whatever happened (always()), needs every other job and passes only when each succeeded (${checked.length} of ${others.length} checked${unneeded.length ? `; not needed: ${unneeded.join(', ')}` : ''})`);
+  }
+  const rf = join(ROOT, '.github/workflows/checks-record.yml');
+  if (existsSync(rf)) {
+    const y = readFileSync(rf, 'utf8').replace(/\r\n/g, '\n');
+    const cmds = y.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
+    const rec = cmds.indexOf('record them on main'), iss = cmds.indexOf('open, update or close the issue');
+    const step = iss > -1 ? cmds.slice(iss) : '';
+    t(/^permissions:\n(?: {2}[a-z-]+: \w+\n)*? {2}issues: write\n/m.test(cmds) && /^ {4}if: github\.event\.workflow_run\.conclusion != 'cancelled'$/m.test(cmds) && /branches: \[main\]/.test(cmds),
+      'checks-record.yml: it has issues: write, and keeps its guards (cancelled runs skipped, main only)');
+    t(rec > -1 && iss > rec && /if: always\(\)/.test(step) && step.includes("title='" + ISSUE_TITLE + "'")
+      && /node checks-record\.mjs issue-body > "\$RUNNER_TEMP\/checks-issue\.md" \|\| action=\$\?/.test(step)
+      && /gh issue list --repo "\$GITHUB_REPOSITORY" --state open --search/.test(step) && /gh issue edit "\$num" --repo "\$GITHUB_REPOSITORY" --body-file "\$RUNNER_TEMP\/checks-issue\.md"/.test(step)
+      && /gh issue create --repo "\$GITHUB_REPOSITORY" --title "\$title" --body-file "\$RUNNER_TEMP\/checks-issue\.md"/.test(step) && /gh issue close "\$num" --repo "\$GITHUB_REPOSITORY"/.test(step) && /no issue to open or close/.test(step),
+      'checks-record.yml: after the record is written, one step opens, updates or closes the issue "' + ISSUE_TITLE + '" as journeys.yml does (title search, edit or create, close, a no-op line)');
   }
   if (existsSync(jf)) {
     const y = readFileSync(jf, 'utf8').replace(/\r\n/g, '\n');
@@ -626,7 +791,7 @@ async function cli() {
     const files = flag('entries');
     if (files) {
       const entries = files.split(',').flatMap(f => JSON.parse(readFileSync(f, 'utf8')));
-      doc = record({ commit: /^[0-9a-f]{7,40}$/.test(commit) ? commit : null, run: flag('run'), ranAt: flag('ran-at'), event: 'local', entries, note: 'built from summarize --json files, not from a run of checks.yml' });
+      doc = record({ commit: /^[0-9a-f]{7,40}$/.test(commit) ? commit : null, run: flag('run'), ranAt: flag('ran-at'), event: 'local', app: flag('app'), entries, note: 'built from summarize --json files, not from a run of checks.yml' });
     } else {
       /* Never fails the workflow: a record it cannot read says so, and every
          suite reads NOT RUN. */
@@ -641,7 +806,19 @@ async function cli() {
     console.log(`checks on ${doc.commit ? doc.commit.slice(0, 12) : 'no commit'}: ${c('PASS')} pass, ${c('FAIL')} fail, ${c('NOT RUN')} not run${doc.run ? ` — ${doc.run}` : ''}${doc.note ? ` (${doc.note})` : ''}; wrote ${out}`);
     process.exit(0);
   }
-  console.error('usage: node checks-record.mjs run|summarize|collect|--self-test (see the head of the file)');
+  if (cmd === 'issue-body') {
+    /* 0 open (the body on stdout), 1 close (a line to close with), 2 none (the
+       reason on stderr). An unreadable file is none: a crash must never read
+       as "all passed" and close the issue (the workflow also closes only on a
+       non-empty stdout). */
+    let doc = null;
+    try { doc = JSON.parse(readFileSync(flag('file') || join(ROOT, CHECKS_FILE), 'utf8')); } catch (e) { console.error(`issue-body: ${CHECKS_FILE} could not be read (${e.message})`); process.exit(2); }
+    const d = issueDecision(doc);
+    if (d.action === 'none') { console.error(`issue-body: nothing to open or close — ${d.why}`); process.exit(2); }
+    process.stdout.write(d.body.endsWith('\n') ? d.body : d.body + '\n');
+    process.exit(d.action === 'open' ? 0 : 1);
+  }
+  console.error('usage: node checks-record.mjs run|summarize|collect|issue-body|--self-test (see the head of the file)');
   process.exit(2);
 }
 if (MAIN) cli().catch(e => { console.error(`checks-record: ${e.stack || e.message}`); process.exit(2); });
