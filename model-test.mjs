@@ -12711,7 +12711,8 @@ try {
   try {
     const r = JSON.parse(await evaluate(`(async () => {
       const keep = State.observations; const keepLog = store.read('registerLog', null);
-      State.observations = []; navigate('/property/market'); await new Promise(res => setTimeout(res, 400));
+      State.observations = []; localStorage.removeItem('vl.registerLog'); loadRegisterLog();
+      navigate('/property/market'); await new Promise(res => setTimeout(res, 400));
       const set = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
       const press = async (id) => { document.getElementById(id).click(); await new Promise(res => setTimeout(res, 300)); };
       const out = { size: ['mp-town', 'mp-area', 'mp-type', 'mp-date', 'mp-count', 'mp-low', 'mp-med', 'mp-high', 'mp-src', 'mp-save', 'mp-undo'].map(id => { const r = document.getElementById(id)?.getBoundingClientRect(); return [id, r ? Math.round(r.height) : null]; }) };
