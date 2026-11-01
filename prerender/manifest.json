@@ -16,7 +16,7 @@
       "view": "marketing",
       "state": "first draw",
       "chrome": "public",
-      "h1": "Make financial decisions with greater clarity.",
+      "h1": "Understand what drives the result before relying on the number.",
       "tabs": false,
       "nav": {
         "pubnav": [],
@@ -35,7 +35,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8218b17e01fb3320",
+      "digest": "6cfff96e8a5052f6",
       "changed": "2026-11-01"
     },
     "pages/about.html": {
@@ -4149,12 +4149,12 @@
         "forms": 0,
         "removed": 0,
         "notShown": 0,
-        "now": 1,
+        "now": 2,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "cf4b9004d35bcf78",
-      "changed": "2026-10-27"
+      "digest": "7bffe60ad510f32d",
+      "changed": "2026-11-01"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -4327,7 +4327,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7ac0632bce620c45",
+      "digest": "20b667b2673befbd",
       "changed": "2026-11-01"
     },
     "pages/learn.html": {
@@ -4928,7 +4928,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "af256647bbd11b34",
+      "digest": "7b0a7cb859e7fa4b",
       "changed": "2026-11-01"
     },
     "pages/property/areas.html": {
@@ -4946,7 +4946,7 @@
         ]
       },
       "inert": {
-        "buttons": 63,
+        "buttons": 67,
         "fields": 4,
         "choices": 0,
         "roles": 0,
@@ -4957,8 +4957,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "64c7e11badc8fef0",
-      "changed": "2026-10-27"
+      "digest": "848580462bd28be1",
+      "changed": "2026-11-01"
     },
     "pages/property/areas/map.html": {
       "path": "/property/areas/map",
@@ -4986,8 +4986,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e176836de2f2d0ea",
-      "changed": "2026-10-27"
+      "digest": "7d2ac5e3fed686d2",
+      "changed": "2026-11-01"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -5015,7 +5015,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5c9b6279cf319080",
+      "digest": "60e4a88bb23a1fbb",
       "changed": "2026-11-01"
     },
     "pages/property/comparables.html": {
@@ -5044,8 +5044,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "54e217883960523b",
-      "changed": "2026-10-27"
+      "digest": "34a8105b80f7ffa2",
+      "changed": "2026-11-01"
     },
     "pages/property/lab.html": {
       "path": "/property/lab",
@@ -5073,7 +5073,36 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "af256647bbd11b34",
+      "digest": "7b0a7cb859e7fa4b",
+      "changed": "2026-11-01"
+    },
+    "pages/property/market.html": {
+      "path": "/property/market",
+      "view": "marketPulse",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Market pulse",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "help": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 4,
+        "fields": 12,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1,
+        "now": 1,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "cfbc125e29717999",
       "changed": "2026-11-01"
     },
     "pages/property/models.html": {
@@ -5102,8 +5131,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3455a494b0515f4c",
-      "changed": "2026-10-30"
+      "digest": "c19f8e2192fcef8c",
+      "changed": "2026-11-01"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
@@ -5131,8 +5160,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "13ef3640c91311de",
-      "changed": "2026-10-27"
+      "digest": "0a01204664174fa9",
+      "changed": "2026-11-01"
     },
     "pages/research.html": {
       "path": "/research",

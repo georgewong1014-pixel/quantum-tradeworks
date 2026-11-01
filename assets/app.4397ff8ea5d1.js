@@ -19,7 +19,7 @@
 
    Files absent from this table are the licensed lane. They are git-ignored, they
    exist only on the reader's own machine, and they keep no-store. */
-const DATA_VERSIONS = {"us.json":"a6357561dc5f","instruments.json":"eb4d3e181987","sarawak-geo.json":"455742df447a","map/style-light.json":"54dc229f0caa","map/style-dark.json":"4cb45334991f","map/kuching-heights.json":"643c73c7d0a5","napic-h1-2025/betong.json":"11438103dd46","napic-h1-2025/bintulu.json":"bceb9666c79b","napic-h1-2025/kapit.json":"bc739c614958","napic-h1-2025/kuching.json":"abf25611ccca","napic-h1-2025/limbang.json":"9d49316c40cd","napic-h1-2025/miri.json":"8cd1b3334ae7","napic-h1-2025/mukah.json":"ce61c3969ee2","napic-h1-2025/samarahan.json":"b2a6af50ead8","napic-h1-2025/sarikei.json":"f1526a4e2977","napic-h1-2025/serian.json":"e9689e2a16bd","napic-h1-2025/sibu.json":"b12b30df8fc0","napic-h1-2025/sri-aman.json":"655ce5aaa079"};
+const DATA_VERSIONS = {"us.json":"a6357561dc5f","instruments.json":"eb4d3e181987","sarawak-geo.json":"455742df447a","sarawak-reach.json":"8ad174c7667a","map/style-light.json":"54dc229f0caa","map/style-dark.json":"4cb45334991f","map/kuching-heights.json":"643c73c7d0a5","napic-h1-2025/betong.json":"11438103dd46","napic-h1-2025/bintulu.json":"bceb9666c79b","napic-h1-2025/kapit.json":"bc739c614958","napic-h1-2025/kuching.json":"abf25611ccca","napic-h1-2025/limbang.json":"9d49316c40cd","napic-h1-2025/miri.json":"8cd1b3334ae7","napic-h1-2025/mukah.json":"ce61c3969ee2","napic-h1-2025/samarahan.json":"b2a6af50ead8","napic-h1-2025/sarikei.json":"f1526a4e2977","napic-h1-2025/serian.json":"e9689e2a16bd","napic-h1-2025/sibu.json":"b12b30df8fc0","napic-h1-2025/sri-aman.json":"655ce5aaa079"};
 
 /* ------------------------------------------------------------------ utils */
 const $  = (sel, root = document) => root.querySelector(sel);
@@ -3927,7 +3927,7 @@ const DATA_LICENCES = [
 
   { id: 'open-attrib', label: 'Open, with attribution', rank: 3,
     show: true, export: true, publish: true,
-    note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap’s data sits here, under ODbL: the locality geocoding, and the Kuching map — its basemap, its scheme positions and its recorded building heights.' },
+    note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap’s data sits here, under ODbL: the locality geocoding, and the Kuching map — its basemap, its scheme positions and its recorded building heights — and what is mapped within 5 km of an area. So does the Department of Statistics Malaysia’s district population, under CC BY 4.0.' },
 
   /* Not exported. The row said it was, beside the data-sources page's own
      sentence that licence-pending records are "excluded from export and never
@@ -4024,6 +4024,23 @@ const MAP_DATA_SOURCES = [
     licence: null, terms: 'BSD-3-Clause (MapLibre, pmtiles), MIT (fflate) — open-source code, not data' },
   { name: 'Its style, lettering and symbols', from: 'A style made with @protomaps/basemaps, Noto Sans glyphs and Protomaps’ sprites, served from this site',
     licence: null, terms: 'BSD-3-Clause (the style’s code; its design CC0), SIL Open Font License 1.1 (the glyphs), MIT (the sprites) — open-source, not data' },
+];
+
+/* ---- THE EVERYDAY REACH'S OWN FILE (the owner, 1 Nov 2026) ---------------
+   data/sarawak-reach.json (ingest/sarawak-reach.mjs): who lives in each
+   Sarawak district and what OpenStreetMap maps within 5 km of an area's point,
+   shown beside the area on the area screen, the demand test and the Scenario
+   Lab. Published on the data-sources page with each source's terms and the
+   dates the file itself carries. Both licences permit publishing with
+   attribution. The DOSM terms page could not be retrieved; the portal
+   statement is what is recorded. */
+const REACH_DATA_SOURCES = [
+  { name: 'District population, 1 January each year from 2020', from: 'Department of Statistics Malaysia (DOSM), the district population file on storage.dosm.gov.my: both sexes, all ethnic groups, in thousands as published',
+    licence: 'open-attrib', terms: 'CC BY 4.0 — Source: Department of Statistics Malaysia (DOSM), CC BY 4.0. The licence is the one developer.data.gov.my states; DOSM’s own terms page could not be retrieved.' },
+  { name: 'Working-age (20–64) and children’s (0–14) shares', from: 'The same DOSM file’s five-year age bands, added and divided by the district total',
+    licence: 'open-attrib', terms: 'CC BY 4.0 — arithmetic on the figures above.' },
+  { name: 'Hospitals, clinics, schools, colleges, universities, offices, land-use areas and malls within 5 km', from: 'OpenStreetMap through the Overpass API, counted from each area’s point (straight line); at least this many are mapped, never a total',
+    licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors. Places of work are places mapped, not jobs.' },
 ];
 
 /* The questions that have to be answered before record-level NAPIC data can be
@@ -12894,6 +12911,10 @@ const TOOLS = [
     status: 'live', statusNote: 'Sarawak transacted prices and achieved rents you record, each with what it rests on.',
     proof: { journey: 'registers', step: 'Record a transaction and a rent: each listed with what it rests on' },
     action: { label: 'Record a comparable', path: '/property/comparables' } },
+  /* The owner, 1 Nov 2026: supply, asking price, demand and transacted price, by area and type, from snapshots the reader records (94-market-pulse.js). */
+  { id: 'marketPulse', product: 'property', label: 'Market pulse', path: '/property/market', views: ['marketPulse'], tab: true,
+    status: 'beta', statusNote: 'Supply, asking price, demand and transacted price for the areas you track, from the counts and prices you record yourself; nothing is fetched from a listing site and nothing is scored.',
+    action: { label: 'Record a snapshot', path: '/property/market' } },
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
     status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
     proof: { journey: 'registers', step: 'Record a property: it is listed with what is known and what is not' },
@@ -13590,6 +13611,7 @@ const ROUTES = [
   { path: '/property/models/:property/proposal', view: 'propertyProposal', title: 'Client proposal' },
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
+  { path: '/property/market',     view: 'marketPulse', title: 'Market pulse' },
   { path: '/property/areas',      view: 'areas',       title: 'Area screen' },
   /* The area screen's second view: Kuching on a map of this site's own
      files, the NAPIC schemes OpenStreetMap places on it (92-kuching-map.js). */
@@ -13688,6 +13710,7 @@ const META = {
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
   propertyLab: 'Move nine inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
   comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
+  marketPulse: 'Supply, asking price, demand and transacted price by area and property type, from the counts and prices you record. Nothing is fetched from a listing site; nothing is ranked or scored.',
   areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
   areaMap:     'Kuching on a map made of this site’s own files, with the NAPIC housing schemes OpenStreetMap names placed on it — positions only, each with its evidence; NAPIC’s ranges stay in the list.',
   wheel:       'A cash-secured put and covered call cycle modelled from figures you enter — no chain data, no recommended contract.',
@@ -14305,7 +14328,7 @@ const SECTION_OF = {
   userdata: 'userdata', plans: 'plans',
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
-  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property', areaMap: 'property', propertyLab: 'property',
+  property: 'property', opportunities: 'property', comparables: 'property', marketPulse: 'property', areas: 'property', areaMap: 'property', propertyLab: 'property',
   propertyModels: 'property',
   /* A document of one saved property, not a tool of its own: Property's
      page with no tab current, as the decision record is. */
@@ -15451,6 +15474,8 @@ const SERVED_READS = {
      the product's Start here panel and the line's deal are the reader's own. */
   areaMap: ['startHere', 'deal', 'savedWork'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere', 'deal', 'savedWork'],
+  /* The market pulse draws the same register (and the deal's town and type as the form's first choice, on a first visit). */
+  marketPulse: ['observations', 'registerActor', 'registerLog', 'startHere', 'deal', 'savedWork'],
   opportunities: ['opportunities', 'startHere', 'deal', 'savedWork'],
   tradingIndex: ['qttiPlan', 'savedWork', 'startHere'],
   wheel: ['wheelPlan', 'wheelLegs', 'savedWork', 'startHere'],
@@ -28228,9 +28253,12 @@ function pubProductCard(p) {
 VIEWS.marketing = () => {
   const wrap = el('div', { class: 'pub pub-home' });
 
-  /* -- 1. the hero: the held headline, the lede, one action ---------------- */
+  /* -- 1. the hero: the headline, the lede, one action ----------------------
+     The headline is the owner's main message (1 Nov 2026), which replaced
+     the headline held since 7 Oct: understand what drives the result before
+     relying on the number. */
   const hero = el('section', { class: 'pub-hero', 'aria-labelledby': 'pub-hero-h' });
-  hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Make financial decisions with greater clarity.'));
+  hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Understand what drives the result before relying on the number.'));
   hero.append(el('p', { class: 'pub-lede' }, POSITIONING.lede));
   /* One action, for a first visit: to the three products below, the focus
      with them (QT-D03-02, the 16 Oct report; the owner kept one button). A
@@ -32872,6 +32900,35 @@ function learnData() {
     '. NAPIC’s figures are not part of the map: they stay in its list, under each scheme, as on the area screen.']));
   wrap.append(mp);
 
+  /* THE EVERYDAY REACH'S OWN FILE (the owner, 1 Nov 2026; REACH_DATA_SOURCES,
+     19-data-licence.js): where the population and the mapped places beside an
+     area come from, under what terms, and as of when — the dates are the
+     file's own, read once the page has it. */
+  loadReach();
+  const rc = el('section', { class: 'card', id: 'reach-data', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'reach-data-h' });
+  rc.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'reach-data-h' }, 'Everyday reach: population and mapped places'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' }, 'Beside an area, the Property tools show who lives in its district and what is mapped within 5 km of it. Shown as found: nothing here is scored, ranked or turned into a grade.'),
+  ])));
+  const rt = el('table', { class: 'dt' });
+  rt.append(el('thead', {}, el('tr', {}, ['What', 'From', 'Terms'].map(h => el('th', { style: 'text-align:left' }, h)))));
+  rt.append(el('tbody', {}, REACH_DATA_SOURCES.map(m => el('tr', {}, [
+    el('th', { scope: 'row', style: 'text-align:left;white-space:normal' }, m.name),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, m.from),
+    el('td', { style: 'text-align:left;white-space:normal' }, [
+      el('span', { class: 'chip', title: LICENCE_BY_ID[m.licence].note }, LICENCE_BY_ID[m.licence].label),
+      el('span', { class: 'caption', style: 'display:block;margin-top:4px' }, m.terms),
+    ]),
+  ]))));
+  rc.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, rt));
+  /* The dates are read from the file by the page that loads it: served, they are the file's own and say so (data-now, 35-ui.js). */
+  rc.append(el('p', { class: 'metaline', id: 'reach-data-dates', 'data-now': 'The dates, and the attribution that goes with them, are held in the file itself, data/sarawak-reach.json.', style: 'margin-top:var(--sm)' }, sarawakReach
+    ? `data/sarawak-reach.json: population as of ${reachDay(sarawakReach.populationAsOf)}; OpenStreetMap as of ${reachDay(sarawakReach.osmBase)}; retrieved ${reachDay(sarawakReach.retrieved)}. ${sarawakReach.attribution}`
+    : reachLoadState === 'failed' ? 'The file’s dates could not be read here: data/sarawak-reach.json did not load.' : 'Reading the file’s dates…'));
+  rc.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Every OpenStreetMap count is the number mapped there — at least this many, never a total; schools and clinics in particular are under-mapped. Distances are straight line, not travel time.'));
+  wrap.append(rc);
+
   /* The licence ladder itself, because it is new and orthogonal to the evidence
      ladder a reader already knows. */
   const lic = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
@@ -36795,6 +36852,9 @@ function balanceAfter(principal, annualRatePct, years, monthsElapsed) {
    in the right neighbourhood and no more precise than that.
    ========================================================================== */
 let sarawakGeo = null, sarawakIncome = null, geoLoadState = 'idle';
+/* The everyday-reach evidence (data/sarawak-reach.json; 77-property-reach.js), asked for on its own so a page that
+   needs only it — the Scenario Lab, the data-sources page — does not fetch the positions and the income cache too. */
+let sarawakReach = null, reachLoadState = 'idle';
 
 /* 'failed' when the positions did not arrive. The file ships with the site,
    so an absence is a failed load, not a build without it — and a request
@@ -36805,6 +36865,7 @@ let sarawakGeo = null, sarawakIncome = null, geoLoadState = 'idle';
 async function loadSarawakLayers() {
   if (geoLoadState !== 'idle') return;
   geoLoadState = 'loading';
+  loadReach();
   sarawakGeo = await fetchJson(dataUrl('sarawak-geo.json')).catch(() => null);
   /* Git-ignored while its licence is unconfirmed, so absent is the normal
      case rather than an error — and asked for only on the owner's machine
@@ -36815,6 +36876,18 @@ async function loadSarawakLayers() {
   /* Both views that draw localities, or the second one paints an empty map
      forever: the fetch resolves, the flag flips, and nothing asks again. */
   if (State.view === 'property' || State.view === 'areas' || State.view === 'areaMap') render();
+}
+
+/* The owner, 1 Nov 2026: the file that says who lives in a district and what is
+   mapped within 5 km of an area. Not retried on every redraw; a reload asks
+   again. A failed load leaves every reach line out — nothing is shown in its
+   place, and nothing else on the page depends on it. */
+async function loadReach() {
+  if (reachLoadState !== 'idle') return;
+  reachLoadState = 'loading';
+  sarawakReach = await fetchJson(dataUrl('sarawak-reach.json')).catch(() => null);
+  reachLoadState = sarawakReach ? 'done' : 'failed';
+  if (['property', 'areas', 'areaMap', 'propertyLab', 'learn'].includes(State.view)) render();
 }
 
 /* THE CONTROL IN USE SURVIVES A REDRAW THE READER DID NOT ASK FOR.
@@ -36838,7 +36911,7 @@ async function loadSarawakLayers() {
 function propertyPagesSettled() {
   /* And no NAPIC division file in flight: the area screen's panel redraws
      the page when one lands (loadNapic, 81-napic.js). */
-  return (!realEnabled() || realStatus !== null) && !realPending && geoLoadState !== 'loading' && !napicLoading();
+  return (!realEnabled() || realStatus !== null) && !realPending && geoLoadState !== 'loading' && reachLoadState !== 'loading' && !napicLoading();
 }
 
 /* ==========================================================================
@@ -37155,6 +37228,38 @@ const landUnit = () => State.rateUnits.land;
    stored figure never changes; only the divisor does. */
 const rateInUnit = (perSqft, unit) => (isNum(perSqft) ? perSqft * areaUnit(unit).per : null);
 
+/* THE EVERYDAY-REACH LAYERS (the owner, 1 Nov 2026). Sourced, not recorded by
+   the reader: each value comes from data/sarawak-reach.json (DOSM population,
+   and what OpenStreetMap maps within 5 km, straight line, of the area's point;
+   77-property-reach.js). They display a value and shade by it; they never
+   sort, rank or add up to a score, and an area with no record stays hollow.
+   `badge` is the map card's kind badge: Derived, since a count or a growth is
+   arithmetic on what the source publishes. */
+const REACH_BADGE = { kind: 'derived', fine: 'Counts of OpenStreetMap features within 5 km, or arithmetic on DOSM population' };
+const REACH_MAPPED_WHY = ' Counted within 5 km, straight line, of the area’s single point — not travel time — and “mapped” means at least this many are in OpenStreetMap: it is incomplete, and a count is not a total.';
+const REACH_LAYERS = [
+  { id:'reachHospitals', label:'Hospitals within 5 km (mapped)', kind:'quantity', unit:'mapped', badge: REACH_BADGE,
+    why:'Hospitals mapped in OpenStreetMap near each area.' + REACH_MAPPED_WHY,
+    caveat:'OpenStreetMap, as of the date on the area’s “Everyday reach” panel. Where none is mapped, a hospital may exist and not yet be mapped.',
+    value:(c, a) => reachCount(c, a, 'hospitals'),
+    text:(c, a) => reachCountText(c, a, 'hospitals') },
+  { id:'reachSchools', label:'Schools within 5 km (mapped)', kind:'quantity', unit:'mapped', badge: REACH_BADGE,
+    why:'Schools mapped in OpenStreetMap near each area; kindergartens, colleges and universities are counted apart.' + REACH_MAPPED_WHY,
+    caveat:'Schools are the most under-mapped of these: Sarawak has well over a thousand, and OpenStreetMap holds far fewer.',
+    value:(c, a) => reachCount(c, a, 'schools'),
+    text:(c, a) => reachCountText(c, a, 'schools') },
+  { id:'reachGrowth', label:'District population change since 2020', kind:'quantity', unit:'%', badge: REACH_BADGE,
+    why:'How much the population of the district an area lies in has changed between 1 January 2020 and the latest 1 January, as the Department of Statistics Malaysia (DOSM) publishes it.',
+    caveat:'District-wide: every area in a district shares one value, and it says nothing of any one area. Districts DOSM redrew in 2025 show no figure, and so are drawn hollow.',
+    value:(c, a) => reachGrowth(c, a),
+    text:(c, a) => { const v = reachGrowth(c, a); return isNum(v) ? withSign(v, 1, '%') : null; } },
+  { id:'reachWork', label:'Places of work mapped within 5 km', kind:'quantity', unit:'mapped', badge: REACH_BADGE,
+    why:'Offices, industrial, commercial and retail land-use areas and malls mapped in OpenStreetMap near each area, added as objects.' + REACH_MAPPED_WHY,
+    caveat:'These are places of work that are mapped, not jobs: an office and a whole industrial estate count once each, and nothing here knows how many people work in either.',
+    value:(c, a) => reachWorkCount(c, a),
+    text:(c, a) => { const v = reachWorkCount(c, a); return isNum(v) ? (v ? `${fmtNum(v, 0)} mapped` : 'none mapped') : null; } },
+];
+
 const AREA_LAYERS = [
   /* The recorded attributes, in registry order, so adding one adds a layer. */
   ...AREA_ATTRS.map(attr => attr.kind === 'class' ? {
@@ -37218,6 +37323,9 @@ const AREA_LAYERS = [
     unit:'records', why:'How much evidence you hold for this area at all. An area with none is not a low-risk area; it is an unexamined one.',
     value:(c, a) => areaMetrics(c, a).total || null,
     text:(c, a) => { const v = areaMetrics(c, a).total; return v ? `${v}` : null; } },
+
+  /* Last: the sourced layers, after the ones a reader records. */
+  ...REACH_LAYERS,
 ];
 
 /* Whole months between a recorded date and today. Null for an unparseable or
@@ -37942,6 +38050,9 @@ const OBSERVATION_KINDS = [
   { id:'land-sold',  label:'Transacted land price',unit:'RM',       family:'land',  asking:false, area:'land' },
   { id:'mgmt-fee',   label:'Management or service charge', unit:'RM/month', family:'cost', asking:false, area:'built' },
   { id:'vacancy',    label:'Weeks vacant',         unit:'weeks',    family:'other', asking:false },
+  /* The owner, 1 Nov 2026 (Market pulse, 94-market-pulse.js): how many were listed for sale in an area
+     and type on a day, counted by the reader from a search they ran; a count, not a price, so not asking. */
+  { id:'listed',     label:'Listings counted',     unit:'listings', family:'count', asking:false },
 ];
 const OBS_BY_ID = Object.fromEntries(OBSERVATION_KINDS.map(k => [k.id, k]));
 const EVIDENCE_BY_ID = Object.fromEntries(EVIDENCE.map(e => [e.id, e]));
@@ -38536,6 +38647,9 @@ function pmWorthKeeping(d) {
   const st = propertyStatus(d);
   if (st.kind === 'model') return st.dirty;
   if (st.kind === 'unsaved') return true;
+  /* An untouched shoplot starting scenario is the tool's, rebuilt on demand
+     as the sample is (the owner, 1 Nov 2026; 94-shoplot-scenarios.js). */
+  if (shoplotUntouched(d)) return false;
   return !pmSame({ touched: {}, ...pmNormalInputs(d) }, pmNormalInputs(pmSampleDeal()));
 }
 /* The deal already in the slot, saved as a property if it would be lost
@@ -39008,8 +39122,10 @@ function propertyModelBar(d = State.deal) {
       ? el('span', { class: 'pm-unsaved' }, 'Unsaved changes')
       : `saved ${pmWhen(st.sc ? st.sc.updatedAt : pmUpdated(st.rec))}`);
   } else if (st.kind === 'unsaved') status.append(el('span', { class: 'pm-unsaved' }, 'Unsaved changes'), ' — not saved as a property yet');
-  else status.append(el('strong', {}, 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
+  else status.append(el('strong', {}, shoplotOf(d) ? shoplotChip(d.shoplot) : 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
   bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
+  /* Which shoplot starting scenario, and its one limit (94-shoplot-scenarios.js). */
+  if (st.kind === 'sample' && shoplotOf(d)) bar.append(shoplotCalcNote(d));
 
   const acts = el('div', { class: 'pm-acts' });
   /* It says what it writes. With a scenario open a save writes the scenario
@@ -47626,6 +47742,182 @@ function financingChoicesPanel(d, m) {
   return card;
 }
 /* ==========================================================================
+   EVERYDAY REACH — WHO LIVES IN THE DISTRICT, AND WHAT IS MAPPED NEAR AN AREA
+   --------------------------------------------------------------------------
+   The owner, 1 Nov 2026: rental demand rests on population, jobs, schools and
+   universities, and healthcare — most people spend their time near where they
+   live. The demand test (77-property-tests.js) asked all of it and held no
+   evidence for any of it: the reader marked each source from memory.
+
+   data/sarawak-reach.json (ingest/sarawak-reach.mjs) is that evidence:
+     - per DOSM district, the population on 1 January each year from 2020, its
+       change since, and the working-age (20–64) and children's (0–14) shares;
+     - per area with a mapped point, its district and what OpenStreetMap maps
+       within 5 km of the point, straight line, with the nearest hospital,
+       college or university and mall.
+
+   IT IS SHOWN; IT IS NEVER SCORED. No count here becomes a grade, a rank, a
+   score or a gate: the reader still marks each demand source, and the grade
+   and the IPS read what they always read. Every OpenStreetMap count is "at
+   least this many are mapped", never a total, and says so once where it
+   stands. The places of work are places MAPPED — offices, industrial,
+   commercial and retail land-use areas, malls — and are not jobs.
+   ========================================================================== */
+
+const REACH_FACILITIES = [
+  { key: 'hospitals', label: 'Hospitals', one: 'hospital', many: 'hospitals', near: 'hospital', nearWord: 'hospital' },
+  { key: 'clinics', label: 'Clinics and doctors', one: 'clinic', many: 'clinics' },
+  { key: 'schools', label: 'Schools', one: 'school', many: 'schools' },
+  { key: 'kindergartens', label: 'Kindergartens', one: 'kindergarten', many: 'kindergartens' },
+  { key: 'collegesAndUniversities', label: 'Colleges and universities', one: 'college or university', many: 'colleges and universities', near: 'collegeOrUniversity', nearWord: 'college or university' },
+];
+const REACH_WORK = [
+  { key: 'offices', label: 'Offices', one: 'office', many: 'offices' },
+  { key: 'industrialLanduse', label: 'Industrial land-use areas', one: 'industrial land-use area', many: 'industrial land-use areas' },
+  { key: 'commercialLanduse', label: 'Commercial land-use areas', one: 'commercial land-use area', many: 'commercial land-use areas' },
+  { key: 'retailLanduse', label: 'Retail land-use areas', one: 'retail land-use area', many: 'retail land-use areas' },
+  { key: 'malls', label: 'Malls', one: 'mall', many: 'malls', near: 'mall', nearWord: 'mall' },
+];
+
+const REACH_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/* "1 Nov 2026" and "Nov 2026" from an ISO date or timestamp. */
+const reachDay = (iso) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${Number(iso.slice(8, 10))} ${REACH_MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}` : '');
+const reachMonth = (iso) => (iso && /^\d{4}-\d{2}/.test(iso) ? `${REACH_MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}` : '');
+const reachN = (n, one, many) => `${fmtNum(n, 0)} ${n === 1 ? one : many}`;
+
+/* What each figure is from, and as of when — said on every row. */
+const reachSrcPlaces = () => `OpenStreetMap, ${reachDay(sarawakReach?.osmBase)}`;
+const reachSrcPop = () => `DOSM, ${reachDay(sarawakReach?.populationAsOf)}`;
+
+/* The record for a locality: its reach row and its district's, or null when
+   the file is not here or holds nothing for the place. Asking starts the load
+   once; the page is drawn again when the file lands (loadReach). */
+function reachFor(city, area) {
+  if (reachLoadState === 'idle') loadReach();
+  const rec = sarawakReach?.cities?.[city]?.areas?.[area];
+  if (!rec) return null;
+  return { rec, districtName: rec.district, district: rec.district ? sarawakReach.districts?.[rec.district] || null : null };
+}
+const reachCount = (city, area, key) => { const r = reachFor(city, area); return r && isNum(r.rec.within5km?.[key]) ? r.rec.within5km[key] : null; };
+const reachCountText = (city, area, key) => { const v = reachCount(city, area, key); return v == null ? null : v ? `${fmtNum(v, 0)} mapped` : 'none mapped'; };
+const reachGrowth = (city, area) => { const g = reachFor(city, area)?.district?.growthPct; return isNum(g) ? g : null; };
+function reachWorkCount(city, area) {
+  const r = reachFor(city, area);
+  if (!r) return null;
+  const xs = REACH_WORK.map(w => r.rec.within5km?.[w.key]);
+  return xs.every(isNum) ? xs.reduce((s, x) => s + x, 0) : null;
+}
+
+/* ---- the hint beside a demand-test source -------------------------------
+   A line of evidence, nothing more: the reader still marks the source, and
+   nothing here changes the verdict, the grade or the IPS. No record for the
+   deal's area, no line. */
+function reachHint(city, area, source) {
+  const r = reachFor(city, area);
+  if (!r) return null;
+  const w = r.rec.within5km || {};
+  let parts = null;
+  if (source === 'healthcare') parts = `${reachN(w.hospitals, 'hospital', 'hospitals')}, ${reachN(w.clinics, 'clinic', 'clinics')}`;
+  else if (source === 'education') parts = `${reachN(w.schools, 'school', 'schools')}, ${reachN(w.kindergartens, 'kindergarten', 'kindergartens')}, ${reachN(w.collegesAndUniversities, 'college or university', 'colleges and universities')}`;
+  else if (source === 'employment') parts = `${reachN(w.offices, 'office', 'offices')}, ${reachN(w.malls, 'mall', 'malls')}, and ${fmtNum(w.industrialLanduse, 0)} industrial, ${fmtNum(w.commercialLanduse, 0)} commercial and ${fmtNum(w.retailLanduse, 0)} retail land-use areas`;
+  if (!parts || ![w.hospitals, w.offices].every(isNum)) return null;
+  return `Within 5 km of ${area}: ${parts} mapped (OpenStreetMap, ${reachMonth(sarawakReach.osmBase)})`;
+}
+
+/* The same facts as plain lines, for the Scenario Lab's "where each column
+   is" (82-property-lab.js): the places mapped near the area, and the district's
+   population. Empty when the file holds nothing for the area. */
+function reachLabLines(city, area) {
+  const r = reachFor(city, area);
+  if (!r) return [];
+  const w = r.rec.within5km || {};
+  const out = [`Within 5 km of ${area}, straight line: ${[reachN(w.hospitals, 'hospital', 'hospitals'), reachN(w.clinics, 'clinic', 'clinics'), reachN(w.schools, 'school', 'schools'), reachN(w.collegesAndUniversities, 'college or university', 'colleges and universities'), reachN(w.offices, 'office', 'offices')].join(', ')} mapped (OpenStreetMap, ${reachMonth(sarawakReach.osmBase)})`];
+  const d = r.district;
+  if (d) {
+    const y = String(sarawakReach.populationAsOf).slice(0, 4);
+    out.push(`${r.districtName} district: ${fmtNum(d.population[y], 0)} people on ${reachDay(sarawakReach.populationAsOf)}${isNum(d.growthPct) ? `, ${withSign(d.growthPct, 1, '%')} since 2020` : ''} (DOSM)`);
+  }
+  return out;
+}
+
+/* ---- the panel on the area screen ---------------------------------------- */
+const reachKm = (n) => (!isNum(n) ? '' : n < 0.05 ? 'under 0.1 km' : `${n.toFixed(1)} km`);
+function everydayReachPanel(city, area) {
+  const card = el('div', { class: 'card', id: 'reach-panel', 'data-reach-area': `${city}/${area}` });
+  card.append(cardHead(`Everyday reach — ${area}`,
+    'Who lives in the district, and what is mapped within 5 km of this area’s point. Evidence as the sources give it, shown beside the figures you record: it is not scored, not turned into a grade, and nothing is inferred where a source is silent.'));
+  const r = reachFor(city, area);
+  if (!r) {
+    card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
+      sarawakReach ? `No reach record is held for ${area}. The file covers the areas with a mapped point, and for any other place nothing is estimated.`
+        : reachLoadState === 'failed' ? 'The everyday-reach file could not be loaded, so nothing is shown here. Reload the page to try again.'
+        : 'Loading the everyday-reach file…'));
+    return card;
+  }
+
+  /* Two columns, the source under each figure: a third column for the source
+     was wider than a phone's card, and its words were cut. */
+  const table = (label, rows) => {
+    const t = el('table', { class: 'dt', style: 'table-layout:fixed;width:100%' });
+    t.append(el('colgroup', {}, ['42%', '58%'].map(w => el('col', { style: `width:${w}` }))));
+    t.append(el('thead', {}, el('tr', {}, ['Measure', 'Figure and source'].map(h => el('th', { style: 'text-align:left;white-space:normal' }, h)))));
+    t.append(el('tbody', {}, rows.map(x => x.group
+      ? el('tr', {}, el('th', { scope: 'colgroup', colspan: '2', class: 'eyebrow', style: 'text-align:left;white-space:normal' }, x.group))
+      : el('tr', { 'data-reach-row': x.id }, [
+          el('th', { scope: 'row', style: 'text-align:left;white-space:normal;overflow-wrap:break-word;hyphens:auto' }, x.label),
+          el('td', { style: 'text-align:left;white-space:normal;overflow-wrap:break-word' }, [
+            x.figure,
+            x.sub ? el('div', { class: 'metaline' }, x.sub) : null,
+            el('div', { class: 'metaline', 'data-reach-src': '' }, x.src),
+          ].filter(Boolean)),
+        ]))));
+    gridKeyboard(t, label);
+    return el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t);
+  };
+
+  /* ---- the district ---- */
+  card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' }, r.districtName ? `The ${r.districtName} district` : 'The district'));
+  if (!r.district) {
+    card.append(el('p', { class: 'metaline' }, `No district is assigned to ${area}, so no population figure is shown for it: ${r.rec.unmapped || 'the area is not placed in a district'}.`));
+  } else {
+    const d = r.district, y = String(sarawakReach.populationAsOf).slice(0, 4);
+    const first = Math.min(...Object.keys(d.population).map(Number));
+    card.append(el('p', { class: 'metaline' }, `${area} is placed in the ${r.districtName} district: ${r.rec.districtBasis}. These figures are the district’s as a whole and say nothing of ${area} alone.`));
+    card.append(table(`The ${r.districtName} district: population and age mix. Arrow keys move between cells.`, [
+      { id: 'population', label: 'Population', figure: `${fmtNum(d.population[y], 0)} people`, src: reachSrcPop() },
+      isNum(d.growthPct)
+        ? { id: 'growth', label: `Change since ${first}`, figure: withSign(d.growthPct, 1, '%'), sub: `from ${fmtNum(d.population[first], 0)} on 1 Jan ${first}`, src: reachSrcPop() }
+        : { id: 'growth', label: `Change since ${first}`, figure: 'not shown', sub: d.seriesNote, src: reachSrcPop() },
+      { id: 'working', label: 'Working age (20–64)', figure: `${fmtNum(d.workingAgeSharePct, 1)}% of the district`, src: reachSrcPop() },
+      { id: 'children', label: 'Children (0–14)', figure: `${fmtNum(d.childrenSharePct, 1)}% of the district`, src: reachSrcPop() },
+    ]));
+  }
+
+  /* ---- within 5 km ---- */
+  card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' }, `Within 5 km of ${area} (straight line)`));
+  const w = r.rec.within5km || {}, nr = r.rec.nearest || {};
+  const near = (x) => {
+    if (!x.near) return null;
+    const n = nr[x.near];
+    return n && isNum(n.km) ? `nearest ${x.nearWord} ${reachKm(n.km)} away${n.name ? `: ${n.name}` : ''}` : `no ${x.nearWord} mapped`;
+  };
+  const row = (x) => ({ id: x.key, label: x.label,
+    figure: w[x.key] > 0 ? `at least ${fmtNum(w[x.key], 0)}` : 'none mapped', sub: near(x), src: reachSrcPlaces() });
+  card.append(table(`What is mapped within 5 km of ${area}. Arrow keys move between cells.`, [
+    ...REACH_FACILITIES.map(row),
+    { group: 'Places of work mapped — not jobs' },
+    ...REACH_WORK.map(row),
+  ]));
+
+  /* The caveat, once. */
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Every count from OpenStreetMap is the number mapped there — at least this many, never a total — and schools and clinics in particular are under-mapped: a low count may mean a place is not mapped rather than not there. '
+    + 'Distances and the 5 km are straight line from the area’s single point, not travel time. Places of work are offices, land-use areas (counted by the centre of their outline) and malls that are mapped; they are not jobs, and a large industrial estate counts once.'));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
+    `${sarawakReach.attribution} Retrieved ${reachDay(sarawakReach.retrieved)}; population as of ${reachDay(sarawakReach.populationAsOf)}, OpenStreetMap as of ${reachDay(sarawakReach.osmBase)}.`));
+  return card;
+}
+/* ==========================================================================
    IPS §6.5, §6.7 AND §6.8 — THE THREE PROPERTY TESTS THAT DID NOT EXIST
    --------------------------------------------------------------------------
    The calculator already did the arithmetic the IPS asks for: full acquisition
@@ -48562,6 +48854,7 @@ function demandPanel(city, area) {
      runner): nothing in a row could give way. The note now sits under the
      source it describes, in the same cell, where it wraps as far as it must —
      three columns, and the only fixed width is the select's own. */
+  const hintFor = (id) => reachHint(city, area, id);
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
   t.append(el('thead', {}, el('tr', {}, ['Source', 'State', 'Counts'].map((h, i) =>
     el('th', { style: i ? null : 'text-align:left' }, h)))));
@@ -48591,6 +48884,11 @@ function demandPanel(city, area) {
         i.source.fragile && !i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'fragile') : null,
         el('div', { class: 'caption', style: 'text-align:left;white-space:normal;overflow-wrap:normal;font-weight:400;margin-top:2px;min-width:8rem' },
           i.state ? i.state.note : i.source.ask),
+        /* The owner, 1 Nov 2026: a line of evidence from the reach file beside
+           employment, education and healthcare. A hint only — the reader still
+           marks the source, and the verdict, the grade and the IPS do not read it. */
+        hintFor(i.source.id) ? el('div', { class: 'caption reach-hint', 'data-reach-hint': i.source.id, title: 'Mapped in OpenStreetMap: at least this many, straight line from the area’s point. A hint — mark the source yourself.',
+          style: 'text-align:left;white-space:normal;overflow-wrap:normal;font-weight:400;margin-top:2px;min-width:8rem' }, hintFor(i.source.id)) : null,
       ].filter(Boolean)),
       el('td', { style: 'text-align:left' }, sel),
       el('td', { style: 'text-align:left' }, i.counts
@@ -48601,6 +48899,8 @@ function demandPanel(city, area) {
   t.append(tb);
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
   test.warnings.forEach(w => card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' }, w)));
+  if (test.items.some(i => hintFor(i.source.id))) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    'A “Within 5 km” line is a hint from OpenStreetMap, where counts are at least this many and never a total, measured straight line from the area’s point. It marks nothing: you record each source above, and the verdict, the grade and the IPS read only what you record.'));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'An announced source is recorded and never counted until it operates. That single rule is the one this product would keep '
     + 'if it could keep only one: the demand story that has not happened yet has carried more Malaysian off-plan losses than any other.'));
@@ -50736,7 +51036,12 @@ const LAB_LISTENERS = new Set();
 const LAB_PANELS = new Set();
 
 const labKeyOf = (spec) => (spec?.kind === 'model' ? `m:${spec.id}` : 'deal');
-const labSourceKind = (c) => (String(c.source).startsWith('sc:') ? 'sc' : String(c.source).startsWith('pm:') ? 'pm' : String(c.source).startsWith('opp:') ? 'opp' : c.source);
+const labSourceKind = (c) => (String(c.source).startsWith('sc:') ? 'sc' : String(c.source).startsWith('pm:') ? 'pm' : String(c.source).startsWith('opp:') ? 'opp' : String(c.source).startsWith('tpl:') ? 'tpl' : c.source);
+/* A column's chip: a shoplot starting scenario names its town (the owner, 1
+   Nov 2026; 94-shoplot-scenarios.js), and so does the calculator's deal
+   while it is one nobody has touched. */
+const labChipOf = (c) => (labSourceKind(c) === 'tpl' ? shoplotChip(c.source.slice(4))
+  : labSourceKind(c) === 'deal' && shoplotOf(State.deal) ? shoplotChip(State.deal.shoplot) : LAB_SOURCE_CHIP[labSourceKind(c)]);
 /* A COLUMN FROM THE OPPORTUNITY REGISTER (the 11 Oct audit, #7): 'opp:<id>',
    a property the reader recorded there and has not saved as a property —
    its figures the register's own (oppDeal, 80-registers.js), its
@@ -50772,6 +51077,9 @@ const labColRec = (lab, col) => { const id = labColRecId(lab, col); return id ? 
    scenarios) that is not the subject. */
 function labForeignCol(key, id, subjectId = null) {
   if (id === 'sample') return labCol(key, 'sample', 'Sample deal', pmSampleDeal(), { prop: 'sample' });
+  /* A shoplot starting scenario, 'tpl:<town>/<A|B|C>' (the owner, 1 Nov 2026):
+     the tool's, as the sample is, its figures untouched. */
+  if (String(id).startsWith('tpl:')) { const d = shoplotDeal(String(id).slice(4)); return d ? labCol(key, id, shoplotTitle(String(id).slice(4)), d, { prop: id }) : null; }
   /* A record of the opportunity register; once saved as a property, that
      property's column. */
   const oid = labOppRef(id);
@@ -50817,7 +51125,7 @@ const labMoveCount = (col) => Object.keys(col.moves).length;
 const labMarked = (col) => [...new Set([...Object.keys(col.inherited || {}), ...Object.keys(col.moves)])];
 /* The name of the column that is the calculator's deal, as that deal is
    now: the sample until the reader changes a figure of it. */
-const labDealName = () => (propertyStatus(State.deal).kind === 'sample' ? 'Sample deal' : 'On the calculator');
+const labDealName = () => (propertyStatus(State.deal).kind !== 'sample' ? 'On the calculator' : shoplotOf(State.deal) ? shoplotTitle(State.deal.shoplot) : 'Sample deal');
 /* The subject a plain /property/lab opens: the calculator's deal, which is
    a saved property's once one is open there. */
 const labDealSubject = () => { const st = propertyStatus(State.deal); return st.kind === 'model' ? `m:${st.rec.id}` : 'deal'; };
@@ -50835,6 +51143,7 @@ function labSourceInputs(lab, col) {
     return sc ? pmSavedInputs(other, sc) : null;
   }
   if (k === 'sample') return pmSampleDeal();
+  if (k === 'tpl') return shoplotDeal(col.source.slice(4));
   /* A register record: as the register holds it now. */
   if (k === 'opp') { const o = oppById(labOppRef(col.source)); return o ? oppDeal(o) : null; }
   if (!lab.model) return null;
@@ -51338,11 +51647,13 @@ function labDraw(P, focusId = null) {
   /* Columns of more than one property, route or asset: each on its own
      model, side by side, under a lens (P6). */
   const cross = labCrossRoute(lab) ? labXrCard(P, lab) : null;
+  /* A shoplot starting scenario's parts and notes (94-shoplot-scenarios.js). */
+  const shoplot = P.compact ? null : shoplotLabCard(P, lab);
   /* On a saved property, refurbish or not: four options on P6's columns. */
   const refurb = !P.compact && lab.model ? labRefurbCard(P, lab) : null;
   /* On a saved property, what it actually did beside what was modelled (QT-06). */
   const actuals = !P.compact && lab.model ? labActualsCard(P, lab) : null;
-  outputs.append(...[chain, routePrice, commercial, evidence, cross, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard, price].filter(Boolean));
+  outputs.append(...[chain, routePrice, commercial, evidence, cross, shoplot, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard, price].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
@@ -51411,7 +51722,7 @@ function labHeader(P, lab) {
   if (P.compact) {
     hd.append(el('p', { class: 'lab-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ', el('span', {}, LAB_CLAIM)]));
     if (rec) status.append('Columns from ', el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
-    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'),
+    else if (st.kind === 'sample') status.append(el('strong', {}, shoplotOf(State.deal) ? shoplotChip(State.deal.shoplot) : 'Sample deal'),
       ' — illustrative figures, not a real listing. Every driving figure is the tool’s illustrative default until you change it.');
     else if (st.kind === 'model') status.append('The deal on the calculator, as it was when the lab opened — ', el('strong', {}, `“${st.rec.name}”`), ' is saved since; open it from My properties to see its columns.');
     else status.append('The deal on the calculator — not saved as a property.');
@@ -51421,7 +51732,7 @@ function labHeader(P, lab) {
        figures. The status line is the identity line's name. */
     status.classList.add('lab-id-name');
     if (rec) status.append(el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
-    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'));
+    else if (st.kind === 'sample') status.append(el('strong', {}, shoplotOf(State.deal) ? shoplotChip(State.deal.shoplot) : 'Sample deal'));
     /* Reached only by a panel given the deal as its subject while the
        calculator holds a saved property: the page itself opens that
        property (labArrive). */
@@ -52782,7 +53093,7 @@ function labCompare(P, lab) {
    is drawn from, and redrawn from in place while its shape holds. */
 function labMetricView(metric, lab) {
   const cols = lab.cols;
-  const row = (c) => ({ key: c.key, name: labShownName(lab, c), chip: LAB_SOURCE_CHIP[labSourceKind(c)], active: c.key === lab.active, m: c.cur?.m || null, g: c.cur?.g || null, d: c.work });
+  const row = (c) => ({ key: c.key, name: labShownName(lab, c), chip: labChipOf(c), active: c.key === lab.active, m: c.cur?.m || null, g: c.cur?.g || null, d: c.work });
   const rows = cols.map(row);
   const vm = { metric, tables: [], words: [], twin: null, caption: `Compared by ${(LAB_METRICS.find(x => x.id === metric) || {}).say}. Order: ${cols.map(c => c.key).join(', ')}.` };
   const one = (field, fmt, value, extra = {}) => ({ field, fmt, rows: rows.map(r => {
@@ -52871,6 +53182,9 @@ function labMetricView(metric, lab) {
         `${am.total} record${am.total === 1 ? '' : 's'} for the district${am.sampleN ? `, ${am.sampleN} of them worked-example figures` : ''}`,
         lr.sentence,
         `Demand test: ${dt.verdict}`,
+        /* The owner, 1 Nov 2026: what is mapped near the place, and its district's
+           population — facts, left out when the file holds none for the area. */
+        ...reachLabLines(r.d.city, r.d.district),
       ];
     };
     const tbl = { field: 'district', fmt: null, form: 'facts', title: 'Where each column is',
@@ -53022,7 +53336,7 @@ function labColumnsCard(P, lab) {
   const list = el('ul', { class: 'lab-cols' });
   for (const c of lab.cols) {
     const li = el('li', { class: `lab-col-row lab-c-${c.key}${c.key === lab.active ? ' is-active' : ''}` });
-    li.append(el('span', { class: 'lab-col-name' }, [labLetter(c.key), el('strong', {}, ` ${c.key} — ${c.name}`), ' ', el('span', { class: 'lab-cmp-chip' }, LAB_SOURCE_CHIP[labSourceKind(c)]),
+    li.append(el('span', { class: 'lab-col-name' }, [labLetter(c.key), el('strong', {}, ` ${c.key} — ${c.name}`), ' ', el('span', { class: 'lab-cmp-chip' }, labChipOf(c)),
       labMoveCount(c) ? el('span', { class: 'lab-tag lab-tag-whatif' }, `${labMoveCount(c)} move${labMoveCount(c) === 1 ? '' : 's'} not saved`) : null]));
     /* Where a register record's figures came from, under its name (#7). */
     const prov = labProvWords(lab, c);
@@ -53116,7 +53430,9 @@ function labCommits(P, lab, col) {
   /* The property the column is of (P6): the subject's, another saved one's,
      or none — the calculator's unsaved deal, or the sample. */
   const rec = labColRec(lab, col);
-  const sample = col.prop === 'sample';
+  const tpl = String(col.prop || '').startsWith('tpl:');
+  const sample = col.prop === 'sample' || tpl;
+  const sampleName = tpl ? 'an illustrative starting scenario' : 'the sample deal';
   /* A register record (#7), or one removed from the register since. */
   const opp = labColOpp(col);
   const gone = !opp && String(col.prop || '').startsWith('opp:');
@@ -53168,7 +53484,7 @@ function labCommits(P, lab, col) {
      line; why a scenario needs a property, what a commit marks as the
      reader's and why the grade can stay U, under "How saving works" (L3,
      closed) — every word of it kept. */
-  const line = sample ? `${col.key} is the sample deal — open it in the calculator to save it as a property of yours.`
+  const line = sample ? `${col.key} is ${sampleName} — open it in the calculator to save it as a property of yours.`
     : opp ? `Save keeps ${col.key} as a property, its source and dates with it.`
     : gone ? `${col.key}’s record is no longer in your register — open it in the calculator to keep it.`
     : !rec ? (labScenarioAfterProperty(lab, col) ? `One Save keeps the property and ${col.key} as its scenario.` : `Save keeps the property — and ${col.key}, once moved, as its scenario.`)
@@ -53176,7 +53492,7 @@ function labCommits(P, lab, col) {
     : differs ? `${col.key} is saved as “${col.name}” — move a figure to save again.`
     : `${col.key} is the property as saved — move a figure first.`;
   const why = [];
-  if (sample) why.push(`The sample deal is the tool’s, not a property saved here, so ${col.key} has no property to keep a scenario of. Opened in the calculator, its figures become a deal of yours to save there.`);
+  if (sample) why.push(`${tpl ? 'An illustrative starting scenario' : 'The sample deal'} is the tool’s, not a property saved here, so ${col.key} has no property to keep a scenario of. Opened in the calculator, its figures become a deal of yours to save there.`);
   else if (opp) why.push(`${col.key} is a property you recorded in your opportunity register (${oppProvenanceWords(opp)}). Its figures are the register’s: what the record states, and where it states nothing the calculator’s figures stand in, marked as the tool’s. `
     + `Save keeps it as a property of yours tied to that record, its source and dates kept with it; opened in the calculator it is saved so too, as the register’s Open does. Until then it is a what-if, and nothing is written.`);
   else if (gone) why.push(`${col.key} was a record of your opportunity register, removed since. Its figures are kept here as a lab variant; opened in the calculator they become a deal of yours to save there.`);
@@ -53609,7 +53925,7 @@ const LAB_XR_ROWS = [
   { id: 'cmYieldM', label: 'Net yield at the model rent', only: 'commercial', cell: (f) => {
       const c = f.cm, y = c.yields;
       if (!isNum(y.model)) return labXrUnavailable('needs a model rent');
-      return { value: labR4(y.model), text: cmPct(y.model), kind: y.modelKind, sub: `at ${pqMoney(c.model)} a month, your model rent` };
+      return { value: labR4(y.model), text: cmPct(y.model), kind: y.modelKind, sub: `at ${pqMoney(c.model)} a month, ${y.modelKind === 'illustrative' ? 'the model rent — illustrative, not yours' : 'your model rent'}` };
     } },
   { id: 'cmReserve', label: '12-month lease-down reserve', only: 'commercial', cell: (f) => {
       const c = f.cm, r = c.lease.scenarios.find(s => s.months === 12);
@@ -53646,7 +53962,7 @@ const LAB_XR_CHARTS = {
    order (only those some column has), every column's cell, and the chart. */
 function labXrView(lab) {
   const lens = LAB_LENS_BY_ID[lab.lens] || LAB_LENS_BY_ID[LAB_LENS_DEFAULT];
-  const cols = lab.cols.map(c => ({ key: c.key, name: labXrName(lab, c), chip: LAB_SOURCE_CHIP[labSourceKind(c)], ra: labRouteAsset(c.work), prov: labProvWords(lab, c), active: c.key === lab.active, f: labXrFacts(c) }));
+  const cols = lab.cols.map(c => ({ key: c.key, name: labXrName(lab, c), chip: labChipOf(c), ra: labRouteAsset(c.work), prov: labProvWords(lab, c), active: c.key === lab.active, f: labXrFacts(c) }));
   const rows = lens.order.map(id => LAB_XR_ROW_BY_ID[id]).filter(r => !r.only || cols.some(x => x.f && labXrApplies(r, x.f)))
     .map((r, i) => ({ id: r.id, label: r.label, neg: !!r.neg, level: i < 2 ? 1 : 2, cells: cols.map(x => labXrCell(r, x.f)) }));
   const spec = LAB_XR_CHARTS[lens.chart];
@@ -54029,7 +54345,7 @@ function labComparisonRefs(lab) {
   const refs = [], left = [];
   for (const c of lab.cols) {
     const k = labSourceKind(c);
-    const ref = k === 'base' ? `pm:${lab.model}` : k === 'sc' ? `pm:${lab.model}/${c.source.slice(3)}` : k === 'pm' || k === 'sample' ? c.source
+    const ref = k === 'base' ? `pm:${lab.model}` : k === 'sc' ? `pm:${lab.model}/${c.source.slice(3)}` : k === 'pm' || k === 'sample' || k === 'tpl' ? c.source
       : c.key === 'A' ? `pm:${lab.model}` : null;
     if (ref && !refs.includes(ref)) refs.push(ref); else left.push(c.key);
   }
@@ -54038,6 +54354,7 @@ function labComparisonRefs(lab) {
 /* A saved comparison's columns, named as they are now. */
 const labRefName = (ref) => {
   if (ref === 'sample') return 'Sample deal';
+  if (String(ref).startsWith('tpl:')) return `${shoplotTitle(ref.slice(4))} (${shoplotChip(ref.slice(4))})`;
   const r = labPmRef(ref), rec = r && pmFind(r.id), sc = rec && r.sc ? pmScenario(rec, r.sc) : null;
   return !rec ? 'no longer saved' : sc ? `${rec.name} — ${sc.name}` : r.sc ? `${rec.name} — a scenario no longer saved` : rec.name;
 };
@@ -54725,6 +55042,9 @@ function propertyQuestions({ d, prefix, answer, summary = true, contracts = true
       el('strong', {}, x.title), ` — ${x.state}. ${x.what}`,
       ...(x.source ? [' Source: ', x.source.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener' }, x.source.title) : x.source.title, '.'] : [])]))),
   ]));
+  /* Answered Commercial: the shoplot starting scenarios, beside the choice
+     (the owner, 1 Nov 2026; 94-shoplot-scenarios.js). */
+  if (cls === 'commercial') notes.push(shoplotEntry(prefix));
   if (objective && dealObjective(d).id) notes.push(el('p', { class: 'pq-note', 'data-note': 'objective' },
     `${dealObjective(d).label} sets which figures lead; it ranks nothing and moves no column.`));
   /* Every route on every kind, written down (the 11 Oct 2026 audit, #4).
@@ -55856,7 +56176,7 @@ function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, 
       vacant ? null : field('tenancyRent', 'Contract rent — from the tenancy (RM a month)', money('tenancyRent', 50), 'the rent the tenancy agreement states'),
       field('cmAskingRent', 'Asking rent for this unit (RM a month)', money('cmAskingRent', 50), 'what is asked for this unit — somebody’s hope, not a rent paid'),
       el('div', { class: 'au-field cm-model', 'data-cm': 'rent', 'data-kind': modelKind }, [
-        el('p', { class: 'au-label' }, 'Model rent — your assumption'), el('p', { class: 'nd-at-v num' }, `${pqMoney(num0(d.rent))} a month`),
+        el('p', { class: 'au-label' }, modelKind === 'illustrative' ? 'Model rent — illustrative until you change it' : 'Model rent — your assumption'), el('p', { class: 'nd-at-v num' }, `${pqMoney(num0(d.rent))} a month`),
         el('p', { class: 'au-kind' }, [auBadge(modelKind, 'your assumption of the rent at renewal — not an observed rent'), where.model ? el('span', { class: 'nd-where' }, where.model) : null])]),
     ]),
     extra.rents || null,
@@ -63960,7 +64280,7 @@ VIEWS.areas = () => {
 
   /* ---- the map ---- */
   const mapCard = el('div', { class: 'card' });
-  mapCard.append(cardHead(`${city.name} — ${layer.label.toLowerCase()}`, layer.why, null, AK));
+  mapCard.append(cardHead(`${city.name} — ${layer.label.toLowerCase()}`, layer.why, null, layer.badge || AK));
 
   const paint = (n) => {
     if (!shown.includes(n)) return null;
@@ -64008,8 +64328,9 @@ VIEWS.areas = () => {
   if (layer.caveat) mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm);color:var(--bronze)' }, layer.caveat));
   /* The positions' note is said once, in "What this screen cannot tell
      you" (the Day-10 pre-audit, CL-14); here, a quantity layer's banding. */
-  if (layer.kind === 'quantity') mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'));
+  if (layer.kind === 'quantity') mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, layer.badge
+    ? 'Shading is banded against the range present in this town, not an absolute scale, and the map is read one town at a time. A darker point holds a larger value, which says nothing about which area suits a purchase. Open a locality in the table below for the full evidence.'
+    : 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'));
   if (hasWorkedExample()) {
     const n = sampleObservations().length;
     const warn = el('div', { class: 'card', style: 'border-color:var(--bronze)' });
@@ -64172,6 +64493,10 @@ VIEWS.areas = () => {
         ` — model a property here. The district of ${st.kind === 'model' ? `“${st.rec.name}”` : 'the deal on the calculator'} becomes ${S.editing}; its figures stay as they are.`]) : null,
       usePlaceControl(S.city, S.editing, { id: 'area-use-in-calc' }),
     ]));
+    /* The owner, 1 Nov 2026: who lives in the district and what is mapped
+       within 5 km, before the transactions — evidence the reader did not have
+       to record. */
+    wrap.append(everydayReachPanel(S.city, S.editing));
     wrap.append(officialBenchmarkPanel(S.city, S.editing));
     wrap.append(localityTransactionPanel(S.city, S.editing));
     wrap.append(landRiskPanel(S.city, S.editing));
@@ -64812,6 +65137,10 @@ function openComparableImport() {
                    sqft: areaOf(r.sqft), areaUnit: unit(r.areaUnit, 'sqft'),
                    landSqft: areaOf(r.landSqft), landUnit: unit(r.landUnit, 'point'),
                    titleType: TITLE_TYPES.some(t => t.id === title) ? title : '',
+                   /* The owner, 1 Nov 2026 (Market pulse): the furnishing and the snapshot a record came with come back. */
+                   ...(['unfurnished', 'partly', 'fully'].includes(r.furnishing) ? { furnishing: r.furnishing } : {}),
+                   ...(['whole', 'room', 'lease'].includes(r.letAs) ? { letAs: r.letAs } : {}),
+                   ...(r.snapshotId && ['count', 'low', 'median', 'high'].includes(r.snapshotRole) ? { snapshotId: String(r.snapshotId), snapshotRole: r.snapshotRole } : {}),
                    ...(r.sample === true || r.sample === 'true' || r.standing === 'sample' ? { sample: true } : {}) } };
   };
 
@@ -65918,6 +66247,7 @@ const HEALTH_QUICK = [
       /* With the filed statements switched off in this browser the page
          asks for neither of the files loaded with them (loadRealData): that
          is the reader's choice, not a file failing to load. */
+      const reach = await fetchJson(dataUrl('sarawak-reach.json')).catch(() => null);
       const OFF = { ok: null, off: true, text: 'not asked for: the filed statements are switched off in this browser' };
       const FILES = [
         { file: 'us.json', uses: 'the filed statements, for Equities Research', essential: true,
@@ -65933,6 +66263,12 @@ const HEALTH_QUICK = [
           loaded: () => ({ ok: null, text: null }) },
         /* Read by the property pages only, so this page has no copy of it. */
         { file: 'sarawak-geo.json', uses: 'the area map, for Property Intelligence', loaded: () => ({ ok: null, text: null }) },
+        /* The everyday-reach evidence (the owner, 1 Nov 2026): read here too, so
+           the line can say which licences it stands under and as of when. */
+        { file: 'sarawak-reach.json', uses: 'the everyday reach beside an area, for Property Intelligence',
+          loaded: () => (reach?.populationAsOf && reach?.osmBase
+            ? { ok: true, text: `read here: population as of ${reachDay(reach.populationAsOf)} (DOSM, CC BY 4.0), places as of ${reachDay(reach.osmBase)} (OpenStreetMap, ODbL 1.0)` }
+            : { ok: false, text: 'not read here' }) },
       ];
       const head = async (file) => {
         try {
@@ -66005,7 +66341,7 @@ const HEALTH_FULL = [
   {
     id: 'data-read', title: 'The data files, read in full',
     async run() {
-      const files = ['us.json', 'instruments.json', ...napicFiles(), 'sarawak-geo.json'];
+      const files = ['us.json', 'instruments.json', ...napicFiles(), 'sarawak-geo.json', 'sarawak-reach.json'];
       const out = await Promise.all(files.map(async (f) => {
         try {
           const r = await fetch(dataUrl(f));
@@ -67310,6 +67646,1157 @@ const WORKED_EXAMPLE_NOTE =
   + 'drainage, insurance, ground conditions and coastal exposure — plus land sales in points and service '
   + 'charges, so every rate the tool derives has something to divide. Enough to see what it does before recording anything real. '
   + 'Nothing in it is a real property or a real figure, every row is marked, and removing it leaves your own records alone.';
+/* ==========================================================================
+   MARKET PULSE — SUPPLY, ASKING PRICE, DEMAND, TRANSACTED PRICE, BY AREA
+   --------------------------------------------------------------------------
+   The owner, 1 Nov 2026: "Track an indicator allowing to monitor supply,
+   supply asking price, demand, demand bidding price." The owner buys,
+   refurbishes and lets across Kuching, Miri, Sibu and Bintulu. This is for
+   their own decisions, and the same page serves a visitor.
+
+   WHERE THE NUMBERS COME FROM. Mudah and PropertyGuru forbid automated
+   collection, so nothing here is fetched or scraped from a listing site and
+   the browser makes no new request: the owner chose QUICK MANUAL SNAPSHOTS.
+   A reader runs a search themselves, types in how many were listed and the
+   asking prices they saw, with a source note. Each snapshot is written to
+   the comparables register (the same record, the same log, the same undo,
+   the same export and backup) as one `listed` record and up to three
+   `ask-price` records. Nothing is stored apart from the register.
+
+   FOUR SERIES, KEPT APART, FOR EACH AREA AND PROPERTY TYPE:
+     Supply                 the listings counted: the latest snapshot and its
+                            change against the one before
+     Supply asking price    the median of the asking prices recorded
+     Demand                 how many sales the reader recorded in the period;
+                            NAPIC's count for the division and half-year is
+                            context beside it, on its own geography
+     Demand bidding price   the median of the transacted prices recorded. A
+                            transacted price is where a buyer and a seller
+                            met, not a bid; real bids are not public.
+
+   RULES THE PAGE KEEPS
+   - A median shows only with n of 3 or more; below that the count and "too
+     few" are shown. Every figure shows its n and its dates. A cell with
+     nothing recorded is "No record", never nought.
+   - A snapshot's low, median and high asking prices are ONE observation, the
+     median: counting all three as three listings would turn a single search
+     into n = 3. A record that carries no snapshot mark (one entered in the
+     register by hand) counts as one observation, as it always has.
+   - The reader's records are Yours; NAPIC is Official (NAPIC), on its own
+     geography, shown beside and never added in. Worked-example rows are
+     Illustrative and are not counted.
+   - A derived signal needs both sides, for the same area, type and period.
+   - Direction is shown as up, down or flat, with the numbers. Nothing is
+     ranked, scored, sorted by merit or called hot or cold; nothing advises.
+   ========================================================================== */
+
+const MP_MIN_N = 3;                 /* a median needs this many */
+const MP_SOLD_WINDOW_MONTHS = 3;    /* the sales counted against a listings count */
+const MP_KINDS = ['listed', 'ask-price', 'sold-price', 'ask-rent', 'let-rent', 'vacancy'];
+const MP_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/* What the quick form offers: the residential types. A record of any other
+   type already in the register is still shown. */
+const MP_FORM_TYPES = PROPERTY_TYPES.filter(t => t !== 'Land' && t !== 'Commercial lot');
+const MP_NO_TYPE = 'Type not stated';
+/* The owner, 1 Nov 2026: the furnished-rent premium, starting with Sibu. An optional field on the
+   rent and price records the snapshot writes. A record with none (every older one) is Not stated,
+   and nothing is rewritten. */
+const MP_FURNISHING = [['unfurnished', 'Unfurnished'], ['partly', 'Partly furnished'], ['fully', 'Fully furnished']];
+const mpFurnishing = (o) => (MP_FURNISHING.some(f => f[0] === o?.furnishing) ? o.furnishing : '');
+const mpFurnishLabel = (id) => (MP_FURNISHING.find(f => f[0] === id) || [, 'Not stated'])[1];
+/* The owner, 1 Nov 2026: how a rent is let. Optional on the rent records (ask-rent, let-rent); none is
+   Not stated, older records included. A rent by the room or bed is a rent per room or bed, so it is
+   kept out of every whole-unit median and is never set against one. */
+const MP_LET_AS = [['whole', 'Whole unit'], ['room', 'By the room or bed'], ['lease', 'Company or worker lease']];
+const mpLetAs = (o) => (MP_LET_AS.some(f => f[0] === o?.letAs) ? o.letAs : '');
+const mpLetAsLabel = (id) => (MP_LET_AS.find(f => f[0] === id) || [, 'Not stated'])[1];
+
+/* ------------------------------------------------------------------ dates */
+const mpDateOk = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+const mpMonthKey = (d) => d.slice(0, 7);
+const mpQuarterKey = (d) => `${d.slice(0, 4)}-Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1}`;
+const mpKey = (d, g) => (g === 'q' ? mpQuarterKey(d) : mpMonthKey(d));
+const mpPeriodLabel = (k) => (k.includes('Q') ? `${k.slice(5)} ${k.slice(0, 4)}` : `${MP_MONTHS[Number(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}`);
+const mpDay = (d) => `${Number(d.slice(8, 10))} ${MP_MONTHS[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}`;
+const mpDates = (a, b) => (a === b ? mpDay(a) : `${mpDay(a)} to ${mpDay(b)}`);
+/* The date n months before d (the day kept, or the month's last day). */
+function mpMinusMonths(d, n) {
+  const y = Number(d.slice(0, 4)), m = Number(d.slice(5, 7)) - 1, day = Number(d.slice(8, 10));
+  const t = new Date(Date.UTC(y, m - n, 1));
+  const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+  t.setUTCDate(Math.min(day, last));
+  return t.toISOString().slice(0, 10);
+}
+
+/* ------------------------------------------------------------ the numbers */
+/* A register row this page can use: a kind it reads, a positive number, a
+   calendar date, a town and an area. */
+const mpUsable = (o) => !!o && typeof o === 'object' && MP_KINDS.includes(o.kind) && isNum(o.value) && o.value > 0
+  && mpDateOk(o.date) && !!o.city && !!String(o.area || '').trim();
+
+/* One observation per asking-price snapshot (its median), one per record that
+   carries no snapshot mark. A snapshot that gave only a low or a high has no
+   median to stand for it: it is counted in `skipped`, not used. */
+function mpAskObservations(records) {
+  const snaps = new Map(), obs = [];
+  for (const r of records) {
+    if (!r.snapshotId) { obs.push({ value: r.value, date: r.date }); continue; }
+    const s = snaps.get(r.snapshotId) || { date: r.date, lo: null, med: null, hi: null };
+    if (r.snapshotRole === 'low') s.lo = r.value; else if (r.snapshotRole === 'high') s.hi = r.value; else s.med = r.value;
+    snaps.set(r.snapshotId, s);
+  }
+  let skipped = 0;
+  for (const s of snaps.values()) {
+    if (s.med == null) { skipped++; continue; }
+    obs.push({ value: s.med, date: s.date, lo: s.lo, hi: s.hi });
+  }
+  return { obs, skipped };
+}
+
+/* Observations grouped by month ('m') or quarter ('q'), oldest first. A bucket
+   carries its median only with n of MP_MIN_N or more. */
+function mpSeries(obs, g) {
+  const by = new Map();
+  for (const o of obs) { const k = mpKey(o.date, g); (by.get(k) || by.set(k, []).get(k)).push(o); }
+  const buckets = [...by.keys()].sort().map(key => {
+    const xs = by.get(key), dates = xs.map(o => o.date).sort();
+    const median = xs.length >= MP_MIN_N ? medianOf(xs.map(o => o.value)) : null;
+    const los = xs.map(o => o.lo).filter(isNum), his = xs.map(o => o.hi).filter(isNum);
+    return { key, label: mpPeriodLabel(key), n: xs.length, median, dateMin: dates[0], dateMax: dates[dates.length - 1],
+      lo: los.length ? Math.min(...los) : null, hi: his.length ? Math.max(...his) : null };
+  });
+  return { g, n: obs.length, buckets, latest: buckets[buckets.length - 1] || null };
+}
+
+/* Monthly when every price or rent series the cell has holds MP_MIN_N or more
+   in its own latest month; otherwise quarterly (the records are thin). */
+function mpGranularity(groups) {
+  const present = groups.filter(a => a.length);
+  if (!present.length) return 'm';
+  return present.every(a => {
+    const mk = mpMonthKey(a.reduce((m, o) => (o.date > m ? o.date : m), ''));
+    return a.filter(o => mpMonthKey(o.date) === mk).length >= MP_MIN_N;
+  }) ? 'm' : 'q';
+}
+
+/* The median against the last earlier period that has a median. */
+function mpTrend(series) {
+  const b = series.latest;
+  if (!b || b.median == null) return null;
+  const i = series.buckets.indexOf(b);
+  for (let j = i - 1; j >= 0; j--) {
+    const p = series.buckets[j];
+    if (p.median == null) continue;
+    const pct = (b.median - p.median) / p.median * 100;
+    return { from: p.median, label: p.label, pct, dir: Math.abs(pct) < 0.05 ? 0 : pct > 0 ? 1 : -1 };
+  }
+  return null;
+}
+
+/* Listings counted: snapshots in date order (a later record on the same day
+   is later), the latest and the one before. */
+function mpSupply(records) {
+  if (!records.length) return null;
+  const snaps = records.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.recordedAt || '') < String(b.recordedAt || '') ? -1 : String(a.recordedAt || '') > String(b.recordedAt || '') ? 1 : 0));
+  const cur = snaps[snaps.length - 1], prev = snaps.length > 1 ? snaps[snaps.length - 2] : null;
+  const change = prev ? cur.value - prev.value : null;
+  return { n: snaps.length, cur, prev, change, pct: prev ? change / prev.value * 100 : null,
+    dir: change == null ? null : change > 0 ? 1 : change < 0 ? -1 : 0, dateMin: snaps[0].date, dateMax: cur.date };
+}
+
+/* (a - b) / b, in the latest period where BOTH series hold a median. null when
+   either side has no record at all; 'few' when both do and no period qualifies. */
+function mpGap(sa, sb) {
+  if (!sa.n || !sb.n) return null;
+  for (let i = sa.buckets.length - 1; i >= 0; i--) {
+    const ba = sa.buckets[i], bb = sb.buckets.find(x => x.key === ba.key);
+    if (ba.median != null && bb && bb.median != null)
+      return { status: 'ok', pct: (ba.median - bb.median) / bb.median * 100, key: ba.key, label: ba.label, a: ba, b: bb };
+  }
+  return { status: 'few', a: sa.latest, b: sb.latest };
+}
+
+/* Listings counted against the sales recorded in the MP_SOLD_WINDOW_MONTHS
+   months to the snapshot's date: needs MP_MIN_N of them. */
+function mpMonthsOfSupply(supply, soldObs) {
+  if (!supply) return null;
+  const to = supply.cur.date, from = mpMinusMonths(to, MP_SOLD_WINDOW_MONTHS);
+  const n = soldObs.filter(o => o.date > from && o.date <= to).length;
+  if (n < MP_MIN_N) return { status: 'few', n, to, from };
+  const perMonth = n / MP_SOLD_WINDOW_MONTHS;
+  return { status: 'ok', n, to, from, perMonth, listed: supply.cur.value, months: supply.cur.value / perMonth };
+}
+
+/* Rent by furnishing state, over every dated record of the kind in the cell (the dates are shown).
+   Each stated state has its median with n (a median needs MP_MIN_N); Not stated is its own count and
+   is in neither side. Shown only where records exist in more than one stated state; a difference
+   only between two states that both reach MP_MIN_N. */
+function mpSplitCompare(records, states, of, pairs) {
+  const by = Object.fromEntries([...states.map(f => [f[0], []]), ['', []]]);
+  records.forEach(o => by[of(o)].push(o));
+  const group = (xs) => {
+    const dates = xs.map(o => o.date).sort();
+    return { n: xs.length, median: xs.length >= MP_MIN_N ? medianOf(xs.map(o => o.value)) : null, dateMin: dates[0] || null, dateMax: dates[dates.length - 1] || null };
+  };
+  const g = Object.fromEntries(states.map(f => [f[0], group(by[f[0]])])), notStated = group(by['']);
+  if (states.map(f => f[0]).filter(k => g[k].n > 0).length < 2) return null;
+  const diffs = pairs.filter(([a, b]) => g[a].median != null && g[b].median != null)
+    .map(([a, b]) => ({ a, b, amount: g[a].median - g[b].median, pct: (g[a].median - g[b].median) / g[b].median * 100 }));
+  return { groups: g, notStated, diffs };
+}
+/* Each pair, the dearer-furnished state against the less: partly against unfurnished, fully against unfurnished, fully against partly. */
+const mpFurnishCompare = (records) => mpSplitCompare(records, MP_FURNISHING, mpFurnishing, [['partly', 'unfurnished'], ['fully', 'unfurnished'], ['fully', 'partly']]);
+/* Whole unit and company or worker lease are both rents of a unit: one difference. A rent per room or bed has no pair. */
+const mpLetAsCompare = (records) => mpSplitCompare(records, MP_LET_AS, mpLetAs, [['lease', 'whole']]);
+
+/* Every cell (a town's area and property type) the register holds a record for. */
+function marketPulseModel(rows) {
+  const cells = new Map();
+  let examples = 0;
+  for (const o of rows || []) {
+    if (!mpUsable(o)) continue;
+    if (o.sample) { examples++; continue; }
+    const type = String(o.propertyType || '').trim();
+    const key = [o.city, o.area, type].join('\u0001');
+    let c = cells.get(key);
+    if (!c) { c = { key, city: o.city, area: String(o.area).trim(), type, rec: Object.fromEntries(MP_KINDS.map(k => [k, []])) }; cells.set(key, c); }
+    c.rec[o.kind].push(o);
+  }
+  const out = [...cells.values()].map(c => {
+    const askBuilt = mpAskObservations(c.rec['ask-price']);
+    const sold = c.rec['sold-price'].map(o => ({ value: o.value, date: o.date }));
+    /* A rent by the room or bed is per room or bed: in no whole-unit median, here or in the gap. */
+    const unitRent = (k) => c.rec[k].filter(o => mpLetAs(o) !== 'room');
+    const askRent = unitRent('ask-rent').map(o => ({ value: o.value, date: o.date }));
+    const letRent = unitRent('let-rent').map(o => ({ value: o.value, date: o.date }));
+    const vac = c.rec.vacancy.map(o => ({ value: o.value, date: o.date }));
+    const g = mpGranularity([askBuilt.obs, sold, askRent, letRent]);
+    const supply = mpSupply(c.rec.listed);
+    const ask = mpSeries(askBuilt.obs, g), bid = mpSeries(sold, g);
+    const rAsk = mpSeries(askRent, g), rLet = mpSeries(letRent, g), rVac = mpSeries(vac, g);
+    return { key: c.key, city: c.city, area: c.area, type: c.type, gran: g,
+      supply, ask, askSkipped: askBuilt.skipped, bid, rAsk, rLet, rVac,
+      gap: mpGap(ask, bid), months: mpMonthsOfSupply(supply, sold), rentGap: mpGap(rAsk, rLet),
+      /* The furnishing split is of whole-unit rents; the let-as split is of all, each state apart. */
+      furnish: { 'ask-rent': mpFurnishCompare(unitRent('ask-rent')), 'let-rent': mpFurnishCompare(unitRent('let-rent')) },
+      letAs: { 'ask-rent': mpLetAsCompare(c.rec['ask-rent']), 'let-rent': mpLetAsCompare(c.rec['let-rent']) },
+      letAsStated: ['ask-rent', 'let-rent'].some(k => c.rec[k].some(o => mpLetAs(o))),
+      roomRents: c.rec['ask-rent'].filter(o => mpLetAs(o) === 'room').length + c.rec['let-rent'].filter(o => mpLetAs(o) === 'room').length,
+      furnishStated: ['ask-rent', 'let-rent', 'ask-price', 'sold-price'].some(k => c.rec[k].some(o => mpFurnishing(o))),
+      records: MP_KINDS.reduce((t, k) => t + c.rec[k].length, 0) };
+  });
+  /* The register's own order, never by what a cell shows: the towns as the
+     product lists them, the areas as the town lists them, the types as the
+     calculator lists them, a type not stated last. */
+  const townI = (id) => { const i = SARAWAK_CITIES.findIndex(t => t.id === id); return i < 0 ? 999 : i; };
+  const areaI = (id, a) => { const i = (SARAWAK_CITIES.find(t => t.id === id)?.districts || []).indexOf(a); return i < 0 ? 999 : i; };
+  const typeI = (t) => { const i = PROPERTY_TYPES.indexOf(t); return t === '' ? 998 : i < 0 ? 997 : i; };
+  out.sort((a, b) => townI(a.city) - townI(b.city) || areaI(a.city, a.area) - areaI(b.city, b.area) || a.area.localeCompare(b.area)
+    || typeI(a.type) - typeI(b.type) || a.type.localeCompare(b.type));
+  return { cells: out, examples };
+}
+
+/* ------------------------------------------------------------------ NAPIC */
+/* NAPIC files by division and half-year; the cell is an area of a town. The
+   division's residential count is context on its own geography. Its scheme
+   price ranges are shown only where a scheme's NAPIC name contains the area's
+   name (napicBenchmarks, the area screen's own match) and the scheme is of the
+   cell's property type (below). The match is by name, so it is shown as
+   "schemes whose NAPIC name contains …", never as the area's prices. */
+const MP_NAPIC_TYPE = {
+  'Condominium': /^CONDOMINIUM$/,
+  'Apartment / flat': /^(LOW-COST )?(APARTMENT|FLAT)$/,
+  'Terrace (single storey)': /^SINGLE STOREY (LOW-COST |MEDIUM-COST )?TERRACE$/,
+  'Terrace (2 storey)': /^DOUBLE STOREY (LOW-COST |MEDIUM-COST )?TERRACE$/,
+  'Semi-detached': /STOREY SEMI-DETACHED$/,
+  'Detached / bungalow': /STOREY DETACHED$/,
+  'Shophouse': /\bSHOP$/,
+};
+function mpNapicContext(city, area, type) {
+  const division = localityDivision(city, area);
+  const doc = division ? napicDoc(division) : null;
+  const out = { division, loaded: !!doc, period: doc?.period?.code || null, residential: null, schemes: null };
+  if (!doc) return out;
+  const res = napicActivity(division, doc.period.code).find(r => r.subsector === 'RESIDENTIAL');
+  out.residential = res && isNum(res.count) ? { count: res.count, valueRm: res.valueRm } : null;
+  const re = MP_NAPIC_TYPE[type];
+  const m = napicBenchmarks(division, { locality: area, limit: 100000 });
+  if (!m.matched) out.schemes = { status: 'no-name' };
+  else if (!re) out.schemes = { status: 'no-type', matched: m.total };
+  else {
+    const rows = m.rows.filter(b => b.basisUnit === 'RM_PER_UNIT' && !b.perMonth && re.test(String(b.propertyType || '').trim()));
+    out.schemes = rows.length ? { status: 'ok', rows, matched: m.total } : { status: 'no-row', matched: m.total };
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------- the writer */
+/* One snapshot, through the register's own writer (addObservation), so each
+   record is logged and Undo reverses it. Returns the records written. The
+   count and the prices share a date, area, type, source and snapshot id. */
+function mpRecordSnapshot({ city, area, propertyType, date, count, low, median, high, rent, furnishing, letAs, source }) {
+  const snapshotId = `snap-${date}-${Math.floor(performance.now())}-${(State.observations || []).length}`;
+  const base = { city, area, propertyType, date, evidence: 'user', sourceRef: String(source || '').trim(), sourceKind: 'note',
+    scope: 'area', snapshot: true, snapshotId };
+  /* Furnishing goes on the rent and price records, only when stated; the count is of all the listings. */
+  const furn = MP_FURNISHING.some(f => f[0] === furnishing) ? { furnishing } : {};
+  const letField = MP_LET_AS.some(f => f[0] === letAs) ? { letAs } : {};
+  const made = [];
+  if (isNum(count)) made.push(addObservation({ ...base, kind: 'listed', value: count, snapshotRole: 'count' }));
+  [['low', low], ['median', median], ['high', high]].forEach(([role, v]) => {
+    if (isNum(v)) made.push(addObservation({ ...base, ...furn, kind: 'ask-price', value: v, snapshotRole: role }));
+  });
+  if (isNum(rent)) made.push(addObservation({ ...base, ...furn, ...letField, kind: 'ask-rent', value: rent, snapshotRole: 'median' }));
+  return made;
+}
+
+/* The records of the newest snapshot that can still be undone, newest first:
+   the register's undo stack read down while the events are adds of one snapshot. */
+function mpUndoableSnapshot() {
+  const log = registerLog(), undone = new Set(log.filter(e => e.undoOf).map(e => e.undoOf));
+  let id = null, n = 0;
+  for (let i = log.length - 1; i >= 0; i--) {
+    const e = log[i];
+    if (e.undoOf || undone.has(e.seq) || !registerEntity(e.entity)) continue;
+    const sid = e.entity === 'observation' && e.op === 'add' ? e.after?.snapshotId : null;
+    if (!sid || (id && sid !== id)) break;
+    id = sid; n++;
+  }
+  return id ? { id, n } : null;
+}
+function mpUndoSnapshot() {
+  const s = mpUndoableSnapshot();
+  if (!s) return null;
+  for (let i = 0; i < s.n; i++) undoLastRegisterChange();
+  return s.n;
+}
+
+/* ------------------------------------------------------------------ words */
+const mpMoney = (v) => fmtMoney(v, 'MYR', 0);
+const mpPct = (v, dp = 1) => withSign(v, dp, '%');
+const mpArrow = (d) => (d > 0 ? '↑' : d < 0 ? '↓' : '→');
+const mpWord = (d) => (d > 0 ? 'up' : d < 0 ? 'down' : 'flat');
+const mpNplural = (n, one, many = `${one}s`) => `${fmtNum(n, 0)} ${n === 1 ? one : many}`;
+const mpTooFew = (n) => `n = ${n} — too few`;
+
+/* The words of each series for one cell: what is shown, in one place, so the
+   page and the checks read the same sentences. Each is { value, trend, meta,
+   hollow }; hollow cells say "No record". */
+function mpWords(c) {
+  const W = {};
+  const so = c.supply;
+  W.supply = !so ? { hollow: true, value: 'No record' } : {
+    value: `${mpNplural(so.cur.value, 'listing')} counted`,
+    asAt: `as at ${mpDay(so.cur.date)}${so.cur.sourceRef ? `, ${so.cur.sourceRef}` : ''}`,
+    trend: so.prev ? `${mpArrow(so.dir)} ${mpWord(so.dir)}${so.dir ? ` ${fmtNum(Math.abs(so.change), 0)} (${mpPct(so.pct)})` : ''} from ${fmtNum(so.prev.value, 0)} on ${mpDay(so.prev.date)}` : 'no earlier snapshot to compare',
+    meta: `n = ${mpNplural(so.n, 'snapshot')}, ${mpDates(so.dateMin, so.dateMax)}`,
+  };
+  const med = (s, noun, tr) => {
+    if (!s.n) return { hollow: true, value: 'No record' };
+    const b = s.latest, dates = mpDates(b.dateMin, b.dateMax);
+    if (b.median == null) return { value: mpTooFew(b.n), meta: `${b.label}, ${dates}`, few: true };
+    const t = mpTrend(s);
+    return { value: mpMoney(b.median), unit: noun, period: b.label,
+      trend: t ? `${mpArrow(t.dir)} ${mpWord(t.dir)}${t.dir ? ` ${fmtNum(Math.abs(t.pct), 1)}%` : ''} from ${mpMoney(t.from)} in ${t.label}` : 'no earlier period with 3 or more to compare',
+      meta: `${b.label}: n = ${b.n}, ${dates}`,
+      range: b.lo != null || b.hi != null ? `snapshot lows and highs: ${b.lo != null ? mpMoney(b.lo) : '—'} to ${b.hi != null ? mpMoney(b.hi) : '—'}` : null };
+  };
+  W.ask = med(c.ask, 'median asking price');
+  W.bid = med(c.bid, 'median transacted price');
+  /* Demand: a count of the reader's sold records in the period. */
+  const d = c.bid;
+  if (!d.n) W.demand = { hollow: true, value: 'No record' };
+  else {
+    const b = d.latest, i = d.buckets.indexOf(b), p = i > 0 ? d.buckets[i - 1] : null;
+    const dir = p ? Math.sign(b.n - p.n) : null;
+    W.demand = { value: `${mpNplural(b.n, 'sale')} recorded`, period: b.label,
+      trend: p ? `${mpArrow(dir)} ${mpWord(dir)}${dir ? ` ${fmtNum(Math.abs(b.n - p.n), 0)}` : ''} from ${p.n} in ${p.label}` : 'no earlier period to compare',
+      meta: `${b.label}: n = ${b.n}, ${mpDates(b.dateMin, b.dateMax)}` };
+  }
+  return W;
+}
+
+/* The furnishing comparison in words: each stated state with its median and n, Not stated as its own
+   count, and the difference only between two states that both reach MP_MIN_N. */
+function mpSplitWords(f, states, lower, label, perRoom) {
+  const part = (k) => {
+    const x = f.groups[k], name = lower(k);
+    if (!x.n) return `${name}: no record`;
+    const dates = mpDates(x.dateMin, x.dateMax), per = k === perRoom ? ' per room or bed' : '';
+    return x.median == null ? `${name}: ${mpTooFew(x.n)} (${dates})` : `${name} ${mpMoney(x.median)}${per} (n = ${x.n}, ${dates})`;
+  };
+  const diffs = f.diffs.map(d => `${label(d.a)} against ${label(d.b).toLowerCase()}: ${d.amount > 0 ? '+' : d.amount < 0 ? '−' : ''}${mpMoney(Math.abs(d.amount))} a month (${mpPct(d.pct)})`);
+  return { line: states.map(x => part(x[0])).join(' · '),
+    notStated: f.notStated.n ? `Not stated: n = ${f.notStated.n}, kept apart and in neither side.` : null,
+    note: perRoom && f.groups[perRoom].n ? 'A rent by the room or bed is per room or bed: it is not set against a whole-unit rent.' : null,
+    diffs, noDiff: diffs.length ? null : `No difference shown: it needs ${MP_MIN_N} or more records in each of the two states.` };
+}
+const mpFurnishWords = (f) => mpSplitWords(f, MP_FURNISHING, (k) => (k === 'unfurnished' ? 'unfurnished' : k === 'partly' ? 'partly furnished' : 'fully furnished'), mpFurnishLabel, null);
+const mpLetAsWords = (f) => mpSplitWords(f, MP_LET_AS, (k) => mpLetAsLabel(k).toLowerCase(), mpLetAsLabel, 'room');
+
+/* ------------------------------------------------------------------- page */
+const MP_TYPE_NOTE = 'Type not stated: records entered without a property type, kept apart from the typed ones.';
+/* The town and area, then the property type, as the form offers them first:
+   the last snapshot recorded, else the calculator's deal. */
+function mpFormDefaults() {
+  const last = (State.observations || []).find(o => o && o.snapshotId && !o.sample && o.city && o.area);
+  const deal = State.deal || {};
+  const town = (id) => SARAWAK_CITIES.some(c => c.id === id && !c.deprecated);
+  const city = last && town(last.city) ? last.city : town(deal.city) ? deal.city : 'kuching';
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  const area = last && last.city === city ? last.area : (city === deal.city && deal.district) ? deal.district : (def?.districts || [])[0] || '';
+  const type = last && MP_FORM_TYPES.includes(last.propertyType) ? last.propertyType : MP_FORM_TYPES.includes(deal.propertyType) ? deal.propertyType : MP_FORM_TYPES[0];
+  return { city, area, type };
+}
+
+/* The town's listed areas, and any area already recorded for it. Not the map's: those arrive
+   after the first draw, and the same areas, so the served page and the drawn one agree. */
+function mpAreas(city) {
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  const recorded = (State.observations || []).filter(o => o && o.city === city && o.area && !o.sample).map(o => String(o.area).trim());
+  return [...new Set([...(def?.districts || []), ...recorded])];
+}
+
+function mpSnapshotForm() {
+  const dft = mpFormDefaults();
+  const card = el('section', { class: 'card mp-form', id: 'mp-form', 'aria-labelledby': 'mp-form-h' });
+  card.append(cardHead('Record a snapshot', 'Type in what you saw on a search you ran yourself. Nothing is fetched from any listing site.'));
+  const field = (id, label, control, hint) => el('div', { class: 'mp-field' }, [el('label', { for: id }, label), control, hint ? el('p', { class: 'metaline mp-hint' }, hint) : null]);
+
+  const towns = SARAWAK_CITIES.filter(c => !c.deprecated);
+  const town = el('select', { class: 'select', id: 'mp-town' }, towns.map(c => el('option', { value: c.id }, c.name)));
+  town.value = dft.city;
+  const area = el('select', { class: 'select', id: 'mp-area', 'aria-label': 'Area' });
+  const other = el('input', { class: 'input', id: 'mp-area-other', type: 'text', autocomplete: 'off', 'aria-label': 'Name of the area', placeholder: 'Name of the area', hidden: '' });
+  const fillAreas = (city, want) => {
+    const names = mpAreas(city);
+    if (want && !names.includes(want)) names.unshift(want);
+    area.replaceChildren(...names.map(n => el('option', { value: n }, n)), el('option', { value: '__other' }, 'Another area…'));
+    area.value = want && names.includes(want) ? want : (names[0] || '__other');
+    other.hidden = area.value !== '__other';
+  };
+  fillAreas(dft.city, dft.area);
+  town.addEventListener('change', () => fillAreas(town.value, null));
+  area.addEventListener('change', () => { other.hidden = area.value !== '__other'; if (!other.hidden) other.focus(); });
+  const type = el('select', { class: 'select', id: 'mp-type' }, MP_FORM_TYPES.map(t => el('option', { value: t }, t)));
+  type.value = dft.type;
+  /* Today on the reader's calendar, the tab's own (data-now): the served page says no day. */
+  const date = el('input', { class: 'input', id: 'mp-date', type: 'date', value: localDay(), 'aria-label': 'Date of the search', 'data-now': '' });
+  const num = (id, label, ph) => el('input', { class: 'input', id, type: 'number', inputmode: 'numeric', min: '0', step: '1', placeholder: ph, 'aria-label': label });
+  const count = num('mp-count', 'Number listed', 'e.g. 42');
+  const low = num('mp-low', 'Asking price, lowest', 'RM, optional');
+  const med = num('mp-med', 'Asking price, median', 'RM, optional');
+  const high = num('mp-high', 'Asking price, highest', 'RM, optional');
+  const rent = num('mp-rent', 'Asking rent, median, a month', 'RM a month, optional');
+  const letas = el('select', { class: 'select', id: 'mp-letas' }, [el('option', { value: '' }, 'Not stated'), ...MP_LET_AS.map(f => el('option', { value: f[0] }, f[1]))]);
+  const letasHint = el('p', { class: 'metaline mp-hint', id: 'mp-letas-hint' }, 'Optional. How the asking rent is let.');
+  const furn = el('select', { class: 'select', id: 'mp-furn' }, [el('option', { value: '' }, 'Not stated'), ...MP_FURNISHING.map(f => el('option', { value: f[0] }, f[1]))]);
+  const src = el('input', { class: 'input', id: 'mp-src', type: 'text', autocomplete: 'off', placeholder: 'e.g. Mudah search, 1 Nov', 'aria-label': 'Source note' });
+
+  card.append(el('div', { class: 'mp-row' }, [field('mp-town', 'Town', town), field('mp-area', 'Area', el('div', { class: 'mp-stack' }, [area, other])), field('mp-type', 'Property type', type)]));
+  card.append(el('div', { class: 'mp-row' }, [field('mp-date', 'Date', date), field('mp-count', 'Number listed', count, 'How many were listed for sale.')]));
+  card.append(el('div', { class: 'mp-row' }, [field('mp-low', 'Asking price, lowest (RM)', low), field('mp-med', 'Asking price, median (RM)', med), field('mp-high', 'Asking price, highest (RM)', high)]));
+  card.append(el('div', { class: 'mp-row' }, [field('mp-rent', 'Asking rent, median (RM a month)', rent), field('mp-furn', 'Furnishing', furn, 'Optional. Applies to the asking prices and rent above.')]));
+  card.append(el('div', { class: 'mp-row' }, [el('div', { class: 'mp-field' }, [el('label', { for: 'mp-letas' }, 'Let as'), letas, letasHint])]));
+  letas.addEventListener('change', () => { letasHint.textContent = letas.value === 'room' ? 'Enter the asking rent per room or bed, not for the whole unit.' : 'Optional. How the asking rent is let.'; });
+  card.append(el('div', { class: 'mp-row' }, [field('mp-src', 'Source note', src, 'Where the numbers came from. Without one the record is kept as a note.')]));
+
+  const status = el('p', { class: 'metaline mp-status', id: 'mp-status', role: 'status' }, '');
+  const undo = mpUndoableSnapshot();
+  const save = el('button', { type: 'button', class: 'btn btn-primary mp-save', id: 'mp-save', onclick: () => {
+    const areaName = area.value === '__other' ? other.value.trim() : area.value;
+    const v = (n) => (n.value.trim() === '' ? null : Number(n.value));
+    const vals = { count: v(count), low: v(low), median: v(med), high: v(high), rent: v(rent) };
+    const bad = (m) => { status.textContent = m; toast(m); };
+    if (!areaName) return bad('Name the area first.');
+    if (!mpDateOk(date.value)) return bad('Choose the date of the search.');
+    for (const [k, label] of [['count', 'The number listed'], ['low', 'The lowest asking price'], ['median', 'The median asking price'], ['high', 'The highest asking price'], ['rent', 'The asking rent']]) {
+      if (vals[k] != null && (!Number.isFinite(vals[k]) || vals[k] <= 0)) return bad(`${label} must be above zero.`);
+      if (vals[k] != null && k === 'count' && !Number.isInteger(vals[k])) return bad('The number listed is a whole number.');
+    }
+    if (Object.values(vals).every(x => x == null)) return bad('Enter the number listed, an asking price or an asking rent.');
+    const ps = [vals.low, vals.median, vals.high].filter(x => x != null);
+    if (ps.some((x, i) => i && x < ps[i - 1])) return bad('Lowest, median and highest should run from smaller to larger.');
+    const made = mpRecordSnapshot({ city: town.value, area: areaName, propertyType: type.value, date: date.value,
+      count: vals.count, low: vals.low, median: vals.median, high: vals.high, rent: vals.rent, furnishing: furn.value, letAs: letas.value, source: src.value });
+    const where = `${areaName}, ${townName(town.value)} · ${type.value}`;
+    const said = `Saved ${mpNplural(made.length, 'record')} for ${where}, ${mpDay(date.value)}.`;
+    State.mpSaved = { said, at: Date.now() };
+    toast(said);
+    renderKeepFocus();
+  } }, 'Save snapshot');
+  const undoBtn = el('button', { type: 'button', class: 'btn btn-ghost mp-undo', id: 'mp-undo', disabled: undo ? null : '', onclick: () => {
+    const n = mpUndoSnapshot();
+    const said = n ? `Undid the last snapshot (${mpNplural(n, 'record')}).` : 'Nothing to undo.';
+    State.mpSaved = { said, at: Date.now() };
+    toast(said);
+    renderKeepFocus();
+  } }, undo ? `Undo last snapshot (${undo.n})` : 'Undo last snapshot');
+  card.append(el('div', { class: 'mp-act' }, [save, undoBtn]));
+  /* Said for a minute, through any redraw (the data landing redraws the page) and not for ever. */
+  if (State.mpSaved && Date.now() - State.mpSaved.at < 60000) status.textContent = State.mpSaved.said;
+  card.append(status);
+  card.append(el('p', { class: 'metaline mp-hint' },
+    'A snapshot is saved to the comparables register: the count as Listings counted, each asking price as an Asking price and the rent as an Asking rent, all with the date, area, type and source note above (and the furnishing, if stated). A snapshot’s lowest, median and highest count once, as its median. Kept in this browser, in Export everything and in backups with the register.'));
+  return card;
+}
+
+function mpNapicLine(ctx) {
+  const where = `${ctx.division} division, ${ctx.period || 'H1 2025'} (NAPIC)`;
+  if (!ctx.division) return el('p', { class: 'mp-ctx' }, [el('span', { class: 'chip' }, 'Official (NAPIC)'), ' No NAPIC division is recorded for this town, so there is no official count to set beside it.']);
+  if (!ctx.loaded) return el('p', { class: 'mp-ctx' }, [el('span', { class: 'chip' }, 'Official (NAPIC)'), ` The ${ctx.division} division’s count is loading, or could not be loaded.`]);
+  if (!ctx.residential) return el('p', { class: 'mp-ctx' }, [el('span', { class: 'chip' }, 'Official (NAPIC)'), ` ${where}: no residential count published.`]);
+  return el('p', { class: 'mp-ctx', 'data-mp-napic': ctx.division }, [el('span', { class: 'chip' }, 'Official (NAPIC)'),
+    ` ${where}: ${mpNplural(ctx.residential.count, 'residential transaction')}, the whole division. A different measure on a wider geography, set beside your count and never added to it.`]);
+}
+
+function mpNapicSchemes(ctx, area) {
+  const s = ctx.schemes;
+  if (!ctx.loaded || !s) return null;
+  const box = el('details', { class: 'mp-schemes' });
+  box.append(el('summary', {}, 'NAPIC scheme price ranges, as context'));
+  const where = `${ctx.division} division, ${ctx.period} (NAPIC)`;
+  if (s.status === 'no-name') box.append(el('p', { class: 'metaline' }, `No NAPIC scheme name contains “${area}”, so no scheme ranges are shown for this area.`));
+  else if (s.status === 'no-type') box.append(el('p', { class: 'metaline' }, `${s.matched} NAPIC scheme${s.matched === 1 ? '' : 's'} contain “${area}” in the name. Choose a property type that has a NAPIC match to see their ranges.`));
+  else if (s.status === 'no-row') box.append(el('p', { class: 'metaline' }, `${s.matched} NAPIC scheme${s.matched === 1 ? '' : 's'} contain “${area}” in the name, none with a price range for this property type.`));
+  else {
+    box.append(el('p', { class: 'metaline' }, [el('span', { class: 'chip' }, 'Official (NAPIC)'),
+      ` ${where}. Schemes whose NAPIC name contains “${area}”, of this property type: ${s.rows.length} of ${s.matched}. Observed ranges across NAPIC’s sample of each scheme, not transacted prices of this area and not a bid.`]));
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, ['Scheme', 'NAPIC type', 'Sample', 'Observed range'].map((h, i) => el('th', { style: i === 2 || i === 3 ? null : 'text-align:left', class: i === 2 || i === 3 ? 'num' : null }, h)))));
+    t.append(el('tbody', {}, s.rows.slice(0, 6).map(b => el('tr', {}, [
+      el('th', { scope: 'row', style: 'text-align:left' }, b.scheme),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, String(b.propertyType || '').toLowerCase()),
+      el('td', { class: 'num' }, napicSampleWords(b, ctx.period)),
+      el('td', { class: 'num', title: b.sampleSize === 1 ? 'One property, not the scheme’s price' : b.rangeLabel }, b.min === b.max ? mpMoney(b.min) : `${mpMoney(b.min)}–${mpMoney(b.max)}`),
+    ]))));
+    box.append(el('div', { class: 'tablewrap' }, t));
+    if (s.rows.length > 6) box.append(el('p', { class: 'metaline' }, `Showing the first 6 of ${s.rows.length}.`));
+  }
+  return box;
+}
+
+function mpFig(series, title, sub, w, extra = []) {
+  const f = el('div', { class: `mp-fig${w.hollow ? ' is-hollow' : ''}`, 'data-mp-series': series });
+  f.append(el('p', { class: 'mp-fig-t' }, title));
+  f.append(el('p', { class: 'mp-fig-sub' }, sub));
+  f.append(el('p', { class: `mp-fig-v${w.few ? ' is-few' : ''}`, 'data-mp-value': w.hollow || w.few ? '' : null }, w.value));
+  if (w.asAt) f.append(el('p', { class: 'metaline' }, w.asAt));
+  if (w.trend) f.append(el('p', { class: 'mp-fig-trend' }, w.trend));
+  if (w.range) f.append(el('p', { class: 'metaline' }, w.range));
+  if (w.meta) f.append(el('p', { class: 'metaline', 'data-mp-n': '' }, w.meta));
+  extra.forEach(x => x && f.append(x));
+  return f;
+}
+
+function mpSignal(id, title, value, detail, note) {
+  return el('div', { class: 'mp-sig', 'data-mp-signal': id }, [
+    el('p', { class: 'mp-sig-t' }, title),
+    el('p', { class: 'mp-sig-v' }, value),
+    detail ? el('p', { class: 'metaline' }, detail) : null,
+    note ? el('p', { class: 'metaline' }, note) : null,
+  ]);
+}
+
+function mpCell(c, ctx) {
+  const W = mpWords(c);
+  const typeName = c.type || MP_NO_TYPE;
+  const card = el('article', { class: 'card mp-cell', 'data-mp-cell': `${c.city}|${c.area}|${c.type}`, 'aria-label': `${c.area}, ${typeName}` });
+  card.append(el('div', { class: 'mp-cell-hd' }, [
+    el('h3', { class: 'h-card' }, `${c.area} · ${typeName}`),
+    kindBadge('yours', { fine: 'Your own records', link: false }),
+  ]));
+  if (!c.type) card.append(el('p', { class: 'metaline' }, MP_TYPE_NOTE));
+  const demandCtx = mpNapicLine(ctx);
+  const figs = el('div', { class: 'mp-figs' }, [
+    mpFig('supply', 'Supply', 'Listings counted', W.supply),
+    mpFig('ask', 'Supply asking price', 'Median asking price', W.ask, c.askSkipped ? [el('p', { class: 'metaline' }, `${mpNplural(c.askSkipped, 'snapshot')} with a lowest or highest price and no median not used.`)] : []),
+    mpFig('demand', 'Demand', 'Sales you recorded in the period', W.demand, [demandCtx]),
+    mpFig('bid', 'Demand bidding price', 'Median transacted price', W.bid,
+      [el('p', { class: 'metaline' }, 'A transacted price is where a buyer and a seller met, not a bid. Real bids are not public.')]),
+  ]);
+  card.append(figs);
+
+  /* Signals: only where both sides exist for the same area, type and period. */
+  const sig = [];
+  if (c.gap) {
+    const g = c.gap;
+    sig.push(g.status === 'ok'
+      ? mpSignal('gap', 'Ask–transacted gap', `${mpPct(g.pct)} in ${g.label}`,
+        `(median asking ${mpMoney(g.a.median)}, n = ${g.a.n}, − median transacted ${mpMoney(g.b.median)}, n = ${g.b.n}) ÷ median transacted.`)
+      : mpSignal('gap', 'Ask–transacted gap', 'not shown',
+        `Needs 3 or more asking prices and 3 or more transacted prices in the same period. Latest: asking n = ${g.a.n}, transacted n = ${g.b.n}.`));
+  }
+  if (c.months) {
+    const m = c.months;
+    sig.push(m.status === 'ok'
+      ? mpSignal('months', 'Months of supply', `${fmtNum(m.months, 1)} months`,
+        `${fmtNum(m.listed, 0)} listed on ${mpDay(m.to)} ÷ ${fmtNum(m.perMonth, 2)} sold records a month (${m.n} in the ${MP_SOLD_WINDOW_MONTHS} months to ${mpDay(m.to)}).`,
+        'Counts only the sales you recorded, so it describes your records, not every sale.')
+      : mpSignal('months', 'Months of supply', 'too few sales recorded',
+        `${m.n} sold record${m.n === 1 ? '' : 's'} in the ${MP_SOLD_WINDOW_MONTHS} months to ${mpDay(m.to)}; ${MP_MIN_N} are needed.`));
+  }
+  if (sig.length) {
+    card.append(el('div', { class: 'mp-sigs' }, [
+      el('p', { class: 'mp-sigs-h' }, 'Derived from the two sides'), ...sig]));
+  }
+
+  /* The rental side, from the register's rent and vacancy kinds. */
+  if (c.rAsk.n || c.rLet.n || c.rVac.n || c.roomRents) {
+    const line = (s, label) => {
+      if (!s.n) return [label, 'No record'];
+      const b = s.latest;
+      return [label, b.median == null ? `${mpTooFew(b.n)} (${b.label})` : `${mpMoney(b.median)} a month (${b.label}: n = ${b.n}, ${mpDates(b.dateMin, b.dateMax)})`];
+    };
+    const all = (c.furnishStated ? ', all furnishing states' : '') + (c.roomRents ? ', not by the room or bed' : '');
+    const rows = [line(c.rAsk, `Asking rent, median${all}`), line(c.rLet, `Achieved rent, median${all}`)];
+    const v = c.rVac;
+    rows.push(['Weeks vacant, median', !v.n ? 'No record' : v.latest.median == null ? `${mpTooFew(v.latest.n)} (${v.latest.label})` : `${fmtNum(v.latest.median, 1)} weeks (${v.latest.label}: n = ${v.latest.n}, ${mpDates(v.latest.dateMin, v.latest.dateMax)})`]);
+    const gap = c.rentGap;
+    rows.push(['Asking against achieved rent', !gap ? 'Needs both an asking and an achieved rent' : gap.status === 'ok'
+      ? `${mpPct(gap.pct)} in ${gap.label} (asking n = ${gap.a.n}, achieved n = ${gap.b.n})`
+      : `not shown: needs 3 or more of each in the same period (asking n = ${gap.a.n}, achieved n = ${gap.b.n})`]);
+    const furn = [['ask-rent', 'Asking rent'], ['let-rent', 'Achieved rent']].map(([k, label]) => {
+      const f = c.furnish[k];
+      if (!f) return null;
+      const w = mpFurnishWords(f);
+      return el('div', { class: 'mp-furn', 'data-mp-furnish': k }, [
+        el('p', { class: 'mp-furn-t' }, `${label} by furnishing`),
+        el('p', { class: 'mp-furn-v' }, w.line),
+        w.notStated ? el('p', { class: 'metaline' }, w.notStated) : null,
+        el('p', { class: 'mp-furn-d', 'data-mp-furnish-diff': '' }, w.diffs.length ? w.diffs.join('; ') : w.noDiff),
+      ]);
+    });
+    const letas = [['ask-rent', 'Asking rent'], ['let-rent', 'Achieved rent']].map(([k, label]) => {
+      const f = c.letAs[k];
+      if (!f) return null;
+      const w = mpLetAsWords(f);
+      return el('div', { class: 'mp-furn', 'data-mp-letas': k }, [
+        el('p', { class: 'mp-furn-t' }, `${label} by how it is let`),
+        el('p', { class: 'mp-furn-v' }, w.line),
+        w.notStated ? el('p', { class: 'metaline' }, w.notStated) : null,
+        w.note ? el('p', { class: 'metaline' }, w.note) : null,
+        el('p', { class: 'mp-furn-d', 'data-mp-letas-diff': '' }, w.diffs.length ? w.diffs.join('; ') : w.noDiff),
+      ]);
+    });
+    card.append(el('div', { class: 'mp-rent', 'data-mp-rent': '' }, [
+      el('p', { class: 'mp-sigs-h' }, 'Rental side'),
+      el('dl', { class: 'mp-dl' }, rows.flatMap(([k, val]) => [el('dt', {}, k), el('dd', {}, val)])),
+      ...furn, ...letas,
+    ]));
+  }
+  const sch = mpNapicSchemes(ctx, c.area);
+  if (sch) card.append(sch);
+  return card;
+}
+
+function mpEmpty() {
+  const card = el('section', { class: 'card mp-empty', id: 'mp-empty', 'aria-labelledby': 'mp-empty-h' });
+  card.append(el('h2', { class: 'h-card', id: 'mp-empty-h' }, 'Nothing recorded yet'));
+  card.append(el('p', { class: 'body mp-copy' }, 'Record a snapshot above and this page shows four things for each area and property type, kept apart:'));
+  const ul = el('ul', { class: 'ticklist mp-copy' });
+  [['Supply', 'how many listings you counted, and how that changed since the snapshot before.'],
+   ['Supply asking price', 'the median of the asking prices you saw. Asking is what sellers hope for.'],
+   ['Demand', 'how many sales you recorded in the period. NAPIC’s count for the whole division and half-year is shown beside it as context: a different measure on a wider geography, never added to yours.'],
+   ['Demand bidding price', 'the median of the transacted prices you recorded. A transacted price is where a buyer and a seller met, not a bid, and real bids are not public.']]
+    .forEach(([k, v]) => ul.append(el('li', {}, [el('strong', {}, `${k}: `), v])));
+  card.append(ul);
+  card.append(el('p', { class: 'metaline mp-copy' }, 'A median shows once 3 or more are recorded; below that the page shows the count and says there are too few. An area with nothing recorded reads “No record”, never nought. Where both sides are recorded for the same area, type and period, the page also shows the gap between asking and transacted prices and the months of supply.'));
+  card.append(el('p', { class: 'metaline mp-copy' }, 'Sales and rents are recorded on the comparables register, and count here once they carry an area. Nothing is fetched from Mudah, PropertyGuru or any other listing site.'));
+  return card;
+}
+
+VIEWS.marketPulse = () => {
+  const wrap = el('div', { class: 'mp-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(pageHead({ title: 'Market pulse',
+    lede: 'Supply, demand and prices, from the counts you record.',
+    note: 'Supply, asking price, demand and transacted price, from your own snapshots by town, area and property type. Nothing is fetched from a listing site, and nothing here is ranked or scored.' }));
+  wrap.append(mpSnapshotForm());
+
+  const model = marketPulseModel(State.observations || []);
+  if (!model.cells.length) { wrap.append(mpEmpty()); }
+  else {
+    /* Each division's NAPIC file is asked for once; the page is drawn again when it lands. */
+    const divs = [...new Set(model.cells.map(c => localityDivision(c.city, c.area)).filter(Boolean))];
+    divs.forEach(d => { if (!napicDivisions.has(d)) loadNapic(d).then(() => { if (State.view === 'marketPulse') render(); }); });
+    const byTown = new Map();
+    model.cells.forEach(c => (byTown.get(c.city) || byTown.set(c.city, []).get(c.city)).push(c));
+    byTown.forEach((cells, city) => {
+      const sec = el('section', { class: 'mp-town', 'data-mp-town': city, 'aria-labelledby': `mp-town-${city}` });
+      sec.append(el('h2', { class: 'h-card mp-town-h', id: `mp-town-${city}` }, townName(city)));
+      cells.forEach(c => sec.append(mpCell(c, mpNapicContext(c.city, c.area, c.type))));
+      wrap.append(sec);
+    });
+    if (model.examples) wrap.append(el('p', { class: 'metaline' }, [kindBadge('illustrative', { link: false }),
+      ` ${mpNplural(model.examples, 'worked-example record')} in the register ${model.examples === 1 ? 'is' : 'are'} not counted here.`]));
+    wrap.append(el('div', { class: 'card mp-notes' }, [
+      cardHead('How to read this page', 'What each figure rests on.'),
+      el('ul', { class: 'ticklist mp-copy' }, [
+        'Each figure is your own record (Yours) with its n and the dates it covers. A period is a month, or a quarter where the records are thin.',
+        'A median shows once 3 or more are recorded; below that the count is shown and the figure says too few. A cell with nothing recorded reads No record, never nought.',
+        'Asking and transacted prices are never mixed in one median. A snapshot’s lowest, median and highest asking prices count once, as its median.',
+        'Furnishing is optional. Where a cell has rent records in more than one furnishing state, the medians sit side by side with each n; a difference shows only when both sides have 3 or more, and Not stated is its own count, in neither side.',
+        'The same split is made by how a rent is let (whole unit, by the room or bed, company or worker lease). A rent by the room or bed is per room or bed: it is in no whole-unit median and is not set against one.',
+        'NAPIC’s figures (Official) are for the division and half-year named beside them. They are shown beside your records, never added to them.',
+        'Direction is shown as up, down or flat with the numbers. Nothing is ranked, scored or advised.',
+      ].map(x => el('li', {}, x))),
+      el('p', { class: 'metaline' }, 'Stored in this browser with the comparables register, in Export everything and in backups.'),
+    ]));
+  }
+  wrap.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+    el('a', { class: 'btn btn-ghost', href: href('/property/comparables'),
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
+      `Open the comparables register${(State.observations || []).length ? ` — ${State.observations.length}` : ''}`)]));
+  return wrap;
+};
+/* ==========================================================================
+   SHOPLOT STARTING SCENARIOS — SARAWAK (the owner, 1 Nov 2026: "Integrate
+   this as Quantum Tradeworks default strategies for shop lots in Sarawak")
+   --------------------------------------------------------------------------
+   Three starting points for a 3-storey shoplot in each of five towns, opened
+   in the Scenario Lab as A, B and C. A starting point, never advice: nothing
+   here ranks a column, marks one out or says where to buy, and every figure
+   is one of two kinds, said where it is shown —
+     · from NAPIC's H1 2025 file: the middle of the schemes NAPIC sampled
+       (the median of each scheme's midpoint), with the lowest and highest
+       beside it and the number of schemes — schemes, never transactions;
+     · illustrative: this tool's assumption, chosen by nobody for any
+       property — rooms, room rents, vacancies, fit-out, compliance, the
+       financing.
+   Column A is always the conventional let (the shop and two office floors
+   at NAPIC's figures), so every comparison has the plain case beside it.
+
+   ONE RENT FOR THE BUILDING (the owner, 1 Nov 2026: option (a)). dealModel
+   holds one rent and one vacancy allowance, and nothing here changes it:
+   each column's parts are added into one rent, utilities and Wi-Fi taken off
+   the room line's rent first (the calculator has no line for them), and
+   their vacancies into the one allowance that gives the same rent after
+   vacancy, to the hundredth of a per cent. The parts are listed beside the
+   column (shoplotLabCard).
+
+   LOADED AS THE SAMPLE IS. A scenario is a deal nobody has touched, so every
+   figure reads Illustrative until the reader changes it, and none is marked
+   theirs; NAPIC's figures are never tagged `public` (which reads as Yours).
+   Column A is given to the calculator through propertyLoad, so a deal of
+   the reader's not saved is kept aside first ("Restore my previous deal"),
+   and nothing is written to a saved property until the reader saves.
+
+   model-test (shoplot) recomputes every NAPIC figure below from
+   data/napic-h1-2025.json, so the two cannot drift apart.
+   ========================================================================== */
+
+/* THE NAPIC FIGURES, H1 2025. Per town: the 3-storey shop's price (and the
+   middle of its schemes' floor areas), the ground-floor shop's rent and the
+   office-in-shop rent per floor, each for the area class named.
+   THE ROW RULE (the owner, 1 Nov 2026): a "Prices of Shop · THREE STOREY
+   SHOP" row whose floor area is under 200 m² or over 1,500 m² is left out,
+   as not comparable to a whole 3-storey shoplot — it leaves out Kuching's
+   Jalan Kwong Lee Bank (4,800 m²), Bintulu's One Garden City Residence
+   (108.5 m²) and Miri's Miri Times Square (85 m²). Before the rule the
+   middle was Kuching RM1,150,000 (19 schemes), Bintulu RM900,000 (9) and
+   Miri RM1,050,000 (8); Samarahan and Sibu lose no row. Rent rows are
+   taken whole. */
+const SHOPLOT_NAPIC_PERIOD = 'H1 2025';
+const SHOPLOT_PRICE_FLOOR_SQM = [200, 1500];
+const SHOPLOT_NAPIC = {
+  kuching:   { division: 'Kuching',
+    price:  { mid: 1175000, lo: 680000, hi: 2500000, schemes: 18, floorSqm: 388.5 },
+    shop:   { area: 'SUBURBAN PRIME AREA', mid: 2500, lo: 1700, hi: 4200, schemes: 14 },
+    office: { area: 'SUBURBAN PRIME AREA', mid: 1250, lo: 800, hi: 1800, schemes: 9 } },
+  samarahan: { division: 'Samarahan',
+    price:  { mid: 950000, lo: 900000, hi: 1390000, schemes: 3, floorSqm: 344 },
+    shop:   { area: 'SUBURBAN PRIME AREA', mid: 2050, lo: 1200, hi: 3300, schemes: 13 },
+    office: { area: 'SUBURBAN PRIME AREA', mid: 850, lo: 500, hi: 1800, schemes: 7 } },
+  sibu:      { division: 'Sibu',
+    price:  { mid: 950000, lo: 700000, hi: 1250000, schemes: 7, floorSqm: 329 },
+    shop:   { area: 'CENTRAL TOWN SECONDARY AREA', mid: 2075, lo: 1200, hi: 3000, schemes: 10 },
+    office: { area: 'CENTRAL TOWN SECONDARY AREA', mid: 850, lo: 600, hi: 1200, schemes: 4 } },
+  bintulu:   { division: 'Bintulu',
+    price:  { mid: 975000, lo: 450000, hi: 1770000, schemes: 8, floorSqm: 354.57 },
+    shop:   { area: 'SUBURBAN PRIME AREA', mid: 2650, lo: 1800, hi: 3600, schemes: 7 },
+    office: { area: 'CENTRAL TOWN PRIME AREA', mid: 1300, lo: 900, hi: 2300, schemes: 9 } },
+  miri:      { division: 'Miri',
+    price:  { mid: 1150000, lo: 562500, hi: 2659200, schemes: 7, floorSqm: 326.43 },
+    shop:   { area: 'CENTRAL TOWN PRIME AREA', mid: 2900, lo: 2500, hi: 8800, schemes: 5 },
+    office: { area: 'CENTRAL TOWN PRIME AREA', mid: 1200, lo: 600, hi: 2500, schemes: 11 } },
+};
+const SHOPLOT_SQFT_PER_SQM = 10.7639;
+const shoplotAreaWords = (a) => String(a || '').toLowerCase().replace(/ area$/, '').replace('central town', 'central-town');
+
+/* THE ILLUSTRATIVE ASSUMPTIONS, each said where it is used. */
+const SHOPLOT_ILLUS = {
+  shopVacancyPct: 10,             /* a shop or office floor let to a tenant */
+  utilitiesPerRoom: 60,           /* RM a room a month, owner-paid */
+  wifi: 150,                      /* RM a month, owner-paid */
+  fitOutPerFloor: 32500, fitOutRange: [25000, 40000],      /* converting a floor to rooms */
+  compliance: 37500, complianceRange: [15000, 60000],      /* approvals and fire upgrades for the upper floors */
+  furnishPerFloor: 8000,          /* furnishing for stays of a month to six */
+  downPct: 20, ratePct: 4.8, tenureYears: 25,
+};
+
+/* ONE SENTENCE EACH, said once where it applies. */
+const SHOPLOT_STATEMENT = 'Starting points built from the middle of the schemes NAPIC sampled in H1 2025 and illustrative assumptions — not a recommendation.';
+const SHOPLOT_NOTES = {
+  oneRent: 'The calculator holds one rent and one vacancy allowance for the building: the parts are added into one rent, and their vacancies into the allowance that gives the same rent after vacancy.',
+  napic: `NAPIC figures are the middle of the schemes it sampled in ${SHOPLOT_NAPIC_PERIOD}, with the lowest and highest beside them — schemes, not transactions. Price rows under ${SHOPLOT_PRICE_FLOOR_SQM[0]} m² or over ${fmtNum(SHOPLOT_PRICE_FLOOR_SQM[1], 0)} m² of floor area are left out as not a whole 3-storey shoplot.`,
+  partial: 'Cash required is partial: on a commercial property the fee rulebook leaves out the lines it has not checked for the class, and names them.',
+  finance: `Financing is illustrative: a ${100 - SHOPLOT_ILLUS.downPct}% loan over ${SHOPLOT_ILLUS.tenureYears} years at ${SHOPLOT_ILLUS.ratePct}% — the calculator holds no commercial lender’s terms, so enter the ones you are offered.`,
+  costs: 'Assessment, quit rent and insurance are the calculator’s defaults, written for a condominium: replace them with the council’s and the insurer’s figures. No maintenance charge is entered — a shoplot on its own title has no strata fee (illustrative).',
+  utilities: `Utilities and Wi-Fi (RM${SHOPLOT_ILLUS.utilitiesPerRoom} a room and RM${SHOPLOT_ILLUS.wifi} a month, illustrative) are taken off the room rent before it is added in: the calculator has no line for them.`,
+  compliance: 'Rooms upstairs need the council’s change-of-use approval (amended plans and an occupation permit) and a Bomba fire certificate or support letter; nightly stays also need a lodging or hotel licence, and 21 rooms or more make it a Bomba designated premises. Check with the council and Bomba before buying.',
+  noConversion: 'No conversion is entered: tenants fit out their own floors (illustrative).',
+  lodge: 'A budget lodge is an operating business — nightly rates, booking-site commission, staff — which this tool does not model. Here it is a long let of the upper floors to an operator, at NAPIC’s office-in-shop figure as a stand-in.',
+  laundry: 'The laundry is a business you would run: its takings and costs are not modelled. The ground floor is entered at the rent a tenant would pay for it — what the floor gives up.',
+  anchor: 'The anchor’s rent is NAPIC’s ground-floor figure: no premium for a clinic or pharmacy is assumed.',
+  company: 'One company tenant: if it leaves, both upper floors are empty at once — the lease-down in the commercial section shows the months.',
+  stays: 'Weekend and mid-stay income varies month to month: the figure is an illustrative monthly average, not a booking record.',
+  dosm: 'DOSM district population, 2020–2026: Miri’s 20–34 group −4.6%.',
+  curtin: 'Curtin lies in Miri’s suburbs: NAPIC’s suburban prime ground-floor figure there is RM2,350 — move the rent if the building is near it.',
+  bintuluClasses: 'NAPIC has no office-in-shop figure for Bintulu’s suburban prime areas, so the ground floor is suburban prime and the offices central-town prime — different classes.',
+};
+
+/* The rooms on a floor of a 3-storey shoplot: four or five, illustrative. */
+const SL_ROOMS_2F = 9, SL_ROOMS_1F = 4;
+const slShop = (label = 'Ground-floor shop') => ({ label, napic: 'shop', vacancyPct: SHOPLOT_ILLUS.shopVacancyPct });
+const slOffice = (label) => ({ label, napic: 'office', vacancyPct: SHOPLOT_ILLUS.shopVacancyPct });
+const slOffices = () => [slOffice('First-floor office'), slOffice('Second-floor office')];
+const slRooms = (label, rooms, per, range, vacancyPct) => ({ label, rooms, per, range, vacancyPct, utilities: true });
+/* The works, by what they are: floors converted to rooms, the compliance
+   for sleeping upstairs, and furnishing for short stays. */
+const slWorks = (floors, { furnish = false } = {}) => ({ floors, compliance: floors > 0, furnish: furnish ? floors : 0 });
+
+const SHOPLOT_TOWNS = [
+  { id: 'kuching', name: 'Kuching', city: 'kuching', district: 'Batu Kawa', scenarios: [
+    { key: 'A', title: 'Shop and two office floors', lines: [slShop(), ...slOffices()], works: slWorks(0), notes: ['noConversion'] },
+    { key: 'B', title: 'Clinic or pharmacy below, co-living above', lines: [slShop('Ground floor — clinic or pharmacy'),
+      slRooms('Co-living rooms, first and second floors', SL_ROOMS_2F, 500, [450, 550], 15)], works: slWorks(2), notes: ['anchor', 'utilities', 'compliance'] },
+    { key: 'C', title: 'Anchor below, furnished mid-stay rooms above', lines: [slShop('Ground floor — anchor tenant'),
+      slRooms('Furnished rooms for stays of 1–6 months, first and second floors', SL_ROOMS_2F, 700, [600, 800], 25)], works: slWorks(2, { furnish: true }), notes: ['anchor', 'utilities', 'compliance'] },
+  ] },
+  { id: 'samarahan', name: 'Samarahan', city: 'kota-samarahan', district: 'Samarahan town', scenarios: [
+    { key: 'A', title: 'Shop and two office floors', lines: [slShop(), ...slOffices()], works: slWorks(0), notes: ['noConversion'] },
+    { key: 'B', title: 'Your own self-service laundry below, co-living above', lines: [slShop('Ground floor — your laundry, at the rent it gives up'),
+      slRooms('Co-living rooms, first and second floors', SL_ROOMS_2F, 425, [400, 450], 15)], works: slWorks(2), notes: ['laundry', 'utilities', 'compliance'] },
+    { key: 'C', title: 'Convenience shop or café below, co-living above', lines: [slShop('Ground floor — convenience shop or café'),
+      slRooms('Co-living rooms, first and second floors', SL_ROOMS_2F, 425, [400, 450], 15)], works: slWorks(2), notes: ['utilities', 'compliance'] },
+  ] },
+  { id: 'sibu', name: 'Sibu', city: 'sibu', district: 'Town centre', scenarios: [
+    { key: 'A', title: 'Shop and two office floors', lines: [slShop(), ...slOffices()], works: slWorks(0), notes: ['noConversion'] },
+    { key: 'B', title: 'Clinic, pharmacy or tuition below, rooms for students and hospital staff above', lines: [slShop('Ground floor — clinic, pharmacy or tuition'),
+      slRooms('Rooms, first and second floors', SL_ROOMS_2F, 375, [350, 400], 15)], works: slWorks(2), notes: ['anchor', 'utilities', 'compliance'] },
+    { key: 'C', title: 'Shop below, one office floor and one room floor', lines: [slShop(), slOffice('First-floor office'),
+      slRooms('Rooms, second floor', SL_ROOMS_1F, 375, [350, 400], 15)], works: slWorks(1), notes: ['utilities', 'compliance'] },
+  ] },
+  { id: 'bintulu', name: 'Bintulu', city: 'bintulu', district: 'Town centre', scenarios: [
+    { key: 'A', title: 'Shop and two office floors', lines: [slShop(), ...slOffices()], works: slWorks(0), notes: ['bintuluClasses', 'noConversion'] },
+    { key: 'B', title: 'F&B below, upper floors leased to a company for staff', lines: [slShop('Ground floor — food and beverage'),
+      { label: 'First and second floors, leased to a company for staff', floors: 2, per: 2300, range: [1800, 2800], vacancyPct: 10 }],
+      works: slWorks(2), notes: ['company', 'compliance'] },
+    { key: 'C', title: 'Shop below, a budget lodge of 20 rooms or fewer above, as a long let', lines: [slShop(),
+      { label: 'First and second floors, let to a lodge operator', napic: 'office', floors: 2, vacancyPct: 10, standIn: true }],
+      works: slWorks(2), notes: ['lodge', 'bintuluClasses', 'compliance'] },
+  ] },
+  { id: 'miri', name: 'Miri', city: 'miri', district: 'City centre', scenarios: [
+    { key: 'A', title: 'City-centre shop and two office floors', lines: [slShop(), ...slOffices()], works: slWorks(0), notes: ['noConversion'] },
+    { key: 'B', title: 'Shop below, weekend and weekday mid-stays above', lines: [slShop(),
+      slRooms('Furnished rooms for weekend and weekday stays, first and second floors — a monthly figure', SL_ROOMS_2F, 900, [750, 1050], 35)],
+      works: slWorks(2, { furnish: true }), notes: ['stays', 'utilities', 'compliance'] },
+    { key: 'C', title: 'Shop below, rooms near Curtin above', lines: [slShop(),
+      slRooms('Rooms, first and second floors', SL_ROOMS_2F, 450, [400, 500], 20)], works: slWorks(2), notes: ['dosm', 'curtin', 'utilities', 'compliance'] },
+  ] },
+];
+
+/* ==========================================================================
+   INDUSTRIAL STARTING SCENARIOS — SARAWAK (the owner, 1 Nov 2026: "integrate
+   this as Quantum Tradeworks default strategies for industrial sites in
+   Sarawak"). The same mechanism, labels and limits as the shoplots: three
+   starting points a town, A always a whole unit on a long let; one rent for
+   the building (option (a)); every figure untouched and Illustrative until
+   the reader changes it. A commercial deal of the 'industrial' subtype.
+   WHAT THE EVIDENCE HOLDS. NAPIC's H1 2025 file has industrial PRICES only —
+   37 rows, no rents. Each price below is the middle of the schemes NAPIC
+   sampled (the median of each scheme's midpoint), recomputed by model-test
+   (industrial). The rents are illustrative: asking rents seen in public
+   listings for Kuching, Oct 2026 (whole units about RM0.75–1.40 a sq ft a
+   month, small subdivided units about RM1.80–2.70; no listing is named or
+   copied); for the other four towns none was found, and the Kuching
+   whole-unit low, RM0.75, stands in, said so.
+   THE FLOOR AREA IS NAPIC'S. Its middle for Kuching's 2-storey semi-detached
+   units is 205 m², about 2,207 sq ft, where warehouse listings run about
+   4,000–18,000 sq ft. The rent is worked on NAPIC's own area; no larger
+   area is assumed. */
+const INDUSTRIAL_NAPIC = {
+  kuching:   { division: 'Kuching',   semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 1250000, lo: 700000, hi: 1650000, schemes: 8, floorSqm: 205 } },
+  samarahan: { division: 'Samarahan', semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 975000, lo: 900000, hi: 1080000, schemes: 4, floorSqm: 201.5 } },
+  sibu:      { division: 'Sibu',      semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 1107500, lo: 850000, hi: 1280000, schemes: 2, floorSqm: 169 } },
+  bintulu:   { division: 'Bintulu',   semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 1212500, lo: 1050000, hi: 2225000, schemes: 4, floorSqm: 168.86 } },
+  miri:      { division: 'Miri',      semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 1000000, lo: 655000, hi: 1550000, schemes: 5, floorSqm: 271.685 },
+    terrace: { type: 'DOUBLE STOREY TERRACE', mid: 620000, lo: 540000, hi: 700000, schemes: 2, floorSqm: 236.1675 } },
+};
+const INDUSTRIAL_TYPE_WORDS = { semid: '2-storey semi-detached industrial', terrace: '2-storey terraced industrial' };
+/* RM a sq ft a month, illustrative. */
+const INDUSTRIAL_RENT = {
+  whole: { psf: 1.05, range: [0.75, 1.40] },   /* asking, public listings, Kuching, Oct 2026: the middle of the range, to 5 sen */
+  bays:  { psf: 2.15, range: [1.80, 2.50] },   /* subdivided bays, the brief's range within the listings' 1.80–2.70 */
+  placeholder: 0.75,                           /* no evidence found: the Kuching whole-unit low */
+  wholeVacancyPct: 10, baysVacancyPct: 15,
+};
+const INDUSTRIAL_NOTES = {
+  checks: 'Before buying, check the title’s industrial use and its remaining lease years, the council’s approval for any subdivision or change of use, Bomba’s requirements for storage, and the site’s flood history.',
+  evidence: 'Rents are illustrative: asking rents in public listings, Kuching, October 2026 — whole units about RM0.75–1.40 a sq ft a month, small subdivided units about RM1.80–2.70. An asking rent is not a rent paid.',
+  placeholder: (town) => `No public rent evidence found for ${town} — replace with a local quote. RM0.75 a sq ft a month stands in: the Kuching whole-unit low.`,
+  own: 'Owner-occupied: the rent entered is what you would otherwise pay for the space — an opportunity cost, not income. Your business’s takings and costs are not modelled.',
+  storage: 'Self-storage and fulfilment are an operating business — unit rentals, insurance, staff — which this tool does not model. Here they are a long let of the space to an operator.',
+  projectTerm: 'Project-term leases end with the project: the vacancy allowance is 20% (illustrative).',
+  act446: 'Worker accommodation needs a certificate under Act 446 (the Employees’ Minimum Standards of Housing, Accommodations and Amenities Act), the council’s approval and Bomba’s. Check with the Labour Department, the council and Bomba before buying.',
+  concentration: 'A few company tenants on project work: when a project ends, the building can empty at once.',
+  lease33: 'A 3+3-year lease is in the words only: the calculator holds one rent and its growth, not a lease schedule.',
+  terrace: 'A different building from A and B: priced at NAPIC’s 2-storey industrial terrace in Miri, on that terrace’s own floor area.',
+  floorArea: 'NAPIC’s floor areas for these units are small — Kuching’s middle is 205 m², about 2,207 sq ft, where warehouse listings run about 4,000–18,000 sq ft. The rent is worked on NAPIC’s own area; none larger is assumed.',
+  napic: `NAPIC figures are the middle of the schemes it sampled in ${SHOPLOT_NAPIC_PERIOD}, with the lowest and highest beside them — schemes, not transactions. NAPIC publishes no industrial rents.`,
+  costs: 'Assessment, quit rent and insurance are the calculator’s defaults, written for a condominium: replace them with the council’s and the insurer’s figures. No maintenance charge is entered — a unit on its own title has no strata fee (illustrative).',
+};
+const inWhole = (label = 'The whole unit, let on a long lease', share = 1, vacancyPct = INDUSTRIAL_RENT.wholeVacancyPct) => ({ label, share, rent: 'whole', vacancyPct });
+const inBays = (label, share = 1, bays = null) => ({ label, share, rent: 'bays', vacancyPct: INDUSTRIAL_RENT.baysVacancyPct, bays });
+const inOwn = (label, share = 1) => ({ label, share, rent: 'whole', vacancyPct: 0, own: true });
+const inFitOut = (label, amount, range) => ({ label, amount, range });
+const IN_BAYS_FIT = (amount = 60000) => inFitOut('Subdividing into bays — partitions, doors and services', amount, [40000, 80000]);
+const INDUSTRIAL_TOWNS = [
+  { id: 'ind-kuching', napicTown: 'kuching', name: 'Kuching', city: 'kuching', district: 'Batu Kawa', evidence: true, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Subdivided SME bays', napic: 'semid', lines: [inBays('Six bays (four to eight), let to small firms', 1, 6)], works: [IN_BAYS_FIT()], notes: [] },
+    { key: 'C', title: 'Self-storage and fulfilment for online sellers, as a long let', napic: 'semid', lines: [{ ...inBays('The bays, let whole to a storage and fulfilment operator'), vacancyPct: INDUSTRIAL_RENT.wholeVacancyPct }], works: [IN_BAYS_FIT()], notes: ['storage'] },
+  ] },
+  { id: 'ind-samarahan', napicTown: 'samarahan', name: 'Samarahan', city: 'kota-samarahan', district: 'Samarahan town', evidence: false, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Your own fabrication and fit-out base', napic: 'semid', lines: [inOwn('The whole unit, used by your own business — at the rent it gives up')], works: [], notes: ['own'] },
+    { key: 'C', title: 'Student and household self-storage, with three trade bays', napic: 'semid', lines: [{ ...inBays('Self-storage, let to an operator — six-tenths of the floor'), share: 0.6 }, inBays('Three trade bays — four-tenths of the floor', 0.4, 3)], works: [IN_BAYS_FIT()], notes: ['storage'] },
+  ] },
+  { id: 'ind-sibu', napicTown: 'sibu', name: 'Sibu', city: 'sibu', district: 'Town centre', evidence: false, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Subdivided workshops for timber, marine and repair firms', napic: 'semid', lines: [inBays('Workshops, let to small firms', 1, 4)], works: [IN_BAYS_FIT()], notes: [] },
+    { key: 'C', title: 'Your own central-Sarawak depot, its surplus bays let', napic: 'semid', lines: [inOwn('Half the unit, your depot — at the rent it gives up', 0.5), inBays('Half the unit, surplus bays let', 0.5, 2)],
+      works: [inFitOut('Subdividing half the unit into bays', 30000, [20000, 40000])], notes: ['own'] },
+  ] },
+  { id: 'ind-bintulu', napicTown: 'bintulu', name: 'Bintulu', city: 'bintulu', district: 'Kidurong', evidence: false, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Contractor yard and semi-logistics on project-term leases', napic: 'semid', lines: [inWhole('The unit and its yard, let for a project’s term', 1, 20)], works: [], notes: ['projectTerm'] },
+    { key: 'C', title: 'Worker accommodation leased to companies, as a long let', napic: 'semid', lines: [inWhole('The unit, leased to companies for their workers')],
+      works: [inFitOut('Converting to accommodation', 60000, [40000, 80000]), inFitOut('Compliance — Act 446, approvals and fire upgrades', 37500, [15000, 60000])], notes: ['act446', 'concentration'] },
+  ] },
+  { id: 'ind-miri', napicTown: 'miri', name: 'Miri', city: 'miri', district: 'Lutong', evidence: false, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Oil and gas support workshop on a long lease (3+3 years)', napic: 'semid', lines: [inWhole('The unit, let to a support workshop')], works: [], notes: ['lease33'] },
+    { key: 'C', title: 'Entry-level SME bays in a 2-storey terrace', napic: 'terrace', lines: [inBays('Bays in the terrace, let to small firms', 1, 3)], works: [inFitOut('Subdividing into bays', 40000, [40000, 80000])], notes: ['terrace'] },
+  ] },
+];
+const IN_SQFT = (fig) => Math.round(fig.floorSqm * SHOPLOT_SQFT_PER_SQM);
+const inPsf = (v) => `RM${Number(v).toFixed(2)}`;
+function industrialLines(r) {
+  const fig = INDUSTRIAL_NAPIC[r.town.napicTown][r.sc.napic], sqft = IN_SQFT(fig);
+  return r.sc.lines.map(l => {
+    const R = INDUSTRIAL_RENT[l.rent], psf = r.town.evidence ? R.psf : INDUSTRIAL_RENT.placeholder;
+    const area = Math.round(sqft * l.share), gross = Math.round(area * psf);
+    const basis = r.town.evidence ? `${inPsf(psf)} a sq ft a month (${inPsf(R.range[0])}–${inPsf(R.range[1])}, asking rents in public listings, Kuching, Oct 2026)`
+      : `${inPsf(psf)} a sq ft a month — no public rent evidence found for ${r.town.name}: replace with a local quote`;
+    const words = `${fmtNum(area, 0)} sq ft${l.bays ? ` in ${l.bays} bays` : ''} × ${basis}${l.own ? ' — what you would otherwise pay for it, not income' : ''}`;
+    return { label: l.label, gross, costs: 0, net: gross, vacancyPct: l.vacancyPct, kind: 'illustrative', words };
+  });
+}
+
+/* ---------------------------------------------------------------- lookups */
+/* Shoplot towns by their own id ('kuching'), industrial ones by 'ind-<town>'. */
+const shoplotTown = (id) => [...SHOPLOT_TOWNS, ...INDUSTRIAL_TOWNS].find(t => t.id === id) || null;
+const slIndustrial = (town) => !!town?.napicTown;
+/* 'kuching/B' → { town, sc } */
+function shoplotRef(ref) {
+  const m = /^([a-z-]+)\/([ABC])$/.exec(String(ref || ''));
+  const town = m ? shoplotTown(m[1]) : null;
+  const sc = town ? town.scenarios.find(s => s.key === m[2]) : null;
+  return sc ? { town, sc, ref: `${town.id}/${sc.key}` } : null;
+}
+const shoplotChip = (ref) => { const r = shoplotRef(ref) || { town: shoplotTown(String(ref).split('/')[0]) }; return `Illustrative starting scenario — ${r.town?.name || 'Sarawak'}${slIndustrial(r.town) ? ', industrial' : ''}`; };
+const shoplotTitle = (ref) => shoplotRef(ref)?.sc.title || 'Starting scenario no longer offered';
+const slMoney = (v) => fmtMoney(v, 'MYR', 0);
+const slRange = ([lo, hi]) => `${slMoney(lo)}–${slMoney(hi)}`;
+
+/* Each line of a scenario, worked: its rent before and after what the owner
+   pays for it, its vacancy, its kind and the words that say where it is
+   from. */
+function shoplotLines(ref) {
+  const r = shoplotRef(ref);
+  if (!r) return [];
+  if (slIndustrial(r.town)) return industrialLines(r);
+  const N = SHOPLOT_NAPIC[r.town.id];
+  return r.sc.lines.map(l => {
+    const count = l.floors || 1;
+    const fig = l.napic ? N[l.napic] : null;
+    const gross = fig ? fig.mid * count : l.rooms ? l.rooms * l.per : count * l.per;
+    const costs = l.utilities ? l.rooms * SHOPLOT_ILLUS.utilitiesPerRoom + SHOPLOT_ILLUS.wifi : 0;
+    const kind = fig && !l.standIn ? 'napic' : 'illustrative';
+    const what = l.napic === 'shop' ? 'ground-floor shop rent' : 'office-in-shop rent a floor';
+    const words = fig
+      ? `${count > 1 ? `${count} × ` : ''}${slMoney(fig.mid)} — the middle of the ${fig.schemes} ${fig.schemes === 1 ? 'scheme' : 'schemes'} NAPIC sampled, ${SHOPLOT_NAPIC_PERIOD} (${what}, ${shoplotAreaWords(fig.area)}; ${slMoney(fig.lo)}–${slMoney(fig.hi)})${l.standIn ? ', as a stand-in for an operator’s rent' : ''}`
+      : l.rooms ? `${l.rooms} rooms × ${slMoney(l.per)} (${slRange(l.range)} a room), less ${slMoney(costs)} of utilities and Wi-Fi`
+        : `${count} × ${slMoney(l.per)} a floor (${slRange(l.range)})`;
+    return { label: l.label, gross, costs, net: gross - costs, vacancyPct: l.vacancyPct, kind, words };
+  });
+}
+/* The parts added into the one rent and the one allowance: the rent is the
+   lines' rents after what the owner pays for them; the allowance gives the
+   same rent after vacancy, to the hundredth of a per cent. */
+function shoplotBlend(lines) {
+  const rent = lines.reduce((t, l) => t + l.net, 0);
+  const effective = lines.reduce((t, l) => t + l.net * (1 - l.vacancyPct / 100), 0);
+  const vacancyPct = rent > 0 ? +((1 - effective / rent) * 100).toFixed(2) : 0;
+  return { rent, effective, vacancyPct };
+}
+/* The works, in ringgit, with what each is. */
+function shoplotWorks(ref) {
+  const r = shoplotRef(ref);
+  if (!r) return { total: 0, parts: [] };
+  if (slIndustrial(r.town)) {
+    const parts = r.sc.works.map(w => ({ label: w.label, amount: w.amount, words: `${slMoney(w.amount)} (${slRange(w.range)})` }));
+    return { total: parts.reduce((t, p) => t + p.amount, 0), parts };
+  }
+  const w = r.sc.works, I = SHOPLOT_ILLUS;
+  const parts = [
+    ...(w.floors ? [{ label: `Converting ${w.floors === 1 ? 'one floor' : `${w.floors} floors`} to rooms`, amount: w.floors * I.fitOutPerFloor, words: `${w.floors} × ${slMoney(I.fitOutPerFloor)} (${slRange(I.fitOutRange)} a floor at market rates)` }] : []),
+    ...(w.compliance ? [{ label: 'Upper-floor compliance — approvals and fire upgrades', amount: I.compliance, words: `${slMoney(I.compliance)} (${slRange(I.complianceRange)})` }] : []),
+    ...(w.furnish ? [{ label: 'Furnishing for stays', amount: w.furnish * I.furnishPerFloor, words: `${w.furnish} × ${slMoney(I.furnishPerFloor)} a floor` }] : []),
+  ];
+  return { total: parts.reduce((t, p) => t + p.amount, 0), parts };
+}
+
+/* THE DEAL A SCENARIO IS: the sample's shape, every figure untouched and so
+   the tool's illustrative default until the reader changes it. The NAPIC
+   figures are evidence 'assumed' and 'estimated' while they stand — never
+   'public', which the badges read as Yours. */
+function shoplotDeal(ref) {
+  const r = shoplotRef(ref);
+  if (!r) return null;
+  const ind = slIndustrial(r.town);
+  const fig = ind ? INDUSTRIAL_NAPIC[r.town.napicTown][r.sc.napic] : SHOPLOT_NAPIC[r.town.id].price;
+  const b = shoplotBlend(shoplotLines(r.ref));
+  return {
+    ...PROPERTY_DEFAULT_DEAL,
+    city: r.town.city, district: r.town.district, projectId: customProjectId(r.town.city),
+    propertyType: ind ? 'Commercial lot' : 'Shophouse', commercialSubtype: ind ? 'industrial' : 'whole-shoplot', titleType: 'unknown',
+    sqft: Math.round(fig.floorSqm * SHOPLOT_SQFT_PER_SQM), landSqft: 0,
+    price: fig.mid, renovation: shoplotWorks(r.ref).total,
+    downPct: SHOPLOT_ILLUS.downPct, ratePct: SHOPLOT_ILLUS.ratePct, tenureYears: SHOPLOT_ILLUS.tenureYears,
+    rent: b.rent, vacancyPct: b.vacancyPct, maintenance: 0, sinkingFund: 0,
+    evidence: { price: 'assumed', rent: 'assumed', maintenance: 'assumed', vacancyPct: 'assumed', apprecPct: 'assumed', sqft: 'estimated', titleType: 'assumed' },
+    checks: {}, touched: {},
+    /* Which starting scenario this is: named by the Lab and the calculator
+       while nobody has touched it (shoplotOf). */
+    shoplot: r.ref,
+  };
+}
+/* The scenario a deal still is: one nobody has touched, not saved as a
+   property — else null, and it is the reader's deal like any other. */
+const shoplotOf = (d) => (d && d.shoplot && !d.modelId && !dealIsTheReaders(d) ? shoplotRef(d.shoplot) : null);
+/* An untouched scenario is the tool's, as the sample is: rebuilt on demand,
+   so it is never kept aside or rescued as a property of the reader's. */
+const shoplotUntouched = (d) => { const r = shoplotOf(d); return !!r && pmSame(pmNormalInputs(d), pmNormalInputs(shoplotDeal(r.ref))); };
+
+/* ---------------------------------------------------------------- opening */
+/* Column A to the calculator, as a new deal is (propertyLoad: a deal of the
+   reader's not saved is kept aside first), and B and C beside it in the Lab,
+   from the address. Nothing is saved. */
+function shoplotStart(townId) {
+  const town = shoplotTown(townId);
+  if (!town) return false;
+  const kept = propertyLoad(shoplotDeal(`${town.id}/A`));
+  delete LAB.deal;
+  if (labSubject === 'deal') labSubject = null;
+  labUrlSeen = null;
+  navigate(`/property/lab?cols=tpl:${town.id}/B,tpl:${town.id}/C`);
+  toast(`${shoplotChip(town.id)}: A, B and C are open in the Lab to edit and compare — nothing is saved.${pmKeptNote(kept)}`);
+  return true;
+}
+/* THE ENTRY, beside the commercial choice (propertyQuestions, 83): a town,
+   and one button. */
+let SL_PICK = 'kuching', SL_KIND = 'shoplot';
+function shoplotEntry(prefix) {
+  const sid = `${prefix}-sl-town`, kid = `${prefix}-sl-kind`;
+  const sel = el('select', { class: 'select sl-town', id: sid, onchange: (e) => { SL_PICK = e.target.value; } },
+    SHOPLOT_TOWNS.map(t => el('option', { value: t.id, selected: t.id === SL_PICK ? '' : null }, t.name)));
+  /* The owner, 1 Nov 2026: "Shoplot" or "Industrial", then the town. */
+  const kind = el('select', { class: 'select sl-kind', id: kid, onchange: (e) => { SL_KIND = e.target.value; } },
+    [['shoplot', 'Shoplot'], ['industrial', 'Industrial']].map(([v, w]) => el('option', { value: v, selected: v === SL_KIND ? '' : null }, w)));
+  return el('div', { class: 'sl-entry', id: `${prefix}-sl`, 'data-note': 'shoplot' }, [
+    el('p', { class: 'pq-note' }, [el('strong', {}, 'Starting scenarios — Sarawak.'), ' Three starting points for a 3-storey shoplot or an industrial unit in a town, opened in the Lab as A, B and C to edit and compare.']),
+    el('div', { class: 'sl-entry-row' }, [
+      el('label', { class: 'sl-town-label', for: kid }, 'Kind'), kind,
+      el('label', { class: 'sl-town-label', for: sid }, 'Town'), sel,
+      el('button', { type: 'button', class: 'btn btn-ghost sl-go', id: `${prefix}-sl-go`, onclick: () => shoplotStart(kind.value === 'industrial' ? `ind-${sel.value}` : sel.value) }, 'Start from a scenario')]),
+    el('p', { class: 'pq-note sl-statement' }, SHOPLOT_STATEMENT),
+  ]);
+}
+
+/* ---------------------------------------------------- the parts, in the Lab */
+/* The scenario a Lab column shows: its own ('tpl:<ref>'), a copy of one, or
+   the calculator's deal while it is an untouched scenario. */
+function shoplotColRef(c) {
+  if (String(c?.source).startsWith('tpl:')) return c.source.slice(4);
+  if (String(c?.prop).startsWith('tpl:')) return c.prop.slice(4);
+  if (c?.source === 'deal') return shoplotOf(State.deal)?.ref || null;
+  return null;
+}
+/* A note's words: an industrial scenario's own, else the shoplots'. */
+function slNote(r, k) {
+  const v = slIndustrial(r?.town) && Object.hasOwn(INDUSTRIAL_NOTES, k) ? INDUSTRIAL_NOTES[k] : SHOPLOT_NOTES[k];
+  return typeof v === 'function' ? v(r.town.name) : v;
+}
+function industrialPriceWords(r) {
+  const N = INDUSTRIAL_NAPIC[r.town.napicTown], fig = N[r.sc.napic];
+  return `Price: ${slMoney(fig.mid)} — the middle of the ${fig.schemes} ${INDUSTRIAL_TYPE_WORDS[r.sc.napic]} schemes NAPIC sampled in the ${N.division} Division, ${SHOPLOT_NAPIC_PERIOD} (${slMoney(fig.lo)}–${slMoney(fig.hi)}); its floor area, the middle of the same schemes, is ${fmtNum(fig.floorSqm, 1)} m² (${fmtNum(IN_SQFT(fig), 0)} sq ft), and the rent is worked on it; placed in ${r.town.district} for the place line only.`;
+}
+const slKindBadge = (kind) => (kind === 'napic' ? kindBadge('derived', { fine: `From NAPIC’s ${SHOPLOT_NAPIC_PERIOD} file` }) : kindBadge('illustrative', { fine: 'A starting scenario’s assumption' }));
+function shoplotLabCard(P, lab) {
+  const cols = lab.cols.map(c => ({ c, ref: shoplotColRef(c) })).filter(x => x.ref && shoplotRef(x.ref));
+  if (!cols.length) return null;
+  const towns = [...new Set(cols.map(x => shoplotRef(x.ref).town.name))];
+  const fams = [...new Set(cols.map(x => (slIndustrial(shoplotRef(x.ref).town) ? 'Industrial' : 'Shoplot')))];
+  const indOnly = fams.length === 1 && fams[0] === 'Industrial';
+  const card = el('section', { class: 'card ls-section sl-card', id: labId(P, 'slcard'), 'aria-labelledby': labId(P, 'sl-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'sl-h') }, `${fams.length === 1 ? `${fams[0]} starting` : 'Starting'} scenarios — ${towns.length === 1 ? towns[0] : 'Sarawak'}`));
+  card.append(el('p', { class: 'metaline sl-statement' }, SHOPLOT_STATEMENT));
+  for (const { c, ref } of cols) {
+    const r = shoplotRef(ref), lines = shoplotLines(ref), b = shoplotBlend(lines), works = shoplotWorks(ref);
+    const moved = labMoveCount(c) > 0 || c.source === 'variant' || (c.source === 'deal' && !shoplotOf(State.deal));
+    const body = el('div', { class: 'pc-more-body sl-body' });
+    body.append(el('ul', { class: 'sl-parts' }, [
+      ...lines.map(l => el('li', { class: 'sl-part', 'data-kind': l.kind }, [el('strong', {}, `${l.label}: ${slMoney(l.net)} a month`), ' ', slKindBadge(l.kind),
+        el('span', { class: 'sl-part-words' }, ` ${l.words}; ${l.vacancyPct}% vacancy`), ' ', kindBadge('illustrative', { fine: 'The vacancy is a starting scenario’s assumption' })])),
+      el('li', { class: 'sl-part sl-sum' }, [el('strong', {}, `Rent entered: ${slMoney(b.rent)} a month, vacancy allowance ${b.vacancyPct}%`),
+        ` — ${slMoney(Math.round(b.effective))} a month after vacancy, as the parts give it.`]),
+      ...works.parts.map(p => el('li', { class: 'sl-part' }, [el('strong', {}, `${p.label}: ${slMoney(p.amount)}`), ' ', kindBadge('illustrative', { fine: 'A starting scenario’s assumption' }), ` ${p.words}`])),
+      slIndustrial(r.town) ? el('li', { class: 'sl-part' }, industrialPriceWords(r)) : el('li', { class: 'sl-part' }, `Price: ${slMoney(SHOPLOT_NAPIC[r.town.id].price.mid)} — the middle of the ${SHOPLOT_NAPIC[r.town.id].price.schemes} 3-storey shop schemes NAPIC sampled in the ${SHOPLOT_NAPIC[r.town.id].division} Division, ${SHOPLOT_NAPIC_PERIOD} (${slMoney(SHOPLOT_NAPIC[r.town.id].price.lo)}–${slMoney(SHOPLOT_NAPIC[r.town.id].price.hi)}); placed in ${r.town.district} for the place line only.`),
+    ]));
+    const keys = slIndustrial(r.town) ? [...r.sc.notes, r.town.evidence ? 'evidence' : 'placeholder', 'checks', 'partial'] : [...r.sc.notes, 'partial'];
+    for (const k of keys) body.append(el('p', { class: 'sl-note', 'data-note': k }, slNote(r, k)));
+    card.append(el('details', { class: 'pc-more ls-l3 sl-col', id: labId(P, `sl-${c.key}`), 'data-sl': ref }, [
+      el('summary', { class: 'pc-more-sum' }, `${c.key} — ${r.sc.title}: ${slMoney(b.rent)} a month, ${b.vacancyPct}% vacancy${moved ? ' (as loaded — not your moves)' : ''}`),
+      body]));
+  }
+  card.append(el('details', { class: 'pc-more ls-l3 sl-col', id: labId(P, 'sl-how') }, [
+    el('summary', { class: 'pc-more-sum' }, 'How these starting points are built'),
+    el('div', { class: 'pc-more-body' }, (indOnly ? ['oneRent', 'napic', 'floorArea', 'finance', 'costs'] : ['oneRent', 'napic', 'finance', 'costs'])
+      .map(k => el('p', { class: 'sl-note', 'data-note': k }, slNote(indOnly ? { town: { napicTown: 'any' } } : null, k))))]));
+  return card;
+}
+/* On the calculator, under its status line, while its deal is an untouched
+   scenario: which one, and the one limit. */
+function shoplotCalcNote(d) {
+  const r = shoplotOf(d);
+  if (!r) return null;
+  return el('p', { class: 'metaline sl-calc', id: 'pm-sl' }, [`${r.sc.key}: ${r.sc.title}. ${SHOPLOT_STATEMENT} `,
+    el('a', { href: href(`/property/lab?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`), onclick: (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(`/property/lab?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`);
+    } }, 'Its parts and notes, beside B and C in the Lab')]);
+}
 /* ==========================================================================
    SEARCH · THEME · BOOT
    ========================================================================== */

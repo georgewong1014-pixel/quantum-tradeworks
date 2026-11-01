@@ -181,6 +181,10 @@
       "destination": "/pages/property/comparables.html"
     },
     {
+      "source": "/property/market",
+      "destination": "/pages/property/market.html"
+    },
+    {
       "source": "/property/areas",
       "destination": "/pages/property/areas.html"
     },
@@ -1514,7 +1518,7 @@
       ]
     },
     {
-      "source": "/assets/app.16486a37d8b8.js",
+      "source": "/assets/app.4397ff8ea5d1.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1531,7 +1535,7 @@
       ]
     },
     {
-      "source": "/assets/app.0ea936dc6abf.css",
+      "source": "/assets/app.7b34a4a67fca.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1556,7 +1560,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-FkhqN9i4yk+npUl8kfVJ4SmGFECXWNMvpxU6LYZ6Qo0=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-Q5f/jqXRdBTnDAa4gFEXFjrnxvXjLXrkzpo9rgYQMBk=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
@@ -1565,7 +1569,7 @@
       ]
     },
     {
-      "source": "/((?!data/|vendor/|assets/app\\.16486a37d8b8\\.js$|assets/app\\.0ea936dc6abf\\.css$).*)",
+      "source": "/((?!data/|vendor/|assets/app\\.4397ff8ea5d1\\.js$|assets/app\\.7b34a4a67fca\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1573,7 +1577,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-FkhqN9i4yk+npUl8kfVJ4SmGFECXWNMvpxU6LYZ6Qo0=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-Q5f/jqXRdBTnDAa4gFEXFjrnxvXjLXrkzpo9rgYQMBk=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
