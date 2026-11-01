@@ -2496,7 +2496,7 @@ const HOME_PAGE = read(HOME);
   if (!hero) p.push('/: no .pub-hero');
   else {
     const h1 = all(hero).find(n => n.tag === 'h1'), lede = all(hero).find(n => has(n, 'pub-lede'));
-    if (!h1 || sight(h1) !== 'Make financial decisions with greater clarity.') p.push(`/: the h1 reads "${h1 ? sight(h1) : ''}", not the held headline`);
+    if (!h1 || sight(h1) !== 'Understand what drives the result before relying on the number.') p.push(`/: the h1 reads "${h1 ? sight(h1) : ''}", not the held headline`);
     if (!lede || sight(lede) !== P.lede) p.push(`/: the lede reads "${lede ? sight(lede) : ''}", not POSITIONING's "${P.lede}"`);
     said.hero = wordsIn(`${h1 ? sight(h1) : ''} ${lede ? sight(lede) : ''}`).length;
     if (said.hero > 15) p.push(`/: the h1 and the lede are ${said.hero} words, more than 15`);

@@ -273,9 +273,12 @@ function pubProductCard(p) {
 VIEWS.marketing = () => {
   const wrap = el('div', { class: 'pub pub-home' });
 
-  /* -- 1. the hero: the held headline, the lede, one action ---------------- */
+  /* -- 1. the hero: the headline, the lede, one action ----------------------
+     The headline is the owner's main message (1 Nov 2026), which replaced
+     the headline held since 7 Oct: understand what drives the result before
+     relying on the number. */
   const hero = el('section', { class: 'pub-hero', 'aria-labelledby': 'pub-hero-h' });
-  hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Make financial decisions with greater clarity.'));
+  hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Understand what drives the result before relying on the number.'));
   hero.append(el('p', { class: 'pub-lede' }, POSITIONING.lede));
   /* One action, for a first visit: to the three products below, the focus
      with them (QT-D03-02, the 16 Oct report; the owner kept one button). A
