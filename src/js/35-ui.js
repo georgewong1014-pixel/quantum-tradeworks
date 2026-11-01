@@ -2581,17 +2581,29 @@ function wireSectionTabs(nav) {
      tabs then overflowed by 15px more than when they were centred, and the
      current one — the last, the Trading Index — stood 14px past the row's
      end at 1024 and 1280. Each time the row's width changes, a current tab
-     not wholly in it is brought back into it. */
+     not wholly in it is brought back into it.
+     And each time the row is scrolled by anything but the reader: with Market
+     pulse in Property's row, Opportunities stood 15px past the end at 1024 in
+     CI's font. Mid-draw the page was briefly short of a scrollbar, the row
+     15px wider, and the browser clamped its scroll to the wider row's end;
+     the row ended the frame at its old width, so no resize was seen. A row
+     the reader has wheeled, dragged or keyed stays where they left it. */
+  const outside = () => {
+    if (!cur) return false;
+    const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
+    return c.left < l.left - 1 || c.right > l.right + 1;
+  };
   if (cur && typeof ResizeObserver === 'function') {
     const ro = new ResizeObserver(() => {
       if (!list.isConnected) { ro.disconnect(); return; }
-      const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
-      if (c.left < l.left - 1 || c.right > l.right + 1) centre();
+      if (outside()) centre();
       fadeTabs(list);
     });
     ro.observe(list);
   }
-  list.addEventListener('scroll', () => fadeTabs(list), { passive: true });
+  let moved = false;
+  for (const ev of ['wheel', 'pointerdown', 'touchstart', 'keydown']) list.addEventListener(ev, () => { moved = true; }, { passive: true });
+  list.addEventListener('scroll', () => { if (!moved && outside()) centre(); fadeTabs(list); }, { passive: true });
   list.addEventListener('focusin', (e) => {
     if (!e.target.matches?.('.ptab') || list.scrollWidth <= list.clientWidth + 1) return;
     e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
