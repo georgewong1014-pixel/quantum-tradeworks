@@ -986,6 +986,10 @@ function openRestoreDrawer() {
        where this browser holds something for it — kept as it is. */
     if (r.newer) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-newer': '' },
       `This file is from a newer version; only what this version knows is restored.`));
+    /* A file from a later fee rulebook is named the way a different model is
+       (the 31 Oct 2026 operational audit, #3). */
+    if (r.newerRulebook) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-rulebook': '' },
+      `The file was exported under fee rulebook ${r.feeRulebook}; this version is ${FEE_TABLE.version}. Saved properties in it are read against this version’s rulebook.`));
     const keptHere = heldKinds(r.missing || []);
     if (keptHere.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-missing': '' },
       `Not in this file, so kept as this browser holds them: ${keptHere.map(k => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k).join(', ')}.${r.model && r.model !== MODEL_VERSION ? ` The file was exported under model ${r.model}; this version is ${MODEL_VERSION}.` : ''}`));

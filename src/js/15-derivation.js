@@ -97,12 +97,22 @@ function buildStamp(subject) {
   });
   const illus = companies.filter(c => !c.real).length;
   const asOfs = [...new Set(companies.map(c => (c.real ? c.retrieved : AS_OF) || null).filter(Boolean))];
-  return {
+  const stamp = {
     v: 1, model: MODEL_VERSION, data,
     asOf: asOfs.length ? asOfs.join(', ') : (kind === 'universe' ? AS_OF : null),
     illustrative: companies.length ? (illus === 0 ? 'none' : illus === companies.length ? 'all' : 'some') : null,
     savedAt: new Date().toISOString(),
   };
+  /* The fee rulebook a saved property was priced under (the 31 Oct 2026
+     operational audit, #3). The stamp recorded the Equities model for a
+     property, which no property figure reads, and never the rulebook that
+     prices its duties and fees: after rulebook 1.5.0 changed the valuation
+     fee a property saved earlier still read "Current", and an Equities-only
+     model change would have read "Model moved" on every saved property.
+     Only a property carries it; a stamp saved before this has none, and
+     stampDiff says so rather than guess. */
+  if (kind === 'property' && typeof FEE_TABLE !== 'undefined') stamp.fees = FEE_TABLE.version;
+  return stamp;
 }
 
 /* What moved between a stamp and now. Model and data are reported apart,
@@ -125,7 +135,42 @@ const shortHash = (h) => h ? String(h).slice(0, 7) : 'unrecorded';
    sentence changes. */
 const DATA_NAME = { 'us.json': 'SEC filings', 'personal-fundamentals.json': 'your statements' };
 const dataName = (k) => DATA_NAME[k] || k;
-function stampDiff(stamp, legacy = null) {
+/* The data files of a stamp that are not the ones this build carries. */
+const stampDataMoves = (stamp) => Object.entries(stamp.data || {})
+  .filter(([k, d]) => d && d.v != null && currentDataVersion(k) != null && d.v !== currentDataVersion(k))
+  .map(([k, d]) => ({ key: k, then: d.v, now: currentDataVersion(k), generated: d.generated || null }));
+const dataMoveLine = (m) => m.key === ILLUS_SET
+  ? `Data moved: the illustrative set was dated ${m.then}; it is now dated ${m.now}.`
+  : `Data moved: saved against ${dataName(m.key)} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; now ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`;
+/* A saved property is read against the fee rulebook that prices it and the
+   property data files it read, never the Equities model (the 31 Oct 2026
+   operational audit, #3). One saved before the rulebook was recorded has no
+   `fees`; it says so, and is not reported moved or current. */
+function propertyStampDiff(stamp) {
+  if (!stamp || typeof stamp !== 'object' || !stamp.model)
+    return { status: 'unstamped', stamped: false, modelMoved: null, feesMoved: null, dataMoved: null, moved: [],
+      label: 'Saved before versions were recorded',
+      text: 'Neither the fee rulebook nor the data version was recorded, so whether either has moved cannot be said.' };
+  const feesNow = typeof FEE_TABLE !== 'undefined' ? FEE_TABLE.version : null;
+  const known = typeof stamp.fees === 'string' && stamp.fees !== '';
+  const feesMoved = known && feesNow ? stamp.fees !== feesNow : null;
+  const moved = stampDataMoves(stamp);
+  const dataMoved = moved.length > 0;
+  const parts = [];
+  if (feesMoved) parts.push(`Fee rulebook moved: saved on ${stamp.fees}, now ${feesNow}.`);
+  moved.forEach(m => parts.push(dataMoveLine(m)));
+  if (feesMoved === null) {
+    return { status: 'unstamped', stamped: true, modelMoved: false, feesMoved: null, dataMoved, moved,
+      label: 'Saved before the rulebook was recorded',
+      text: [...parts, 'The fee rulebook it was saved under was not recorded, so whether the rulebook has moved since cannot be said.'].join(' ') };
+  }
+  const status = feesMoved && dataMoved ? 'both' : feesMoved ? 'fees' : dataMoved ? 'data' : 'current';
+  return { status, stamped: true, modelMoved: false, feesMoved, dataMoved, moved,
+    label: { both: 'Fee rulebook and data moved', fees: 'Fee rulebook moved', data: 'Data moved', current: 'Current' }[status],
+    text: parts.length ? parts.join(' ') : 'Saved under the current fee rulebook and data versions — neither has moved since.' };
+}
+function stampDiff(stamp, legacy = null, subject = null) {
+  if (subject === 'property') return propertyStampDiff(stamp);
   if (!stamp || typeof stamp !== 'object' || !stamp.model) {
     const model = legacy?.model || null;
     const modelMoved = model ? model !== MODEL_VERSION : null;
@@ -136,15 +181,11 @@ function stampDiff(stamp, legacy = null) {
         : 'Neither the model nor the data version was recorded, so whether either has moved cannot be said.' };
   }
   const modelMoved = stamp.model !== MODEL_VERSION;
-  const moved = Object.entries(stamp.data || {})
-    .filter(([k, d]) => d && d.v != null && currentDataVersion(k) != null && d.v !== currentDataVersion(k))
-    .map(([k, d]) => ({ key: k, then: d.v, now: currentDataVersion(k), generated: d.generated || null }));
+  const moved = stampDataMoves(stamp);
   const dataMoved = moved.length > 0;
   const parts = [];
   if (modelMoved) parts.push(`Model moved: ${modelMoveText(stamp.model)}.`);
-  moved.forEach(m => parts.push(m.key === ILLUS_SET
-    ? `Data moved: the illustrative set was dated ${m.then}; it is now dated ${m.now}.`
-    : `Data moved: saved against ${dataName(m.key)} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; now ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`));
+  moved.forEach(m => parts.push(dataMoveLine(m)));
   const status = modelMoved && dataMoved ? 'both' : modelMoved ? 'model' : dataMoved ? 'data' : 'current';
   return { status, stamped: true, modelMoved, dataMoved, moved,
     label: { both: 'Model and data moved', model: 'Model moved', data: 'Data moved', current: 'Current' }[status],

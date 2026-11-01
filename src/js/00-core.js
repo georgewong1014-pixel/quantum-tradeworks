@@ -548,8 +548,11 @@ function exportEverything() {
   /* The envelope says which data the file was taken against, as well as
      which model: every saved item inside carries its own stamp, and this is
      the same record for the file as a whole. */
+  /* And the fee rulebook (the 31 Oct 2026 operational audit, #3): the saved
+     properties inside are priced by it, and the model version above is the
+     Equities model, which no property figure reads. */
   const out = { format:'quantum-tradeworks/user-data', version:EXPORT_VERSION,
-                exportedAt:new Date().toISOString(), model:MODEL_VERSION,
+                exportedAt:new Date().toISOString(), model:MODEL_VERSION, feeRulebook:FEE_TABLE.version,
                 dataVersions: buildStamp('universe').data, data:{} };
   PORTABLE_KEYS.forEach(({ k }) => {
     const v = store.read(k, null);
@@ -575,6 +578,14 @@ const siblingFileOf = (doc) => !doc || typeof doc !== 'object' ? null
   : doc.format === 'quantum-tradeworks/user-data' ? 'everything'
   : !doc.format && isRecord(doc.series) ? 'prices' : null;
 
+/* Whether dotted version a is later than b (1.10.0 after 1.9.0); false when
+   either is not a plain dotted number, so nothing is called newer on a guess. */
+function versionIsNewer(a, b) {
+  const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+  if ([...x, ...y].some(n => !Number.isFinite(n))) return false;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+}
 function importEverything(doc) {
   const sibling = siblingFileOf(doc);
   if (sibling && sibling !== 'everything') return { ok:false, err: SIBLING_FILES[sibling] };
@@ -604,6 +615,10 @@ function importEverything(doc) {
   const version = Number.isFinite(Number(doc.version)) ? Number(doc.version) : null;
   return { ok:true, incoming, ignored, refused, missing, version, newer: version !== null && version > EXPORT_VERSION,
     model: typeof doc.model === 'string' ? doc.model : null, exportedAt:doc.exportedAt,
+    /* A file from before the rulebook was recorded carries none, and restores
+       as before; one from a later rulebook is named (openRestoreDrawer). */
+    feeRulebook: typeof doc.feeRulebook === 'string' ? doc.feeRulebook : null,
+    newerRulebook: typeof doc.feeRulebook === 'string' && versionIsNewer(doc.feeRulebook, FEE_TABLE.version),
     /* Every kind replaced, or none (writeAllOrNothing): { ok:true }, or
        { ok:false, error } with what this browser held left as it was. */
     apply() {

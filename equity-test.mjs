@@ -2360,6 +2360,102 @@ try {
     else ok(`the workspace lists all ${r.n} saved items across five kinds with stamps, the export carries every kind plus the data versions, an imported run replays to its saved base case, and a reopened comparison reports itself unchanged`);
   }
 
+  /* THE FEE RULEBOOK ON A SAVED PROPERTY (the 31 Oct 2026 operational audit,
+     #3). A saved property was stamped with the Equities model and compared
+     against it, and never against the fee rulebook that prices it: after
+     rulebook 1.5.0 changed the valuation fee a property saved under 1.4.0
+     still read Current, and an Equities-only model change would have read
+     "Model moved" on every one. A property is stamped with the rulebook and
+     compared against it and its own data files; one saved before says so;
+     Equities items still follow the model; the export names the rulebook, and
+     a file without it restores as before. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = localStorage.getItem('vl.savedWork');
+      const out = { cur: FEE_TABLE.version };
+      try {
+        const s = buildStamp('property');
+        out.stampFees = s.fees;
+        out.notOnOthers = ['wheel', 'trading'].map(k => 'fees' in buildStamp(k)).concat('fees' in buildStamp(BY_ID.get('AAPL-SEC').c));
+        const { fees, ...noFees } = s;
+        const oldModel = 'metrics 1.5.0 · scores 1.3.0 · valuation 1.4.0';
+        const d = (st, legacy) => { const x = stampDiff(st, legacy || null, 'property'); return { status: x.status, label: x.label, text: x.text, modelMoved: x.modelMoved, feesMoved: x.feesMoved }; };
+        out.moved = d({ ...s, fees: '1.4.0' });
+        out.current = d(s);
+        out.none = d(noFees, { model: MODEL_VERSION });
+        out.unstamped = d(null, { model: oldModel });
+        out.modelAlone = d({ ...s, model: oldModel });
+        out.modelAloneNoFees = d({ ...noFees, model: oldModel });
+        out.dataMoved = d({ ...s, data: { 'sarawak-geo.json': { v: 'ffffffffffff' } } });
+        out.equity = {
+          model: stampDiff({ ...buildStamp(BY_ID.get('AAPL-SEC').c), model: oldModel }).status,
+          current: stampDiff(buildStamp(BY_ID.get('AAPL-SEC').c)).status,
+          wheel: stampDiff({ ...buildStamp('wheel'), model: oldModel }).label };
+
+        /* Four saved properties and a Cash Wheel snapshot, read by Saved work. */
+        const at = '2026-10-20T02:00:00.000Z';
+        const mk = (id, name, stamp) => ({ id, kind: 'property', name, createdAt: at, updatedAt: at, savedAt: '2026-10-20 02:00', modelVersion: MODEL_VERSION, asOf: AS_OF,
+          editor: 'this browser', ...(stamp ? { stamp } : {}), payload: { deal: { ...PROPERTY_DEFAULT_DEAL, touched: { price: true }, price: 480000 } }, scenarios: [] });
+        const wheelRec = { id: 'w-wheel-fees-test', kind: 'wheel', name: 'Wheel under an older model', savedAt: '2026-10-20 02:00', modelVersion: oldModel, asOf: AS_OF, editor: 'this browser',
+          stamp: { ...buildStamp('wheel'), model: oldModel }, payload: { wheelPlan: { isWorkedExample: false, symbol: 'KO' } } };
+        persistWork([mk('w-property-fees-old', 'Saved on 1.4.0', { ...s, fees: '1.4.0' }), mk('w-property-fees-now', 'Saved on current', s),
+          mk('w-property-fees-none', 'Saved before the rulebook', noFees), mk('w-property-fees-model', 'Saved under an older Equities model', { ...s, model: oldModel }), wheelRec]);
+        const by = Object.fromEntries(workspaceItems().map(i => [i.key, i.diff.label]));
+        out.items = by;
+        navigate('/my/workspace'); await wait(250);
+        const page = document.getElementById('views')?.textContent || '';
+        out.pageHas = { moved: page.includes('Fee rulebook moved'), versions: page.includes('saved on 1.4.0, now ' + FEE_TABLE.version),
+          before: page.includes('Saved before the rulebook was recorded'), vers: page.includes('Fee rulebook 1.4.0'),
+          disclosure: /Fee rulebook moved” means/.test(page) };
+        out.summary = (document.querySelector('.ws-filters .metaline') || {}).textContent || '';
+
+        /* The export and a restore. */
+        const doc = JSON.parse(JSON.stringify(exportEverything()));
+        out.exportFees = doc.feeRulebook;
+        out.inExport = (doc.data.savedWork || []).filter(x => x.id.startsWith('w-property-fees')).map(x => x.stamp?.fees || null);
+        const { feeRulebook, ...old } = doc;
+        const a = importEverything(JSON.parse(JSON.stringify(old)));
+        out.old = { ok: a.ok, fees: a.feeRulebook, newer: a.newerRulebook, refused: (a.refused || []).length };
+        if (a.ok) out.oldApply = a.apply();
+        out.afterOld = store.read('savedWork', []).filter(x => x.id.startsWith('w-property-fees')).map(x => x.stamp?.fees || null);
+        const later = (v) => { const x = importEverything({ ...doc, feeRulebook: v }); return x.ok ? { newer: x.newerRulebook, fees: x.feeRulebook } : { err: x.err }; };
+        out.later = later('9.0.0'); out.laterTen = later('1.10.0'); out.same = later(FEE_TABLE.version); out.junk = later('next'); out.numeric = later(7);
+        openRestoreDrawer(); await wait(300);
+        document.querySelector('#drawerBody textarea').value = JSON.stringify({ ...doc, feeRulebook: '9.0.0' });
+        [...document.querySelectorAll('#drawerBody button')].find(b => b.textContent.trim() === 'Check this file').click(); await wait(150);
+        out.drawer = document.getElementById('drawerBody').textContent;
+        closeDrawer({ restore: false }); await wait(300);
+      } catch (e) { out.threw = String(e && e.message || e); }
+      if (keep === null) localStorage.removeItem('vl.savedWork'); else localStorage.setItem('vl.savedWork', keep);
+      return out;
+    })()`);
+    const p = [];
+    if (r.threw) p.push(`threw: ${r.threw}`);
+    if (r.stampFees !== r.cur) p.push(`a saved property is stamped with fee rulebook ${r.stampFees}, not ${r.cur}`);
+    if (r.notOnOthers?.some(Boolean)) p.push(`a stamp that is not a property's carries a rulebook: ${r.notOnOthers}`);
+    if (r.moved?.label !== 'Fee rulebook moved' || !r.moved.text.includes(`saved on 1.4.0, now ${r.cur}`) || r.moved.status !== 'fees' || r.moved.modelMoved) p.push(`1.4.0 reads ${JSON.stringify(r.moved)}`);
+    if (r.current?.label !== 'Current' || r.current.feesMoved !== false) p.push(`the current rulebook reads ${JSON.stringify(r.current)}`);
+    if (r.none?.label !== 'Saved before the rulebook was recorded' || r.none.status !== 'unstamped' || /Current|moved:/.test(r.none.text)) p.push(`no rulebook recorded reads ${JSON.stringify(r.none)}`);
+    if (r.unstamped?.label !== 'Saved before versions were recorded' || r.unstamped.status !== 'unstamped' || /model/i.test(r.unstamped.text)) p.push(`no stamp reads ${JSON.stringify(r.unstamped)}`);
+    if (r.modelAlone?.label !== 'Current' || r.modelAlone.modelMoved) p.push(`a change to the Equities model alone moves a property: ${JSON.stringify(r.modelAlone)}`);
+    if (r.modelAloneNoFees?.label !== 'Saved before the rulebook was recorded') p.push(`an older model and no rulebook reads ${JSON.stringify(r.modelAloneNoFees)}`);
+    if (r.dataMoved?.label !== 'Data moved' || r.dataMoved.feesMoved) p.push(`a property's data file moved reads ${JSON.stringify(r.dataMoved)}`);
+    if (r.equity?.model !== 'model' || r.equity.current !== 'current' || r.equity.wheel !== 'Model moved') p.push(`Equities items no longer follow the model: ${JSON.stringify(r.equity)}`);
+    const it = r.items || {};
+    if (it['w-property-fees-old'] !== 'Fee rulebook moved' || it['w-property-fees-now'] !== 'Current' || it['w-property-fees-none'] !== 'Saved before the rulebook was recorded'
+      || it['w-property-fees-model'] !== 'Current' || it['w-wheel-fees-test'] !== 'Model moved') p.push(`Saved work reads ${JSON.stringify(it)}`);
+    if (!r.pageHas || Object.values(r.pageHas).some(v => !v)) p.push(`Saved work page: ${JSON.stringify(r.pageHas)}`);
+    if (!/saved under a model, fee rulebook or data version that has since changed/.test(r.summary || '')) p.push(`the summary line reads "${r.summary}"`);
+    if (r.exportFees !== r.cur) p.push(`the export names fee rulebook ${r.exportFees}`);
+    if (r.inExport?.slice().sort().join() !== ['1.4.0', r.cur, null, r.cur].sort().join()) p.push(`stamps in the export: ${JSON.stringify(r.inExport)}`);
+    if (!r.old?.ok || r.old.fees !== null || r.old.newer !== false || r.old.refused || !r.oldApply?.ok || r.afterOld?.length !== 4) p.push(`an older export without a rulebook: ${JSON.stringify(r.old)} ${JSON.stringify(r.oldApply)} ${JSON.stringify(r.afterOld)}`);
+    if (!r.later?.newer || !r.laterTen?.newer || r.same?.newer || r.junk?.newer || r.numeric?.newer || r.numeric?.fees !== null) p.push(`newer rulebook: later ${JSON.stringify(r.later)}, 1.10.0 ${JSON.stringify(r.laterTen)}, same ${JSON.stringify(r.same)}, junk ${JSON.stringify(r.junk)}, numeric ${JSON.stringify(r.numeric)}`);
+    if (!new RegExp(`The file was exported under fee rulebook 9\\.0\\.0; this version is ${r.cur.replace(/\./g, '\\.')}`).test(r.drawer || '')) p.push(`the restore drawer does not name the newer rulebook: "${(r.drawer || '').slice(0, 300)}"`);
+    if (p.length) fail('a saved property is stamped with, and compared against, the fee rulebook; the export names it', p);
+    else ok('a saved property is stamped with the fee rulebook: saved under 1.4.0 reads "Fee rulebook moved", the current one "Current", one with no rulebook recorded "Saved before the rulebook was recorded"; an Equities-model change alone moves no property, Equities items still follow the model; the export names the rulebook, an older file restores in full, a later rulebook is named');
+  }
+
   /* THE REPORT. A filed company's cover says SEC-filed, an illustrative
      one's says illustrative; the five figure kinds are legended; every
      absent metric prints a reason; a report from a saved run prints the
