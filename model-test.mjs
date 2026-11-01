@@ -12603,6 +12603,66 @@ try {
     fail('els: the brief could not be run', String(e.message).split('\n')[0]);
   }
   /* ---- end els-brief ---- */
+  /* ---- scope-03: completion lines ---- */
+  /* QT-SCOPE-03 (the owner's scope direction, 1 Nov 2026): one short line where
+     a free journey's result appears, naming only actions that are on the page.
+     - the calculator's answer, Quick and Full, on a deal that is the reader's:
+       "Your property scenario is ready. Review the assumptions, save this
+       property" (Full adds "or export a copy"; Quick has no export); once
+       saved, "ready and saved in this browser", then "compare scenarios" (and,
+       in Full, "or export a copy"). Every action named is on the page then:
+       the model bar's "Save this property" / "Compare scenarios", and in Full
+       the Share / Export row;
+     - the Scenario Lab on the reader's deal: the one line, with its Save and
+       its "Export PDF / Share with client";
+     - none on the untouched sample deal, in the calculator or the Lab: the
+       sample is not the reader's work.
+     Fails on de9303766: there is no line anywhere. */
+  try {
+    const R = await evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const T = (id) => { const n = document.getElementById(id); return n ? n.textContent.trim() : null; };
+      const out = {};
+      const reader = () => { State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { price: true, rent: true }, modelId: null, scenarioId: null,
+        price: 512000, rent: 2350, downPct: 15, ratePct: 4.1, tenureYears: 30 }; saveDeal(); };
+      const sample = () => { State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, modelId: null, scenarioId: null }; saveDeal(); };
+      const calc = async (full) => { navigate('/property/calculator'); await w(300); setPropertyView(full); render(); await w(400);
+        return { line: T(full ? 'pc-ready' : 'pc-q-ready'), other: T(full ? 'pc-q-ready' : 'pc-ready'), save: T('wb-property-save'), share: !!document.getElementById('pc-share'),
+          decision: T('pm-record'), report: T('pc-share-report'), status: T('pm-status') }; };
+      sample();
+      out.sampleQuick = await calc(false); out.sampleFull = await calc(true);
+      navigate('/property'); await w(600);
+      out.sampleLab = { line: T('lab-ready') };
+      reader();
+      out.readerQuick = await calc(false); out.readerFull = await calc(true);
+      navigate('/property'); await w(700);
+      const exp = document.querySelector('.lab-export');
+      out.readerLab = { line: T('lab-ready'), save: T('lab-id-save'), exportText: exp ? exp.textContent.trim() : null, saved: document.querySelector('.lab-id-saved')?.textContent.trim() || null };
+      reader(); saveActiveProperty({ name: 'Scope 03 test' });
+      out.savedQuick = await calc(false); out.savedFull = await calc(true);
+      return out; })()`);
+    const p = [];
+    const READY = 'Your property scenario is ready. Review the assumptions, save this property';
+    for (const k of ['sampleQuick', 'sampleFull']) if (R[k].line !== null || R[k].other !== null) p.push(`${k}: the untouched sample deal carries a completion line (${JSON.stringify([R[k].line, R[k].other])})`);
+    if (R.sampleLab.line !== null) p.push(`the Lab on the untouched sample deal carries a completion line: "${R.sampleLab.line}"`);
+    if (R.readerQuick.line !== `${READY}.`) p.push(`Quick, the reader's deal, reads "${R.readerQuick.line}", not "${READY}."`);
+    if (R.readerFull.line !== `${READY} or export a copy.`) p.push(`Full, the reader's deal, reads "${R.readerFull.line}", not "${READY} or export a copy."`);
+    for (const k of ['readerQuick', 'readerFull']) {
+      if (R[k].other !== null) p.push(`${k}: the other view's line is on the page (${R[k].other})`);
+      if (R[k].save !== 'Save this property') p.push(`${k}: the line says save this property and the model bar's action reads "${R[k].save}"`);
+    }
+    if (!R.readerFull.share || R.readerFull.decision !== 'Decision record' || R.readerFull.report !== 'Full investor report') p.push(`Full names an export, and the Share / Export row is ${JSON.stringify([R.readerFull.share, R.readerFull.decision, R.readerFull.report])}`);
+    if (R.readerQuick.share) p.push('Quick names no export, and has a Share / Export row');
+    if (R.readerLab.line !== 'Your property scenario is ready. Review the assumptions, save your analysis or export a copy.') p.push(`the Lab on the reader's deal reads "${R.readerLab.line}"`);
+    if (!R.readerLab.save || !/^Save/.test(R.readerLab.save) || R.readerLab.exportText !== 'Export PDF / Share with client') p.push(`the Lab's line names a Save and an export that are ${JSON.stringify([R.readerLab.save, R.readerLab.exportText])}`);
+    if (R.savedQuick.line !== 'Your property scenario is ready and saved in this browser. Review the assumptions or compare scenarios.' || R.savedQuick.save !== 'Compare scenarios') p.push(`Quick, saved, reads "${R.savedQuick.line}" over a bar action "${R.savedQuick.save}"`);
+    if (R.savedFull.line !== 'Your property scenario is ready and saved in this browser. Review the assumptions, compare scenarios or export a copy.' || R.savedFull.save !== 'Compare scenarios') p.push(`Full, saved, reads "${R.savedFull.line}" over a bar action "${R.savedFull.save}"`);
+    if (p.length) fail('scope-03: the completion lines on the property pages', p);
+    else ok('scope-03: the calculator (Quick and Full) and the Lab say "Your property scenario is ready" on the reader\'s deal, naming only the page\'s own Save, Compare scenarios and export actions; the untouched sample deal carries none in either view or in the Lab; saved, the line says so');
+  } catch (e) {
+    fail('scope-03: the completion lines could not be run', String(e.message).split('\n')[0]);
+  }
+  /* ---- end scope-03 ---- */
 
 } catch (e) {
   fail('harness error', e.message);

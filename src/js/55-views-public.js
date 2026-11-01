@@ -254,7 +254,8 @@ const PUB_VISUALS = { equities: pubVisEquities, scanner: pubVisScanner, property
    card's one action, an <h3> link stretched over the card — its qualifier
    with the ⓘ, one short limit line, and its visual. What sits over the stretched link (the ⓘ,
    the visual's own link and control, a badge) is its own target: no link, button or <details> inside a link.
-   Business, which is not built, is not a card: one line of text below. */
+   Business, which is not built, is not a card and, since 1 Nov 2026, is not
+   on the homepage at all (QT-SCOPE-02). */
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
@@ -295,11 +296,12 @@ VIEWS.marketing = () => {
   products.append(el('h2', { class: 'sr-only', id: 'pub-products-h' }, 'What would you like to do?'));
   const built = PRODUCTS.filter(p => p.path && p.actionPath);
   products.append(el('div', { class: 'pub-cards' }, built.map(pubProductCard)));
-  for (const p of PRODUCTS.filter(x => !x.path)) {
-    products.append(el('p', { class: 'pub-soon', 'data-product': p.id }, [
-      el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
-    ]));
-  }
+  /* The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the line under the
+     cards, "Business Intelligence · Plan my business · Coming soon", is gone.
+     A first-time visitor chooses among three things that exist; what is not
+     built is said where the site lists what exists and what does not (the
+     footer's one line, /status, /pricing, /about, /how-it-works below its
+     three products). */
   wrap.append(products);
 
   /* -- 3. an example path through the work (plan 3.4, D22) ------------------
@@ -767,23 +769,28 @@ VIEWS.howItWorks = () => {
     'Each product starts from something you choose or enter, shows its working, and keeps what you save in this browser. '
     + 'Here is each one step by step, how they connect, and worked examples computed by the products’ own models.'));
   hd.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
-  /* A jump link for each product that is built. Business Intelligence was a
-     fourth identical pill — a link, styled as a way into a product the brief
-     says is never a link or a button. It is text here, with its badge, as on
-     the homepage card; its section below is still on the page. */
+  /* A jump link for each product that is built.
+     The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the first view is
+     about the three products that exist. Business Intelligence, which is not
+     built, was a fourth item here (text with its badge), a row in the status
+     legend and a section of its own; it is now one short "Not built yet" line
+     below the three products' sections. */
+  const built = P.filter(p => p.path);
   const toc = el('ul', { class: 'hiw-toc-list' });
-  P.forEach(p => toc.append(el('li', {}, p.path
-    ? pubJump(`hiw-${p.id}`, { class: 'hiw-toc-link' }, p.name)
-    : el('span', { class: 'hiw-toc-soon' }, [p.name, pubBadge(p)]))));
+  built.forEach(p => toc.append(el('li', {}, pubJump(`hiw-${p.id}`, { class: 'hiw-toc-link' }, p.name))));
   toc.append(el('li', {}, pubJump('hiw-journey', { class: 'hiw-toc-link' }, 'The connected journey')));
   hd.append(el('nav', { class: 'hiw-toc', 'aria-label': 'On this page' }, toc));
   wrap.append(hd);
 
   wrap.append(hiwRely());
-  wrap.append(hiwStatus(P));
+  wrap.append(hiwStatus(built));
   const list = el('div', { class: 'hiw-products' });
-  P.forEach(p => list.append(hiwProduct(p)));
+  built.forEach(p => list.append(hiwProduct(p)));
   wrap.append(list);
+  const unbuilt = P.filter(p => !p.path);
+  if (unbuilt.length) wrap.append(el('p', { class: 'hiw-soon hiw-unbuilt' }, [
+    /* One text node after the label: two adjacent strings are two nodes when drawn and one in the served HTML (coverage-frames). */
+    el('strong', {}, 'Not built yet: '), `${unbuilt.map(p => `${p.name} (${String(p.blurb || '').replace(/\.$/, '').toLowerCase()})`).join(', ')}. There is nothing to open.`]));
   wrap.append(hiwJourney());
 
   wrap.append(el('section', { class: 'hiw-end', 'aria-labelledby': 'hiw-end-h' }, [

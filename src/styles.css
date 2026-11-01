@@ -7380,3 +7380,13 @@ input.au-in[type="text"] { text-align: left; }
 :root[data-theme="dark"] .km-canvas .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); }
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .km-canvas .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); } }
 /* ---- end kuching-map ---- */
+/* ---- completion lines (the owner's scope direction, 1 Nov 2026, QT-SCOPE-03) ----
+   One short line where a free journey's result appears: the calculator's
+   answer, the Lab's figures and a filed company's page. A plain sentence in
+   the body's own size, a step heavier than the text around it; no box, no
+   icon, no colour of its own. */
+.pc-ready, .lab-ready, .co-ready { font-weight: var(--weight-semibold); color: var(--ink); max-width: 70ch; line-height: 1.5; }
+.pc-ready { margin: 0 0 var(--md); }
+.lab-ready { margin: 0; }
+.co-ready { margin: 0 0 var(--md); }
+/* ---- end completion lines ---- */
