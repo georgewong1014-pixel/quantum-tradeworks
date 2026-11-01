@@ -117,7 +117,7 @@ function everydayReachPanel(city, area) {
   const table = (label, rows) => {
     const t = el('table', { class: 'dt', style: 'table-layout:fixed;width:100%' });
     t.append(el('colgroup', {}, ['42%', '58%'].map(w => el('col', { style: `width:${w}` }))));
-    t.append(el('thead', {}, el('tr', {}, ['Measure', 'Figure, source and date'].map(h => el('th', { style: 'text-align:left' }, h)))));
+    t.append(el('thead', {}, el('tr', {}, ['Measure', 'Figure and source'].map(h => el('th', { style: 'text-align:left;white-space:normal' }, h)))));
     t.append(el('tbody', {}, rows.map(x => x.group
       ? el('tr', {}, el('th', { scope: 'colgroup', colspan: '2', class: 'eyebrow', style: 'text-align:left;white-space:normal' }, x.group))
       : el('tr', { 'data-reach-row': x.id }, [
