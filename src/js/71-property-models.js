@@ -228,6 +228,9 @@ function pmWorthKeeping(d) {
   const st = propertyStatus(d);
   if (st.kind === 'model') return st.dirty;
   if (st.kind === 'unsaved') return true;
+  /* An untouched shoplot starting scenario is the tool's, rebuilt on demand
+     as the sample is (the owner, 1 Nov 2026; 94-shoplot-scenarios.js). */
+  if (shoplotUntouched(d)) return false;
   return !pmSame({ touched: {}, ...pmNormalInputs(d) }, pmNormalInputs(pmSampleDeal()));
 }
 /* The deal already in the slot, saved as a property if it would be lost
@@ -700,8 +703,10 @@ function propertyModelBar(d = State.deal) {
       ? el('span', { class: 'pm-unsaved' }, 'Unsaved changes')
       : `saved ${pmWhen(st.sc ? st.sc.updatedAt : pmUpdated(st.rec))}`);
   } else if (st.kind === 'unsaved') status.append(el('span', { class: 'pm-unsaved' }, 'Unsaved changes'), ' — not saved as a property yet');
-  else status.append(el('strong', {}, 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
+  else status.append(el('strong', {}, shoplotOf(d) ? shoplotChip(d.shoplot) : 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
   bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
+  /* Which shoplot starting scenario, and its one limit (94-shoplot-scenarios.js). */
+  if (st.kind === 'sample' && shoplotOf(d)) bar.append(shoplotCalcNote(d));
 
   const acts = el('div', { class: 'pm-acts' });
   /* It says what it writes. With a scenario open a save writes the scenario

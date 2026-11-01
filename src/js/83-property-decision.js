@@ -179,6 +179,9 @@ function propertyQuestions({ d, prefix, answer, summary = true, contracts = true
       el('strong', {}, x.title), ` — ${x.state}. ${x.what}`,
       ...(x.source ? [' Source: ', x.source.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener' }, x.source.title) : x.source.title, '.'] : [])]))),
   ]));
+  /* Answered Commercial: the shoplot starting scenarios, beside the choice
+     (the owner, 1 Nov 2026; 94-shoplot-scenarios.js). */
+  if (cls === 'commercial') notes.push(shoplotEntry(prefix));
   if (objective && dealObjective(d).id) notes.push(el('p', { class: 'pq-note', 'data-note': 'objective' },
     `${dealObjective(d).label} sets which figures lead; it ranks nothing and moves no column.`));
   /* Every route on every kind, written down (the 11 Oct 2026 audit, #4).
@@ -1310,7 +1313,7 @@ function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, 
       vacant ? null : field('tenancyRent', 'Contract rent — from the tenancy (RM a month)', money('tenancyRent', 50), 'the rent the tenancy agreement states'),
       field('cmAskingRent', 'Asking rent for this unit (RM a month)', money('cmAskingRent', 50), 'what is asked for this unit — somebody’s hope, not a rent paid'),
       el('div', { class: 'au-field cm-model', 'data-cm': 'rent', 'data-kind': modelKind }, [
-        el('p', { class: 'au-label' }, 'Model rent — your assumption'), el('p', { class: 'nd-at-v num' }, `${pqMoney(num0(d.rent))} a month`),
+        el('p', { class: 'au-label' }, modelKind === 'illustrative' ? 'Model rent — illustrative until you change it' : 'Model rent — your assumption'), el('p', { class: 'nd-at-v num' }, `${pqMoney(num0(d.rent))} a month`),
         el('p', { class: 'au-kind' }, [auBadge(modelKind, 'your assumption of the rent at renewal — not an observed rent'), where.model ? el('span', { class: 'nd-where' }, where.model) : null])]),
     ]),
     extra.rents || null,
