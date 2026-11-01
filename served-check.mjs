@@ -67,7 +67,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, HOME, HOME_HEAD_BYTES, HOME_TEXT_BYTES, pageText, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
+import { clientRouter, companyPlan, HOME_BUDGET, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, HOME, HOME_HEAD_BYTES, HOME_TEXT_BYTES, pageText, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
   servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, servedRecords, withServedRecord, unservedChrome, filedSeries, metricBadgeProblems } from './build.mjs';
 import { journeysServed, ISLAND_PAGES, resultProblem, RUN_URL } from './journeys.mjs';
 import { checksServed, checksProblem, SUITES as CHECK_SUITES } from './checks-record.mjs';
@@ -2499,7 +2499,7 @@ const HOME_PAGE = read(HOME);
     if (!h1 || sight(h1) !== 'Understand what drives the result before relying on the number.') p.push(`/: the h1 reads "${h1 ? sight(h1) : ''}", not the held headline`);
     if (!lede || sight(lede) !== P.lede) p.push(`/: the lede reads "${lede ? sight(lede) : ''}", not POSITIONING's "${P.lede}"`);
     said.hero = wordsIn(`${h1 ? sight(h1) : ''} ${lede ? sight(lede) : ''}`).length;
-    if (said.hero > 15) p.push(`/: the h1 and the lede are ${said.hero} words, more than 15`);
+    if (said.hero > HOME_BUDGET.hero) p.push(`/: the h1 and the lede are ${said.hero} words, more than ${HOME_BUDGET.hero}`);
     const acts = all(hero).filter(n => n.tag === 'a' || n.tag === 'button' || attr(n, 'data-inert') === 'button');
     if (acts.length !== 1) p.push(`/: the hero has ${acts.length} calls to action, not one`);
     /* QT-D03-02: that one action is "Choose a tool", to the products, a link with no script. */
