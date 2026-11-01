@@ -337,6 +337,14 @@ function mpFormDefaults() {
   return { city, area, type };
 }
 
+/* The town's listed areas, and any area already recorded for it. Not the map's: those arrive
+   after the first draw, and the same areas, so the served page and the drawn one agree. */
+function mpAreas(city) {
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  const recorded = (State.observations || []).filter(o => o && o.city === city && o.area && !o.sample).map(o => String(o.area).trim());
+  return [...new Set([...(def?.districts || []), ...recorded])];
+}
+
 function mpSnapshotForm() {
   const dft = mpFormDefaults();
   const card = el('section', { class: 'card mp-form', id: 'mp-form', 'aria-labelledby': 'mp-form-h' });
@@ -349,7 +357,7 @@ function mpSnapshotForm() {
   const area = el('select', { class: 'select', id: 'mp-area', 'aria-label': 'Area' });
   const other = el('input', { class: 'input', id: 'mp-area-other', type: 'text', autocomplete: 'off', 'aria-label': 'Name of the area', placeholder: 'Name of the area', hidden: '' });
   const fillAreas = (city, want) => {
-    const names = efLocalities(city);
+    const names = mpAreas(city);
     if (want && !names.includes(want)) names.unshift(want);
     area.replaceChildren(...names.map(n => el('option', { value: n }, n)), el('option', { value: '__other' }, 'Another area…'));
     area.value = want && names.includes(want) ? want : (names[0] || '__other');
