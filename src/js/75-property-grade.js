@@ -3502,6 +3502,9 @@ function pcQuickView(d, m, g, DK) {
   const res = el('div', { class: 'pc-q-results' });
   const ans = el('div', { class: 'card ls-section pc-q-answer', id: 'pc-q-answer', 'aria-labelledby': 'pc-q-answer-h', style: `--pc-grade:var(${PC_GRADE_TONE[g.grade]})` });
   ans.append(el('h2', { class: 'h-card pc-q-h', id: 'pc-q-answer-h' }, 'The answer'));
+  /* The completion line (the owner's scope direction, 1 Nov 2026), not on the sample deal. */
+  const ready = propertyReadyLine(d);
+  if (ready) ans.append(ready);
   const figs = pcAnswerFigs(d, m);
   const cards = el('div', { class: 'grid pc-answers pc-q-cards' });
   const [sl, sv, ss] = figs.safe;
@@ -3755,6 +3758,9 @@ VIEWS.property = () => {
      the line that could not be priced — a tenure of 0 left it out of the
      total and the tile said it was in. A short total says it is short, as
      the ledger's does. */
+  /* The completion line over the figures (the owner's scope direction, 1 Nov 2026), not on the sample deal. */
+  const ready = propertyReadyLine(d, { full: true });
+  if (ready) onePage.append(ready);
   const answers = el('div', { class: 'grid g-4 pc-answers' });
   /* THE SYSTEM'S METRIC CARDS (37-layout-system.js): the safe cash and the
      month are the decision (L1, first and at the card-metric size), the

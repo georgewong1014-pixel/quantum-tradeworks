@@ -2564,6 +2564,27 @@ const HOME_PAGE = read(HOME);
       if (toc && /Business/.test(rawText(toc))) p.push('/how-it-works: the contents list names the unbuilt product');
     }
   }
+  /* QT-SCOPE-03 (the owner's scope direction, 1 Nov 2026): the completion lines.
+     A filed company's page says its research is ready, naming the header's two real actions
+     ("Add to watchlist" and "Compare"), under the identity header; a page served in the sample
+     state says nothing of the sort (the calculator and the Lab on the untouched sample deal),
+     and neither does an illustrative company's. The reader's own deals are judged in model-test. */
+  {
+    const co = (await getAll(['/company/aapl-apple-inc'])).get('/company/aapl-apple-inc')?.body || '';
+    const line = all(T(co)).find(n => attr(n, 'id') === 'co-ready');
+    /* The render is a first visit's: the seeded sample watchlist already holds Apple, so the line offers
+       Compare alone, and the header's button says it is on the list. Either reading is held to its button. */
+    const watchBtn = all(T(co)).find(n => attr(n, 'id') === 'co-watch');
+    const onList = !!watchBtn && !/^Add to watchlist$/.test(rawText(watchBtn));
+    const WANT_CO = `Your company research is ready. Review the data sources and assumptions, then ${onList ? '' : 'add it to a watchlist or '}compare it with other companies.`;
+    if (!line || rawText(line) !== WANT_CO) p.push(`/company/aapl-apple-inc: the completion line reads ${line ? JSON.stringify(rawText(line)) : 'nothing'}, not "${WANT_CO}"`);
+    const acts = all(T(co)).filter(n => attr(n, 'id') === 'co-watch' || (n.tag === 'a' && /^Compare$/.test(rawText(n))));
+    if (acts.length < 2) p.push('/company/aapl-apple-inc: the completion line names "Add to watchlist" and "Compare", which are not both on the page');
+    for (const path of ['/property', '/property/calculator']) {
+      const body = (await getAll([path])).get(path)?.body || '';
+      if (/id="(pc-ready|pc-q-ready|lab-ready)"/.test(body)) p.push(`${path}: a completion line is served on the untouched sample deal`);
+    }
+  }
   const hiw = got.get('/how-it-works')?.body || '';
   const hiwNodes = all(T(hiw));
   for (const [id, want] of Object.entries(WANT)) {
