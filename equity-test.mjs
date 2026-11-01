@@ -11234,8 +11234,10 @@ try {
       navigate('/status');
       for (let i = 0; i < 50 && !(HEALTH.journeys && HEALTH.checks); i++) await w(150);
       const kept = HEALTH.checks;
+      /* The commit the journeys' record names, or the results read "Not run for" it: a record for another commit is no result for the site's. */
+      out.commit = (HEALTH.journeys.doc && HEALTH.journeys.doc.commit) || 'abcdef1234567890abcdef1234567890abcdef12';
       const suites = CHECK_SUITES.map(s => ({ id: s.id, name: s.name, kind: s.kind, job: 'runtime', status: s.id === 'mobile' ? 'FAIL' : 'PASS', passed: 3, failed: s.id === 'mobile' ? 1 : 0, said: 'synthetic', exit: s.id === 'mobile' ? 1 : 0 }));
-      const doc = (app) => ({ kind: 'quantum-tradeworks-checks', schema: 1, commit: 'abcdef1234567890abcdef1234567890abcdef12', recordedAt: '2026-11-01T00:00:00Z', run: null, ranAt: '2026-11-01T00:00:00Z', event: 'push', conclusion: 'failure', app, note: null, suites });
+      const doc = (app) => ({ kind: 'quantum-tradeworks-checks', schema: 1, commit: out.commit, recordedAt: '2026-11-01T00:00:00Z', run: null, ranAt: '2026-11-01T00:00:00Z', event: 'push', conclusion: 'failure', app, note: null, suites });
       try {
         for (const [name, app] of [['same', out.build], ['earlier', 'app.000000000000.js'], ['none', null]]) {
           HEALTH.checks = { state: 'ok', doc: doc(app) };
@@ -11251,11 +11253,11 @@ try {
     const b = r.build, L = r.lines;
     if (!/^app\.[0-9a-f]{12}\.js$/.test(b || '')) p.push(`the page knows no build (${b})`);
     if (L.same.how !== 'same' || L.same.text !== `These results are for the build serving this page (${b}).`) p.push(`same build: ${JSON.stringify(L.same)}`);
-    if (L.earlier.how !== 'earlier' || !L.earlier.text.startsWith('These results are for an earlier build (app.000000000000.js, CI on abcdef1); this build’s checks are not recorded yet.') || !L.earlier.text.includes(b)) p.push(`earlier build: ${JSON.stringify(L.earlier)}`);
+    if (L.earlier.how !== 'earlier' || !L.earlier.text.startsWith('These results are for an earlier build (app.000000000000.js, CI on ' + r.commit.slice(0, 7) + '); this build’s checks are not recorded yet.') || !L.earlier.text.includes(b)) p.push(`earlier build: ${JSON.stringify(L.earlier)}`);
     if (L.none.how !== 'unknown' || !L.none.text.startsWith('It is not known which build these results ran on: the record does not name one.')) p.push(`record with no app: ${JSON.stringify(L.none)}`);
     for (const [k, v] of Object.entries(L)) if (!v.first || v.layout !== 'FAIL' || v.chip !== 'Fail' || v.okChip) p.push(`${k}: the line is not first, or the failed suite no longer reads Fail (${JSON.stringify({ first: v.first, layout: v.layout, chip: v.chip, okChip: v.okChip })})`);
     if (p.length) fail('/status says whether its CI results are for the build serving it — the same build, an earlier one, or a record that names none — and a failed suite stays Fail', p);
-    else ok('/status says whether its CI results are for the build serving it: "…for the build serving this page (' + b + ')", "…for an earlier build (app.…, CI on abcdef1); this build’s checks are not recorded yet", and "It is not known which build these results ran on" for a record that names none — a failed suite stays Fail under all three');
+    else ok('/status says whether its CI results are for the build serving it: "…for the build serving this page (' + b + ')", "…for an earlier build (app.…, CI on <commit>); this build’s checks are not recorded yet", and "It is not known which build these results ran on" for a record that names none — a failed suite stays Fail under all three');
   }
 
   /* THE CORRECTION-CASE JOURNEY, END TO END (QT-D17-01): report a wrong figure
