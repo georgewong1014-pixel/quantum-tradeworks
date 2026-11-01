@@ -1585,9 +1585,12 @@ export function build({ bare = false } = {}) {
   const rendered = bare ? { manifest: null, renders: new Map(), missing: [], edited: [], extra: [], unknown: [] } : readRenders(scope);
   /* Every page carries the first-paint script (BEFORE THE FIRST PAINT); an
      island page's render, the recorded journeys (THE RESULT, SERVED). */
-  /* The build /status names is the one these pages load: its file name is
-     the script's own hash (appFiles), known before any page is drawn. */
-  const served = servedRecords(ROOT, appFileName(js, 'js').slice(ASSETS.length + 1));
+  /* The build /status names is the one these pages load, named by the hash
+     of the script the root page carries (appFiles). The script holds none of
+     the records, and the root page none of their slots, so it is drawn first
+     with the records as they stand and the island pages after, naming it
+     (QT-D19-03). */
+  let served = servedRecords();
   /* And each in its own chrome first, the other after its page (PAGE
      CONTENT FIRST): a page with no render is the public header's, as a
      first frame draws it. */
@@ -1600,6 +1603,7 @@ export function build({ bare = false } = {}) {
   const rootHead = plan.pages.find(p => p.path === '/').head;
   const html = page(rootHead, 'index.html');
   const files = appFiles(html);
+  served = servedRecords(ROOT, files.script.file.slice(ASSETS.length + 1));
   const notFound = linked(page(plan.notFound, NOT_FOUND, { notFound: true }), files);
   /* The parameter routes' page: index.html's title and description and the
      app, no page in it (GENERIC) — and no address of its own (2026-10-04).
