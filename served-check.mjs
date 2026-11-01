@@ -1899,7 +1899,8 @@ const HOME_PAGE = read(HOME);
    deal). What is served is the two text links to it, each once and each
    carrying nothing of the deal:
    - /property/calculator, served in the Quick model: one link,
-     "Explore design and renovation planning with ELS", to
+     "Need design or renovation planning? ELS" (the owner's Day 19 instructions,
+     QT-D19-02, 1 Nov 2026: it keeps "ELS" so the reader knows where it leads), to
      /property/calculator#els-plan — no query, and no address outside the app;
    - /property/lab: the same, in the Keep card (after "How saving works");
    - nowhere else: not the homepage, the Equities pages or the Scanner, and
@@ -1908,7 +1909,7 @@ const HOME_PAGE = read(HOME);
      served as text a crawler or a preview could read). */
 {
   const p = [];
-  const WORDS = 'Explore design and renovation planning with ELS';
+  const WORDS = 'Need design or renovation planning? ELS';
   const PATHS = ['/property/calculator', '/property/lab', '/property'];
   const got = await getAll([...PATHS, '/', '/app/scanner', '/research']);
   const anchors = (html) => [...html.matchAll(/<a\b([^>]*)>([^<]*)<\/a>/g)].filter(m => m[2].trim() === WORDS).map(m => m[1]);

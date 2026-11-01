@@ -1529,8 +1529,8 @@ const JOURNEYS = [
          outcome step: the journey's declared outcomes are the tool's own. */
       await step(j, tab, 'The optional ELS panel: open it, copy the brief, the clipboard matches the panel and the deal is unchanged', BUDGET.action * 3, async () => {
         const deal = await tab.eval('JSON.stringify(State.deal)');
-        await tab.click(`document.getElementById('els-plan-sum')`, 'Explore design and renovation planning with ELS');
-        await tab.expect(`document.getElementById('els-plan')?.open && !!document.getElementById('els-brief')?.checkVisibility()`, 'pressing "Explore design and renovation planning with ELS" did not open the panel');
+        await tab.click(`document.getElementById('els-plan-sum')`, 'Need design or renovation planning?');
+        await tab.expect(`document.getElementById('els-plan')?.open && !!document.getElementById('els-brief')?.checkVisibility()`, 'pressing "Need design or renovation planning?" did not open the panel');
         await tab.eval(`(() => { const r = document.getElementById('els-requirements'); r.value = 'A new kitchen and two bathrooms'; r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
         const shown = await tab.eval(`document.getElementById('els-brief').value`);
         if (!shown.includes('Your requirements: A new kitchen and two bathrooms')) throw new StepError(`the brief does not carry the requirements typed: ${JSON.stringify(shown.slice(0, 200))}`);
@@ -1538,8 +1538,9 @@ const JOURNEYS = [
         const leak = shown.match(/RM|\d{3}|600|3,?000|2,?600/);
         if (leak) throw new StepError(`the brief carries a figure (${leak[0]}) though only an entered renovation may: ${JSON.stringify(shown.slice(0, 300))}`);
         await tab.grantClipboard();
-        await tab.click(`document.getElementById('els-copy')`, 'Copy brief');
-        await tab.expect(`document.getElementById('els-status')?.textContent === 'Copied'`, async () => `Copy brief said “${await tab.eval(`document.getElementById('els-status')?.textContent || ''`)}”, not Copied`, 4000);
+        await tab.click(`document.getElementById('els-copy')`, 'Copy my property brief');
+        /* The owner's Day 19 wording (QT-D19-02, 1 Nov 2026). */
+        await tab.expect(`document.getElementById('els-status')?.textContent === 'Brief copied. Nothing has been sent to ELS. You decide whether to share it.'`, async () => `Copy my property brief said “${await tab.eval(`document.getElementById('els-status')?.textContent || ''`)}”, not “Brief copied. Nothing has been sent to ELS. You decide whether to share it.”`, 4000);
         const clip = await tab.eval(`navigator.clipboard.readText()`);
         if (clip.split('\r\n').join('\n') !== shown) throw new StepError(`the clipboard holds ${JSON.stringify(clip.slice(0, 120))}, not the brief the panel shows`);
         const link = await tab.eval(`(() => { const a = document.getElementById('els-link'); return { href: a.getAttribute('href'), target: a.target, rel: a.rel }; })()`);
@@ -1606,7 +1607,7 @@ const JOURNEYS = [
         await tab.goto('/property?real=0');
         await tab.expect(`State.view === 'propertyLab' && !!document.querySelector('.lab-els a')`, 'the Scenario Lab shows no ELS link beside its Keep card');
         const words = await tab.eval(`document.querySelector('.lab-els a').textContent.trim()`);
-        if (!/^Explore design and renovation planning with ELS/.test(words)) throw new StepError(`the Lab's link reads "${words}"`);
+        if (!/^Need design or renovation planning\? ELS/.test(words)) throw new StepError(`the Lab's link reads "${words}"`);
         await tab.click(`document.querySelector('.lab-els a')`, 'The Lab’s ELS link');
         await tab.expect(`State.view === 'property' && !!document.getElementById('els-plan')?.open`, async () => `the link did not open the calculator's panel: ${await tab.where()}`, 8000);
         const at = await tab.eval(`({ path: location.pathname, search: location.search, hash: location.hash, view: new URLSearchParams(location.search).get('view') })`);
