@@ -6419,7 +6419,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .mp-empty > * + *, .mp-notes > * + * { margin-top: var(--sm); }
 .mp-empty .ticklist, .mp-notes .ticklist { margin-bottom: 0; }
 .mp-town { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
-.mp-town-h { margin: var(--md) 0 0; font-size: var(--text-lead); }
+.mp-town-h { margin: var(--md) 0 0; font-size: var(--ls-body); }
 .mp-cell { min-width: 0; }
 .mp-cell-hd { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px var(--md); }
 .mp-figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--md); margin-top: var(--md); }
@@ -6428,29 +6428,29 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .mp-fig p { margin: 0; overflow-wrap: anywhere; }
 .mp-fig p + p { margin-top: 4px; }
 .mp-fig-t { font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); }
-.mp-fig-sub { font-size: 12px; color: var(--ink-3); }
-.mp-fig-v { font-size: var(--text-lead); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.mp-fig-sub { font-size: var(--ls-meta); color: var(--ink-3); }
+.mp-fig-v { font-size: var(--ls-body); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .mp-fig-v.is-few, .mp-fig.is-hollow .mp-fig-v { font-size: var(--ls-support); font-weight: 500; color: var(--ink-3); }
-.mp-fig-trend { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.mp-ctx { margin-top: 8px !important; padding-top: 8px; border-top: 1px dotted var(--line-2, var(--line)); font-size: 12px; color: var(--ink-3); }
+.mp-fig-trend { font-size: var(--ls-support); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.mp-ctx { margin-top: 8px !important; padding-top: 8px; border-top: 1px dotted var(--line-2, var(--line)); font-size: var(--ls-meta); color: var(--ink-3); }
 .mp-ctx .chip { margin-right: 4px; }
 .mp-sigs, .mp-rent { margin-top: var(--md); padding-top: var(--md); border-top: 1px solid var(--line); }
 .mp-sigs { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--sm) var(--md); }
 .mp-sigs-h { grid-column: 1 / -1; margin: 0; font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); }
 .mp-sig { min-width: 0; }
 .mp-sig p { margin: 0; overflow-wrap: anywhere; }
-.mp-sig-t { font-size: 12px; color: var(--ink-3); }
+.mp-sig-t { font-size: var(--ls-meta); color: var(--ink-3); }
 .mp-sig-v { font-size: var(--ls-body); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.mp-dl { display: grid; grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr); gap: 4px var(--md); margin: 6px 0 0; font-size: 13px; }
+.mp-dl { display: grid; grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr); gap: 4px var(--md); margin: 6px 0 0; font-size: var(--ls-support); }
 .mp-dl dt { color: var(--ink-3); }
 .mp-dl dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .mp-furn { margin-top: var(--md); padding-top: var(--sm); border-top: 1px dotted var(--line-2, var(--line)); min-width: 0; }
 .mp-furn p { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .mp-furn p + p { margin-top: 4px; }
-.mp-furn-t { font-size: 12px; color: var(--ink-3); }
-.mp-furn-v, .mp-furn-d { font-size: 13px; color: var(--ink); }
+.mp-furn-t { font-size: var(--ls-meta); color: var(--ink-3); }
+.mp-furn-v, .mp-furn-d { font-size: var(--ls-support); color: var(--ink); }
 .mp-schemes { margin-top: var(--md); }
-.mp-schemes summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.mp-schemes summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-size: var(--ls-support); font-weight: 600; color: var(--ink-2); }
 @media (max-width: 639.98px) {
   .mp-dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .mp-dl dd { margin-bottom: 6px; }
