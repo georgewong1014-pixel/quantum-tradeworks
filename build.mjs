@@ -1187,9 +1187,11 @@ export function readChecks(root = ROOT) {
 }
 /* Both records, as the island pages serve them: journeysServed's output, and
    checksServed's as its checks. */
-export function servedRecords(root = ROOT) {
+/* `build`: the app file the pages being written load (app.<hash>.js), which
+   /status says the CI results are, or are not, for (QT-D19-03). */
+export function servedRecords(root = ROOT, build = null) {
   const journeys = readRecord(root);
-  return Object.assign(journeysServed(journeys), { checks: checksServed(readChecks(root), journeys, CHECK_SUITES) });
+  return Object.assign(journeysServed(journeys), { checks: checksServed(readChecks(root), journeys, CHECK_SUITES, build) });
 }
 /* A Live badge's result slot on /status, as the render serves it, and the
    journey and step its attributes name (unescaped as the serializer escaped
@@ -1462,10 +1464,10 @@ export const inlineStyle = (html) => { const i = html.indexOf('<style>'); return
    script and stylesheet, byte for byte, each at an address named by the
    first 12 hex of its SHA-256. Read out of an assembled index.html, so that
    served-check.mjs asks what the files must be of the index.html it holds. */
+export const appFileName = (body, ext) => `${ASSETS}/app.${createHash('sha256').update(body, 'utf8').digest('hex').slice(0, 12)}.${ext}`;
 export function appFiles(html) {
   const script = inlineScript(html), styles = inlineStyle(html);
-  const name = (body, ext) => `${ASSETS}/app.${createHash('sha256').update(body, 'utf8').digest('hex').slice(0, 12)}.${ext}`;
-  return { script: { file: name(script, 'js'), body: script }, styles: { file: name(styles, 'css'), body: styles } };
+  return { script: { file: appFileName(script, 'js'), body: script }, styles: { file: appFileName(styles, 'css'), body: styles } };
 }
 
 /* A page that loads the two files where the shell carries them inline: the
@@ -1583,7 +1585,9 @@ export function build({ bare = false } = {}) {
   const rendered = bare ? { manifest: null, renders: new Map(), missing: [], edited: [], extra: [], unknown: [] } : readRenders(scope);
   /* Every page carries the first-paint script (BEFORE THE FIRST PAINT); an
      island page's render, the recorded journeys (THE RESULT, SERVED). */
-  const served = servedRecords();
+  /* The build /status names is the one these pages load: its file name is
+     the script's own hash (appFiles), known before any page is drawn. */
+  const served = servedRecords(ROOT, appFileName(js, 'js').slice(ASSETS.length + 1));
   /* And each in its own chrome first, the other after its page (PAGE
      CONTENT FIRST): a page with no render is the public header's, as a
      first frame draws it. */

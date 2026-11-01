@@ -194,8 +194,11 @@ const RENDER_PLAN = routePlan(read('src/index.template.html'));
 const RENDERED = readRenders(prerenderScope(RENDER_PLAN));
 /* An island page's render as its page carries it: the committed record in
    its slots (build.mjs, THE RESULT, SERVED). */
-const SERVED_RECORD = servedRecords();
-const servedViews = (rd) => withServedRecord(rd, SERVED_RECORD);
+/* Drawn for the build this checkout's pages load (QT-D19-03), whose name is
+   read from index.html when first asked: the page of a server that is not this
+   checkout's reads the same either way, and fails its own check. */
+let SERVED_RECORD = null;
+const servedViews = (rd) => withServedRecord(rd, SERVED_RECORD ??= servedRecords(undefined, appFiles(read('index.html')).script.file.replace(/^assets\//, '')));
 const NAV = navMarkup();
 const attrEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function withoutOwn(html, file) {
@@ -1466,7 +1469,8 @@ const HOME_PAGE = read(HOME);
   const words = (html) => html.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
   const getJson = (f) => fetch(`${BASE}/health/${f}?fetch=${Date.now()}`, { signal: AbortSignal.timeout(30000) }).then(r => r.json()).catch(() => null);
   const [jrec, crec] = [await getJson('journeys.json'), await getJson('checks.json')];
-  const want = checksServed(crec, jrec, CHECK_SUITES);
+  /* The build this checkout's pages load, which /status names (QT-D19-03). */
+  const want = checksServed(crec, jrec, CHECK_SUITES, APP.script.file.replace(/^assets\//, ''));
   const status = (await getAll(['/status'])).get('/status').body || '';
   const kinds = /<ul id="health-kinds"[^>]*>([\s\S]*?)<\/ul>/.exec(status)?.[1];
   const ci = /<p class="metaline" id="health-ci"[^>]*>([\s\S]*?)<\/p>/.exec(status)?.[1];
@@ -1508,6 +1512,26 @@ const HOME_PAGE = read(HOME);
       said.push(`${words(name)} ${st === 'NOT-RUN' ? `not run for ${SHA}` : st === 'PENDING' ? `pending for ${SHA}` : `${st} (${pass}/${mine.length} suites)`}`);
     }
     if (status.indexOf('id="health-kinds"') > status.indexOf('>Complete journeys on the live site</h3>')) p.push('/status: the four kinds are not served above the journeys');
+  }
+  /* QT-D19-03: /status says whether the CI results are for the build serving
+     it, from the page's own script and the record's `app` — three wordings,
+     never "for the build serving this page" where the record names another
+     or none. A suite's label is not touched by it (the rows above). */
+  {
+    const pageApp = /<script src="\/assets\/(app\.[0-9a-f]{12}\.js)" defer>/.exec(status)?.[1] || null;
+    const li = /^<li class="kind-build caption" id="health-build" data-build="(same|earlier|unknown)">([^<]*)<\/li>/.exec(kinds || '');
+    const recorded = !!crec && Array.isArray(crec.suites) && /^[0-9a-f]{7,40}$/.test(String(crec.commit || ''));
+    const ran = crec && /^app\.[0-9a-f]{12}\.js$/.test(String(crec.app || '')) ? crec.app : null;
+    if (!pageApp) p.push('/status loads no hashed app file, so which build serves it cannot be said');
+    else if (!recorded) { if (li) p.push('/status names a build for results that are not recorded'); }
+    else if (!li) p.push('/status does not say whether the CI results are for the build serving it');
+    else {
+      const how = !ran ? 'unknown' : ran === pageApp ? 'same' : 'earlier', text = words(li[2]);
+      const wantText = how === 'unknown' ? 'It is not known which build these results ran on: the record does not name one.'
+        : how === 'same' ? `These results are for the build serving this page (${pageApp}).`
+        : `These results are for an earlier build (${ran}, CI on ${String(crec.commit).slice(0, 7)}); this build’s checks are not recorded yet.`;
+      if (li[1] !== how || !text.startsWith(wantText) || !text.includes(pageApp)) p.push(`/status's build line is "${li[1]}: ${text}", where the page loads ${pageApp} and the record's app is ${ran || 'not named'} — want ${how}: "${wantText}"`);
+    }
   }
   if (ci == null) p.push('/status serves no #health-ci beside the in-browser checks');
   else {

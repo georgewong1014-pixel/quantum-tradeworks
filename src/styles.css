@@ -5715,6 +5715,8 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    as it printed. */
 .checks-kinds { list-style: none; padding: 0; margin: var(--sm) 0 0; }
 #views[data-served] ul.checks-kinds[data-now=""]:empty::before { content: none; }
+/* QT-D19-03: the first line, which build the results are for. */
+.kind-build { margin: 0; padding: 0 0 var(--sm); max-width: 72ch; overflow-wrap: anywhere; }
 .kind-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .kind-row > .health-chip { flex: none; min-width: 4.75rem; justify-content: center; }
 .kind-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }

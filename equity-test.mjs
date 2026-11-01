@@ -11219,6 +11219,44 @@ try {
     if (p.length) fail('the report form follows the page: a property page offers the property figures and carries the fee rulebook version and the build, a company page its company and the equities versions', p);
     else ok('the report form follows the page: the calculator and the Lab offer "' + r.cash + '" first with the fee lines and carry "Fee rulebook ' + r.fee + '" and the build, with the page name only and none of the deal or the equities lines; a company page fills in its company and keeps the equities versions; the Scanner and an unrelated page get their own short lists');
   }
+
+  /* /STATUS SAYS WHICH BUILD ITS RESULTS ARE FOR (QT-D19-03). A record for
+     commit X can only be written after X's CI, so a later deployment carries
+     it, and the page said "CI on <commit>" without saying whether the results
+     are the build serving it. Drawn here from synthetic records (the page's
+     own function, as its script draws it): the same build, an earlier one,
+     and a record that names none (every record written before) each say so,
+     and a failed suite is FAIL under all three — the line changes no label. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = { build: reportBuild(), lines: {} };
+      navigate('/status');
+      for (let i = 0; i < 50 && !(HEALTH.journeys && HEALTH.checks); i++) await w(150);
+      const kept = HEALTH.checks;
+      const suites = CHECK_SUITES.map(s => ({ id: s.id, name: s.name, kind: s.kind, job: 'runtime', status: s.id === 'mobile' ? 'FAIL' : 'PASS', passed: 3, failed: s.id === 'mobile' ? 1 : 0, said: 'synthetic', exit: s.id === 'mobile' ? 1 : 0 }));
+      const doc = (app) => ({ kind: 'quantum-tradeworks-checks', schema: 1, commit: 'abcdef1234567890abcdef1234567890abcdef12', recordedAt: '2026-11-01T00:00:00Z', run: null, ranAt: '2026-11-01T00:00:00Z', event: 'push', conclusion: 'failure', app, note: null, suites });
+      try {
+        for (const [name, app] of [['same', out.build], ['earlier', 'app.000000000000.js'], ['none', null]]) {
+          HEALTH.checks = { state: 'ok', doc: doc(app) };
+          kindsPaint(); await w(80);
+          const li = document.getElementById('health-build'), layout = document.getElementById('kind-layout');
+          out.lines[name] = { how: li?.dataset.build || null, text: li?.textContent.trim() || null, first: document.getElementById('health-kinds')?.firstElementChild === li,
+            layout: layout?.dataset.status || null, chip: layout?.querySelector('.health-chip')?.textContent.trim() || null, okChip: !!layout?.querySelector('.chip-ok') };
+        }
+      } finally { HEALTH.checks = kept; kindsPaint(); }
+      return out;
+    })()`);
+    const p = [];
+    const b = r.build, L = r.lines;
+    if (!/^app\.[0-9a-f]{12}\.js$/.test(b || '')) p.push(`the page knows no build (${b})`);
+    if (L.same.how !== 'same' || L.same.text !== `These results are for the build serving this page (${b}).`) p.push(`same build: ${JSON.stringify(L.same)}`);
+    if (L.earlier.how !== 'earlier' || !L.earlier.text.startsWith('These results are for an earlier build (app.000000000000.js, CI on abcdef1); this build’s checks are not recorded yet.') || !L.earlier.text.includes(b)) p.push(`earlier build: ${JSON.stringify(L.earlier)}`);
+    if (L.none.how !== 'unknown' || !L.none.text.startsWith('It is not known which build these results ran on: the record does not name one.')) p.push(`record with no app: ${JSON.stringify(L.none)}`);
+    for (const [k, v] of Object.entries(L)) if (!v.first || v.layout !== 'FAIL' || v.chip !== 'Fail' || v.okChip) p.push(`${k}: the line is not first, or the failed suite no longer reads Fail (${JSON.stringify({ first: v.first, layout: v.layout, chip: v.chip, okChip: v.okChip })})`);
+    if (p.length) fail('/status says whether its CI results are for the build serving it — the same build, an earlier one, or a record that names none — and a failed suite stays Fail', p);
+    else ok('/status says whether its CI results are for the build serving it: "…for the build serving this page (' + b + ')", "…for an earlier build (app.…, CI on abcdef1); this build’s checks are not recorded yet", and "It is not known which build these results ran on" for a record that names none — a failed suite stays Fail under all three');
+  }
   {
     const { readFileSync, readdirSync } = await import('node:fs');
     const SRC = new URL('./src/js/', import.meta.url);

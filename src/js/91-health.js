@@ -644,12 +644,15 @@ function statusModelPaint() {
    "Checked in your browser now", what CI found on this commit for Numbers
    and Data, so a reader with no script reads a result there. Both served by
    the build from the committed records, drawn empty here with data-now,
-   kept as served until this tab's own reads of both records return, then
+   QT-D19-03: its first line says whether the results are for the build
+   serving the page (reportBuild, 65-learn.js: the hashed file the page
+   loaded the app by, the name the build wrote the served line from).
+   Kept as served until this tab's own reads of both records return, then
    drawn from them with the same function (checksServed) — the proof slots'
    way, so the served block and the drawn one are one text and take the same
    lines. Nothing in them is the tab's own now. */
 const checksDrawn = () => (HEALTH.journeys && HEALTH.checks && checksServed
-  ? checksServed(HEALTH.checks.state === 'ok' ? HEALTH.checks.doc : null, HEALTH.journeys.state === 'ok' ? HEALTH.journeys.doc : null, CHECK_SUITES) : null);
+  ? checksServed(HEALTH.checks.state === 'ok' ? HEALTH.checks.doc : null, HEALTH.journeys.state === 'ok' ? HEALTH.journeys.doc : null, CHECK_SUITES, reportBuild()) : null);
 function keptOrDrawn(node, sel, part) {
   const out = checksDrawn();
   if (out) node.innerHTML = out[part];
