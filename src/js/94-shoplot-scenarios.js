@@ -155,8 +155,108 @@ const SHOPLOT_TOWNS = [
   ] },
 ];
 
+/* ==========================================================================
+   INDUSTRIAL STARTING SCENARIOS — SARAWAK (the owner, 1 Nov 2026: "integrate
+   this as Quantum Tradeworks default strategies for industrial sites in
+   Sarawak"). The same mechanism, labels and limits as the shoplots: three
+   starting points a town, A always a whole unit on a long let; one rent for
+   the building (option (a)); every figure untouched and Illustrative until
+   the reader changes it. A commercial deal of the 'industrial' subtype.
+   WHAT THE EVIDENCE HOLDS. NAPIC's H1 2025 file has industrial PRICES only —
+   37 rows, no rents. Each price below is the middle of the schemes NAPIC
+   sampled (the median of each scheme's midpoint), recomputed by model-test
+   (industrial). The rents are illustrative: asking rents seen in public
+   listings for Kuching, Oct 2026 (whole units about RM0.75–1.40 a sq ft a
+   month, small subdivided units about RM1.80–2.70; no listing is named or
+   copied); for the other four towns none was found, and the Kuching
+   whole-unit low, RM0.75, stands in, said so.
+   THE FLOOR AREA IS NAPIC'S. Its middle for Kuching's 2-storey semi-detached
+   units is 205 m², about 2,207 sq ft, where warehouse listings run about
+   4,000–18,000 sq ft. The rent is worked on NAPIC's own area; no larger
+   area is assumed. */
+const INDUSTRIAL_NAPIC = {
+  kuching:   { division: 'Kuching',   semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 1250000, lo: 700000, hi: 1650000, schemes: 8, floorSqm: 205 } },
+  samarahan: { division: 'Samarahan', semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 975000, lo: 900000, hi: 1080000, schemes: 4, floorSqm: 201.5 } },
+  sibu:      { division: 'Sibu',      semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 1107500, lo: 850000, hi: 1280000, schemes: 2, floorSqm: 169 } },
+  bintulu:   { division: 'Bintulu',   semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 1212500, lo: 1050000, hi: 2225000, schemes: 4, floorSqm: 168.86 } },
+  miri:      { division: 'Miri',      semid: { type: 'DOUBLE STOREY SEMI-DETACHED', mid: 1000000, lo: 655000, hi: 1550000, schemes: 5, floorSqm: 271.685 },
+    terrace: { type: 'DOUBLE STOREY TERRACE', mid: 620000, lo: 540000, hi: 700000, schemes: 2, floorSqm: 236.1675 } },
+};
+const INDUSTRIAL_TYPE_WORDS = { semid: '2-storey semi-detached industrial', terrace: '2-storey terraced industrial' };
+/* RM a sq ft a month, illustrative. */
+const INDUSTRIAL_RENT = {
+  whole: { psf: 1.05, range: [0.75, 1.40] },   /* asking, public listings, Kuching, Oct 2026: the middle of the range, to 5 sen */
+  bays:  { psf: 2.15, range: [1.80, 2.50] },   /* subdivided bays, the brief's range within the listings' 1.80–2.70 */
+  placeholder: 0.75,                           /* no evidence found: the Kuching whole-unit low */
+  wholeVacancyPct: 10, baysVacancyPct: 15,
+};
+const INDUSTRIAL_NOTES = {
+  checks: 'Before buying, check the title’s industrial use and its remaining lease years, the council’s approval for any subdivision or change of use, Bomba’s requirements for storage, and the site’s flood history.',
+  evidence: 'Rents are illustrative: asking rents in public listings, Kuching, October 2026 — whole units about RM0.75–1.40 a sq ft a month, small subdivided units about RM1.80–2.70. An asking rent is not a rent paid.',
+  placeholder: (town) => `No public rent evidence found for ${town} — replace with a local quote. RM0.75 a sq ft a month stands in: the Kuching whole-unit low.`,
+  own: 'Owner-occupied: the rent entered is what you would otherwise pay for the space — an opportunity cost, not income. Your business’s takings and costs are not modelled.',
+  storage: 'Self-storage and fulfilment are an operating business — unit rentals, insurance, staff — which this tool does not model. Here they are a long let of the space to an operator.',
+  projectTerm: 'Project-term leases end with the project: the vacancy allowance is 20% (illustrative).',
+  act446: 'Worker accommodation needs a certificate under Act 446 (the Employees’ Minimum Standards of Housing, Accommodations and Amenities Act), the council’s approval and Bomba’s. Check with the Labour Department, the council and Bomba before buying.',
+  concentration: 'A few company tenants on project work: when a project ends, the building can empty at once.',
+  lease33: 'A 3+3-year lease is in the words only: the calculator holds one rent and its growth, not a lease schedule.',
+  terrace: 'A different building from A and B: priced at NAPIC’s 2-storey industrial terrace in Miri, on that terrace’s own floor area.',
+  floorArea: 'NAPIC’s floor areas for these units are small — Kuching’s middle is 205 m², about 2,207 sq ft, where warehouse listings run about 4,000–18,000 sq ft. The rent is worked on NAPIC’s own area; none larger is assumed.',
+  napic: `NAPIC figures are the middle of the schemes it sampled in ${SHOPLOT_NAPIC_PERIOD}, with the lowest and highest beside them — schemes, not transactions. NAPIC publishes no industrial rents.`,
+  costs: 'Assessment, quit rent and insurance are the calculator’s defaults, written for a condominium: replace them with the council’s and the insurer’s figures. No maintenance charge is entered — a unit on its own title has no strata fee (illustrative).',
+};
+const inWhole = (label = 'The whole unit, let on a long lease', share = 1, vacancyPct = INDUSTRIAL_RENT.wholeVacancyPct) => ({ label, share, rent: 'whole', vacancyPct });
+const inBays = (label, share = 1, bays = null) => ({ label, share, rent: 'bays', vacancyPct: INDUSTRIAL_RENT.baysVacancyPct, bays });
+const inOwn = (label, share = 1) => ({ label, share, rent: 'whole', vacancyPct: 0, own: true });
+const inFitOut = (label, amount, range) => ({ label, amount, range });
+const IN_BAYS_FIT = (amount = 60000) => inFitOut('Subdividing into bays — partitions, doors and services', amount, [40000, 80000]);
+const INDUSTRIAL_TOWNS = [
+  { id: 'ind-kuching', napicTown: 'kuching', name: 'Kuching', city: 'kuching', district: 'Batu Kawa', evidence: true, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Subdivided SME bays', napic: 'semid', lines: [inBays('Six bays (four to eight), let to small firms', 1, 6)], works: [IN_BAYS_FIT()], notes: [] },
+    { key: 'C', title: 'Self-storage and fulfilment for online sellers, as a long let', napic: 'semid', lines: [{ ...inBays('The bays, let whole to a storage and fulfilment operator'), vacancyPct: INDUSTRIAL_RENT.wholeVacancyPct }], works: [IN_BAYS_FIT()], notes: ['storage'] },
+  ] },
+  { id: 'ind-samarahan', napicTown: 'samarahan', name: 'Samarahan', city: 'kota-samarahan', district: 'Samarahan town', evidence: false, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Your own fabrication and fit-out base', napic: 'semid', lines: [inOwn('The whole unit, used by your own business — at the rent it gives up')], works: [], notes: ['own'] },
+    { key: 'C', title: 'Student and household self-storage, with three trade bays', napic: 'semid', lines: [{ ...inBays('Self-storage, let to an operator — six-tenths of the floor'), share: 0.6 }, inBays('Three trade bays — four-tenths of the floor', 0.4, 3)], works: [IN_BAYS_FIT()], notes: ['storage'] },
+  ] },
+  { id: 'ind-sibu', napicTown: 'sibu', name: 'Sibu', city: 'sibu', district: 'Town centre', evidence: false, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Subdivided workshops for timber, marine and repair firms', napic: 'semid', lines: [inBays('Workshops, let to small firms', 1, 4)], works: [IN_BAYS_FIT()], notes: [] },
+    { key: 'C', title: 'Your own central-Sarawak depot, its surplus bays let', napic: 'semid', lines: [inOwn('Half the unit, your depot — at the rent it gives up', 0.5), inBays('Half the unit, surplus bays let', 0.5, 2)],
+      works: [inFitOut('Subdividing half the unit into bays', 30000, [20000, 40000])], notes: ['own'] },
+  ] },
+  { id: 'ind-bintulu', napicTown: 'bintulu', name: 'Bintulu', city: 'bintulu', district: 'Kidurong', evidence: false, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Contractor yard and semi-logistics on project-term leases', napic: 'semid', lines: [inWhole('The unit and its yard, let for a project’s term', 1, 20)], works: [], notes: ['projectTerm'] },
+    { key: 'C', title: 'Worker accommodation leased to companies, as a long let', napic: 'semid', lines: [inWhole('The unit, leased to companies for their workers')],
+      works: [inFitOut('Converting to accommodation', 60000, [40000, 80000]), inFitOut('Compliance — Act 446, approvals and fire upgrades', 37500, [15000, 60000])], notes: ['act446', 'concentration'] },
+  ] },
+  { id: 'ind-miri', napicTown: 'miri', name: 'Miri', city: 'miri', district: 'Lutong', evidence: false, scenarios: [
+    { key: 'A', title: 'Whole unit on a long let', napic: 'semid', lines: [inWhole()], works: [], notes: [] },
+    { key: 'B', title: 'Oil and gas support workshop on a long lease (3+3 years)', napic: 'semid', lines: [inWhole('The unit, let to a support workshop')], works: [], notes: ['lease33'] },
+    { key: 'C', title: 'Entry-level SME bays in a 2-storey terrace', napic: 'terrace', lines: [inBays('Bays in the terrace, let to small firms', 1, 3)], works: [inFitOut('Subdividing into bays', 40000, [40000, 80000])], notes: ['terrace'] },
+  ] },
+];
+const IN_SQFT = (fig) => Math.round(fig.floorSqm * SHOPLOT_SQFT_PER_SQM);
+const inPsf = (v) => `RM${Number(v).toFixed(2)}`;
+function industrialLines(r) {
+  const fig = INDUSTRIAL_NAPIC[r.town.napicTown][r.sc.napic], sqft = IN_SQFT(fig);
+  return r.sc.lines.map(l => {
+    const R = INDUSTRIAL_RENT[l.rent], psf = r.town.evidence ? R.psf : INDUSTRIAL_RENT.placeholder;
+    const area = Math.round(sqft * l.share), gross = Math.round(area * psf);
+    const basis = r.town.evidence ? `${inPsf(psf)} a sq ft a month (${inPsf(R.range[0])}–${inPsf(R.range[1])}, asking rents in public listings, Kuching, Oct 2026)`
+      : `${inPsf(psf)} a sq ft a month — no public rent evidence found for ${r.town.name}: replace with a local quote`;
+    const words = `${fmtNum(area, 0)} sq ft${l.bays ? ` in ${l.bays} bays` : ''} × ${basis}${l.own ? ' — what you would otherwise pay for it, not income' : ''}`;
+    return { label: l.label, gross, costs: 0, net: gross, vacancyPct: l.vacancyPct, kind: 'illustrative', words };
+  });
+}
+
 /* ---------------------------------------------------------------- lookups */
-const shoplotTown = (id) => SHOPLOT_TOWNS.find(t => t.id === id) || null;
+/* Shoplot towns by their own id ('kuching'), industrial ones by 'ind-<town>'. */
+const shoplotTown = (id) => [...SHOPLOT_TOWNS, ...INDUSTRIAL_TOWNS].find(t => t.id === id) || null;
+const slIndustrial = (town) => !!town?.napicTown;
 /* 'kuching/B' → { town, sc } */
 function shoplotRef(ref) {
   const m = /^([a-z-]+)\/([ABC])$/.exec(String(ref || ''));
@@ -164,7 +264,7 @@ function shoplotRef(ref) {
   const sc = town ? town.scenarios.find(s => s.key === m[2]) : null;
   return sc ? { town, sc, ref: `${town.id}/${sc.key}` } : null;
 }
-const shoplotChip = (ref) => { const r = shoplotRef(ref) || { town: shoplotTown(String(ref).split('/')[0]) }; return `Illustrative starting scenario — ${r.town?.name || 'Sarawak'}`; };
+const shoplotChip = (ref) => { const r = shoplotRef(ref) || { town: shoplotTown(String(ref).split('/')[0]) }; return `Illustrative starting scenario — ${r.town?.name || 'Sarawak'}${slIndustrial(r.town) ? ', industrial' : ''}`; };
 const shoplotTitle = (ref) => shoplotRef(ref)?.sc.title || 'Starting scenario no longer offered';
 const slMoney = (v) => fmtMoney(v, 'MYR', 0);
 const slRange = ([lo, hi]) => `${slMoney(lo)}–${slMoney(hi)}`;
@@ -175,6 +275,7 @@ const slRange = ([lo, hi]) => `${slMoney(lo)}–${slMoney(hi)}`;
 function shoplotLines(ref) {
   const r = shoplotRef(ref);
   if (!r) return [];
+  if (slIndustrial(r.town)) return industrialLines(r);
   const N = SHOPLOT_NAPIC[r.town.id];
   return r.sc.lines.map(l => {
     const count = l.floors || 1;
@@ -203,6 +304,10 @@ function shoplotBlend(lines) {
 function shoplotWorks(ref) {
   const r = shoplotRef(ref);
   if (!r) return { total: 0, parts: [] };
+  if (slIndustrial(r.town)) {
+    const parts = r.sc.works.map(w => ({ label: w.label, amount: w.amount, words: `${slMoney(w.amount)} (${slRange(w.range)})` }));
+    return { total: parts.reduce((t, p) => t + p.amount, 0), parts };
+  }
   const w = r.sc.works, I = SHOPLOT_ILLUS;
   const parts = [
     ...(w.floors ? [{ label: `Converting ${w.floors === 1 ? 'one floor' : `${w.floors} floors`} to rooms`, amount: w.floors * I.fitOutPerFloor, words: `${w.floors} × ${slMoney(I.fitOutPerFloor)} (${slRange(I.fitOutRange)} a floor at market rates)` }] : []),
@@ -219,14 +324,15 @@ function shoplotWorks(ref) {
 function shoplotDeal(ref) {
   const r = shoplotRef(ref);
   if (!r) return null;
-  const N = SHOPLOT_NAPIC[r.town.id];
+  const ind = slIndustrial(r.town);
+  const fig = ind ? INDUSTRIAL_NAPIC[r.town.napicTown][r.sc.napic] : SHOPLOT_NAPIC[r.town.id].price;
   const b = shoplotBlend(shoplotLines(r.ref));
   return {
     ...PROPERTY_DEFAULT_DEAL,
     city: r.town.city, district: r.town.district, projectId: customProjectId(r.town.city),
-    propertyType: 'Shophouse', commercialSubtype: 'whole-shoplot', titleType: 'unknown',
-    sqft: Math.round(N.price.floorSqm * SHOPLOT_SQFT_PER_SQM), landSqft: 0,
-    price: N.price.mid, renovation: shoplotWorks(r.ref).total,
+    propertyType: ind ? 'Commercial lot' : 'Shophouse', commercialSubtype: ind ? 'industrial' : 'whole-shoplot', titleType: 'unknown',
+    sqft: Math.round(fig.floorSqm * SHOPLOT_SQFT_PER_SQM), landSqft: 0,
+    price: fig.mid, renovation: shoplotWorks(r.ref).total,
     downPct: SHOPLOT_ILLUS.downPct, ratePct: SHOPLOT_ILLUS.ratePct, tenureYears: SHOPLOT_ILLUS.tenureYears,
     rent: b.rent, vacancyPct: b.vacancyPct, maintenance: 0, sinkingFund: 0,
     evidence: { price: 'assumed', rent: 'assumed', maintenance: 'assumed', vacancyPct: 'assumed', apprecPct: 'assumed', sqft: 'estimated', titleType: 'assumed' },
@@ -260,16 +366,20 @@ function shoplotStart(townId) {
 }
 /* THE ENTRY, beside the commercial choice (propertyQuestions, 83): a town,
    and one button. */
-let SL_PICK = 'kuching';
+let SL_PICK = 'kuching', SL_KIND = 'shoplot';
 function shoplotEntry(prefix) {
-  const sid = `${prefix}-sl-town`;
+  const sid = `${prefix}-sl-town`, kid = `${prefix}-sl-kind`;
   const sel = el('select', { class: 'select sl-town', id: sid, onchange: (e) => { SL_PICK = e.target.value; } },
     SHOPLOT_TOWNS.map(t => el('option', { value: t.id, selected: t.id === SL_PICK ? '' : null }, t.name)));
+  /* The owner, 1 Nov 2026: "Shoplot" or "Industrial", then the town. */
+  const kind = el('select', { class: 'select sl-kind', id: kid, onchange: (e) => { SL_KIND = e.target.value; } },
+    [['shoplot', 'Shoplot'], ['industrial', 'Industrial']].map(([v, w]) => el('option', { value: v, selected: v === SL_KIND ? '' : null }, w)));
   return el('div', { class: 'sl-entry', id: `${prefix}-sl`, 'data-note': 'shoplot' }, [
-    el('p', { class: 'pq-note' }, [el('strong', {}, 'Shoplot starting scenarios — Sarawak.'), ' Three starting points for a 3-storey shoplot in a town, opened in the Lab as A, B and C to edit and compare.']),
+    el('p', { class: 'pq-note' }, [el('strong', {}, 'Starting scenarios — Sarawak.'), ' Three starting points for a 3-storey shoplot or an industrial unit in a town, opened in the Lab as A, B and C to edit and compare.']),
     el('div', { class: 'sl-entry-row' }, [
+      el('label', { class: 'sl-town-label', for: kid }, 'Kind'), kind,
       el('label', { class: 'sl-town-label', for: sid }, 'Town'), sel,
-      el('button', { type: 'button', class: 'btn btn-ghost sl-go', id: `${prefix}-sl-go`, onclick: () => shoplotStart(sel.value) }, 'Start from a shoplot scenario')]),
+      el('button', { type: 'button', class: 'btn btn-ghost sl-go', id: `${prefix}-sl-go`, onclick: () => shoplotStart(kind.value === 'industrial' ? `ind-${sel.value}` : sel.value) }, 'Start from a scenario')]),
     el('p', { class: 'pq-note sl-statement' }, SHOPLOT_STATEMENT),
   ]);
 }
@@ -283,13 +393,24 @@ function shoplotColRef(c) {
   if (c?.source === 'deal') return shoplotOf(State.deal)?.ref || null;
   return null;
 }
+/* A note's words: an industrial scenario's own, else the shoplots'. */
+function slNote(r, k) {
+  const v = slIndustrial(r?.town) && Object.hasOwn(INDUSTRIAL_NOTES, k) ? INDUSTRIAL_NOTES[k] : SHOPLOT_NOTES[k];
+  return typeof v === 'function' ? v(r.town.name) : v;
+}
+function industrialPriceWords(r) {
+  const N = INDUSTRIAL_NAPIC[r.town.napicTown], fig = N[r.sc.napic];
+  return `Price: ${slMoney(fig.mid)} — the middle of the ${fig.schemes} ${INDUSTRIAL_TYPE_WORDS[r.sc.napic]} schemes NAPIC sampled in the ${N.division} Division, ${SHOPLOT_NAPIC_PERIOD} (${slMoney(fig.lo)}–${slMoney(fig.hi)}); its floor area, the middle of the same schemes, is ${fmtNum(fig.floorSqm, 1)} m² (${fmtNum(IN_SQFT(fig), 0)} sq ft), and the rent is worked on it; placed in ${r.town.district} for the place line only.`;
+}
 const slKindBadge = (kind) => (kind === 'napic' ? kindBadge('derived', { fine: `From NAPIC’s ${SHOPLOT_NAPIC_PERIOD} file` }) : kindBadge('illustrative', { fine: 'A starting scenario’s assumption' }));
 function shoplotLabCard(P, lab) {
   const cols = lab.cols.map(c => ({ c, ref: shoplotColRef(c) })).filter(x => x.ref && shoplotRef(x.ref));
   if (!cols.length) return null;
   const towns = [...new Set(cols.map(x => shoplotRef(x.ref).town.name))];
+  const fams = [...new Set(cols.map(x => (slIndustrial(shoplotRef(x.ref).town) ? 'Industrial' : 'Shoplot')))];
+  const indOnly = fams.length === 1 && fams[0] === 'Industrial';
   const card = el('section', { class: 'card ls-section sl-card', id: labId(P, 'slcard'), 'aria-labelledby': labId(P, 'sl-h') });
-  card.append(el('h2', { class: 'h-card', id: labId(P, 'sl-h') }, `Shoplot starting scenarios — ${towns.length === 1 ? towns[0] : 'Sarawak'}`));
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'sl-h') }, `${fams.length === 1 ? `${fams[0]} starting` : 'Starting'} scenarios — ${towns.length === 1 ? towns[0] : 'Sarawak'}`));
   card.append(el('p', { class: 'metaline sl-statement' }, SHOPLOT_STATEMENT));
   for (const { c, ref } of cols) {
     const r = shoplotRef(ref), lines = shoplotLines(ref), b = shoplotBlend(lines), works = shoplotWorks(ref);
@@ -301,16 +422,18 @@ function shoplotLabCard(P, lab) {
       el('li', { class: 'sl-part sl-sum' }, [el('strong', {}, `Rent entered: ${slMoney(b.rent)} a month, vacancy allowance ${b.vacancyPct}%`),
         ` — ${slMoney(Math.round(b.effective))} a month after vacancy, as the parts give it.`]),
       ...works.parts.map(p => el('li', { class: 'sl-part' }, [el('strong', {}, `${p.label}: ${slMoney(p.amount)}`), ' ', kindBadge('illustrative', { fine: 'A starting scenario’s assumption' }), ` ${p.words}`])),
-      el('li', { class: 'sl-part' }, `Price: ${slMoney(SHOPLOT_NAPIC[r.town.id].price.mid)} — the middle of the ${SHOPLOT_NAPIC[r.town.id].price.schemes} 3-storey shop schemes NAPIC sampled in the ${SHOPLOT_NAPIC[r.town.id].division} Division, ${SHOPLOT_NAPIC_PERIOD} (${slMoney(SHOPLOT_NAPIC[r.town.id].price.lo)}–${slMoney(SHOPLOT_NAPIC[r.town.id].price.hi)}); placed in ${r.town.district} for the place line only.`),
+      slIndustrial(r.town) ? el('li', { class: 'sl-part' }, industrialPriceWords(r)) : el('li', { class: 'sl-part' }, `Price: ${slMoney(SHOPLOT_NAPIC[r.town.id].price.mid)} — the middle of the ${SHOPLOT_NAPIC[r.town.id].price.schemes} 3-storey shop schemes NAPIC sampled in the ${SHOPLOT_NAPIC[r.town.id].division} Division, ${SHOPLOT_NAPIC_PERIOD} (${slMoney(SHOPLOT_NAPIC[r.town.id].price.lo)}–${slMoney(SHOPLOT_NAPIC[r.town.id].price.hi)}); placed in ${r.town.district} for the place line only.`),
     ]));
-    for (const k of [...r.sc.notes, 'partial']) body.append(el('p', { class: 'sl-note', 'data-note': k }, SHOPLOT_NOTES[k]));
+    const keys = slIndustrial(r.town) ? [...r.sc.notes, r.town.evidence ? 'evidence' : 'placeholder', 'checks', 'partial'] : [...r.sc.notes, 'partial'];
+    for (const k of keys) body.append(el('p', { class: 'sl-note', 'data-note': k }, slNote(r, k)));
     card.append(el('details', { class: 'pc-more ls-l3 sl-col', id: labId(P, `sl-${c.key}`), 'data-sl': ref }, [
       el('summary', { class: 'pc-more-sum' }, `${c.key} — ${r.sc.title}: ${slMoney(b.rent)} a month, ${b.vacancyPct}% vacancy${moved ? ' (as loaded — not your moves)' : ''}`),
       body]));
   }
   card.append(el('details', { class: 'pc-more ls-l3 sl-col', id: labId(P, 'sl-how') }, [
     el('summary', { class: 'pc-more-sum' }, 'How these starting points are built'),
-    el('div', { class: 'pc-more-body' }, ['oneRent', 'napic', 'finance', 'costs'].map(k => el('p', { class: 'sl-note', 'data-note': k }, SHOPLOT_NOTES[k])))]));
+    el('div', { class: 'pc-more-body' }, (indOnly ? ['oneRent', 'napic', 'floorArea', 'finance', 'costs'] : ['oneRent', 'napic', 'finance', 'costs'])
+      .map(k => el('p', { class: 'sl-note', 'data-note': k }, slNote(indOnly ? { town: { napicTown: 'any' } } : null, k))))]));
   return card;
 }
 /* On the calculator, under its status line, while its deal is an untouched
