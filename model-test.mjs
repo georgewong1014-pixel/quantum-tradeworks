@@ -12841,6 +12841,101 @@ try {
     if (p.length) fail('market pulse: the form writes the furnishing', p.join('\n      '));
     else ok('market pulse: the form offers Not stated (the default), Unfurnished, Partly furnished and Fully furnished with an asking rent; it puts the furnishing on the asking prices and the rent only, none when Not stated; the field is in the register, Export everything, replay and Undo');
   } catch (e) { fail('market pulse: the furnishing form could not be run', String(e.message).split('\n')[0]); }
+  /* LET AS (the owner, 1 Nov 2026): how a rent is let. Optional on the rent
+     records; none is Not stated. Rent medians split by it side by side with
+     each n, Not stated its own count, a difference only between the two
+     states of a whole unit (a company or worker lease against a whole unit)
+     and only when both reach n = 3; a rent by the room or bed is per room or
+     bed — in no whole-unit median and not set against one. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      const rec = (o) => ({ id: 'ml-' + Math.random(), evidence: 'user', scope: 'area', kind: 'ask-rent', city: 'sibu', propertyType: 'Apartment / flat', ...o });
+      const rent = (area, letAs, vals, extra) => vals.map((v, i) => rec({ area, value: v, date: '2026-10-' + String(i + 3).padStart(2, '0'), ...(letAs ? { letAs } : {}), ...extra }));
+      const rows = [
+        ...rent('Permai', 'whole', [900, 850, 950, 900]), ...rent('Permai', 'room', [400, 450, 420]), ...rent('Permai', 'lease', [1500, 1600, 1550]), ...rent('Permai', '', [1000, 1100]),
+        ...rent('Sibujaya', 'whole', [800, 820, 780, 810]), ...rent('Sibujaya', 'lease', [1400, 1450]),
+        ...rent('Lanang', 'whole', [800, 820, 780]), ...rent('Lanang', '', [900, 950, 1000]),
+        ...rent('Town centre', 'room', [400, 450, 420]), ...rent('Town centre', 'whole', [900, 850, 950]),
+        ...rent('Jalan Salim', 'room', [400, 450, 420]),
+      ];
+      const m = marketPulseModel(rows);
+      const cell = (a) => m.cells.find(c => c.area === a);
+      const P = cell('Permai'), S = cell('Sibujaya'), L = cell('Lanang'), T = cell('Town centre'), J = cell('Jalan Salim');
+      const ga = (c) => c.letAs['ask-rent'];
+      const out = {
+        old: [mpLetAs({}), mpLetAs({ letAs: 'room' }), mpLetAs({ letAs: 'attic' }), mpLetAsLabel('')],
+        P: { g: ['whole', 'room', 'lease'].map(k => [ga(P).groups[k].n, ga(P).groups[k].median]), ns: ga(P).notStated.n, diffs: ga(P).diffs, words: mpLetAsWords(ga(P)),
+          main: [P.rAsk.latest.n, P.rAsk.latest.median], furn: P.furnish['ask-rent'] },
+        S: { diffs: ga(S).diffs, words: mpLetAsWords(ga(S)) },
+        L: ga(L), T: { diffs: ga(T).diffs, words: mpLetAsWords(ga(T)), main: [T.rAsk.latest.n, T.rAsk.latest.median] },
+        J: { split: ga(J), rAsk: J.rAsk.n, rooms: J.roomRents },
+      };
+      State.observations = rows; navigate('/property/market'); await new Promise(res => setTimeout(res, 600));
+      const at = (a, k) => document.querySelector('[data-mp-cell="sibu|' + a + '|Apartment / flat"] [data-mp-letas="' + k + '"]');
+      const cellEl = (a) => document.querySelector('[data-mp-cell="sibu|' + a + '|Apartment / flat"]');
+      out.dom = { P: at('Permai', 'ask-rent')?.textContent || '', S: at('Sibujaya', 'ask-rent')?.textContent || '', L: !!at('Lanang', 'ask-rent'),
+        Pdt: [...cellEl('Permai').querySelectorAll('.mp-dl dt')].map(d => d.textContent), Jrent: !!cellEl('Jalan Salim')?.querySelector('[data-mp-rent]') };
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog);
+      return JSON.stringify(out);
+    })()`));
+    const p = [], near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
+    if (JSON.stringify(r.old) !== '["","room","","Not stated"]') p.push(`a record with no "Let as", or an unknown one, does not read as Not stated: ${JSON.stringify(r.old)}`);
+    const P = r.P;
+    if (JSON.stringify(P.g) !== '[[4,900],[3,420],[3,1550]]' || P.ns !== 2) p.push(`Permai's rents by how they are let: ${JSON.stringify([P.g, P.ns])}`);
+    if (P.diffs.length !== 1 || P.diffs[0].a !== 'lease' || P.diffs[0].b !== 'whole' || P.diffs[0].amount !== 650 || !near(P.diffs[0].pct, 650 / 900 * 100)) p.push(`the difference is only a lease against a whole unit, never the room or bed: ${JSON.stringify(P.diffs)}`);
+    if (P.words.line !== 'whole unit RM900 (n = 4, 3 Oct 2026 to 6 Oct 2026) · by the room or bed RM420 per room or bed (n = 3, 3 Oct 2026 to 5 Oct 2026) · company or worker lease RM1,550 (n = 3, 3 Oct 2026 to 5 Oct 2026)'
+      || P.words.notStated !== 'Not stated: n = 2, kept apart and in neither side.' || P.words.diffs[0] !== 'Company or worker lease against whole unit: +RM650 a month (+72.2%)'
+      || P.words.note !== 'A rent by the room or bed is per room or bed: it is not set against a whole-unit rent.') p.push(`the words: ${JSON.stringify(P.words)}`);
+    if (P.main[0] !== 9 || P.main[1] !== 1000) p.push(`the whole-unit asking median has n ${P.main[0]}, median ${P.main[1]} — 9 and 1,000 without the room or bed rents; they were mixed in`);
+    if (r.S.diffs.length !== 0 || !/company or worker lease: n = 2 — too few/.test(r.S.words.line) || !/^No difference shown/.test(r.S.words.noDiff)) p.push(`two lease rents still give a difference: ${JSON.stringify(r.S)}`);
+    if (r.L !== null) p.push(`one stated state and Not stated give a comparison: ${JSON.stringify(r.L)}`);
+    if (r.T.diffs.length !== 0 || r.T.main[0] !== 3 || r.T.main[1] !== 900) p.push(`a room or bed (n = 3) and a whole unit (n = 3) give a difference or a mixed median: ${JSON.stringify(r.T)}`);
+    if (r.J.split !== null || r.J.rAsk !== 0 || r.J.rooms !== 3 || !r.dom.Jrent) p.push(`rents by the room or bed only: ${JSON.stringify(r.J)}, rental side drawn ${r.dom.Jrent}`);
+    if (!/Asking rent by how it is let/.test(r.dom.P) || !/Company or worker lease against whole unit: \+RM650 a month \(\+72\.2%\)/.test(r.dom.P) || !/by the room or bed RM420 per room or bed \(n = 3/.test(r.dom.P) || !/Not stated: n = 2/.test(r.dom.P)) p.push(`the page reads "${r.dom.P}"`);
+    if (!/No difference shown/.test(r.dom.S) || /\+RM/.test(r.dom.S)) p.push(`Sibujaya's page reads "${r.dom.S}"`);
+    if (r.dom.L) p.push('Lanang, with one stated state, shows a "Let as" comparison');
+    if (!r.dom.Pdt.some(t => /Asking rent, median, not by the room or bed/.test(t))) p.push(`the whole-unit rent median is not labelled: ${JSON.stringify(r.dom.Pdt)}`);
+    if (/worth/i.test(r.dom.P + r.dom.S)) p.push('the "Let as" words pass a judgement');
+    if (p.length) fail('market pulse: rents split by how they are let', p.join('\n      '));
+    else ok('market pulse: rents split by "Let as": Permai reads whole unit RM900 (n = 4) · by the room or bed RM420 per room or bed (n = 3) · company or worker lease RM1,550 (n = 3), Not stated n = 2 apart, the one difference (lease against whole unit, +RM650, +72.2%) only where both reach n = 3, and the room or bed in no whole-unit median (n = 9, RM1,000 without it) and set against none; two lease rents give no difference');
+  } catch (e) { fail('market pulse: the "Let as" comparison could not be run', String(e.message).split('\n')[0]); }
+  /* The form writes "Let as" on the asking rent only, and nothing when Not stated. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      State.observations = []; localStorage.removeItem('vl.registerLog'); loadRegisterLog();
+      navigate('/property/market'); await new Promise(res => setTimeout(res, 400));
+      const set = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      const press = async (id) => { document.getElementById(id).click(); await new Promise(res => setTimeout(res, 300)); };
+      const out = { options: [...document.getElementById('mp-letas').options].map(o => o.textContent), dflt: document.getElementById('mp-letas').value,
+        h: Math.round(document.getElementById('mp-letas').getBoundingClientRect().height), hint0: document.getElementById('mp-letas-hint').textContent };
+      set('mp-town', 'sibu'); set('mp-area', 'Permai'); set('mp-type', 'Apartment / flat'); set('mp-date', '2026-10-30');
+      set('mp-letas', 'room'); out.hintRoom = document.getElementById('mp-letas-hint').textContent;
+      set('mp-count', '8'); set('mp-med', '250000'); set('mp-rent', '400'); set('mp-src', 'Mudah search, 30 Oct');
+      await press('mp-save');
+      out.room = State.observations.map(o => [o.kind, o.value, o.letAs || null]).reverse();
+      set('mp-rent', '1200'); set('mp-letas', ''); await press('mp-save');
+      out.none = State.observations[0] && [State.observations[0].kind, State.observations[0].letAs || null];
+      out.integrity = registerIntegrity().state;
+      const exp = exportEverything();
+      out.exported = (exp.data.observations || []).filter(x => x.letAs === 'room').map(x => x.kind);
+      out.shape = storedShapeFault('observations', exp.data.observations);
+      out.replayed = replayRegister().observations.filter(x => x.letAs).map(x => x.kind);
+      await press('mp-undo'); out.afterUndo = State.observations.length; out.integrityUndo = registerIntegrity().state;
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog); else localStorage.removeItem('vl.registerLog');
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (JSON.stringify(r.options) !== '["Not stated","Whole unit","By the room or bed","Company or worker lease"]' || r.dflt !== '' || r.h < 44) p.push(`the "Let as" choice reads ${JSON.stringify(r.options)} with "${r.dflt}" chosen, ${r.h}px tall`);
+    if (!/per room or bed/.test(r.hintRoom) || /per room or bed/.test(r.hint0)) p.push(`the hint for the room or bed reads "${r.hintRoom}" (before: "${r.hint0}")`);
+    if (JSON.stringify(r.room) !== '[["listed",8,null],["ask-price",250000,null],["ask-rent",400,"room"]]') p.push(`"Let as" is on a price or the count, or missing from the rent: ${JSON.stringify(r.room)}`);
+    if (JSON.stringify(r.none) !== '["ask-rent",null]') p.push(`Not stated wrote a "Let as": ${JSON.stringify(r.none)}`);
+    if (r.integrity !== 'ok' || JSON.stringify(r.exported) !== '["ask-rent"]' || r.shape || JSON.stringify(r.replayed) !== '["ask-rent"]') p.push(`the field in the register: integrity ${r.integrity}, exported ${JSON.stringify(r.exported)}, shape fault ${r.shape}, replayed ${JSON.stringify(r.replayed)}`);
+    if (r.afterUndo !== 3 || r.integrityUndo !== 'ok') p.push(`Undo of the second snapshot left ${r.afterUndo} records (3 expected), integrity ${r.integrityUndo}`);
+    if (p.length) fail('market pulse: the form writes "Let as"', p.join('\n      '));
+    else ok('market pulse: the form offers Not stated (the default), Whole unit, By the room or bed and Company or worker lease; it puts "Let as" on the asking rent only, none when Not stated, and asks for the rent per room or bed when that is chosen; the field is in the register, Export everything, replay and Undo');
+  } catch (e) { fail('market pulse: the "Let as" form could not be run', String(e.message).split('\n')[0]); }
   /* ---- end market-pulse ---- */
 
 

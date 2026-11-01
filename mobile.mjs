@@ -6193,7 +6193,7 @@ await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, devi
     mpRecordSnapshot({ city:'miri', area:'Marina', propertyType:'Condominium', date:'2026-10-30', count:25, source:'PropertyGuru search, 30 Oct' });
     [['ask-rent', 2200, '2026-10-03'], ['ask-rent', 2300, '2026-10-12'], ['ask-rent', 2250, '2026-10-28'], ['let-rent', 2000, '2026-10-05'], ['let-rent', 2100, '2026-10-15'], ['let-rent', 2050, '2026-10-26'], ['vacancy', 4, '2026-10-06'], ['vacancy', 6, '2026-10-16'], ['vacancy', 9, '2026-10-27']]
       .forEach(([kind, value, date]) => addObservation({ city:'miri', area:'Marina', propertyType:'Condominium', kind, value, date, evidence:'user', sourceRef:'tenancy', scope:'area',
-        ...(kind === 'ask-rent' ? { furnishing: value > 2220 ? 'partly' : 'unfurnished' } : kind === 'let-rent' ? { furnishing: value > 2060 ? 'fully' : 'unfurnished' } : {}) }));
+        ...(kind === 'ask-rent' ? { furnishing: value > 2220 ? 'partly' : 'unfurnished', letAs: value === 2300 ? 'room' : 'whole' } : kind === 'let-rent' ? { furnishing: value > 2060 ? 'fully' : 'unfurnished' } : {}) }));
     await loadNapic('Kuching'); await loadNapic('Miri');
     render(); await new Promise(r => setTimeout(r, 500));
     document.querySelectorAll('.mp-schemes').forEach(d => d.open = true);
@@ -6217,7 +6217,8 @@ await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, devi
       await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
       for (const seeded of [false, true]) {
         await load('/property/market');
-        if (seeded) await ev(SEED);
+        /* The page can still be booting when the load check passes: asked again, not skipped. */
+        if (seeded) for (let k = 0; ; k++) { try { await ev(SEED); break; } catch (e) { if (k >= 3) throw e; await sleep(1000); } }
         await face(font);
         const r = await ev(MEASURE);
         const where = `${at}${seeded ? ' with records' : ', first visit'}`;
