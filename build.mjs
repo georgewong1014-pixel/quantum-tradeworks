@@ -1879,7 +1879,7 @@ export function layoutSystemProblems({ root = ROOT } = {}) {
    3B; D5, D21, D22) is held here, on the page / is served, by the plan's
    counting rule, so a word added back, a disclosure line under the cards
    again, or a visual taken out fails --check in CI's first job:
-   - the hero: its h1 and lede 15 words or fewer, and one call to action;
+   - the hero: its h1 and lede 18 words or fewer, and one call to action;
    - each card (article.pub-card): 12 words or fewer outside its figure,
      its one short limit line (.pub-card-limit, QT-D02-02; Day-16 QT-D15-01,
      29 Oct 2026: the long sentence moved into the ⓘ) and each card's outcome
@@ -1903,7 +1903,8 @@ export function layoutSystemProblems({ root = ROOT } = {}) {
    what is hidden, said only to a screen reader (.sr-only), or inside a
    closed <details> (its summary is in sight). served-check reads the
    served / with this same function. */
-export const HOME_BUDGET = { hero: 15, card: 12, figure: 20, main: 110, visuals: 2 };
+/* The hero rose from 15 to 18 words on 1 Nov 2026: the owner chose the headline "Understand what drives the result before relying on the number." (10 words) and kept the line beneath (8). */
+export const HOME_BUDGET = { hero: 18, card: 12, figure: 20, main: 110, visuals: 2 };
 /* p.footer-legal's words and its link's: the short disclosure of 16 Oct 2026
    (served-check's disclosure-guard holds them word for word on every page, and
    the whole paragraph of 4 Oct 2026 at /terms#full-disclosure; this, on /, in

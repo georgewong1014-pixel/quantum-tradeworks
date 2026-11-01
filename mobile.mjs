@@ -4547,7 +4547,7 @@ for (const w of [360, 390]) {
         if (path === '/') {
           if (r.over > 1) fails.push(`${at}: the page runs ${r.over}px sideways`);
           if (r.lines.length) fails.push(`${at}: a disclosure line in sight above the footer besides the strip: "${r.lines[0]}"`);
-          if (!r.hero || r.hero.h1 !== 'Make financial decisions with greater clarity.' || r.hero.lede !== 'Research companies. Create scanner setups. Model property decisions.' || r.hero.acts !== 1)
+          if (!r.hero || r.hero.h1 !== 'Understand what drives the result before relying on the number.' || r.hero.lede !== 'Research companies. Create scanner setups. Model property decisions.' || r.hero.acts !== 1)
             fails.push(`${at}: the hero reads ${JSON.stringify(r.hero)}`);
         }
       }
@@ -4643,7 +4643,7 @@ for (const w of [360, 390]) {
       await send('Emulation.setTimezoneOverride', { timezoneId: 'America/New_York' }, s2);
       await send('Emulation.setLocaleOverride', { locale: 'en-US' }, s2);
       await send('Emulation.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36', acceptLanguage: 'en-US' }, s2);
-      await send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.clear(); } catch (e) {} document.addEventListener('DOMContentLoaded', () => { const t = document.body.innerText; window.__dcl = { h1: t.includes('Make financial decisions with greater clarity.'), src: t.includes('Apple · SEC 10-K · US$'), hidden: document.documentElement.hasAttribute('data-served-hidden') }; });` }, s2);
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.clear(); } catch (e) {} document.addEventListener('DOMContentLoaded', () => { const t = document.body.innerText; window.__dcl = { h1: t.includes('Understand what drives the result before relying on the number.'), src: t.includes('Apple · SEC 10-K · US$'), hidden: document.documentElement.hasAttribute('data-served-hidden') }; });` }, s2);
       await Promise.race([send('Page.navigate', { url: BASE + '/' }, s2), sleep(15000)]);
       let dcl = null;
       for (let i = 0; i < 40 && !dcl; i++) { await sleep(200); dcl = (await send('Runtime.evaluate', { expression: 'window.__dcl || null', returnByValue: true }, s2)).result?.result?.value; }

@@ -8127,7 +8127,7 @@ try {
     const p = [];
     const { home, hiw, pick } = r;
     if (home.view !== 'marketing') p.push(`/ renders ${home.view}`);
-    if (home.h1 !== 'Make financial decisions with greater clarity.') p.push(`homepage h1: "${home.h1}"`);
+    if (home.h1 !== 'Understand what drives the result before relying on the number.') p.push(`homepage h1: "${home.h1}"`);
     /* D5: the kicker is the footer's tagline only; the hero is the h1, the
        lede and one action, with no "Explore products". */
     if (home.kicker != null || home.tagline !== 'Research · Monitor · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
