@@ -12746,6 +12746,101 @@ try {
     if (p.length) fail('market pulse: the snapshot form', p.join('\n      '));
     else ok('market pulse: the snapshot form refuses a count of 0, an unordered low–median–high and an empty entry; saved, it writes one Listings counted and three Asking price records with one date, area, type and source, remembers the town, area and type, clears the numbers, and Undo takes all four back; every control is at least 44px');
   } catch (e) { fail('market pulse: the snapshot form could not be run', String(e.message).split('\n')[0]); }
+
+  /* FURNISHING (the owner, 1 Nov 2026: the furnished-rent premium, starting
+     with Sibu). An optional field on the rent and price records the snapshot
+     writes; a record with none reads as Not stated. Where a cell has rent
+     records in more than one furnishing state the medians sit side by side
+     with each n, Not stated its own count in neither side, and the
+     difference appears only between two states that both reach n = 3. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      const rec = (o) => ({ id: 'mf-' + Math.random(), evidence: 'user', scope: 'area', kind: 'ask-rent', city: 'sibu', propertyType: 'Apartment / flat', ...o });
+      const rent = (area, furnishing, vals, extra) => vals.map((v, i) => rec({ area, value: v, date: '2026-10-' + String(i + 3).padStart(2, '0'), ...(furnishing ? { furnishing } : {}), ...extra }));
+      const rows = [
+        /* Rejang Park: unfurnished 4 (median 900), partly 3 (1,150), fully 2 (too few), Not stated 5 (one a pre-field record with none) */
+        ...rent('Rejang Park', 'unfurnished', [900, 850, 950, 900]), ...rent('Rejang Park', 'partly', [1100, 1150, 1200]), ...rent('Rejang Park', 'fully', [1400, 1500]),
+        ...rent('Rejang Park', '', [700, 2000, 800, 1900, 1000]),
+        /* Lanang: unfurnished 4, partly 2 — a second state, but under 3: no difference */
+        ...rent('Lanang', 'unfurnished', [800, 820, 780, 810]), ...rent('Lanang', 'partly', [1000, 1050]),
+        /* Permai: one stated state and Not stated only: no comparison */
+        ...rent('Permai', 'unfurnished', [800, 820, 780]), ...rent('Permai', '', [900, 950, 1000]),
+        /* Achieved rents of Rejang Park: fully 3 against unfurnished 3 */
+        ...rent('Rejang Park', 'unfurnished', [800, 820, 780], { kind: 'let-rent' }), ...rent('Rejang Park', 'fully', [1300, 1250, 1350], { kind: 'let-rent' }),
+      ];
+      const m = marketPulseModel(rows);
+      const cell = (a) => m.cells.find(c => c.area === a);
+      const RP = cell('Rejang Park'), LN = cell('Lanang'), PM = cell('Permai');
+      const g = (c, k) => c.furnish[k];
+      const out = {
+        old: [mpFurnishing({}), mpFurnishing({ furnishing: 'partly' }), mpFurnishing({ furnishing: 'luxury' }), mpFurnishLabel('')],
+        rp: g(RP, 'ask-rent') && { u: g(RP, 'ask-rent').groups.unfurnished.median, un: g(RP, 'ask-rent').groups.unfurnished.n, p: g(RP, 'ask-rent').groups.partly.median, pn: g(RP, 'ask-rent').groups.partly.n,
+          f: g(RP, 'ask-rent').groups.fully.median, fn: g(RP, 'ask-rent').groups.fully.n, ns: g(RP, 'ask-rent').notStated.n, diffs: g(RP, 'ask-rent').diffs, words: mpFurnishWords(g(RP, 'ask-rent')) },
+        rpLet: g(RP, 'let-rent') && { diffs: g(RP, 'let-rent').diffs },
+        ln: g(LN, 'ask-rent') && { diffs: g(LN, 'ask-rent').diffs, words: mpFurnishWords(g(LN, 'ask-rent')) },
+        pm: g(PM, 'ask-rent'), pmLet: g(PM, 'let-rent'),
+      };
+      State.observations = rows; navigate('/property/market'); await new Promise(res => setTimeout(res, 600));
+      const at = (a, k) => document.querySelector('[data-mp-cell="sibu|' + a + '|Apartment / flat"] [data-mp-furnish="' + k + '"]');
+      out.dom = { rp: at('Rejang Park', 'ask-rent')?.textContent || '', ln: at('Lanang', 'ask-rent')?.textContent || '', pm: !!at('Permai', 'ask-rent'),
+        rpLabel: [...document.querySelectorAll('[data-mp-cell="sibu|Rejang Park|Apartment / flat"] .mp-dl dt')].map(d => d.textContent) };
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog);
+      return JSON.stringify(out);
+    })()`));
+    const p = [], near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
+    if (JSON.stringify(r.old) !== '["","partly","","Not stated"]') p.push(`a record with no furnishing, or an unknown one, does not read as Not stated: ${JSON.stringify(r.old)}`);
+    const R = r.rp;
+    if (!R || R.u !== 900 || R.un !== 4 || R.p !== 1150 || R.pn !== 3 || R.f !== null || R.fn !== 2 || R.ns !== 5) p.push(`Rejang Park's asking rents by furnishing: ${JSON.stringify(R && { u: R.u, un: R.un, p: R.p, pn: R.pn, f: R.f, fn: R.fn, ns: R.ns })}`);
+    if (!R || R.diffs.length !== 1 || R.diffs[0].a !== 'partly' || R.diffs[0].b !== 'unfurnished' || R.diffs[0].amount !== 250 || !near(R.diffs[0].pct, 250 / 900 * 100)) p.push(`the difference: ${JSON.stringify(R?.diffs)} — only partly against unfurnished reach n = 3 (fully has 2)`);
+    if (!R || R.words.line !== 'unfurnished RM900 (n = 4, 3 Oct 2026 to 6 Oct 2026) · partly furnished RM1,150 (n = 3, 3 Oct 2026 to 5 Oct 2026) · fully furnished: n = 2 — too few (3 Oct 2026 to 4 Oct 2026)' || R.words.notStated !== 'Not stated: n = 5, kept apart and in neither side.'
+      || R.words.diffs[0] !== 'Partly furnished against unfurnished: +RM250 a month (+27.8%)') p.push(`the words: ${JSON.stringify(R?.words)}`);
+    if (!r.rpLet || r.rpLet.diffs.length !== 1 || r.rpLet.diffs[0].a !== 'fully' || r.rpLet.diffs[0].amount !== 500) p.push(`achieved rents, fully 1,300 against unfurnished 800: ${JSON.stringify(r.rpLet)}`);
+    if (!r.ln || r.ln.diffs.length !== 0 || !/^No difference shown: it needs 3 or more records in each of the two states\.$/.test(r.ln.words.noDiff) || !/partly furnished: n = 2 — too few/.test(r.ln.words.line)) p.push(`two partly-furnished rents still give a difference: ${JSON.stringify(r.ln)}`);
+    if (r.pm !== null || r.pmLet !== null) p.push(`one stated state and Not stated give a comparison: ${JSON.stringify(r.pm)}`);
+    if (!/Asking rent by furnishing/.test(r.dom.rp) || !/Partly furnished against unfurnished: \+RM250 a month \(\+27\.8%\)/.test(r.dom.rp) || !/Not stated: n = 5/.test(r.dom.rp)) p.push(`the page reads "${r.dom.rp}"`);
+    if (!/No difference shown/.test(r.dom.ln) || /\+RM/.test(r.dom.ln)) p.push(`Lanang's page reads "${r.dom.ln}"`);
+    if (r.dom.pm) p.push('Permai, with one stated state, shows a furnishing comparison');
+    if (!r.dom.rpLabel.some(t => /Asking rent, median, all furnishing states/.test(t))) p.push(`the all-states rent median is not labelled: ${JSON.stringify(r.dom.rpLabel)}`);
+    if (/worth/i.test(r.dom.rp + r.dom.ln)) p.push('the furnishing words pass a judgement');
+    if (p.length) fail('market pulse: the furnishing comparison', p.join('\n      '));
+    else ok('market pulse: with furnishing, Rejang Park reads "unfurnished RM900 (n = 4) · partly furnished RM1,150 (n = 3) · fully furnished: n = 2 — too few", Not stated n = 5 kept apart, and the difference (+RM250 a month, +27.8%) only between the two states that reach n = 3; two partly-furnished rents give no difference; one stated state shows no comparison; a record with no furnishing reads Not stated');
+  } catch (e) { fail('market pulse: the furnishing comparison could not be run', String(e.message).split('\n')[0]); }
+  /* The form writes the furnishing and the rent: on the asking prices and the asking rent, and on nothing when Not stated. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      State.observations = []; localStorage.removeItem('vl.registerLog'); loadRegisterLog();
+      navigate('/property/market'); await new Promise(res => setTimeout(res, 400));
+      const set = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      const press = async (id) => { document.getElementById(id).click(); await new Promise(res => setTimeout(res, 300)); };
+      const out = { options: [...document.getElementById('mp-furn').options].map(o => o.textContent), dflt: document.getElementById('mp-furn').value,
+        h: [document.getElementById('mp-furn'), document.getElementById('mp-rent')].map(n => Math.round(n.getBoundingClientRect().height)) };
+      set('mp-town', 'sibu'); set('mp-area', 'Rejang Park'); set('mp-type', 'Apartment / flat'); set('mp-date', '2026-10-30');
+      set('mp-count', '12'); set('mp-med', '300000'); set('mp-rent', '1150'); set('mp-furn', 'partly'); set('mp-src', 'Mudah search, 30 Oct');
+      await press('mp-save');
+      out.partly = State.observations.map(o => [o.kind, o.value, o.furnishing || null]).reverse();
+      set('mp-count', '12'); set('mp-med', ''); set('mp-rent', '900'); set('mp-furn', ''); await press('mp-save');
+      out.none = State.observations.slice(0, 2).map(o => [o.kind, o.value, o.furnishing || null]).reverse();
+      out.integrity = registerIntegrity().state;
+      const exp = exportEverything();
+      out.exported = (exp.data.observations || []).filter(x => x.furnishing === 'partly').map(x => x.kind).sort();
+      out.shape = storedShapeFault('observations', exp.data.observations);
+      const rep = replayRegister(); out.replayed = rep.observations.filter(x => x.furnishing === 'partly').map(x => x.kind).sort();
+      await press('mp-undo'); out.afterUndo = State.observations.length; out.integrityUndo = registerIntegrity().state;
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog); else localStorage.removeItem('vl.registerLog');
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (JSON.stringify(r.options) !== '["Not stated","Unfurnished","Partly furnished","Fully furnished"]' || r.dflt !== '') p.push(`the furnishing choice reads ${JSON.stringify(r.options)} with "${r.dflt}" chosen`);
+    if (r.h.some(x => x < 44)) p.push(`the furnishing and rent fields are ${r.h} px tall`);
+    if (JSON.stringify(r.partly) !== '[["listed",12,null],["ask-price",300000,"partly"],["ask-rent",1150,"partly"]]') p.push(`a stated furnishing is on the count or missing from a price or rent: ${JSON.stringify(r.partly)}`);
+    if (JSON.stringify(r.none) !== '[["listed",12,null],["ask-rent",900,null]]') p.push(`Not stated wrote a furnishing: ${JSON.stringify(r.none)}`);
+    if (r.integrity !== 'ok' || JSON.stringify(r.exported) !== '["ask-price","ask-rent"]' || r.shape || JSON.stringify(r.replayed) !== '["ask-price","ask-rent"]') p.push(`the field in the register: integrity ${r.integrity}, exported ${JSON.stringify(r.exported)}, shape fault ${r.shape}, replayed ${JSON.stringify(r.replayed)}`);
+    if (r.afterUndo !== 3 || r.integrityUndo !== 'ok') p.push(`Undo of the second snapshot left ${r.afterUndo} records (3 expected), integrity ${r.integrityUndo}`);
+    if (p.length) fail('market pulse: the form writes the furnishing', p.join('\n      '));
+    else ok('market pulse: the form offers Not stated (the default), Unfurnished, Partly furnished and Fully furnished with an asking rent; it puts the furnishing on the asking prices and the rent only, none when Not stated; the field is in the register, Export everything, replay and Undo');
+  } catch (e) { fail('market pulse: the furnishing form could not be run', String(e.message).split('\n')[0]); }
   /* ---- end market-pulse ---- */
 
 

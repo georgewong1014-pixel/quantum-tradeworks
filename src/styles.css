@@ -6444,6 +6444,11 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .mp-dl { display: grid; grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr); gap: 4px var(--md); margin: 6px 0 0; font-size: 13px; }
 .mp-dl dt { color: var(--ink-3); }
 .mp-dl dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.mp-furn { margin-top: var(--md); padding-top: var(--sm); border-top: 1px dotted var(--line-2, var(--line)); min-width: 0; }
+.mp-furn p { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.mp-furn p + p { margin-top: 4px; }
+.mp-furn-t { font-size: 12px; color: var(--ink-3); }
+.mp-furn-v, .mp-furn-d { font-size: 13px; color: var(--ink); }
 .mp-schemes { margin-top: var(--md); }
 .mp-schemes summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 @media (max-width: 639.98px) {

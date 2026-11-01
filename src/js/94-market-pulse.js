@@ -50,6 +50,12 @@ const MP_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'
    type already in the register is still shown. */
 const MP_FORM_TYPES = PROPERTY_TYPES.filter(t => t !== 'Land' && t !== 'Commercial lot');
 const MP_NO_TYPE = 'Type not stated';
+/* The owner, 1 Nov 2026: the furnished-rent premium, starting with Sibu. An optional field on the
+   rent and price records the snapshot writes. A record with none (every older one) is Not stated,
+   and nothing is rewritten. */
+const MP_FURNISHING = [['unfurnished', 'Unfurnished'], ['partly', 'Partly furnished'], ['fully', 'Fully furnished']];
+const mpFurnishing = (o) => (MP_FURNISHING.some(f => f[0] === o?.furnishing) ? o.furnishing : '');
+const mpFurnishLabel = (id) => (MP_FURNISHING.find(f => f[0] === id) || [, 'Not stated'])[1];
 
 /* ------------------------------------------------------------------ dates */
 const mpDateOk = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
@@ -167,6 +173,27 @@ function mpMonthsOfSupply(supply, soldObs) {
   return { status: 'ok', n, to, from, perMonth, listed: supply.cur.value, months: supply.cur.value / perMonth };
 }
 
+/* Rent by furnishing state, over every dated record of the kind in the cell (the dates are shown).
+   Each stated state has its median with n (a median needs MP_MIN_N); Not stated is its own count and
+   is in neither side. Shown only where records exist in more than one stated state; a difference
+   only between two states that both reach MP_MIN_N. */
+function mpFurnishCompare(records) {
+  const by = { unfurnished: [], partly: [], fully: [], '': [] };
+  records.forEach(o => by[mpFurnishing(o)].push(o));
+  const group = (xs) => {
+    const dates = xs.map(o => o.date).sort();
+    return { n: xs.length, median: xs.length >= MP_MIN_N ? medianOf(xs.map(o => o.value)) : null, dateMin: dates[0] || null, dateMax: dates[dates.length - 1] || null };
+  };
+  const g = { unfurnished: group(by.unfurnished), partly: group(by.partly), fully: group(by.fully) }, notStated = group(by['']);
+  const stated = MP_FURNISHING.map(f => f[0]).filter(k => g[k].n > 0);
+  if (stated.length < 2) return null;
+  /* Each pair, the dearer-furnished state against the less: partly against unfurnished, fully against unfurnished, fully against partly. */
+  const diffs = [['partly', 'unfurnished'], ['fully', 'unfurnished'], ['fully', 'partly']]
+    .filter(([a, b]) => g[a].median != null && g[b].median != null)
+    .map(([a, b]) => ({ a, b, amount: g[a].median - g[b].median, pct: (g[a].median - g[b].median) / g[b].median * 100 }));
+  return { groups: g, notStated, diffs };
+}
+
 /* Every cell (a town's area and property type) the register holds a record for. */
 function marketPulseModel(rows) {
   const cells = new Map();
@@ -193,6 +220,8 @@ function marketPulseModel(rows) {
     return { key: c.key, city: c.city, area: c.area, type: c.type, gran: g,
       supply, ask, askSkipped: askBuilt.skipped, bid, rAsk, rLet, rVac,
       gap: mpGap(ask, bid), months: mpMonthsOfSupply(supply, sold), rentGap: mpGap(rAsk, rLet),
+      furnish: { 'ask-rent': mpFurnishCompare(c.rec['ask-rent']), 'let-rent': mpFurnishCompare(c.rec['let-rent']) },
+      furnishStated: ['ask-rent', 'let-rent', 'ask-price', 'sold-price'].some(k => c.rec[k].some(o => mpFurnishing(o))),
       records: MP_KINDS.reduce((t, k) => t + c.rec[k].length, 0) };
   });
   /* The register's own order, never by what a cell shows: the towns as the
@@ -244,15 +273,18 @@ function mpNapicContext(city, area, type) {
 /* One snapshot, through the register's own writer (addObservation), so each
    record is logged and Undo reverses it. Returns the records written. The
    count and the prices share a date, area, type, source and snapshot id. */
-function mpRecordSnapshot({ city, area, propertyType, date, count, low, median, high, source }) {
+function mpRecordSnapshot({ city, area, propertyType, date, count, low, median, high, rent, furnishing, source }) {
   const snapshotId = `snap-${date}-${Math.floor(performance.now())}-${(State.observations || []).length}`;
   const base = { city, area, propertyType, date, evidence: 'user', sourceRef: String(source || '').trim(), sourceKind: 'note',
     scope: 'area', snapshot: true, snapshotId };
+  /* Furnishing goes on the rent and price records, only when stated; the count is of all the listings. */
+  const furn = MP_FURNISHING.some(f => f[0] === furnishing) ? { furnishing } : {};
   const made = [];
   if (isNum(count)) made.push(addObservation({ ...base, kind: 'listed', value: count, snapshotRole: 'count' }));
   [['low', low], ['median', median], ['high', high]].forEach(([role, v]) => {
-    if (isNum(v)) made.push(addObservation({ ...base, kind: 'ask-price', value: v, snapshotRole: role }));
+    if (isNum(v)) made.push(addObservation({ ...base, ...furn, kind: 'ask-price', value: v, snapshotRole: role }));
   });
+  if (isNum(rent)) made.push(addObservation({ ...base, ...furn, kind: 'ask-rent', value: rent, snapshotRole: 'median' }));
   return made;
 }
 
@@ -322,6 +354,21 @@ function mpWords(c) {
   return W;
 }
 
+/* The furnishing comparison in words: each stated state with its median and n, Not stated as its own
+   count, and the difference only between two states that both reach MP_MIN_N. */
+function mpFurnishWords(f) {
+  const part = (k) => {
+    const x = f.groups[k], name = k === 'unfurnished' ? 'unfurnished' : k === 'partly' ? 'partly furnished' : 'fully furnished';
+    if (!x.n) return `${name}: no record`;
+    const dates = mpDates(x.dateMin, x.dateMax);
+    return x.median == null ? `${name}: ${mpTooFew(x.n)} (${dates})` : `${name} ${mpMoney(x.median)} (n = ${x.n}, ${dates})`;
+  };
+  const diffs = f.diffs.map(d => `${mpFurnishLabel(d.a)} against ${mpFurnishLabel(d.b).toLowerCase()}: ${d.amount > 0 ? '+' : d.amount < 0 ? '−' : ''}${mpMoney(Math.abs(d.amount))} a month (${mpPct(d.pct)})`);
+  return { line: MP_FURNISHING.map(x => part(x[0])).join(' · '),
+    notStated: f.notStated.n ? `Not stated: n = ${f.notStated.n}, kept apart and in neither side.` : null,
+    diffs, noDiff: diffs.length ? null : `No difference shown: it needs ${MP_MIN_N} or more records in each of the two states.` };
+}
+
 /* ------------------------------------------------------------------- page */
 const MP_TYPE_NOTE = 'Type not stated: records entered without a property type, kept apart from the typed ones.';
 /* The town and area, then the property type, as the form offers them first:
@@ -375,11 +422,14 @@ function mpSnapshotForm() {
   const low = num('mp-low', 'Asking price, lowest', 'RM, optional');
   const med = num('mp-med', 'Asking price, median', 'RM, optional');
   const high = num('mp-high', 'Asking price, highest', 'RM, optional');
+  const rent = num('mp-rent', 'Asking rent, median, a month', 'RM a month, optional');
+  const furn = el('select', { class: 'select', id: 'mp-furn' }, [el('option', { value: '' }, 'Not stated'), ...MP_FURNISHING.map(f => el('option', { value: f[0] }, f[1]))]);
   const src = el('input', { class: 'input', id: 'mp-src', type: 'text', autocomplete: 'off', placeholder: 'e.g. Mudah search, 1 Nov', 'aria-label': 'Source note' });
 
   card.append(el('div', { class: 'mp-row' }, [field('mp-town', 'Town', town), field('mp-area', 'Area', el('div', { class: 'mp-stack' }, [area, other])), field('mp-type', 'Property type', type)]));
   card.append(el('div', { class: 'mp-row' }, [field('mp-date', 'Date', date), field('mp-count', 'Number listed', count, 'How many were listed for sale.')]));
   card.append(el('div', { class: 'mp-row' }, [field('mp-low', 'Asking price, lowest (RM)', low), field('mp-med', 'Asking price, median (RM)', med), field('mp-high', 'Asking price, highest (RM)', high)]));
+  card.append(el('div', { class: 'mp-row' }, [field('mp-rent', 'Asking rent, median (RM a month)', rent), field('mp-furn', 'Furnishing', furn, 'Optional. Applies to the asking prices and rent above.')]));
   card.append(el('div', { class: 'mp-row' }, [field('mp-src', 'Source note', src, 'Where the numbers came from. Without one the record is kept as a note.')]));
 
   const status = el('p', { class: 'metaline mp-status', id: 'mp-status', role: 'status' }, '');
@@ -387,19 +437,19 @@ function mpSnapshotForm() {
   const save = el('button', { type: 'button', class: 'btn btn-primary mp-save', id: 'mp-save', onclick: () => {
     const areaName = area.value === '__other' ? other.value.trim() : area.value;
     const v = (n) => (n.value.trim() === '' ? null : Number(n.value));
-    const vals = { count: v(count), low: v(low), median: v(med), high: v(high) };
+    const vals = { count: v(count), low: v(low), median: v(med), high: v(high), rent: v(rent) };
     const bad = (m) => { status.textContent = m; toast(m); };
     if (!areaName) return bad('Name the area first.');
     if (!mpDateOk(date.value)) return bad('Choose the date of the search.');
-    for (const [k, label] of [['count', 'The number listed'], ['low', 'The lowest asking price'], ['median', 'The median asking price'], ['high', 'The highest asking price']]) {
+    for (const [k, label] of [['count', 'The number listed'], ['low', 'The lowest asking price'], ['median', 'The median asking price'], ['high', 'The highest asking price'], ['rent', 'The asking rent']]) {
       if (vals[k] != null && (!Number.isFinite(vals[k]) || vals[k] <= 0)) return bad(`${label} must be above zero.`);
       if (vals[k] != null && k === 'count' && !Number.isInteger(vals[k])) return bad('The number listed is a whole number.');
     }
-    if (Object.values(vals).every(x => x == null)) return bad('Enter the number listed, or at least one asking price.');
+    if (Object.values(vals).every(x => x == null)) return bad('Enter the number listed, an asking price or an asking rent.');
     const ps = [vals.low, vals.median, vals.high].filter(x => x != null);
     if (ps.some((x, i) => i && x < ps[i - 1])) return bad('Lowest, median and highest should run from smaller to larger.');
     const made = mpRecordSnapshot({ city: town.value, area: areaName, propertyType: type.value, date: date.value,
-      count: vals.count, low: vals.low, median: vals.median, high: vals.high, source: src.value });
+      count: vals.count, low: vals.low, median: vals.median, high: vals.high, rent: vals.rent, furnishing: furn.value, source: src.value });
     const where = `${areaName}, ${townName(town.value)} · ${type.value}`;
     const said = `Saved ${mpNplural(made.length, 'record')} for ${where}, ${mpDay(date.value)}.`;
     State.mpSaved = { said, at: Date.now() };
@@ -418,7 +468,7 @@ function mpSnapshotForm() {
   if (State.mpSaved && Date.now() - State.mpSaved.at < 60000) status.textContent = State.mpSaved.said;
   card.append(status);
   card.append(el('p', { class: 'metaline mp-hint' },
-    'A snapshot is saved to the comparables register: the count as Listings counted, each asking price as an Asking price, all with the date, area, type and source note above. A snapshot’s lowest, median and highest count once, as its median. Kept in this browser, in Export everything and in backups with the register.'));
+    'A snapshot is saved to the comparables register: the count as Listings counted, each asking price as an Asking price and the rent as an Asking rent, all with the date, area, type and source note above (and the furnishing, if stated). A snapshot’s lowest, median and highest count once, as its median. Kept in this browser, in Export everything and in backups with the register.'));
   return card;
 }
 
@@ -529,16 +579,29 @@ function mpCell(c, ctx) {
       const b = s.latest;
       return [label, b.median == null ? `${mpTooFew(b.n)} (${b.label})` : `${mpMoney(b.median)} a month (${b.label}: n = ${b.n}, ${mpDates(b.dateMin, b.dateMax)})`];
     };
-    const rows = [line(c.rAsk, 'Asking rent, median'), line(c.rLet, 'Achieved rent, median')];
+    const all = c.furnishStated ? ', all furnishing states' : '';
+    const rows = [line(c.rAsk, `Asking rent, median${all}`), line(c.rLet, `Achieved rent, median${all}`)];
     const v = c.rVac;
     rows.push(['Weeks vacant, median', !v.n ? 'No record' : v.latest.median == null ? `${mpTooFew(v.latest.n)} (${v.latest.label})` : `${fmtNum(v.latest.median, 1)} weeks (${v.latest.label}: n = ${v.latest.n}, ${mpDates(v.latest.dateMin, v.latest.dateMax)})`]);
     const gap = c.rentGap;
     rows.push(['Asking against achieved rent', !gap ? 'Needs both an asking and an achieved rent' : gap.status === 'ok'
       ? `${mpPct(gap.pct)} in ${gap.label} (asking n = ${gap.a.n}, achieved n = ${gap.b.n})`
       : `not shown: needs 3 or more of each in the same period (asking n = ${gap.a.n}, achieved n = ${gap.b.n})`]);
+    const furn = [['ask-rent', 'Asking rent'], ['let-rent', 'Achieved rent']].map(([k, label]) => {
+      const f = c.furnish[k];
+      if (!f) return null;
+      const w = mpFurnishWords(f);
+      return el('div', { class: 'mp-furn', 'data-mp-furnish': k }, [
+        el('p', { class: 'mp-furn-t' }, `${label} by furnishing`),
+        el('p', { class: 'mp-furn-v' }, w.line),
+        w.notStated ? el('p', { class: 'metaline' }, w.notStated) : null,
+        el('p', { class: 'mp-furn-d', 'data-mp-furnish-diff': '' }, w.diffs.length ? w.diffs.join('; ') : w.noDiff),
+      ]);
+    });
     card.append(el('div', { class: 'mp-rent', 'data-mp-rent': '' }, [
       el('p', { class: 'mp-sigs-h' }, 'Rental side'),
       el('dl', { class: 'mp-dl' }, rows.flatMap(([k, val]) => [el('dt', {}, k), el('dd', {}, val)])),
+      ...furn,
     ]));
   }
   const sch = mpNapicSchemes(ctx, c.area);
@@ -591,6 +654,7 @@ VIEWS.marketPulse = () => {
         'Each figure is your own record (Yours) with its n and the dates it covers. A period is a month, or a quarter where the records are thin.',
         'A median shows once 3 or more are recorded; below that the count is shown and the figure says too few. A cell with nothing recorded reads No record, never nought.',
         'Asking and transacted prices are never mixed in one median. A snapshot’s lowest, median and highest asking prices count once, as its median.',
+        'Furnishing is optional. Where a cell has rent records in more than one furnishing state, the medians sit side by side with each n; a difference shows only when both sides have 3 or more, and Not stated is its own count, in neither side.',
         'NAPIC’s figures (Official) are for the division and half-year named beside them. They are shown beside your records, never added to them.',
         'Direction is shown as up, down or flat with the numbers. Nothing is ranked, scored or advised.',
       ].map(x => el('li', {}, x))),

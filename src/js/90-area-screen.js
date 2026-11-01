@@ -1052,6 +1052,9 @@ function openComparableImport() {
                    sqft: areaOf(r.sqft), areaUnit: unit(r.areaUnit, 'sqft'),
                    landSqft: areaOf(r.landSqft), landUnit: unit(r.landUnit, 'point'),
                    titleType: TITLE_TYPES.some(t => t.id === title) ? title : '',
+                   /* The owner, 1 Nov 2026 (Market pulse): the furnishing and the snapshot a record came with come back. */
+                   ...(['unfurnished', 'partly', 'fully'].includes(r.furnishing) ? { furnishing: r.furnishing } : {}),
+                   ...(r.snapshotId && ['count', 'low', 'median', 'high'].includes(r.snapshotRole) ? { snapshotId: String(r.snapshotId), snapshotRole: r.snapshotRole } : {}),
                    ...(r.sample === true || r.sample === 'true' || r.standing === 'sample' ? { sample: true } : {}) } };
   };
 

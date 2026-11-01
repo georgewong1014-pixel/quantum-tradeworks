@@ -937,6 +937,39 @@ try {
     if (p.length) fail('the Listings counted kind and the Market pulse snapshot go through the register', p.join('\n      '));
     else console.log('ok    Listings counted records, edits, undoes and replays; a snapshot writes its count and asking prices through the register, travels in Export everything and is undone in one step');
   }
+  /* 12 — the furnishing field (the owner, 1 Nov 2026): optional on the rent and
+          price records a snapshot writes, in the register's shape, in Export
+          everything, replayed from the log and undone with its snapshot; an
+          older record with none is unchanged and reads as Not stated. */
+  {
+    const r = JSON.parse(await evaluate(`(() => {
+      ['registerLog','observations'].forEach(k => localStorage.removeItem('vl.' + k)); State.observations = []; loadRegisterLog();
+      const old = addObservation({ city:'sibu', area:'Rejang Park', propertyType:'Apartment / flat', kind:'ask-rent', value: 800, date:'2026-09-01', evidence:'user', sourceRef:'old', scope:'area' });
+      const made = typeof mpRecordSnapshot === 'function'
+        ? mpRecordSnapshot({ city:'sibu', area:'Rejang Park', propertyType:'Apartment / flat', date:'2026-11-01', count: 12, median: 300000, rent: 1150, furnishing: 'partly', source:'Mudah search, 1 Nov' }) : [];
+      const none = typeof mpRecordSnapshot === 'function'
+        ? mpRecordSnapshot({ city:'sibu', area:'Rejang Park', propertyType:'Apartment / flat', date:'2026-11-02', rent: 900, source:'x' }) : [];
+      const out = { made: made.map(m => [m.kind, m.value, m.furnishing || null]), none: none.map(m => [m.kind, m.furnishing || null]), oldHas: 'furnishing' in old,
+        read: typeof mpFurnishing === 'function' ? [mpFurnishing(old), mpFurnishing(made[2])] : null };
+      out.shape = storedShapeFault('observations', store.read('observations', []));
+      out.integrity = registerIntegrity().state;
+      out.replayed = replayRegister().observations.filter(o => o.furnishing).map(o => o.kind).sort();
+      out.exported = (exportEverything().data.observations || []).filter(o => o.furnishing === 'partly').map(o => o.kind).sort();
+      out.undo = [mpUndoSnapshot(), mpUndoSnapshot()]; out.left = State.observations.map(o => o.id === old.id);
+      out.integrityAfter = registerIntegrity().state;
+      ['registerLog','observations'].forEach(k => localStorage.removeItem('vl.' + k)); State.observations = []; loadRegisterLog();
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (JSON.stringify(r.made) !== '[["listed",12,null],["ask-price",300000,"partly"],["ask-rent",1150,"partly"]]') p.push(`a furnished snapshot wrote ${JSON.stringify(r.made)}`);
+    if (JSON.stringify(r.none) !== '[["ask-rent",null]]') p.push(`a snapshot with no furnishing wrote ${JSON.stringify(r.none)}`);
+    if (r.oldHas || JSON.stringify(r.read) !== '["","partly"]') p.push(`an older record: has the field ${r.oldHas}, reads ${JSON.stringify(r.read)}`);
+    if (r.shape || r.integrity !== 'ok') p.push(`shape fault ${r.shape}, integrity ${r.integrity}`);
+    if (JSON.stringify(r.replayed) !== '["ask-price","ask-rent"]' || JSON.stringify(r.exported) !== '["ask-price","ask-rent"]') p.push(`the field is replayed on ${JSON.stringify(r.replayed)}, exported on ${JSON.stringify(r.exported)}`);
+    if (JSON.stringify(r.undo) !== '[1,3]' || JSON.stringify(r.left) !== '[true]' || r.integrityAfter !== 'ok') p.push(`undo took ${JSON.stringify(r.undo)} records (the unfurnished rent, then the furnished three), left ${JSON.stringify(r.left)}, integrity ${r.integrityAfter}`);
+    if (p.length) fail('the furnishing field goes through the register', p.join('\n      '));
+    else console.log('ok    the furnishing field is optional on a snapshot\'s asking prices and rent, absent when Not stated and on older records, in the register\'s shape, in Export everything, replayed and undone with its snapshot');
+  }
   /* ---- end market-pulse ---- */
 
   console.log(failures
