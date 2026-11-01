@@ -480,6 +480,50 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end scenario-lab ---- */
 
+/* ---- market-pulse ---- */
+/* THE MARKET PULSE SAYS WHAT WAS RECORDED, NEVER A VERDICT (the owner,
+   1 Nov 2026: supply, asking price, demand and transacted price by area,
+   with no ranking, no score, no "hot" or "cold" and no advice). In its
+   module's text — comments left out — none of the property decision layer's
+   verdict phrases (ADVICE), the Scenario Lab's ranking and forecast words
+   (LAB_BANNED), the property landing's marketing words (PI_BANNED), a
+   hot-or-cold label, a score or a rank of areas, or "live" or "real-time"
+   is used as a claim: only in a sentence that denies it ("nothing here is
+   ranked or scored"). Absent, the module is said to be. */
+{
+  const ADVICE = /\b(good deal|great deal|better deal|bad deal|bargain|undervalued|overvalued|under-?priced|over-?priced|below market|above market|you should (?:buy|sell|offer|pay)|worth buying|best (?:route|option|choice)|safest|riskiest|recommended price)\b/gi;
+  const LAB_BANNED = ['recommend', 'best', 'winner', 'top pick', 'you should', 'better deal', 'outperform', 'forecast'];
+  const PI_BANNED = /\b(best|guarantee[ds]?|recommend\w*|top picks?|winners?|outperform\w*|accura(?:te|cy)|proven|trusted|testimonials?|risk[- ]free|number one|forecasts?|bargains?|undervalued|upgrade|buy now|sign up|subscribe)\b|#1\b/gi;
+  const PULSE_BANNED = /\b(hot|hottest|cold|coldest|heating|cooling|overheated|booming|surging|plunging|soaring|buyer'?s market|seller'?s market|score[sd]?|scoring|ranks?|ranked|ranking|rankings|top areas?|best areas?|live|real[\s-]?time|realtime|opportunity|undervalued|sell now|buy now)\b/gi;
+  const PULSE_DENIAL = new RegExp(`${DENIAL.source}|\\bno\\b|\\bnot\\b|nothing|never`, 'i');
+  let src = null;
+  try { src = readFileSync(join(ROOT, 'src', 'js', '94-market-pulse.js'), 'utf8'); } catch { src = null; }
+  if (src === null) {
+    bad++;
+    console.error('FAIL  the Market pulse module is missing (src/js/94-market-pulse.js), so its words cannot be checked');
+  } else {
+    const code = uncommented(src);
+    let pBad = 0, pSeen = 0;
+    const hits = [];
+    for (const re of [ADVICE, PI_BANNED, PULSE_BANNED]) for (const m of code.matchAll(re)) hits.push(m);
+    for (const phrase of LAB_BANNED) {
+      const re = new RegExp(`\\b${phrase.replace(/ /g, '\\s+')}(?:ed|s|ing|ers?)?\\b`, 'gi');
+      for (const m of code.matchAll(re)) hits.push(m);
+    }
+    for (const m of hits) {
+      pSeen++;
+      const s = sentenceAt(code, m.index, m[0].length);
+      if (PULSE_DENIAL.test(s)) continue;
+      pBad++;
+      console.error(`FAIL  "${m[0]}" used as a claim in 94-market-pulse.js`);
+      console.error(`      “${s.slice(0, 220)}”`);
+    }
+    bad += pBad;
+    if (!pBad) console.log(`ok    the Market pulse (94-market-pulse.js) ranks, scores and advises nothing, and calls no area hot or cold — ${pSeen} banned word${pSeen === 1 ? '' : 's'} in its text, each in a sentence that denies it`);
+  }
+}
+/* ---- end market-pulse ---- */
+
 /* ---- property-investing ---- */
 /* THE PROPERTY LANDING MAKES NO MARKETING CLAIM (the owner's decision of
    7 Oct 2026: /property-investing is approved as a page about what ships;

@@ -881,6 +881,64 @@ try {
   }
   /* ---- end bugfix: property-focus ---- */
 
+  /* ---- market-pulse ---- */
+  /* 11 — the Listings counted kind (the owner, 1 Nov 2026, Market pulse): a
+          dated count of listings by area and type is a register record like
+          any other — it records, edits, undoes and replays; it is in the
+          register's shape, in Export everything and in the backup; and a
+          snapshot's count and asking prices are written through the
+          register's own writer and undone together. */
+  {
+    await load('/property/comparables');
+    const r = JSON.parse(await evaluate(`(() => {
+      const reset = () => { ['registerLog','observations'].forEach(k => localStorage.removeItem('vl.' + k)); State.observations = []; loadRegisterLog(); };
+      reset();
+      const out = { kind: OBSERVATION_KINDS.find(k => k.id === 'listed') || null };
+      const rec = addObservation({ city:'kuching', area:'Tabuan', propertyType:'Terrace (2 storey)', kind:'listed', value: 42, date:'2026-11-01', evidence:'user', sourceRef:'Mudah search, 1 Nov', scope:'area' });
+      out.held = State.observations.filter(o => o.kind === 'listed').length;
+      out.shape = storedShapeFault('observations', store.read('observations', []));
+      const o = State.observations[0];
+      recordObservationEdited(o.id, 'value', o.value, 47); State.observations[0] = { ...o, value: 47 }; saveObservations();
+      out.edited = State.observations[0].value;
+      out.replayEdit = replayRegister().observations.find(x => x.id === rec.id)?.value;
+      out.integrityRecord = registerIntegrity().state;
+      undoLastRegisterChange(); out.undoEdit = State.observations[0].value;
+      undoLastRegisterChange(); out.undoAdd = State.observations.length;
+      out.integrityUndone = registerIntegrity().state;
+      reset();
+      /* A snapshot: one count and three asking prices, one writer, one undo. */
+      const made = typeof mpRecordSnapshot === 'function'
+        ? mpRecordSnapshot({ city:'kuching', area:'Tabuan', propertyType:'Terrace (2 storey)', date:'2026-11-01', count: 44, low: 560000, median: 620000, high: 710000, source:'Mudah search, 1 Nov' }) : [];
+      out.snap = made.map(m => [m.kind, m.value, m.date, m.area, m.propertyType, m.snapshotRole]);
+      out.sameSnapshot = new Set(made.map(m => m.snapshotId)).size;
+      out.logged = registerLog().filter(e => e.entity === 'observation' && e.op === 'add').length;
+      out.integritySnap = registerIntegrity().state;
+      const exp = exportEverything();
+      out.exported = (exp.data.observations || []).filter(x => x.kind === 'listed' && x.value === 44).length;
+      out.exportShape = storedShapeFault('observations', exp.data.observations);
+      out.undoCount = typeof mpUndoSnapshot === 'function' ? mpUndoSnapshot() : null;
+      out.afterUndo = State.observations.length;
+      out.integrityAfter = registerIntegrity().state;
+      out.canUndo = canUndoRegister();
+      reset();
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (!r.kind || r.kind.unit !== 'listings' || r.kind.asking !== false) p.push(`OBSERVATION_KINDS has no Listings counted kind (id listed, unit listings): ${JSON.stringify(r.kind)}`);
+    if (r.held !== 1 || r.shape) p.push(`a listed record is held ${r.held} times, shape fault: ${r.shape}`);
+    if (r.edited !== 47 || r.replayEdit !== 47 || r.undoEdit !== 42 || r.undoAdd !== 0) p.push(`edit and undo: edited ${r.edited}, replayed ${r.replayEdit}, undone to ${r.undoEdit}, then ${r.undoAdd} records`);
+    if (r.integrityRecord !== 'ok' || r.integrityUndone !== 'ok') p.push(`integrity ${r.integrityRecord} / ${r.integrityUndone}`);
+    const T = 'Terrace (2 storey)';
+    if (JSON.stringify(r.snap) !== JSON.stringify([['listed', 44, '2026-11-01', 'Tabuan', T, 'count'], ['ask-price', 560000, '2026-11-01', 'Tabuan', T, 'low'],
+      ['ask-price', 620000, '2026-11-01', 'Tabuan', T, 'median'], ['ask-price', 710000, '2026-11-01', 'Tabuan', T, 'high']])) p.push(`a snapshot wrote ${JSON.stringify(r.snap)}`);
+    if (r.sameSnapshot !== 1 || r.logged !== 4 || r.integritySnap !== 'ok') p.push(`snapshot: ${r.sameSnapshot} ids, ${r.logged} logged adds, integrity ${r.integritySnap}`);
+    if (r.exported !== 1 || r.exportShape) p.push(`Export everything carries ${r.exported} listed records, shape fault: ${r.exportShape}`);
+    if (r.undoCount !== 4 || r.afterUndo !== 0 || r.integrityAfter !== 'ok' || r.canUndo !== false) p.push(`undoing the snapshot: ${r.undoCount} records, ${r.afterUndo} left, integrity ${r.integrityAfter}, can still undo ${r.canUndo}`);
+    if (p.length) fail('the Listings counted kind and the Market pulse snapshot go through the register', p.join('\n      '));
+    else console.log('ok    Listings counted records, edits, undoes and replays; a snapshot writes its count and asking prices through the register, travels in Export everything and is undone in one step');
+  }
+  /* ---- end market-pulse ---- */
+
   console.log(failures
     ? `\n${failures} invariant${failures === 1 ? '' : 's'} broken.`
     : '\nregister holds: record, edit, undo and replay agree across every entity.');

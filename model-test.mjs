@@ -12600,6 +12600,154 @@ try {
   }
   /* ---- end els-brief ---- */
 
+  /* ---- market-pulse ---- */
+  /* THE MARKET PULSE (the owner, 1 Nov 2026; 94-market-pulse.js). A scripted
+     set of synthetic register records gives the figures worked out here by
+     hand: the medians and their n, the change against the earlier period,
+     the ask–transacted gap, the months of supply and the rental gap, a
+     median withheld below n = 3, a cell with nothing recorded hollow, a
+     worked-example row left out, and NAPIC's count labelled with its own
+     division and kept apart from the reader's. Synthetic data, in this
+     isolated browser only. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      const T = 'Terrace (2 storey)';
+      const rec = (o) => ({ id: 'mp-' + Math.random(), evidence: 'user', scope: 'area', ...o });
+      const snap = (id, date, count, med, lo, hi) => [
+        ...(count != null ? [rec({ city:'kuching', area:'Tabuan', propertyType:T, kind:'listed', value:count, date, snapshotId:id, snapshotRole:'count', sourceRef:'Mudah search, ' + date })] : []),
+        rec({ city:'kuching', area:'Tabuan', propertyType:T, kind:'ask-price', value:med, date, snapshotId:id, snapshotRole:'median' }),
+        ...(lo ? [rec({ city:'kuching', area:'Tabuan', propertyType:T, kind:'ask-price', value:lo, date, snapshotId:id, snapshotRole:'low' })] : []),
+        ...(hi ? [rec({ city:'kuching', area:'Tabuan', propertyType:T, kind:'ask-price', value:hi, date, snapshotId:id, snapshotRole:'high' })] : [])];
+      const sold = (area, type, date, v, extra) => rec({ city:'kuching', area, propertyType:type, kind:'sold-price', value:v, date, ...extra });
+      const rows = [
+        ...snap('s1', '2026-07-10', null, 585000), ...snap('s2', '2026-08-03', null, 590000), ...snap('s3', '2026-09-05', null, 595000),
+        ...snap('s4', '2026-10-05', 35, 605000, 520000, 690000), ...snap('s5', '2026-10-18', 38, 610000), ...snap('s6', '2026-11-01', 44, 620000, 560000, 710000),
+        sold('Tabuan', T, '2026-07-22', 555000), sold('Tabuan', T, '2026-08-20', 560000), sold('Tabuan', T, '2026-09-12', 575000),
+        sold('Tabuan', T, '2026-10-02', 585000), sold('Tabuan', T, '2026-10-21', 590000), sold('Tabuan', T, '2026-11-01', 600000),
+        sold('Tabuan', T, '2026-11-01', 9999999, { sample: true }),
+        sold('Tabuan', T, '2026-11-01', 0),
+        rec({ city:'kuching', area:'Stutong', propertyType:'Condominium', kind:'ask-price', value:400000, date:'2026-10-10' }),
+        rec({ city:'kuching', area:'Stutong', propertyType:'Condominium', kind:'ask-price', value:420000, date:'2026-10-12' }),
+        sold('Stutong', 'Condominium', '2026-10-15', 380000), sold('Stutong', 'Condominium', '2026-10-20', 390000),
+        rec({ city:'kuching', area:'Stutong', propertyType:'Condominium', kind:'listed', value:20, date:'2026-10-20' }),
+        ...[2200, 2300, 2250].map((v, i) => rec({ city:'miri', area:'Marina', kind:'ask-rent', value:v, date:'2026-10-0' + (i + 3) })),
+        ...[2000, 2100, 2050].map((v, i) => rec({ city:'miri', area:'Marina', kind:'let-rent', value:v, date:'2026-10-1' + i })),
+        ...[4, 6].map((v, i) => rec({ city:'miri', area:'Marina', kind:'vacancy', value:v, date:'2026-10-2' + i })),
+      ];
+      const m = marketPulseModel(rows);
+      const cell = (a, t) => m.cells.find(c => c.area === a && c.type === t);
+      const A = cell('Tabuan', T), B = cell('Stutong', 'Condominium'), C = cell('Marina', '');
+      const WA = mpWords(A), WB = mpWords(B), WC = mpWords(C);
+      const pick = (x, keys) => Object.fromEntries(keys.map(k => [k, x?.[k]]));
+      const out = {
+        n: m.cells.length, examples: m.examples, order: m.cells.map(c => c.area),
+        A: { gran: A.gran, supply: pick(A.supply, ['n']), cur: A.supply.cur.value, prev: A.supply.prev.value, change: A.supply.change, pct: A.supply.pct,
+          ask: A.ask.buckets.map(b => [b.key, b.n, b.median, b.lo, b.hi]), bid: A.bid.buckets.map(b => [b.key, b.n, b.median]),
+          askTrend: mpTrend(A.ask), bidTrend: mpTrend(A.bid), gap: A.gap && { status: A.gap.status, key: A.gap.key, pct: A.gap.pct, an: A.gap.a.n, bn: A.gap.b.n },
+          months: A.months, words: { supply: WA.supply, ask: WA.ask, demand: WA.demand, bid: WA.bid } },
+        B: { gran: B.gran, askN: B.ask.latest.n, askMedian: B.ask.latest.median, bidMedian: B.bid.latest.median, gap: B.gap && { status: B.gap.status, an: B.gap.a.n, bn: B.gap.b.n },
+          months: B.months, words: { ask: WB.ask, bid: WB.bid, demand: WB.demand } },
+        C: { type: C.type, supply: C.supply, words: { supply: WC.supply, ask: WC.ask, bid: WC.bid }, gap: C.gap, months: C.months,
+          rentGap: C.rentGap && { status: C.rentGap.status, key: C.rentGap.key, pct: C.rentGap.pct, an: C.rentGap.a.n, bn: C.rentGap.b.n, am: C.rentGap.a.median, bm: C.rentGap.b.median },
+          vac: [C.rVac.latest.n, C.rVac.latest.median] },
+      };
+      await loadNapic('Kuching'); await loadNapic('Miri');
+      State.observations = rows; navigate('/property/market');
+      await new Promise(res => setTimeout(res, 600));
+      const q = (c, s) => document.querySelector('[data-mp-cell="' + c + '"] [data-mp-series="' + s + '"]');
+      const tab = 'kuching|Tabuan|' + T;
+      const demand = q(tab, 'demand'), bid = q(tab, 'bid'), ask = q(tab, 'ask'), sup = q(tab, 'supply');
+      out.dom = {
+        view: State.view, cells: document.querySelectorAll('[data-mp-cell]').length,
+        demandText: demand?.textContent || '', demandCtx: demand?.querySelector('.mp-ctx')?.textContent || '',
+        bidText: bid?.textContent || '', askText: ask?.textContent || '', supText: sup?.textContent || '',
+        hollowMiriSupply: q('miri|Marina|', 'supply')?.className || '',
+        miriCtx: q('miri|Marina|', 'demand')?.querySelector('.mp-ctx')?.textContent || '',
+        sigs: [...document.querySelectorAll('[data-mp-cell="' + tab + '"] [data-mp-signal]')].map(s => s.textContent),
+        h1: document.querySelector('main h1')?.textContent, tabs: [...document.querySelectorAll('nav a')].map(a => a.textContent.trim()).filter(t => t === 'Market pulse' || t === 'Comparables').length,
+        napicInDemandNumber: /1,?983/.test(demand?.textContent || ''),
+      };
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog);
+      return JSON.stringify(out);
+    })()`));
+    const p = [], near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
+    const A = r.A, B = r.B, C = r.C;
+    if (r.n !== 3 || r.examples !== 1) p.push(`${r.n} cells and ${r.examples} examples left out, not 3 and 1 (the worked-example row is not counted, a zero is not used)`);
+    if (JSON.stringify(r.order) !== '["Tabuan","Stutong","Marina"]') p.push(`the cells are in the order ${JSON.stringify(r.order)}, not the register's own (Kuching's list, then Miri)`);
+    if (A.gran !== 'q') p.push(`Tabuan is ${A.gran}ly, not by quarter though its latest month holds one asking price`);
+    if (A.cur !== 44 || A.prev !== 38 || A.change !== 6 || !near(A.pct, 6 / 38 * 100) || A.supply.n !== 3) p.push(`supply: ${JSON.stringify([A.cur, A.prev, A.change, A.pct, A.supply])}`);
+    if (JSON.stringify(A.ask) !== JSON.stringify([['2026-Q3', 3, 590000, null, null], ['2026-Q4', 3, 610000, 520000, 710000]])) p.push(`asking by quarter, a snapshot's low, median and high counted once as its median: ${JSON.stringify(A.ask)}`);
+    if (JSON.stringify(A.bid) !== JSON.stringify([['2026-Q3', 3, 560000], ['2026-Q4', 3, 590000]])) p.push(`transacted by quarter: ${JSON.stringify(A.bid)}`);
+    if (!A.askTrend || A.askTrend.dir !== 1 || !near(A.askTrend.pct, 20000 / 590000 * 100) || A.askTrend.from !== 590000) p.push(`the asking trend: ${JSON.stringify(A.askTrend)}`);
+    if (!A.bidTrend || A.bidTrend.dir !== 1 || !near(A.bidTrend.pct, 30000 / 560000 * 100)) p.push(`the transacted trend: ${JSON.stringify(A.bidTrend)}`);
+    if (!A.gap || A.gap.status !== 'ok' || A.gap.key !== '2026-Q4' || !near(A.gap.pct, (610000 - 590000) / 590000 * 100) || A.gap.an !== 3 || A.gap.bn !== 3) p.push(`the ask–transacted gap: ${JSON.stringify(A.gap)}`);
+    if (!A.months || A.months.status !== 'ok' || A.months.n !== 5 || !near(A.months.months, 44 * 3 / 5) || !near(A.months.perMonth, 5 / 3)) p.push(`months of supply: ${JSON.stringify(A.months)}`);
+    if (A.words.ask.value !== 'RM610,000' || A.words.bid.value !== 'RM590,000' || A.words.supply.value !== '44 listings counted' || A.words.demand.value !== '3 sales recorded') p.push(`the words: ${JSON.stringify(A.words)}`);
+    if (!/^↑ up 6 \(\+15\.8%\) from 38 on 18 Oct 2026$/.test(A.words.supply.trend)) p.push(`the supply trend reads "${A.words.supply.trend}"`);
+    if (!/^↑ up 3\.4% from RM590,000 in Q3 2026$/.test(A.words.ask.trend)) p.push(`the asking trend reads "${A.words.ask.trend}"`);
+    if (!/^Q4 2026: n = 3, 2 Oct 2026 to 1 Nov 2026$/.test(A.words.bid.meta)) p.push(`the transacted figure's n and dates read "${A.words.bid.meta}"`);
+    if (B.askN !== 2 || B.askMedian !== null || B.bidMedian !== null) p.push(`two asking and two transacted prices give medians ${B.askMedian} and ${B.bidMedian}`);
+    if (B.words.ask.value !== 'n = 2 — too few' || B.words.bid.value !== 'n = 2 — too few') p.push(`below three the words read "${B.words.ask.value}" and "${B.words.bid.value}"`);
+    if (!B.gap || B.gap.status !== 'few' || !B.months || B.months.status !== 'few' || B.months.n !== 2) p.push(`two sales and two asking prices still give a signal: ${JSON.stringify([B.gap, B.months])}`);
+    if (C.type !== '' || C.supply !== null || C.words.supply.value !== 'No record' || !C.words.supply.hollow || C.words.ask.value !== 'No record' || C.words.bid.value !== 'No record') p.push(`a cell with no listings or prices is not "No record": ${JSON.stringify(C.words)}`);
+    if (C.gap !== null || C.months !== null) p.push(`signals shown with no two sides: ${JSON.stringify([C.gap, C.months])}`);
+    if (!C.rentGap || C.rentGap.status !== 'ok' || C.rentGap.key !== '2026-10' || C.rentGap.am !== 2250 || C.rentGap.bm !== 2050 || !near(C.rentGap.pct, 200 / 2050 * 100)) p.push(`the rental gap: ${JSON.stringify(C.rentGap)}`);
+    if (JSON.stringify(C.vac) !== '[2,null]') p.push(`two weeks-vacant records give ${JSON.stringify(C.vac)}`);
+    const D = r.dom;
+    if (D.view !== 'marketPulse' || D.cells !== 3 || D.h1 !== 'Market pulse' || D.tabs !== 2) p.push(`the page: ${JSON.stringify({ view: D.view, cells: D.cells, h1: D.h1, tabs: D.tabs })}`);
+    if (!/^Official \(NAPIC\) Kuching division, H1 2025 \(NAPIC\): 1,980 residential transactions, the whole division\./.test(D.demandCtx)) p.push(`Tabuan's NAPIC line reads "${D.demandCtx}"`);
+    if (!/^Official \(NAPIC\) Miri division, H1 2025 \(NAPIC\): 920 residential transactions/.test(D.miriCtx)) p.push(`Marina's NAPIC line reads "${D.miriCtx}"`);
+    if (!/3 sales recorded/.test(D.demandText) || D.napicInDemandNumber || /NAPIC/.test(D.bidText) || /NAPIC/.test(D.askText) || /NAPIC/.test(D.supText)) p.push('NAPIC is merged into a figure or shown beside a series it does not belong to');
+    if (!/is-hollow/.test(D.hollowMiriSupply)) p.push(`Marina's empty supply is not drawn hollow: "${D.hollowMiriSupply}"`);
+    if (D.sigs.length !== 2 || !/Ask–transacted gap\+3\.4% in Q4 2026/.test(D.sigs[0]) || !/Months of supply26\.4 months/.test(D.sigs[1])) p.push(`the signals read ${JSON.stringify(D.sigs)}`);
+    if (p.length) fail('market pulse: figures from a scripted set of records', p.join('\n      '));
+    else ok('market pulse: from synthetic records the supply is 44 (up 6, +15.8%), the asking median RM610,000 and the transacted median RM590,000 (n = 3 each, by quarter, a snapshot counted once), the gap +3.4%, the months of supply 26.4, the rental gap +9.8%; two prices read "n = 2 — too few"; an empty cell is "No record"; NAPIC\'s 1,980 is labelled "Kuching division, H1 2025 (NAPIC)" and kept apart');
+  } catch (e) { fail('market pulse: the figures could not be run', String(e.message).split('\n')[0]); }
+  /* THE SNAPSHOT FORM. Saved with a count and three prices it writes one
+     listed record and three asking prices with one date, area and type;
+     with a bad entry it writes nothing; it remembers the town and type;
+     Undo takes the snapshot back in one step. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keep = State.observations; const keepLog = store.read('registerLog', null);
+      State.observations = []; navigate('/property/market'); await new Promise(res => setTimeout(res, 400));
+      const set = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      const press = async (id) => { document.getElementById(id).click(); await new Promise(res => setTimeout(res, 300)); };
+      const out = { size: ['mp-town', 'mp-area', 'mp-type', 'mp-date', 'mp-count', 'mp-low', 'mp-med', 'mp-high', 'mp-src', 'mp-save', 'mp-undo'].map(id => { const r = document.getElementById(id)?.getBoundingClientRect(); return [id, r ? Math.round(r.height) : null]; }) };
+      out.dateToday = document.getElementById('mp-date').value === localDay();
+      set('mp-town', 'miri'); set('mp-area', 'Marina'); set('mp-type', 'Condominium'); set('mp-count', '0'); await press('mp-save'); out.zero = State.observations.length;
+      set('mp-count', '25'); set('mp-low', '500000'); set('mp-med', '450000'); await press('mp-save'); out.unordered = State.observations.length;
+      set('mp-count', ''); set('mp-low', ''); set('mp-med', ''); await press('mp-save'); out.empty = State.observations.length;
+      set('mp-count', '25'); set('mp-low', '400000'); set('mp-med', '450000'); set('mp-high', '520000'); set('mp-src', 'PropertyGuru search, 30 Oct'); set('mp-date', '2026-10-30');
+      await press('mp-save');
+      out.rows = State.observations.map(o => [o.kind, o.value, o.date, o.city, o.area, o.propertyType, o.sourceRef, o.snapshotRole]).reverse();
+      out.remembered = [document.getElementById('mp-town').value, document.getElementById('mp-area').value, document.getElementById('mp-type').value];
+      out.cleared = [document.getElementById('mp-count').value, document.getElementById('mp-low').value, document.getElementById('mp-src').value];
+      out.status = document.getElementById('mp-status')?.textContent || '';
+      out.undoLabel = document.getElementById('mp-undo')?.textContent;
+      await press('mp-undo');
+      out.afterUndo = State.observations.length; out.integrity = registerIntegrity().state;
+      State.observations = keep; if (keepLog) store.write('registerLog', keepLog); else localStorage.removeItem('vl.registerLog');
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (r.zero !== 0 || r.unordered !== 0 || r.empty !== 0) p.push(`a bad entry wrote records: a count of 0 → ${r.zero}, a low above the median → ${r.unordered}, nothing entered → ${r.empty}`);
+    const W = ['Marina', 'Condominium', 'PropertyGuru search, 30 Oct'];
+    if (JSON.stringify(r.rows) !== JSON.stringify([['listed', 25, '2026-10-30', 'miri', W[0], W[1], W[2], 'count'], ['ask-price', 400000, '2026-10-30', 'miri', W[0], W[1], W[2], 'low'],
+      ['ask-price', 450000, '2026-10-30', 'miri', W[0], W[1], W[2], 'median'], ['ask-price', 520000, '2026-10-30', 'miri', W[0], W[1], W[2], 'high']])) p.push(`the snapshot wrote ${JSON.stringify(r.rows)}`);
+    if (JSON.stringify(r.remembered) !== '["miri","Marina","Condominium"]') p.push(`the form does not remember the last town, area and type: ${JSON.stringify(r.remembered)}`);
+    if (JSON.stringify(r.cleared) !== '["","",""]' || !r.dateToday) p.push(`the form keeps the last count, price or source, or the date is not today: ${JSON.stringify([r.cleared, r.dateToday])}`);
+    if (!/^Saved 4 records for Marina, Miri · Condominium, 30 Oct 2026\.$/.test(r.status) || r.undoLabel !== 'Undo last snapshot (4)') p.push(`status "${r.status}", button "${r.undoLabel}"`);
+    if (r.afterUndo !== 0 || r.integrity !== 'ok') p.push(`Undo left ${r.afterUndo} records, integrity ${r.integrity}`);
+    const small = r.size.filter(([id, h]) => h == null || h < 44);
+    if (small.length) p.push(`controls under 44px or missing: ${JSON.stringify(small)}`);
+    if (p.length) fail('market pulse: the snapshot form', p.join('\n      '));
+    else ok('market pulse: the snapshot form refuses a count of 0, an unordered low–median–high and an empty entry; saved, it writes one Listings counted and three Asking price records with one date, area, type and source, remembers the town, area and type, clears the numbers, and Undo takes all four back; every control is at least 44px');
+  } catch (e) { fail('market pulse: the snapshot form could not be run', String(e.message).split('\n')[0]); }
+  /* ---- end market-pulse ---- */
+
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
