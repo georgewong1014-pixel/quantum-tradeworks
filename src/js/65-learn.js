@@ -1154,10 +1154,16 @@ function openReportError() {
       const addr = supportEmail();
       /* With a support address (LAUNCH.contactEmail), the report is the visitor's
          to send: the address is shown as text, the mailto is a convenience, and
-         the case stays recorded here, not confirmed received. */
+         the case stays recorded here, not confirmed received.
+         QT-D17-01 (the owner's wording, 1 Nov 2026): it opens with what happened
+         and what did not — saved in this browser, nothing sent — and what the
+         reader can do: copy it, or export it (Export everything, on Your data,
+         carries every case and a restore brings them back). It said "Recorded
+         here as ID, not confirmed received", which says less about the sending
+         than about the receipt. */
       w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, addr
-        ? [`Recorded here as ${c.id}, not confirmed received. Nothing on this site sends it: copy the report and send it to `, el('strong', { 'data-support-address': '' }, addr), ', from your own email program.']
-        : `Recorded in this browser as ${c.id}. Nothing has been sent and nobody has received it — there is no server, and no contact address is published yet. Copy the case below and keep it, or send it once there is somewhere to send it to.`));
+        ? ['Correction case saved in this browser. Nothing has been sent. Copy or export the case if you want to report it: copy the report and send it to ', el('strong', { 'data-support-address': '' }, addr), `, from your own email program. It is recorded here as ${c.id}, not confirmed received.`]
+        : `Correction case saved in this browser. Nothing has been sent. Copy or export the case if you want to report it — no contact address is published yet, so keep it until there is somewhere to send it to. It is recorded here as ${c.id}.`));
       const pre = el('textarea', { class: 'input', 'aria-label': `Case ${c.id}, as text to copy`, style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px' });
       pre.value = correctionPayload(c);
       w.append(pre);

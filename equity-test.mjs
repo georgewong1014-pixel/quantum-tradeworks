@@ -11257,6 +11257,73 @@ try {
     if (p.length) fail('/status says whether its CI results are for the build serving it — the same build, an earlier one, or a record that names none — and a failed suite stays Fail', p);
     else ok('/status says whether its CI results are for the build serving it: "…for the build serving this page (' + b + ')", "…for an earlier build (app.…, CI on abcdef1); this build’s checks are not recorded yet", and "It is not known which build these results ran on" for a record that names none — a failed suite stays Fail under all three');
   }
+
+  /* THE CORRECTION-CASE JOURNEY, END TO END (QT-D17-01): report a wrong figure
+     from a page, see what is recorded with it (the page, the model version, the
+     data date), keep it in this browser, reload and reopen it from /corrections,
+     copy it, export it with everything else and recover it after it is deleted
+     — and nothing in it sends anything or claims it was received. Synthetic
+     figures only; the mailto is looked at, never opened. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const had = State.corrections;
+      const out = {};
+      const opened = []; const realOpen = window.open; window.open = (...a) => { opened.push(a[0]); return null; };
+      const page = location.pathname;
+      try {
+        State.corrections = []; saveCorrections();
+        const c0 = (U.find(x => x.c.real) || U[0]).c;
+        navigate(companyPath(c0)); await w(400);
+        out.page = location.pathname;
+        document.querySelector('[data-action="report-error"]').click(); await w(300);
+        out.recordedWith = document.querySelector('#drawer .sunk')?.textContent.replace(/\\s+/g, ' ').trim() || '';
+        const put = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input')); };
+        put('err-shownValue', '1,234'); put('err-expectedValue', '2,345'); put('err-description', 'synthetic: the figure does not match the filing');
+        [...document.querySelectorAll('#drawer button')].find(b => b.textContent.trim() === 'Save this case here').click(); await w(450);
+        const dr = document.getElementById('drawer');
+        out.confirmTitle = document.getElementById('drawerTitle')?.textContent.trim();
+        out.confirm = dr.querySelector('p.body')?.textContent.replace(/\\s+/g, ' ').trim() || '';
+        out.copied = dr.querySelector('textarea')?.value || '';
+        out.mailto = dr.querySelector('a[data-support-mailto]')?.getAttribute('href') || null;
+        out.copyButton = [...dr.querySelectorAll('button')].map(b => b.textContent.trim()).filter(t => /^Copy/.test(t));
+        closeDrawer({ restore: false }); await w(300);
+        out.id = State.corrections[0]?.id;
+        /* kept: in this browser's storage, and still there when read afresh */
+        out.stored = (store.read('corrections', []) || []).map(c => c.id);
+        State.corrections = store.read('corrections', []);
+        navigate('/corrections'); await w(300);
+        out.listed = document.getElementById('my-cases')?.innerText.replace(/\\s+/g, ' ') || '';
+        [...document.querySelectorAll('#my-cases button')].find(b => b.textContent.trim() === 'Open')?.click(); await w(300);
+        out.reopened = document.querySelector('#drawer textarea')?.value || '';
+        closeDrawer({ restore: false }); await w(300);
+        /* exported with everything, deleted, recovered */
+        const doc = JSON.parse(JSON.stringify(exportEverything()));
+        out.exported = (doc.data.corrections || []).map(c => c.id);
+        State.corrections = []; saveCorrections();
+        const imp = importEverything(doc); const done = imp.ok ? imp.apply() : { ok: false };
+        State.corrections = store.read('corrections', []);
+        out.recovered = { ok: done.ok, ids: State.corrections.map(c => c.id), text: State.corrections[0] ? correctionPayload(State.corrections[0]) : '' };
+        out.opened = opened.length; out.stayedOn = location.pathname;
+        out.model = MODEL_VERSION; out.asOf = AS_OF; out.tk = c0.tk || c0.id;
+      } finally { window.open = realOpen; State.corrections = had; saveCorrections(); }
+      return out;
+    })()`);
+    const p = [];
+    if (!r.id || r.stored.join() !== r.id || r.exported.join() !== r.id || r.recovered.ids.join() !== r.id) p.push(`the case is not kept, exported and recovered under one id: ${r.id} / stored ${r.stored} / exported ${r.exported} / recovered ${r.recovered.ids}`);
+    if (!r.recordedWith.includes(r.model) || !r.recordedWith.includes(r.asOf) || !/The page you were on/.test(r.recordedWith)) p.push(`what is recorded is not shown before saving (page, model version, data date): "${r.recordedWith}"`);
+    for (const [what, text] of [['the copied text', r.copied], ['the reopened case', r.reopened], ['the recovered case', r.recovered.text]]) {
+      if (!text.includes('Correction case ' + r.id) || !text.includes('Page: ' + r.page) || !text.includes('Model version: ' + r.model) || !text.includes('Data as of: ' + r.asOf) || !text.includes('Shown: 1,234') || !text.includes('Should be: 2,345') || !text.includes('Subject: ' + r.tk)) p.push(`${what} lacks the id, page, model version, data date or the figures: ${text.slice(0, 200)}`);
+    }
+    if (r.reopened !== r.copied || r.recovered.text !== r.copied) p.push('the reopened or recovered case differs from the one copied when it was saved');
+    if (!/^Case \S+ saved here, not sent$/.test(r.confirmTitle) || !/^Correction case saved in this browser\. Nothing has been sent\. Copy or export the case if you want to report it/.test(r.confirm)) p.push(`the confirmation reads "${r.confirmTitle}" / "${r.confirm}"`);
+    if (/\b(submitted|thank you|will be reviewed|will reply)\b/i.test(r.confirm) || /\breceived\b/i.test(r.confirm.replace(/not confirmed received/g, ''))) p.push(`the confirmation implies submission or receipt: "${r.confirm}"`);
+    if (!r.copyButton.length) p.push('the confirmation offers no copy');
+    if (!r.listed.includes(r.id)) p.push('/corrections does not list the case');
+    if (r.opened || r.stayedOn !== '/corrections') p.push(`the journey opened ${r.opened} window(s) or left /corrections (${r.stayedOn}) — nothing may be sent or mail opened`);
+    if (p.length) fail('the correction-case journey: report, review, keep, reopen, copy and recover a case, with nothing sent or implied as received', p);
+    else ok(`the correction-case journey: a wrong figure reported from ${r.page} shows the page, model version and data date it records, is kept in this browser (${r.id}), reopened from /corrections and copied, exported with everything and recovered after a delete — the same text each time, "Nothing has been sent", no mail opened`);
+  }
   {
     const { readFileSync, readdirSync } = await import('node:fs');
     const SRC = new URL('./src/js/', import.meta.url);
