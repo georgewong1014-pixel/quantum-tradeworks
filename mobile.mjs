@@ -1308,6 +1308,75 @@ for (const w of [360, 390]) {
   }
 }
 /* ---- end fixwave: property ---- */
+/* ---- reach: area and calculator ---- */
+/* THE EVERYDAY REACH ON A PHONE (the owner, 1 Nov 2026). The area screen's
+   panel for an opened locality (Tabuan), and the "Within 5 km" lines in the
+   calculator's demand test, at 360, 390 and 430 in the page's font and in
+   Verdana (CI's Linux fallback is wider than this build's): the page does not
+   scroll sideways; each of the panel's two tables sits inside its card with
+   every figure, source and date inside it, as does each hint; the four new
+   layers are 44px targets; and the panel's words are not cut by their cards. */
+{
+  const evalM = async (expression) => (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId)).result?.result?.value;
+  const loadAt = async (path, w) => {
+    await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (const t = Date.now(); Date.now() - t < 30000; await sleep(150))
+      if (await evalM(`typeof propertyPagesSettled === 'function' && document.readyState === 'complete' && propertyPagesSettled()`) === true) break;
+    await sleep(500);
+  };
+  const FONT = `(() => { const st = document.createElement('style'); st.id = 'reachFont'; st.textContent = 'body, button, a, select, th, td, div, span, p { font-family: Verdana, sans-serif !important; }'; document.head.append(st); return true; })()`;
+  const fails = [];
+  let areaMeasured = 0, hintsMeasured = 0, layersMeasured = 0;
+  for (const w of [360, 390, 430]) for (const font of [null, 'Verdana']) {
+    const at = `${w}px${font ? ' in Verdana' : ''}`;
+    /* the area screen */
+    await loadAt('/property/areas', w);
+    if (font) await evalM(FONT);
+    const a = await evalM(`(async () => {
+      const wait = (ms) => new Promise(r => setTimeout(r, ms));
+      document.getElementById('area-rec-Tabuan')?.click(); await wait(700);
+      const panel = document.getElementById('reach-panel');
+      if (!panel) return { none: true };
+      const card = panel.getBoundingClientRect();
+      const tables = [...panel.querySelectorAll('table')].map(t => { const wrap = t.closest('.tablewrap'); return { w: Math.round(t.getBoundingClientRect().width), wrap: wrap.clientWidth, scrolls: wrap.scrollWidth > wrap.clientWidth + 1 }; });
+      const cut = [...panel.querySelectorAll('[data-reach-src], [data-reach-row] th, [data-reach-row] .metaline')].filter(e => { const b = e.getBoundingClientRect(); return b.right > card.right + 1 || e.scrollWidth > e.clientWidth + 1; }).map(e => e.textContent.trim().slice(0, 40));
+      const layers = ['reachHospitals', 'reachSchools', 'reachGrowth', 'reachWork'].map(id => { const b = document.getElementById('af-layer-' + id); const r = b && b.getBoundingClientRect(); return { id, h: r ? Math.round(r.height) : null, w: r ? Math.round(r.width) : null }; });
+      return { tables, cut, layers, rows: panel.querySelectorAll('[data-reach-row]').length, sw: document.documentElement.scrollWidth, iw: innerWidth };
+    })()`);
+    areaMeasured++;
+    if (!a || a.none) fails.push(`${at}: the area screen's Everyday reach panel did not open for Tabuan`);
+    else {
+      if (a.rows !== 14) fails.push(`${at}: the panel has ${a.rows} rows, not 14`);
+      if (a.sw > a.iw + 1) fails.push(`${at}: the area screen is ${a.sw}px wide in a ${a.iw}px window`);
+      a.tables.forEach((t, i) => { if (t.scrolls || t.w > t.wrap + 1) fails.push(`${at}: the panel's table ${i + 1} is ${t.w}px in a ${t.wrap}px card${t.scrolls ? ' and scrolls' : ''}`); });
+      if (a.cut.length) fails.push(`${at}: words cut by the panel's card: ${a.cut.slice(0, 3).join('; ')}`);
+      a.layers.forEach(l => { layersMeasured++; if (l.h === null) fails.push(`${at}: no "${l.id}" layer button`); else if (l.h < 44) fails.push(`${at}: the ${l.id} layer button is ${l.h}px tall, under the 44px target`); });
+    }
+    /* the calculator's demand test */
+    await loadAt('/property/calculator?view=full&city=kuching&district=tabuan', w);
+    if (font) await evalM(FONT);
+    const c = await evalM(`(async () => {
+      const wait = (ms) => new Promise(r => setTimeout(r, ms));
+      document.querySelectorAll('#views .pc-sec').forEach(s => s.classList.add('is-on'));
+      document.querySelectorAll('#views details').forEach(d => { d.open = true; });
+      await wait(300);
+      const hints = [...document.querySelectorAll('.reach-hint')];
+      const bad = hints.map(h => { const card = h.closest('.card').getBoundingClientRect(), b = h.getBoundingClientRect(); return { id: h.dataset.reachHint, h: Math.round(b.height), cut: b.right > card.right + 1 || h.scrollWidth > h.clientWidth + 1 }; });
+      return { bad, sw: document.documentElement.scrollWidth, iw: innerWidth };
+    })()`);
+    hintsMeasured++;
+    if (!c || c.bad.length !== 3) fails.push(`${at}: the demand test shows ${c?.bad?.length} hints, not 3`);
+    else {
+      if (c.sw > c.iw + 1) fails.push(`${at}: the calculator is ${c.sw}px wide in a ${c.iw}px window`);
+      c.bad.forEach(h => { if (!(h.h > 0) || h.cut) fails.push(`${at}: the ${h.id} hint is ${h.h}px tall${h.cut ? ' and cut by its card' : ''}`); });
+    }
+  }
+  if (fails.length) { bad++; console.log('FAIL reach: the Everyday reach panel and the demand-test hints on a phone:'); fails.slice(0, 24).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   reach: at 360, 390 and 430 in the page's font and in Verdana — the area screen's Everyday reach panel for Tabuan (${areaMeasured} runs) keeps both tables, every figure, source and date inside its card with no sideways scroll, its ${layersMeasured / 6 | 0} sourced layer buttons are 44px targets, and the demand test's three "Within 5 km" hints (${hintsMeasured} runs) are whole inside theirs`);
+}
+/* ---- end reach: area and calculator ---- */
+
 /* ---- audit: content ---- */
 /* THE PRICING AND LEGAL PAGES ON A PHONE (launch audit, 29 Sep 2026). The
    "To be supplied" markers sit inside sentences, and the longest of them —

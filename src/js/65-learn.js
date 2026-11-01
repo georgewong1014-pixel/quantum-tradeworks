@@ -544,7 +544,8 @@ function learnData() {
     ]),
   ]))));
   rc.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, rt));
-  rc.append(el('p', { class: 'metaline', id: 'reach-data-dates', style: 'margin-top:var(--sm)' }, sarawakReach
+  /* The dates are read from the file by the page that loads it: served, they are the file's own and say so (data-now, 35-ui.js). */
+  rc.append(el('p', { class: 'metaline', id: 'reach-data-dates', 'data-now': 'The dates, and the attribution that goes with them, are held in the file itself, data/sarawak-reach.json.', style: 'margin-top:var(--sm)' }, sarawakReach
     ? `data/sarawak-reach.json: population as of ${reachDay(sarawakReach.populationAsOf)}; OpenStreetMap as of ${reachDay(sarawakReach.osmBase)}; retrieved ${reachDay(sarawakReach.retrieved)}. ${sarawakReach.attribution}`
     : reachLoadState === 'failed' ? 'The file’s dates could not be read here: data/sarawak-reach.json did not load.' : 'Reading the file’s dates…'));
   rc.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },

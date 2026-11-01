@@ -12599,6 +12599,129 @@ try {
     fail('els: the brief could not be run', String(e.message).split('\n')[0]);
   }
   /* ---- end els-brief ---- */
+  /* ---- reach ---- */
+  /* THE EVERYDAY REACH (the owner, 1 Nov 2026; data/sarawak-reach.json,
+     77-property-reach.js). Evidence shown beside an area and beside three
+     demand-test sources, never scored.
+     RE1 — Tabuan's panel shows, from the served file's own figures, its
+           district's population, change since 2020 and the two age shares,
+           the places mapped within 5 km with the nearest hospital, college
+           or university and mall, every row with its source and date, and
+           says once that a count is "at least this many", that distances are
+           straight line and that places of work are not jobs.
+     RE2 — the four sourced layers are in AREA_LAYERS: a locality with a
+           record has a value, one with none (a district town with no point;
+           Samalaju, which has no district) is null, and none sorts or ranks.
+     RE3 — beside employment, education and healthcare in the demand test,
+           and only there, one "Within 5 km of Tabuan: … (OpenStreetMap, Nov
+           2026)" line from the same file; none for an area the file does
+           not hold.
+     RE4 — the demand test is the reader's: with the file loaded and
+           without it, the verdict, every state, the grade, its gates and the
+           IPS answers are identical, with nothing recorded and with demand
+           recorded; nothing is marked by the hint. */
+  try {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const file = await (await fetch(dataUrl('sarawak-reach.json'))).json();
+      if (!sarawakReach) await loadReach();
+      const text = (n) => n.textContent.replace(/\\s+/g, ' ');
+      const panel = everydayReachPanel('kuching', 'Tabuan');
+      const rec = file.cities.kuching.areas.Tabuan, dist = file.districts[rec.district];
+      const y = String(file.populationAsOf).slice(0, 4);
+      const rows = [...panel.querySelectorAll('[data-reach-row]')].map(tr => ({ id: tr.dataset.reachRow, text: text(tr), src: tr.querySelector('[data-reach-src]')?.textContent || '' }));
+      const layers = ['reachHospitals', 'reachSchools', 'reachGrowth', 'reachWork'].map(id => {
+        const L = LAYER_BY_ID[id];
+        return L && { id, label: L.label, kind: L.kind, tabuan: L.value('kuching', 'Tabuan'), text: L.text('kuching', 'Tabuan'), samalaju: L.value('bintulu', 'Samalaju'),
+          noPoint: L.value('bau', 'Bau town'), hasBadge: !!L.badge, sorts: typeof L.sort !== 'undefined' || typeof L.rank !== 'undefined' };
+      });
+      const dp = demandPanel('kuching', 'Tabuan');
+      const hints = [...dp.querySelectorAll('.reach-hint')].map(h => ({ id: h.dataset.reachHint, text: text(h) }));
+      const none = demandPanel('bau', 'Bau town').querySelectorAll('.reach-hint').length;
+      const d = { ...State.deal, city: 'kuching', district: 'Tabuan' };
+      const snap = () => { const m = dealModel(d), g = propertyGrade(d, m), t = demandTest(d.city, d.district), ips = propertyIps(d, m, g);
+        return JSON.stringify({ verdict: t.verdict, why: t.why, states: t.items.map(i => [i.source.id, i.state && i.state.id, i.counts]), grade: g.grade, verdictG: g.verdict, gates: g.gates.map(x => x.id + ':' + x.severity), ips: ips.answers.map(a => a.gate.n + ':' + a.verdict.label + ':' + a.why), sentence: ips.sentence }); };
+      const saved = State.demand, withFile = sarawakReach;
+      const out = {};
+      try {
+        for (const [name, demand] of [['none', {}], ['recorded', { 'kuching|Tabuan': { employment: { state: 'operating' }, education: { state: 'promised' }, healthcare: { state: 'declining' }, family: { state: 'operating' } } }]]) {
+          State.demand = demand;
+          sarawakReach = withFile; const a = snap();
+          const afterHint = JSON.stringify(State.demand);
+          sarawakReach = null; const b = snap();
+          out[name] = { same: a === b, untouched: afterHint === JSON.stringify(demand), verdict: JSON.parse(a).verdict, grade: JSON.parse(a).grade };
+        }
+      } finally { State.demand = saved; sarawakReach = withFile; }
+      return JSON.stringify({ file: { rec, dist, y, osmBase: file.osmBase, asOf: file.populationAsOf, attribution: file.attribution },
+        panelText: text(panel), rows, layers, hints, none, out, day: [reachDay(file.osmBase), reachDay(file.populationAsOf), reachMonth(file.osmBase)],
+        fmt: { pop: fmtNum(dist.population[y], 0), growth: withSign(dist.growthPct, 1, '%') } });
+    })()`));
+    const f = r.file, [osmDay, popDay, osmMonth] = r.day;
+    const p1 = [];
+    const must = (cond, why) => { if (!cond) p1.push(why); };
+    const rowOf = (k) => r.rows.find(x => x.id === k);
+    must(r.panelText.includes('Everyday reach — Tabuan'), 'no "Everyday reach — Tabuan" heading');
+    must(r.panelText.includes(r.fmt.pop), `the district population ${r.fmt.pop} is not shown`);
+    must(r.panelText.includes(r.fmt.growth), `the change since 2020 ${r.fmt.growth} is not shown`);
+    must(r.panelText.includes(`${f.dist.workingAgeSharePct.toFixed(1)}% of the district`), 'the working-age share is not shown');
+    must(r.panelText.includes(`${f.dist.childrenSharePct.toFixed(1)}% of the district`), 'the children\'s share is not shown');
+    const want = f.rec.within5km;
+    for (const [k, n] of Object.entries(want)) {
+      const row = rowOf(k);
+      must(row, `no row for ${k}`);
+      if (!row) continue;
+      must(n > 0 ? row.text.includes(`at least ${n.toLocaleString('en-US')}`) : row.text.includes('none mapped'), `${k}: the row says "${row.text}", the file ${n}`);
+      must(row.src === `OpenStreetMap, ${osmDay}`, `${k}: the source reads "${row.src}", not "OpenStreetMap, ${osmDay}"`);
+    }
+    for (const k of ['population', 'growth', 'working', 'children']) must(rowOf(k) && rowOf(k).src === `DOSM, ${popDay}`, `${k}: the source reads "${rowOf(k)?.src}", not "DOSM, ${popDay}"`);
+    const near = f.rec.nearest;
+    must(near.hospital.km > 0 && rowOf('hospitals').text.includes(`${near.hospital.km.toFixed(1)} km`), 'the nearest hospital\'s distance is not shown');
+    must(near.mall.name && rowOf('malls').text.includes(near.mall.name), 'the nearest mall is not named');
+    must(rowOf('collegesAndUniversities').text.includes('nearest college or university'), 'the nearest college or university is not shown');
+    must((r.panelText.match(/at least this many/g) || []).length === 1, 'the "at least this many" caveat is not said exactly once');
+    must(/straight line/.test(r.panelText) && /not travel time/.test(r.panelText), 'straight line, not travel time, is not said');
+    must(/not jobs/.test(r.panelText), 'places of work are not said to be not jobs');
+    must(r.panelText.includes('Department of Statistics Malaysia (DOSM), CC BY 4.0') && r.panelText.includes('© OpenStreetMap contributors'), 'the attribution of both sources is not on the panel');
+    must(!/\b(best|recommend\w*|undervalued|demand score|rank(?:ed|ing)?s?)\b/i.test(r.panelText.replace('not scored, not turned into a grade', '')), 'the panel uses a banned word: ' + (r.panelText.match(/\b(best|recommend\w*|undervalued|demand score|rank\w*)\b/i) || [''])[0]);
+    if (p1.length) fail('reach RE1: Tabuan\'s Everyday reach panel shows the file\'s figures, each with its source and date, and its caveats once', p1);
+    else ok(`reach RE1: Tabuan's panel shows ${r.fmt.pop} people in ${f.rec.district} (${r.fmt.growth} since 2020, ${f.dist.workingAgeSharePct}% working age, ${f.dist.childrenSharePct}% children, "DOSM, ${popDay}") and ${Object.keys(want).length} counts within 5 km with the nearest hospital, college or university and mall ("OpenStreetMap, ${osmDay}"), "at least this many" said once, straight line, not jobs`);
+
+    const p2 = [];
+    r.layers.forEach((L, i) => {
+      if (!L) { p2.push(`layer ${i} is missing`); return; }
+      if (L.kind !== 'quantity' || !L.hasBadge || L.sorts) p2.push(`${L.id}: kind ${L.kind}, badge ${L.hasBadge}, sorts ${L.sorts}`);
+      if (typeof L.tabuan !== 'number' || !L.text) p2.push(`${L.id}: Tabuan has value ${L.tabuan}, text ${L.text}`);
+      if (L.noPoint !== null) p2.push(`${L.id}: a district town with no point has ${L.noPoint}, not null (hollow)`);
+    });
+    const lg = r.layers.find(L => L && L.id === 'reachGrowth'), lw = r.layers.find(L => L && L.id === 'reachWork');
+    if (lg && lg.samalaju !== null) p2.push(`Samalaju has no district, and the growth layer gives it ${lg.samalaju}`);
+    if (lw && lw.samalaju === null) p2.push('Samalaju has a reach record, and the places-of-work layer draws it hollow');
+    if (p2.length) fail('reach RE2: four sourced layers, a value for an area with a record and hollow for one with none', p2);
+    else ok('reach RE2: hospitals, schools, district population change and places of work are layers of the area screen — a value for Tabuan, null (drawn hollow) for a district town with no point, and for Samalaju\'s district-wide change, which has no district; none sorts or ranks');
+
+    const p3 = [];
+    if (r.hints.map(h => h.id).join() !== 'employment,education,healthcare') p3.push(`the hints stand beside ${r.hints.map(h => h.id).join(', ') || 'nothing'}`);
+    r.hints.forEach(h => {
+      if (!h.text.startsWith('Within 5 km of Tabuan: ') || !h.text.endsWith(`mapped (OpenStreetMap, ${osmMonth})`)) p3.push(`${h.id}: "${h.text}"`);
+    });
+    const hh = Object.fromEntries(r.hints.map(h => [h.id, h.text]));
+    if (hh.healthcare && !(hh.healthcare.includes(`${want.hospitals} hospital`) && hh.healthcare.includes(`${want.clinics} clinic`))) p3.push(`the healthcare hint "${hh.healthcare}" does not carry the file's ${want.hospitals} hospitals and ${want.clinics} clinics`);
+    if (r.none !== 0) p3.push(`${r.none} hints for an area the file does not hold`);
+    if (p3.length) fail('reach RE3: a "Within 5 km" line beside employment, education and healthcare, none where the file holds no area', p3);
+    else ok(`reach RE3: the demand test carries "Within 5 km of Tabuan: … mapped (OpenStreetMap, ${osmMonth})" beside employment, education and healthcare and nowhere else, and none for an area with no record`);
+
+    const p4 = [];
+    for (const [name, o] of Object.entries(r.out)) {
+      if (!o.same) p4.push(`${name}: the verdict, states, grade, gates or IPS answers differ with the file loaded and without it`);
+      if (!o.untouched) p4.push(`${name}: the hint marked a source`);
+    }
+    if (r.out.none.verdict !== 'unknown') p4.push(`nothing recorded gives the verdict ${r.out.none.verdict}, not unknown`);
+    if (p4.length) fail('reach RE4: the demand test, the grade and the IPS are the same with and without the hint', p4);
+    else ok(`reach RE4: with the reach file loaded and without it, the demand verdict, every source's state, the grade (${r.out.recorded.grade}), its gates and the IPS answers are identical, with nothing recorded (${r.out.none.verdict}) and with four sources recorded (${r.out.recorded.verdict}); the hint marks nothing`);
+  } catch (e) {
+    fail('reach: the everyday-reach checks could not be run', String(e.message).split('\n')[0]);
+  }
+  /* ---- end reach ---- */
+
 
 } catch (e) {
   fail('harness error', e.message);
