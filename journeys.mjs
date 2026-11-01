@@ -1607,7 +1607,8 @@ const JOURNEYS = [
         await tab.goto('/property?real=0');
         await tab.expect(`State.view === 'propertyLab' && !!document.querySelector('.lab-els a')`, 'the Scenario Lab shows no ELS link beside its Keep card');
         const words = await tab.eval(`document.querySelector('.lab-els a').textContent.trim()`);
-        if (!/^Need design or renovation planning\? ELS/.test(words)) throw new StepError(`the Lab's link reads "${words}"`);
+        /* 1 Nov 2026 (the coordinator): the link says what it does and where it leads. */
+        if (!/^Need design or renovation planning\? Copy a brief for ELS/.test(words)) throw new StepError(`the Lab's link reads "${words}"`);
         await tab.click(`document.querySelector('.lab-els a')`, 'The Lab’s ELS link');
         await tab.expect(`State.view === 'property' && !!document.getElementById('els-plan')?.open`, async () => `the link did not open the calculator's panel: ${await tab.where()}`, 8000);
         const at = await tab.eval(`({ path: location.pathname, search: location.search, hash: location.hash, view: new URLSearchParams(location.search).get('view') })`);

@@ -3575,7 +3575,7 @@ const ELS_LINK_WORDS = 'Open the ELS website';
    heading is the question; the links to it keep "ELS" so the reader knows where
    they lead. */
 const ELS_HEADING_WORDS = 'Need design or renovation planning?';
-const ELS_ACTION_WORDS = 'Need design or renovation planning? ELS';
+const ELS_ACTION_WORDS = 'Need design or renovation planning? Copy a brief for ELS';
 /* Where the panel is addressed from, as a section is (#scenarios): no deal and
    nothing private in it; the calculator opens the full model for it
    (pcArrivalView) and keeps the deal it holds. */
