@@ -447,6 +447,7 @@ here too.)`);
 
   console.log('asking Overpass for the mapped places…');
   const osm = await getOsm(ua);
+  if (osm.remark) throw new Error(`Overpass stopped early (${osm.remark}); whatever it sent is a part`);
   const osmBase = osm.osm3s?.timestamp_osm_base;
   if (!osmBase || !Array.isArray(osm.elements) || osm.elements.length < 1000)
     throw new Error(`the Overpass answer carries ${osm.elements?.length ?? 'no'} elements and ${osmBase ? 'a' : 'no'} base timestamp; Sarawak has thousands, so this is a partial answer`);

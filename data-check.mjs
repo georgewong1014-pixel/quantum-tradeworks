@@ -209,5 +209,78 @@ const warned = {};                     /* rule -> [id: detail] */
 }
 /* ---- end bugfix: ingest ---- */
 
+/* ---- the everyday-reach file (the owner, 1 Nov 2026) ---- */
+/* data/sarawak-reach.json: the committed file holds to its own shape (the
+   ingest's --check, one function), and the writer behaves — it writes the
+   same bytes twice from the same sources, and when Overpass gives a partial
+   answer it refuses and leaves the file it holds as it was. Run in a
+   temporary copy on synthetic sources, so nothing tracked is touched and no
+   network is asked. */
+{
+  const fs = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { spawnSync } = await import('node:child_process');
+  const { pathToFileURL } = await import('node:url');
+  const T = fs.mkdtempSync(join(tmpdir(), 'qt-reach-check-'));
+  try {
+    const { checkReach } = await import(pathToFileURL(join(ROOT, 'ingest', 'sarawak-reach.mjs')).href);
+    const problems = await checkReach(join(ROOT, 'data', 'sarawak-reach.json'));
+    if (problems.length) fail('data/sarawak-reach.json fails its own check (node ingest/sarawak-reach.mjs --check)', problems.slice(0, 6));
+    else {
+      const d = JSON.parse(readFileSync(join(ROOT, 'data', 'sarawak-reach.json'), 'utf8'));
+      ok(`data/sarawak-reach.json holds its shape — ${Object.keys(d.districts).length} districts, ${Object.values(d.cities).reduce((n, c) => n + Object.keys(c.areas).length, 0)} areas, population as of ${d.populationAsOf}, OpenStreetMap base ${d.osmBase}`);
+      if (d.sources.population.licence !== 'CC BY 4.0' || d.sources.places.licence !== 'ODbL 1.0') fail('the reach file does not record both licences');
+    }
+
+    /* Synthetic sources: 45 districts (the five that matter, named as the
+       mapping table names them), seven years, 18 age bands; and 1,200 places
+       around Kuching, enough to pass the ingest's "not a partial answer" floor. */
+    const R = join(T, 'reach');
+    fs.mkdirSync(join(R, 'ingest'), { recursive: true });
+    fs.mkdirSync(join(R, 'data'), { recursive: true });
+    fs.copyFileSync(join(ROOT, 'ingest', 'sarawak-reach.mjs'), join(R, 'ingest', 'sarawak-reach.mjs'));
+    fs.copyFileSync(join(ROOT, 'data', 'sarawak-geo.json'), join(R, 'data', 'sarawak-geo.json'));
+    const names = ['Kuching', 'Samarahan', 'Sibu', 'Miri', 'Bintulu', ...Array.from({ length: 40 }, (_, i) => `District ${i + 1}`)];
+    const bands = ['0-4', '5-9', '10-14', '15-19', '20-24', '25-29', '30-34', '35-39', '40-44', '45-49', '50-54', '55-59', '60-64', '65-69', '70-74', '75-79', '80-84', '85+'];
+    const rows = ['state,district,date,sex,age,ethnicity,population'];
+    names.forEach((n, i) => { for (let y = 2020; y <= 2026; y++) {
+      rows.push(`Sarawak,${n},${y}-01-01,both,overall,overall,${(100 + i + (y - 2020)).toFixed(1)}`);
+      bands.forEach(b => rows.push(`Sarawak,${n},${y}-01-01,both,${b},overall,${((100 + i + (y - 2020)) / 18).toFixed(1)}`));
+    } });
+    rows.push('Perak,Ipoh,2026-01-01,both,overall,overall,700.0');
+    fs.writeFileSync(join(R, 'dosm.csv'), rows.join('\n'));
+    const els = [];
+    const cats = [{ amenity: 'school' }, { amenity: 'clinic' }, { amenity: 'hospital' }, { office: 'yes' }, { amenity: 'university' }, { shop: 'mall' },
+      { amenity: 'kindergarten' }, { landuse: 'industrial' }, { landuse: 'commercial' }, { landuse: 'retail' }];
+    for (let i = 0; i < 1200; i++) els.push({ type: 'node', id: i, lat: 1.5 + (i % 40) * 0.003, lon: 110.3 + (i % 37) * 0.003, tags: { ...cats[i % cats.length], name: `Place ${i}` } });
+    const osmDoc = (extra = {}) => JSON.stringify({ osm3s: { timestamp_osm_base: '2026-11-01T00:00:00Z' }, elements: els, ...extra });
+    const run = (osm, out) => spawnSync(process.execPath, [join(R, 'ingest', 'sarawak-reach.mjs'), '--dosm', join(R, 'dosm.csv'), '--osm', osm, '--out', out, '--retrieved', '2026-11-01'], { cwd: R, encoding: 'utf8' });
+
+    fs.writeFileSync(join(R, 'osm-good.json'), osmDoc());
+    const a = run(join(R, 'osm-good.json'), join(R, 'data', 'a.json')), b = run(join(R, 'osm-good.json'), join(R, 'data', 'b.json'));
+    if (a.status === 0 && b.status === 0 && fs.readFileSync(join(R, 'data', 'a.json'), 'utf8') === fs.readFileSync(join(R, 'data', 'b.json'), 'utf8'))
+      ok('the reach ingest writes the same bytes twice from the same sources, and the file it writes passes its own check');
+    else fail('the reach ingest is not deterministic, or refused synthetic sources', { a: a.status, b: b.status, err: String(a.stderr || '').slice(0, 300) });
+
+    /* A partial Overpass answer: too few elements, then a runtime-error remark.
+       The file already held must be exactly as it was, and the run must say no. */
+    const HELD = join(R, 'data', 'held.json');
+    fs.writeFileSync(HELD, 'the file already held\n');
+    fs.writeFileSync(join(R, 'osm-short.json'), JSON.stringify({ osm3s: { timestamp_osm_base: '2026-11-01T00:00:00Z' }, elements: els.slice(0, 200) }));
+    fs.writeFileSync(join(R, 'osm-remark.json'), osmDoc({ remark: 'runtime error: Query timed out' }));
+    const p1 = run(join(R, 'osm-short.json'), HELD);
+    const p2 = run(join(R, 'osm-remark.json'), HELD);
+    const held = () => fs.readFileSync(HELD, 'utf8') === 'the file already held\n' && !fs.existsSync(`${HELD}.tmp`);
+    if (p1.status !== 0 && p2.status !== 0 && held() && /partial/.test(String(p1.stderr)) && /stopped early/.test(String(p2.stderr)))
+      ok('a partial Overpass answer (200 of at least 1,000 elements, or one carrying a runtime-error remark) is refused: exit 1, the file already held untouched, no temporary file left');
+    else fail('the reach ingest wrote over the held file from a partial answer', { statuses: [p1.status, p2.status], held: fs.readFileSync(HELD, 'utf8').slice(0, 40), err: String(p1.stderr || '').slice(0, 200) });
+  } catch (e) {
+    fail('the reach file check threw', e.stack || e.message);
+  } finally {
+    fs.rmSync(T, { recursive: true, force: true });
+  }
+}
+/* ---- end the everyday-reach file ---- */
+
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exitCode = failures ? 1 : 0;
