@@ -123,6 +123,8 @@ function pmStampRecord(rec, at) {
   rec.modelVersion = MODEL_VERSION;
   rec.asOf = AS_OF;
   rec.editor = 'this browser';
+  /* The stamp carries the fee rulebook beside the model (buildStamp; the
+     31 Oct 2026 operational audit, #3); modelVersion stays as it was. */
   rec.stamp = buildStamp('property');
 }
 /* When a property last changed. A record saved since this page loaded by
