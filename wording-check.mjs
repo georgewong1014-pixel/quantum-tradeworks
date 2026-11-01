@@ -481,7 +481,7 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 /* ---- end scenario-lab ---- */
 
 /* ---- shoplot ---- */
-/* THE SHOPLOT STARTING SCENARIOS ARE STARTING POINTS, NEVER ADVICE (the
+/* THE SHOPLOT AND INDUSTRIAL STARTING SCENARIOS ARE STARTING POINTS, NEVER ADVICE (the
    owner, 1 Nov 2026; 94-shoplot-scenarios.js). In the module's text —
    comments left out — no word that ranks, recommends, forecasts or grades
    a deal is used as a claim, only in a sentence that denies it ("— not a
@@ -513,9 +513,12 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
     if (!src.includes(`'${STATEMENT}'`)) p.push('the statement is not said as decided');
     if (!/Illustrative starting scenario — \$\{/.test(src)) p.push('the chip "Illustrative starting scenario — <town>" is not written');
     if (/'public'/.test(text.replace(/never 'public'/g, ''))) p.push('a scenario figure is given the evidence `public`, which the badges read as Yours');
+    /* The industrial scenarios (the owner, 1 Nov 2026): chipped as industrial, and a rent with no evidence says so. */
+    if (!src.includes("slIndustrial(r.town) ? ', industrial' : ''")) p.push('the industrial chip "Illustrative starting scenario — <town>, industrial" is not written');
+    if (!src.includes('no public rent evidence found for ${r.town.name}: replace with a local quote') || !src.includes('No public rent evidence found for ${town} — replace with a local quote.')) p.push('an industrial rent with no evidence does not say "no public rent evidence found for <town> — replace with a local quote"');
     bad += p.length;
     if (p.length) { console.error(`FAIL  ${p.length} problem(s) in the shoplot starting scenarios' words (94-shoplot-scenarios.js):`); p.forEach(x => console.error(`      ${x}`)); }
-    else console.log(`ok    the shoplot starting scenarios rank, recommend and forecast nothing (${seen} use${seen === 1 ? '' : 's'} of such a word, each denied), never call NAPIC's figure a median or a transaction, say the statement as decided and chip every scenario Illustrative`);
+    else console.log(`ok    the shoplot starting scenarios rank, recommend and forecast nothing (${seen} use${seen === 1 ? '' : 's'} of such a word, each denied), never call NAPIC's figure a median or a transaction, say the statement as decided, chip every scenario Illustrative (an industrial one as industrial) and say where no rent evidence was found`);
   }
 }
 /* ---- end shoplot ---- */

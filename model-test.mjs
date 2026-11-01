@@ -12801,6 +12801,183 @@ try {
   }
   /* ---- end shoplot ---- */
 
+  /* ---- industrial ---- */
+  /* INDUSTRIAL STARTING SCENARIOS — SARAWAK (the owner, 1 Nov 2026;
+     94-shoplot-scenarios.js, INDUSTRIAL_TOWNS). As the shoplots: option (a),
+     one rent for the building; dealModel unchanged.
+     IN1 — each town's three load as Lab columns A (the calculator's deal) and
+           B and C ('tpl:ind-<town>/…'), chipped "Illustrative starting
+           scenario — <town>, industrial", the card headed "Industrial
+           starting scenarios — <town>" with each column's notes: the
+           industrial checks, the partial cash, and the rent's evidence —
+           the Kuching listings' ranges, or "no public rent evidence found
+           for <town>"; every deal commercial, industrial, subsale, its rent
+           the sum of its parts after vacancy to the cent.
+     IN2 — every NAPIC figure in INDUSTRIAL_NAPIC is recomputed from
+           data/napic-h1-2025.json (the middle of the schemes, lowest,
+           highest, count, middle floor area); NAPIC holds no industrial
+           rent, so every rent line is Illustrative; Kuching's rents are
+           inside the listings' ranges, the other towns' the RM0.75
+           stand-in; each price, built-up area and line is worked from them.
+     IN3 — no figure of any industrial scenario is the reader's own.
+     IN4 — the reader's saved deal is untouched until Save, as SL4.
+     IN5 — the R1 deals' fingerprints are unchanged by loading them all. */
+  {
+    const fs = await import('node:fs');
+    const napicSrc = JSON.parse(fs.readFileSync(new URL('./data/napic-h1-2025.json', import.meta.url), 'utf8'));
+    const fp = `(() => {
+      const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+      const print = (d) => { const s = JSON.stringify(dealModel(d)); return fnv(s) + ':' + s.length; };
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const deals = { sample: base(), land: { ...base(), propertyType: 'Land', landSqft: 4000, sqft: 0 }, shophouse: { ...base(), propertyType: 'Shophouse', rent: 3500, sqft: 1600 },
+        condoAsCommercial: { ...base(), propertyClassOverride: 'commercial' }, taxed: { ...base(), rent: 3600, marginalTaxPct: 24 }, cash: { ...base(), downPct: 100 },
+        lowValuation: { ...base(), bankValuation: 540000 }, noTenure: { ...base(), tenureYears: 0 },
+        managed: { ...base(), selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 150, renovation: 60000, renoValueRecoveryPct: 40 } };
+      return Object.fromEntries(Object.entries(deals).map(([k, d]) => [k, print(d)]));
+    })()`;
+    let printsBefore = null;
+    try { printsBefore = await evaluate(fp); } catch { printsBefore = null; }
+
+    /* IN2 */
+    try {
+      const med = (xs) => { const v = xs.slice().sort((a, b) => a - b); return v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2; };
+      const page = JSON.parse(await evaluate(`JSON.stringify({ N: INDUSTRIAL_NAPIC, R: INDUSTRIAL_RENT, per: SHOPLOT_SQFT_PER_SQM,
+        towns: INDUSTRIAL_TOWNS.map(t => ({ id: t.id, napicTown: t.napicTown, evidence: t.evidence, name: t.name,
+          sc: t.scenarios.map(s => ({ key: s.key, napic: s.napic, spec: s.lines, d: shoplotDeal(t.id + '/' + s.key), lines: shoplotLines(t.id + '/' + s.key) })) })) })`));
+      const p = [];
+      const indRows = napicSrc.benchmarks.filter(b => b.subsector === 'INDUSTRIAL');
+      if (indRows.some(b => b.basis !== 'PRICE')) p.push('NAPIC holds an industrial rent row, which the scenarios do not use');
+      let n = 0;
+      for (const [town, T] of Object.entries(page.N)) for (const [k, fig] of Object.entries(T)) {
+        if (k === 'division') continue;
+        const rows = indRows.filter(b => b.division === T.division && b.table === 'Prices of Industrial Property' && b.propertyType === fig.type);
+        const want = { mid: med(rows.map(b => (b.min + b.max) / 2)), lo: Math.min(...rows.map(b => b.min)), hi: Math.max(...rows.map(b => b.max)), schemes: rows.length, floorSqm: med(rows.map(b => b.floorSqm)) };
+        for (const [f, v] of Object.entries(want)) { n++; if (fig[f] !== v) p.push(`${town} ${k}.${f} is ${fig[f]} in the page, ${v} recomputed`); }
+      }
+      if (Object.keys(page.N).join(',') !== 'kuching,samarahan,sibu,bintulu,miri') p.push(`the towns are ${Object.keys(page.N).join(', ')}`);
+      const R = page.R;
+      if (!(R.whole.psf >= R.whole.range[0] && R.whole.psf <= R.whole.range[1] && R.whole.range[0] === 0.75 && R.whole.range[1] === 1.4)) p.push(`the whole-unit rent ${JSON.stringify(R.whole)} is not inside the Kuching listings' RM0.75–1.40`);
+      if (!(R.bays.psf >= R.bays.range[0] && R.bays.psf <= R.bays.range[1] && R.bays.range[0] >= 1.8 && R.bays.range[1] <= 2.7)) p.push(`the bays' rent ${JSON.stringify(R.bays)} is not inside the listings' RM1.80–2.70`);
+      if (R.placeholder !== R.whole.range[0]) p.push(`the stand-in rent ${R.placeholder} is not the Kuching whole-unit low`);
+      for (const t of page.towns) for (const s of t.sc) {
+        const fig = page.N[t.napicTown][s.napic], ref = `${t.id}/${s.key}`, sqft = Math.round(fig.floorSqm * page.per);
+        if (s.d.price !== fig.mid || s.d.sqft !== sqft) p.push(`${ref}: price ${s.d.price}, ${s.d.sqft} sq ft — not NAPIC's ${fig.mid}, ${sqft}`);
+        s.spec.forEach((l, i) => {
+          const psf = t.evidence ? R[l.rent].psf : R.placeholder, want = Math.round(Math.round(sqft * l.share) * psf);
+          if (s.lines[i].gross !== want) p.push(`${ref} line ${i + 1}: ${s.lines[i].gross}, not ${want}`);
+          if (s.lines[i].kind !== 'illustrative') p.push(`${ref} line ${i + 1} is ${s.lines[i].kind}, where NAPIC publishes no industrial rent`);
+          if (!t.evidence && !s.lines[i].words.includes(`no public rent evidence found for ${t.name}`)) p.push(`${ref} line ${i + 1} does not say no rent evidence was found`);
+        });
+        if (s.key === 'A' && !(s.spec.length === 1 && s.spec[0].rent === 'whole' && !s.spec[0].own && s.spec[0].share === 1)) p.push(`${ref}: column A is not a whole unit on a long let`);
+      }
+      if (p.length) fail('industrial IN2: the NAPIC figures equal the recompute; every rent is labelled', p);
+      else ok(`industrial IN2: ${n} NAPIC figures of 5 towns (the 2-storey semi-detached in each, Miri's terrace too) equal their recompute — the middle of the schemes, lowest, highest, count and middle floor area; NAPIC's ${indRows.length} industrial rows are prices only, so every rent line is Illustrative: Kuching's inside the listings' ranges, the other four towns' the RM0.75 stand-in, each saying no public rent evidence was found; every price, built-up area and line is worked from them, and every column A is a whole unit on a long let`);
+    } catch (e) { fail('industrial IN2: the NAPIC figures could not be recomputed', String(e.message).split('\n')[0]); }
+
+    /* IN1, IN3, IN4 */
+    try {
+      const r = JSON.parse(await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const ls = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); ls[k] = localStorage.getItem(k); }
+        const keepDeal = State.deal;
+        const out = { towns: [], own: [], keep: {} };
+        try {
+          for (const t of INDUSTRIAL_TOWNS) {
+            shoplotStart(t.id); await w(900);
+            const lab = LAB.deal, card = document.getElementById('lab-slcard');
+            out.towns.push({ id: t.id, name: t.name, evidence: t.evidence, chip: 'Illustrative starting scenario — ' + t.name + ', industrial', view: State.view,
+              cols: (lab?.cols || []).map(c => ({ source: c.source, name: c.name, chip: labChipOf(c) })), titles: t.scenarios.map(s => s.title),
+              domChips: [...document.querySelectorAll('.lab-cols .lab-cmp-chip')].map(n => n.textContent),
+              status: document.getElementById('lab-status')?.textContent || null,
+              card: card ? { h: card.querySelector('h2')?.textContent, refs: [...card.querySelectorAll('[data-sl]')].map(n => n.dataset.sl),
+                notes: [...card.querySelectorAll('[data-sl]')].map(n => [...n.querySelectorAll('[data-note]')].map(x => x.dataset.note)),
+                statement: (card.textContent.match(/not a recommendation/g) || []).length } : null,
+              dealRef: State.deal.shoplot, kind: propertyStatus(State.deal).kind,
+              deals: ['A', 'B', 'C'].map(k => { const ref = t.id + '/' + k, d = shoplotDeal(ref), ls2 = shoplotLines(ref), m = dealModel(d);
+                return { cls: propertyClassOf(d), sub: dealCommercialSubtype(d), route: dealRoute(d), rent: d.rent, sum: ls2.reduce((a, l) => a + l.net, 0),
+                  eff: ls2.reduce((a, l) => a + l.net * (1 - l.vacancyPct / 100), 0), effModel: m.effectiveRent / 12 }; }) });
+          }
+          const keys = [...new Set([...Object.keys(PC_FIELD_DEF), ...PROPERTY_REVIEW.map(f => f.k), ...LAB_INPUTS.map(x => x.k), ...EVIDENCE_DRIVERS])];
+          for (const t of INDUSTRIAL_TOWNS) for (const s of t.scenarios) {
+            const ref = t.id + '/' + s.key, d = pmNormalInputs(shoplotDeal(ref)), bad = [];
+            if (dealIsTheReaders(d) || Object.keys(d.touched || {}).length || d.userStarted) bad.push('the reader\\'s');
+            for (const [k, v] of Object.entries(d.evidence || {})) if (['user', 'public', 'verified'].includes(v) || KIND_OF_EVIDENCE[v] === 'yours') bad.push('evidence ' + k + ' ' + v);
+            for (const k of keys) { if (pcFieldOwn(d, k) === 'yours') bad.push(k + ' boxed Yours'); if (KIND_OF_EVIDENCE[shownEvidence(d, k)] === 'yours') bad.push(k + ' shown Yours'); }
+            for (const k of EVIDENCE_DRIVERS) if (evidenceDriversFor(d).includes(k) && shownEvidence(d, k) !== 'illustrative_default') bad.push(k + ' not Illustrative');
+            if (propertyStatus(d).kind !== 'sample') bad.push('status ' + propertyStatus(d).kind);
+            out.own.push({ ref, bad, keys: keys.length });
+          }
+          const rec = pmNewRecord({ ...pmSampleDeal(), price: 510000, touched: { price: true } }, 'IN4 saved property', new Date().toISOString());
+          persistWork([rec, ...loadWork()]);
+          openPropertyModel(rec.id, { show: false });
+          State.deal.rent = 2400; markTouched(State.deal, 'rent'); saveDeal();
+          const workBefore = JSON.stringify(loadWork()), dealBefore = pmCopy(State.deal);
+          out.keep.dirty = propertyStatus(State.deal).dirty;
+          shoplotStart('ind-sibu'); await w(900);
+          out.keep.workSame = JSON.stringify(loadWork()) === workBefore;
+          out.keep.kept = pmSame(store.read('dealBeforeLink', null) || {}, dealBefore) && store.read('dealBeforeLink', null)?.modelId === rec.id;
+          out.keep.onCalc = State.deal.shoplot;
+          shoplotStart('ind-miri'); await w(900);
+          out.keep.keptStill = pmSame(store.read('dealBeforeLink', null) || {}, dealBefore);
+          out.keep.workSame2 = JSON.stringify(loadWork()) === workBefore;
+          out.keep.restored = restoreDealBeforeLink() && pmSame(State.deal, dealBefore) && State.deal.modelId === rec.id;
+          shoplotStart('ind-bintulu'); await w(900);
+          const n0 = loadWork().length, saved = saveActiveProperty({ name: 'IN4 industrial' }), after = loadWork();
+          out.keep.saved = !!saved && after.length === n0 + 1 && JSON.stringify(after.find(x => x.id === rec.id)) === JSON.stringify(JSON.parse(workBefore).find(x => x.id === rec.id));
+          out.keep.savedUntouched = !!saved && !dealIsTheReaders(pmInputsOf(pmFind(saved.id))) && dealCommercialSubtype(pmInputsOf(pmFind(saved.id))) === 'industrial';
+        } finally {
+          localStorage.clear(); for (const [k, v] of Object.entries(ls)) localStorage.setItem(k, v);
+          State.deal = keepDeal; delete LAB.deal; labSubject = null;
+          navigate('/property/calculator?view=full'); await w(500);
+        }
+        return JSON.stringify(out);
+      })()`));
+      const p1 = [];
+      for (const t of r.towns) {
+        const c = t.cols;
+        if (c.length !== 3 || c[0].source !== 'deal' || c[1].source !== `tpl:${t.id}/B` || c[2].source !== `tpl:${t.id}/C`) p1.push(`${t.id}: columns ${JSON.stringify(c.map(x => x.source))}`);
+        if (c.map(x => x.name).join('|') !== t.titles.join('|')) p1.push(`${t.id}: named ${c.map(x => x.name).join(' | ')}`);
+        if (!c.every(x => x.chip === t.chip) || t.domChips.length !== 3 || !t.domChips.every(x => x === t.chip)) p1.push(`${t.id}: chips ${JSON.stringify(t.domChips)}`);
+        if (t.status !== t.chip || t.view !== 'propertyLab') p1.push(`${t.id}: the page says "${t.status}" on ${t.view}`);
+        const ev = t.evidence ? 'evidence' : 'placeholder';
+        if (!t.card || t.card.h !== `Industrial starting scenarios — ${t.name}` || t.card.refs.join(',') !== `${t.id}/A,${t.id}/B,${t.id}/C` || t.card.statement !== 1
+          || !t.card.notes.every(ns => ['checks', 'partial', ev].every(k => ns.includes(k)))) p1.push(`${t.id}: the card ${JSON.stringify(t.card)}`);
+        if (t.dealRef !== `${t.id}/A` || t.kind !== 'sample') p1.push(`${t.id}: the calculator holds ${t.dealRef} as ${t.kind}`);
+        t.deals.forEach((d, i) => {
+          if (d.cls !== 'commercial' || d.sub !== 'industrial' || d.route !== 'subsale') p1.push(`${t.id}/${'ABC'[i]}: ${d.cls}, ${d.sub}, ${d.route}`);
+          if (d.rent !== d.sum || Math.abs(d.effModel - d.eff) > d.rent * 0.00005 + 0.01) p1.push(`${t.id}/${'ABC'[i]}: rent ${d.rent} against ${d.sum}; after vacancy ${d.effModel} against ${d.eff}`);
+        });
+      }
+      if (r.towns.length !== 5) p1.push(`${r.towns.length} towns`);
+      if (p1.length) fail('industrial IN1: the scenarios load as labelled illustrative columns', p1);
+      else ok('industrial IN1: each of the 5 towns opens in the Lab as A (the calculator\'s deal, an untouched sample) and B and C (\'tpl:ind-\' columns), chipped "Illustrative starting scenario — <town>, industrial" in the lab and on the page, the card headed "Industrial starting scenarios — <town>" with every column\'s industrial checks, partial cash and rent evidence (Kuching\'s listings, or "no public rent evidence found") and "not a recommendation" once; all 15 deals commercial, industrial, subsale, the rent the parts\' to the cent after vacancy');
+      const p3 = r.own.filter(x => x.bad.length).map(x => `${x.ref}: ${x.bad.join(', ')}`);
+      if (p3.length || r.own.length !== 15) fail('industrial IN3: no figure of a scenario is the reader\'s own', p3.length ? p3 : `${r.own.length} scenarios`);
+      else ok(`industrial IN3: none of the 15 industrial scenarios marks a figure as the reader's — nothing touched, no evidence read as Yours, none of ${r.own[0].keys} boxes Yours, every evidence driver Illustrative, each a sample`);
+      const k = r.keep, p4 = [];
+      if (!k.dirty) p4.push('the saved property was not opened with an unsaved change');
+      if (!k.workSame || !k.workSame2) p4.push('starting a scenario wrote to the saved work');
+      if (!k.kept || !k.keptStill) p4.push('the unsaved changes were not kept aside, or were displaced');
+      if (k.onCalc !== 'ind-sibu/A') p4.push(`the calculator holds ${k.onCalc}`);
+      if (!k.restored) p4.push('"Restore my previous deal" did not bring the changes back');
+      if (!k.saved || !k.savedUntouched) p4.push(`Save: ${JSON.stringify({ saved: k.saved, untouched: k.savedUntouched })}`);
+      if (p4.length) fail('industrial IN4: the reader\'s saved deal is untouched until Save', p4);
+      else ok('industrial IN4: with a saved property\'s unsaved changes on the calculator, starting Sibu then Miri (industrial) writes nothing to the saved work and keeps the changes aside, undisplaced; "Restore my previous deal" brings them back; Save adds one industrial property, its figures still the tool\'s, and leaves the other byte for byte');
+    } catch (e) { fail('industrial: the scenarios could not be run', String(e.message).split('\n')[0]); }
+
+    /* IN5 */
+    try {
+      const after = await evaluate(fp), p5 = [];
+      if (!printsBefore) p5.push('no fingerprints were taken before');
+      else for (const [k, v] of Object.entries(after)) if (printsBefore[k] !== v) p5.push(`${k} printed ${printsBefore[k]}, then ${v}`);
+      if (after.sample !== '403db6fd:31593') p5.push(`the sample prints ${after.sample}`);
+      if (!(await evaluate(`typeof INDUSTRIAL_TOWNS !== 'undefined' && INDUSTRIAL_TOWNS.length === 5`))) p5.push('the industrial scenarios are not in the page');
+      if (p5.length) fail('industrial IN5: the model\'s fingerprints are unchanged', p5);
+      else ok(`industrial IN5: the ${Object.keys(after).length} R1 deals print the same fingerprints before and after every industrial scenario is loaded, the sample 403db6fd:31593`);
+    } catch (e) { fail('industrial IN5: the fingerprints could not be taken', String(e.message).split('\n')[0]); }
+  }
+  /* ---- end industrial ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
