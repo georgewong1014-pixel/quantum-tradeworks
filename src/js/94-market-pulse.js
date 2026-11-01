@@ -393,18 +393,21 @@ function mpSnapshotForm() {
     const made = mpRecordSnapshot({ city: town.value, area: areaName, propertyType: type.value, date: date.value,
       count: vals.count, low: vals.low, median: vals.median, high: vals.high, source: src.value });
     const where = `${areaName}, ${townName(town.value)} · ${type.value}`;
-    State.mpSaved = `Saved ${mpNplural(made.length, 'record')} for ${where}, ${mpDay(date.value)}.`;
-    toast(State.mpSaved);
+    const said = `Saved ${mpNplural(made.length, 'record')} for ${where}, ${mpDay(date.value)}.`;
+    State.mpSaved = { said, at: Date.now() };
+    toast(said);
     renderKeepFocus();
   } }, 'Save snapshot');
   const undoBtn = el('button', { type: 'button', class: 'btn btn-ghost mp-undo', id: 'mp-undo', disabled: undo ? null : '', onclick: () => {
     const n = mpUndoSnapshot();
-    State.mpSaved = n ? `Undid the last snapshot (${mpNplural(n, 'record')}).` : 'Nothing to undo.';
-    toast(State.mpSaved);
+    const said = n ? `Undid the last snapshot (${mpNplural(n, 'record')}).` : 'Nothing to undo.';
+    State.mpSaved = { said, at: Date.now() };
+    toast(said);
     renderKeepFocus();
   } }, undo ? `Undo last snapshot (${undo.n})` : 'Undo last snapshot');
   card.append(el('div', { class: 'mp-act' }, [save, undoBtn]));
-  if (State.mpSaved) { status.textContent = State.mpSaved; State.mpSaved = null; }
+  /* Said for a minute, through any redraw (the data landing redraws the page) and not for ever. */
+  if (State.mpSaved && Date.now() - State.mpSaved.at < 60000) status.textContent = State.mpSaved.said;
   card.append(status);
   card.append(el('p', { class: 'metaline mp-hint' },
     'A snapshot is saved to the comparables register: the count as Listings counted, each asking price as an Asking price, all with the date, area, type and source note above. A snapshot’s lowest, median and highest count once, as its median. Kept in this browser, in Export everything and in backups with the register.'));

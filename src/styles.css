@@ -6416,6 +6416,8 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .mp-act .btn { min-height: 44px; }
 .mp-status { margin: var(--ls-related) 0 0; min-height: 1.4em; color: var(--ink-2); }
 .mp-copy { max-width: 70ch; }
+.mp-empty > * + *, .mp-notes > * + * { margin-top: var(--sm); }
+.mp-empty .ticklist, .mp-notes .ticklist { margin-bottom: 0; }
 .mp-town { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
 .mp-town-h { margin: var(--md) 0 0; font-size: var(--text-lead); }
 .mp-cell { min-width: 0; }
