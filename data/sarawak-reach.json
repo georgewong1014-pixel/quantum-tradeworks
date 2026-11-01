@@ -1,0 +1,1634 @@
+{
+  "attribution": "Source: Department of Statistics Malaysia (DOSM), CC BY 4.0. © OpenStreetMap contributors, openstreetmap.org/copyright (ODbL 1.0).",
+  "cities": {
+    "bintulu": {
+      "areas": {
+        "Jepak": {
+          "district": "Bintulu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 10.4,
+              "name": "Universiti Putra Malaysia Kampus Bintulu"
+            },
+            "hospital": {
+              "km": 7.4,
+              "name": "Bintulu Medical Center"
+            },
+            "mall": {
+              "km": 4.1,
+              "name": "The Spring Bintulu"
+            }
+          },
+          "within5km": {
+            "clinics": 4,
+            "collegesAndUniversities": 0,
+            "commercialLanduse": 4,
+            "hospitals": 0,
+            "industrialLanduse": 2,
+            "kindergartens": 1,
+            "malls": 7,
+            "offices": 19,
+            "retailLanduse": 0,
+            "schools": 4
+          }
+        },
+        "Kemena": {
+          "district": "Bintulu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 3.8,
+              "name": "Universiti Putra Malaysia Kampus Bintulu"
+            },
+            "hospital": {
+              "km": 2.2,
+              "name": "Bintulu Medical Center"
+            },
+            "mall": {
+              "km": 0.6,
+              "name": "Medan mall"
+            }
+          },
+          "within5km": {
+            "clinics": 5,
+            "collegesAndUniversities": 1,
+            "commercialLanduse": 18,
+            "hospitals": 1,
+            "industrialLanduse": 14,
+            "kindergartens": 1,
+            "malls": 12,
+            "offices": 27,
+            "retailLanduse": 2,
+            "schools": 14
+          }
+        },
+        "Kidurong": {
+          "district": "Bintulu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 0.4,
+              "name": "Kolej Vokasional Bintulu"
+            },
+            "hospital": {
+              "km": 1.2,
+              "name": "Hospital Bintulu(nyabau)"
+            },
+            "mall": {
+              "km": 4.8,
+              "name": "Times Square Mall"
+            }
+          },
+          "within5km": {
+            "clinics": 0,
+            "collegesAndUniversities": 2,
+            "commercialLanduse": 7,
+            "hospitals": 2,
+            "industrialLanduse": 27,
+            "kindergartens": 2,
+            "malls": 1,
+            "offices": 3,
+            "retailLanduse": 0,
+            "schools": 5
+          }
+        },
+        "Parkcity": {
+          "district": "Bintulu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 5.6,
+              "name": "Universiti Putra Malaysia Kampus Bintulu"
+            },
+            "hospital": {
+              "km": 2.6,
+              "name": "Bintulu Medical Center"
+            },
+            "mall": {
+              "km": 0.1,
+              "name": "Commerce Mall"
+            }
+          },
+          "within5km": {
+            "clinics": 5,
+            "collegesAndUniversities": 0,
+            "commercialLanduse": 15,
+            "hospitals": 1,
+            "industrialLanduse": 3,
+            "kindergartens": 1,
+            "malls": 11,
+            "offices": 25,
+            "retailLanduse": 2,
+            "schools": 13
+          }
+        },
+        "Samalaju": {
+          "district": null,
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 48.2,
+              "name": "Kolej Vokasional Bintulu"
+            },
+            "hospital": {
+              "km": 49,
+              "name": "Hospital Bintulu(nyabau)"
+            },
+            "mall": {
+              "km": 52.6,
+              "name": "Times Square Mall"
+            }
+          },
+          "unmapped": "OpenStreetMap puts the point in Bintulu district, but Samalaju lies toward the Bintulu–Sebauh district line and DOSM's boundary could not be checked, so no district is assigned",
+          "within5km": {
+            "clinics": 0,
+            "collegesAndUniversities": 0,
+            "commercialLanduse": 0,
+            "hospitals": 0,
+            "industrialLanduse": 1,
+            "kindergartens": 0,
+            "malls": 0,
+            "offices": 0,
+            "retailLanduse": 0,
+            "schools": 0
+          }
+        },
+        "Sibiew": {
+          "district": "Bintulu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 4.7,
+              "name": "Universiti Putra Malaysia Kampus Bintulu"
+            },
+            "hospital": {
+              "km": 2.8,
+              "name": "Bintulu Medical Center"
+            },
+            "mall": {
+              "km": 1.4,
+              "name": "Medan mall"
+            }
+          },
+          "within5km": {
+            "clinics": 5,
+            "collegesAndUniversities": 1,
+            "commercialLanduse": 18,
+            "hospitals": 1,
+            "industrialLanduse": 14,
+            "kindergartens": 1,
+            "malls": 12,
+            "offices": 28,
+            "retailLanduse": 2,
+            "schools": 14
+          }
+        },
+        "Tanjung Batu": {
+          "district": "Bintulu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 4.2,
+              "name": "Universiti Putra Malaysia Kampus Bintulu"
+            },
+            "hospital": {
+              "km": 1.1,
+              "name": "Bintulu Medical Center"
+            },
+            "mall": {
+              "km": 0.2,
+              "name": "Boulevard"
+            }
+          },
+          "within5km": {
+            "clinics": 5,
+            "collegesAndUniversities": 1,
+            "commercialLanduse": 17,
+            "hospitals": 1,
+            "industrialLanduse": 3,
+            "kindergartens": 1,
+            "malls": 12,
+            "offices": 25,
+            "retailLanduse": 2,
+            "schools": 13
+          }
+        },
+        "Town centre": {
+          "district": "Bintulu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 4.8,
+              "name": "Universiti Putra Malaysia Kampus Bintulu"
+            },
+            "hospital": {
+              "km": 1.8,
+              "name": "Bintulu Medical Center"
+            },
+            "mall": {
+              "km": 0.8,
+              "name": null
+            }
+          },
+          "within5km": {
+            "clinics": 5,
+            "collegesAndUniversities": 1,
+            "commercialLanduse": 17,
+            "hospitals": 1,
+            "industrialLanduse": 3,
+            "kindergartens": 1,
+            "malls": 12,
+            "offices": 25,
+            "retailLanduse": 2,
+            "schools": 13
+          }
+        }
+      },
+      "name": "Bintulu"
+    },
+    "kuching": {
+      "areas": {
+        "Batu Kawa": {
+          "district": "Kuching",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 6.3,
+              "name": "Cyberjaya College Kuching"
+            },
+            "hospital": {
+              "km": 0.4,
+              "name": "Shou Kang Medicine Center"
+            },
+            "mall": {
+              "km": 3.5,
+              "name": "Emart Batu Kawa"
+            }
+          },
+          "within5km": {
+            "clinics": 7,
+            "collegesAndUniversities": 0,
+            "commercialLanduse": 4,
+            "hospitals": 1,
+            "industrialLanduse": 0,
+            "kindergartens": 0,
+            "malls": 1,
+            "offices": 17,
+            "retailLanduse": 0,
+            "schools": 12
+          }
+        },
+        "City centre": {
+          "district": "Kuching",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 0.8,
+              "name": "SIDMA College Sarawak"
+            },
+            "hospital": {
+              "km": 2,
+              "name": "Hospital Umum Sarawak"
+            },
+            "mall": {
+              "km": 0.2,
+              "name": "Plaza Merdeka"
+            }
+          },
+          "within5km": {
+            "clinics": 37,
+            "collegesAndUniversities": 11,
+            "commercialLanduse": 6,
+            "hospitals": 4,
+            "industrialLanduse": 4,
+            "kindergartens": 2,
+            "malls": 26,
+            "offices": 235,
+            "retailLanduse": 24,
+            "schools": 67
+          }
+        },
+        "Kota Samarahan": {
+          "district": "Samarahan",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Samarahan; a Samarahan Division town, as SARAWAK_CITIES (70-property.js) records",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.1,
+              "name": "Institusi Kemajuan Desa (INFRA)"
+            },
+            "hospital": {
+              "km": 1.8,
+              "name": "Pusat Jantung Sarawak (PJS)"
+            },
+            "mall": {
+              "km": 2.9,
+              "name": "Wisma Samarindah"
+            }
+          },
+          "within5km": {
+            "clinics": 2,
+            "collegesAndUniversities": 8,
+            "commercialLanduse": 6,
+            "hospitals": 1,
+            "industrialLanduse": 3,
+            "kindergartens": 1,
+            "malls": 4,
+            "offices": 13,
+            "retailLanduse": 18,
+            "schools": 9
+          }
+        },
+        "Matang": {
+          "district": "Kuching",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 6.1,
+              "name": "Akademi Kastam Diraja Malaysia (AKMAL) Cawangan Sarawak"
+            },
+            "hospital": {
+              "km": 7.9,
+              "name": "Shou Kang Medicine Center"
+            },
+            "mall": {
+              "km": 5.1,
+              "name": "Matang Mall"
+            }
+          },
+          "within5km": {
+            "clinics": 3,
+            "collegesAndUniversities": 0,
+            "commercialLanduse": 0,
+            "hospitals": 0,
+            "industrialLanduse": 0,
+            "kindergartens": 0,
+            "malls": 0,
+            "offices": 3,
+            "retailLanduse": 0,
+            "schools": 10
+          }
+        },
+        "Petra Jaya": {
+          "district": "Kuching",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.8,
+              "name": "SEGi College Sarawak"
+            },
+            "hospital": {
+              "km": 2.6,
+              "name": "Normah Medical Specialist Centre (NMSC)"
+            },
+            "mall": {
+              "km": 1.3,
+              "name": "Plaza Astana"
+            }
+          },
+          "within5km": {
+            "clinics": 30,
+            "collegesAndUniversities": 9,
+            "commercialLanduse": 7,
+            "hospitals": 3,
+            "industrialLanduse": 5,
+            "kindergartens": 1,
+            "malls": 19,
+            "offices": 181,
+            "retailLanduse": 16,
+            "schools": 57
+          }
+        },
+        "Samarahan": {
+          "district": "Kuching",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching; this is the Kuching–Samarahan expressway corridor, not Kota Samarahan",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.7,
+              "name": "i-CATS East Campus / PPKS"
+            },
+            "hospital": {
+              "km": 4.2,
+              "name": "Pusat Jantung Sarawak (PJS)"
+            },
+            "mall": {
+              "km": 1.4,
+              "name": "Giant Tabuan Jaya Mall"
+            }
+          },
+          "within5km": {
+            "clinics": 12,
+            "collegesAndUniversities": 7,
+            "commercialLanduse": 8,
+            "hospitals": 2,
+            "industrialLanduse": 5,
+            "kindergartens": 2,
+            "malls": 12,
+            "offices": 124,
+            "retailLanduse": 26,
+            "schools": 23
+          }
+        },
+        "Stutong": {
+          "district": "Kuching",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.4,
+              "name": "i-CATS East Campus / PPKS"
+            },
+            "hospital": {
+              "km": 3.7,
+              "name": "Borneo Medical Centre"
+            },
+            "mall": {
+              "km": 0.6,
+              "name": "One TJ ICT Shopping Complex"
+            }
+          },
+          "within5km": {
+            "clinics": 23,
+            "collegesAndUniversities": 8,
+            "commercialLanduse": 11,
+            "hospitals": 2,
+            "industrialLanduse": 4,
+            "kindergartens": 3,
+            "malls": 16,
+            "offices": 155,
+            "retailLanduse": 28,
+            "schools": 32
+          }
+        },
+        "Tabuan": {
+          "district": "Kuching",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1,
+              "name": "Kolej I-Systems Kuching"
+            },
+            "hospital": {
+              "km": 3.9,
+              "name": "Borneo Medical Centre"
+            },
+            "mall": {
+              "km": 0.6,
+              "name": "Giant Tabuan Jaya Mall"
+            }
+          },
+          "within5km": {
+            "clinics": 21,
+            "collegesAndUniversities": 8,
+            "commercialLanduse": 9,
+            "hospitals": 1,
+            "industrialLanduse": 5,
+            "kindergartens": 2,
+            "malls": 16,
+            "offices": 169,
+            "retailLanduse": 25,
+            "schools": 29
+          }
+        }
+      },
+      "name": "Kuching"
+    },
+    "miri": {
+      "areas": {
+        "City centre": {
+          "district": "Miri",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.2,
+              "name": "Today Business Institute"
+            },
+            "hospital": {
+              "km": 0.3,
+              "name": "Miri City Medical Centre"
+            },
+            "mall": {
+              "km": 0.2,
+              "name": "Borneo Heritage Handicrafts Centre"
+            }
+          },
+          "within5km": {
+            "clinics": 46,
+            "collegesAndUniversities": 7,
+            "commercialLanduse": 25,
+            "hospitals": 4,
+            "industrialLanduse": 31,
+            "kindergartens": 33,
+            "malls": 11,
+            "offices": 779,
+            "retailLanduse": 0,
+            "schools": 30
+          }
+        },
+        "Lutong": {
+          "district": "Miri",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 0.1,
+              "name": "Pusat Pembangunan Kemahiran Sarawak (PPKS Miri)"
+            },
+            "hospital": {
+              "km": 3.8,
+              "name": "KPJ Miri Specialist Hospital"
+            },
+            "mall": {
+              "km": 0.1,
+              "name": "MYY Mall"
+            }
+          },
+          "within5km": {
+            "clinics": 18,
+            "collegesAndUniversities": 8,
+            "commercialLanduse": 12,
+            "hospitals": 1,
+            "industrialLanduse": 72,
+            "kindergartens": 35,
+            "malls": 3,
+            "offices": 383,
+            "retailLanduse": 0,
+            "schools": 17
+          }
+        },
+        "Marina": {
+          "district": "Miri",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 0.3,
+              "name": "Today Business Institute"
+            },
+            "hospital": {
+              "km": 1.3,
+              "name": "Borneo Medical Centre Miri"
+            },
+            "mall": {
+              "km": 0.7,
+              "name": "Sun City"
+            }
+          },
+          "within5km": {
+            "clinics": 44,
+            "collegesAndUniversities": 7,
+            "commercialLanduse": 25,
+            "hospitals": 4,
+            "industrialLanduse": 22,
+            "kindergartens": 31,
+            "malls": 11,
+            "offices": 701,
+            "retailLanduse": 0,
+            "schools": 27
+          }
+        },
+        "Permyjaya": {
+          "district": "Miri",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.2,
+              "name": "Institut Kemahiran Belia Negara (IKBN Miri)"
+            },
+            "hospital": {
+              "km": 2,
+              "name": "KPJ Miri Specialist Hospital"
+            },
+            "mall": {
+              "km": 1.5,
+              "name": "Permy Mall"
+            }
+          },
+          "within5km": {
+            "clinics": 18,
+            "collegesAndUniversities": 7,
+            "commercialLanduse": 12,
+            "hospitals": 1,
+            "industrialLanduse": 51,
+            "kindergartens": 35,
+            "malls": 3,
+            "offices": 336,
+            "retailLanduse": 0,
+            "schools": 14
+          }
+        },
+        "Pujut": {
+          "district": "Miri",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.2,
+              "name": "Fajar International College"
+            },
+            "hospital": {
+              "km": 2.1,
+              "name": "KPJ Miri Specialist Hospital"
+            },
+            "mall": {
+              "km": 2.5,
+              "name": "Boulevard Shopping Mall"
+            }
+          },
+          "within5km": {
+            "clinics": 27,
+            "collegesAndUniversities": 8,
+            "commercialLanduse": 19,
+            "hospitals": 2,
+            "industrialLanduse": 54,
+            "kindergartens": 50,
+            "malls": 4,
+            "offices": 653,
+            "retailLanduse": 0,
+            "schools": 22
+          }
+        },
+        "Senadin": {
+          "district": "Miri",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.3,
+              "name": "Curtin University Malaysia"
+            },
+            "hospital": {
+              "km": 6.2,
+              "name": "KPJ Miri Specialist Hospital"
+            },
+            "mall": {
+              "km": 3.4,
+              "name": "MYY Mall"
+            }
+          },
+          "within5km": {
+            "clinics": 10,
+            "collegesAndUniversities": 5,
+            "commercialLanduse": 6,
+            "hospitals": 0,
+            "industrialLanduse": 46,
+            "kindergartens": 16,
+            "malls": 2,
+            "offices": 166,
+            "retailLanduse": 0,
+            "schools": 11
+          }
+        },
+        "Taman Tunku": {
+          "district": "Miri",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 2.5,
+              "name": "Universiti Terbuka Malaysia, Miri"
+            },
+            "hospital": {
+              "km": 6.9,
+              "name": "Hospital Miri"
+            },
+            "mall": {
+              "km": 3.4,
+              "name": "Emart Shopping Complex Riam"
+            }
+          },
+          "within5km": {
+            "clinics": 9,
+            "collegesAndUniversities": 3,
+            "commercialLanduse": 12,
+            "hospitals": 0,
+            "industrialLanduse": 20,
+            "kindergartens": 25,
+            "malls": 1,
+            "offices": 83,
+            "retailLanduse": 0,
+            "schools": 14
+          }
+        },
+        "Tudan": {
+          "district": "Miri",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.4,
+              "name": "GIATMARA Miri"
+            },
+            "hospital": {
+              "km": 2.9,
+              "name": "KPJ Miri Specialist Hospital"
+            },
+            "mall": {
+              "km": 1.3,
+              "name": "Emart Shopping Complex Tudan"
+            }
+          },
+          "within5km": {
+            "clinics": 17,
+            "collegesAndUniversities": 8,
+            "commercialLanduse": 12,
+            "hospitals": 1,
+            "industrialLanduse": 63,
+            "kindergartens": 34,
+            "malls": 3,
+            "offices": 354,
+            "retailLanduse": 0,
+            "schools": 14
+          }
+        }
+      },
+      "name": "Miri"
+    },
+    "sibu": {
+      "areas": {
+        "Jalan Salim": {
+          "district": "Sibu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 13.5,
+              "name": "Kolej Ita"
+            },
+            "hospital": {
+              "km": 9.3,
+              "name": "Klinik Komuniti Sentosa"
+            },
+            "mall": {
+              "km": 12.7,
+              "name": "Medan Bintang Utama"
+            }
+          },
+          "within5km": {
+            "clinics": 0,
+            "collegesAndUniversities": 0,
+            "commercialLanduse": 0,
+            "hospitals": 0,
+            "industrialLanduse": 11,
+            "kindergartens": 0,
+            "malls": 0,
+            "offices": 0,
+            "retailLanduse": 0,
+            "schools": 1
+          }
+        },
+        "Jalan Teku": {
+          "district": "Sibu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 0.8,
+              "name": "Universiti Teknologi Sarawak"
+            },
+            "hospital": {
+              "km": 5.3,
+              "name": "Pusat Pakar Perubatan Sibu"
+            },
+            "mall": {
+              "km": 5.3,
+              "name": "Medan Bintang Utama"
+            }
+          },
+          "within5km": {
+            "clinics": 1,
+            "collegesAndUniversities": 5,
+            "commercialLanduse": 0,
+            "hospitals": 0,
+            "industrialLanduse": 0,
+            "kindergartens": 0,
+            "malls": 0,
+            "offices": 12,
+            "retailLanduse": 0,
+            "schools": 11
+          }
+        },
+        "Lanang": {
+          "district": "Sibu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 2.2,
+              "name": "Kolej Ita"
+            },
+            "hospital": {
+              "km": 2.5,
+              "name": "Klinik Komuniti Sentosa"
+            },
+            "mall": {
+              "km": 2.2,
+              "name": "Premier Department Store"
+            }
+          },
+          "within5km": {
+            "clinics": 2,
+            "collegesAndUniversities": 2,
+            "commercialLanduse": 2,
+            "hospitals": 2,
+            "industrialLanduse": 3,
+            "kindergartens": 1,
+            "malls": 3,
+            "offices": 49,
+            "retailLanduse": 1,
+            "schools": 15
+          }
+        },
+        "Permai": {
+          "district": "Sibu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 4.5,
+              "name": "Kolej Vokasional Sibu"
+            },
+            "hospital": {
+              "km": 0.4,
+              "name": "Hospital Sibu"
+            },
+            "mall": {
+              "km": 3.5,
+              "name": "Medan Bintang Utama"
+            }
+          },
+          "within5km": {
+            "clinics": 0,
+            "collegesAndUniversities": 1,
+            "commercialLanduse": 2,
+            "hospitals": 2,
+            "industrialLanduse": 3,
+            "kindergartens": 0,
+            "malls": 1,
+            "offices": 3,
+            "retailLanduse": 1,
+            "schools": 1
+          }
+        },
+        "Rejang Park": {
+          "district": "Sibu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1,
+              "name": "Kolej Ita"
+            },
+            "hospital": {
+              "km": 1.8,
+              "name": "Pusat Pakar Perubatan Sibu"
+            },
+            "mall": {
+              "km": 0.5,
+              "name": "Premier Department Store"
+            }
+          },
+          "within5km": {
+            "clinics": 2,
+            "collegesAndUniversities": 3,
+            "commercialLanduse": 2,
+            "hospitals": 2,
+            "industrialLanduse": 2,
+            "kindergartens": 1,
+            "malls": 3,
+            "offices": 50,
+            "retailLanduse": 1,
+            "schools": 18
+          }
+        },
+        "Sibujaya": {
+          "district": "Sibu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 14.2,
+              "name": "Kolej Vokasional Sibu"
+            },
+            "hospital": {
+              "km": 9.9,
+              "name": "Hospital Sibu"
+            },
+            "mall": {
+              "km": 13,
+              "name": "Medan Bintang Utama"
+            }
+          },
+          "within5km": {
+            "clinics": 1,
+            "collegesAndUniversities": 0,
+            "commercialLanduse": 3,
+            "hospitals": 0,
+            "industrialLanduse": 1,
+            "kindergartens": 0,
+            "malls": 0,
+            "offices": 3,
+            "retailLanduse": 0,
+            "schools": 3
+          }
+        },
+        "Town centre": {
+          "district": "Sibu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 1.1,
+              "name": "Kolej Ita"
+            },
+            "hospital": {
+              "km": 1.3,
+              "name": "Pusat Pakar Perubatan Sibu"
+            },
+            "mall": {
+              "km": 0,
+              "name": "Wisma Sanyan"
+            }
+          },
+          "within5km": {
+            "clinics": 1,
+            "collegesAndUniversities": 3,
+            "commercialLanduse": 1,
+            "hospitals": 2,
+            "industrialLanduse": 1,
+            "kindergartens": 1,
+            "malls": 3,
+            "offices": 47,
+            "retailLanduse": 1,
+            "schools": 21
+          }
+        },
+        "Ulu Sungai Merah": {
+          "district": "Sibu",
+          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "nearest": {
+            "collegeOrUniversity": {
+              "km": 2.3,
+              "name": "Kolej Vokasional Sibu"
+            },
+            "hospital": {
+              "km": 5,
+              "name": "Hospital Sibu"
+            },
+            "mall": {
+              "km": 3.1,
+              "name": "Medan Bintang Utama"
+            }
+          },
+          "within5km": {
+            "clinics": 2,
+            "collegesAndUniversities": 5,
+            "commercialLanduse": 0,
+            "hospitals": 1,
+            "industrialLanduse": 0,
+            "kindergartens": 0,
+            "malls": 1,
+            "offices": 14,
+            "retailLanduse": 1,
+            "schools": 10
+          }
+        }
+      },
+      "name": "Sibu"
+    }
+  },
+  "districts": {
+    "Asajaya": {
+      "childrenSharePct": 22.8,
+      "growthPct": 5.65,
+      "population": {
+        "2020": 33600,
+        "2021": 33800,
+        "2022": 34100,
+        "2023": 34500,
+        "2024": 34800,
+        "2025": 35100,
+        "2026": 35500
+      },
+      "workingAgeSharePct": 57.5
+    },
+    "Bau": {
+      "childrenSharePct": 19.2,
+      "growthPct": 3.04,
+      "population": {
+        "2020": 52600,
+        "2021": 52900,
+        "2022": 53100,
+        "2023": 53600,
+        "2024": 53800,
+        "2025": 54100,
+        "2026": 54200
+      },
+      "workingAgeSharePct": 62.5
+    },
+    "Belaga": {
+      "childrenSharePct": 17.2,
+      "growthPct": 0.89,
+      "population": {
+        "2020": 22500,
+        "2021": 22800,
+        "2022": 22600,
+        "2023": 22700,
+        "2024": 22600,
+        "2025": 22600,
+        "2026": 22700
+      },
+      "workingAgeSharePct": 70.5
+    },
+    "Beluru": {
+      "childrenSharePct": 17.5,
+      "growthPct": -6.62,
+      "population": {
+        "2020": 28700,
+        "2021": 29300,
+        "2022": 28000,
+        "2023": 27700,
+        "2024": 26800,
+        "2025": 26800,
+        "2026": 26800
+      },
+      "workingAgeSharePct": 64.2
+    },
+    "Betong": {
+      "childrenSharePct": 20.2,
+      "growthPct": 3.58,
+      "population": {
+        "2020": 36300,
+        "2021": 36300,
+        "2022": 36500,
+        "2023": 36800,
+        "2024": 37000,
+        "2025": 37300,
+        "2026": 37600
+      },
+      "workingAgeSharePct": 60.1
+    },
+    "Bintulu": {
+      "childrenSharePct": 18.3,
+      "growthPct": 5.99,
+      "population": {
+        "2020": 178600,
+        "2021": 177000,
+        "2022": 179700,
+        "2023": 185200,
+        "2024": 189000,
+        "2025": 189200,
+        "2026": 189300
+      },
+      "workingAgeSharePct": 68.5
+    },
+    "Bukit Mabong": {
+      "childrenSharePct": 20.6,
+      "growthPct": 4.9,
+      "population": {
+        "2020": 10200,
+        "2021": 10300,
+        "2022": 10400,
+        "2023": 10600,
+        "2024": 10600,
+        "2025": 10600,
+        "2026": 10700
+      },
+      "workingAgeSharePct": 58.9
+    },
+    "Dalat": {
+      "childrenSharePct": 21.3,
+      "growthPct": 4.74,
+      "population": {
+        "2020": 21100,
+        "2021": 21100,
+        "2022": 21200,
+        "2023": 21600,
+        "2024": 21700,
+        "2025": 21900,
+        "2026": 22100
+      },
+      "workingAgeSharePct": 59.7
+    },
+    "Daro": {
+      "childrenSharePct": 24,
+      "growthPct": 6.67,
+      "population": {
+        "2020": 19500,
+        "2021": 19500,
+        "2022": 19600,
+        "2023": 19900,
+        "2024": 20000,
+        "2025": 20400,
+        "2026": 20800
+      },
+      "workingAgeSharePct": 58.2
+    },
+    "Gedong": {
+      "childrenSharePct": 24.6,
+      "growthPct": null,
+      "population": {
+        "2025": 11500,
+        "2026": 11800
+      },
+      "seriesNote": "A district DOSM first lists in 2025, so there is no 2020 figure and no growth since then.",
+      "workingAgeSharePct": 54.2
+    },
+    "Julau": {
+      "childrenSharePct": 22,
+      "growthPct": 3.92,
+      "population": {
+        "2020": 15300,
+        "2021": 15300,
+        "2022": 15400,
+        "2023": 15500,
+        "2024": 15600,
+        "2025": 15800,
+        "2026": 15900
+      },
+      "workingAgeSharePct": 57.9
+    },
+    "Kabong": {
+      "childrenSharePct": 22.2,
+      "growthPct": 5.43,
+      "population": {
+        "2020": 18400,
+        "2021": 18500,
+        "2022": 18600,
+        "2023": 18800,
+        "2024": 19000,
+        "2025": 19200,
+        "2026": 19400
+      },
+      "workingAgeSharePct": 56.7
+    },
+    "Kanowit": {
+      "childrenSharePct": 23.4,
+      "growthPct": 3.64,
+      "population": {
+        "2020": 24700,
+        "2021": 24700,
+        "2022": 24600,
+        "2023": 24900,
+        "2024": 25000,
+        "2025": 25300,
+        "2026": 25600
+      },
+      "workingAgeSharePct": 54.7
+    },
+    "Kapit": {
+      "childrenSharePct": 23,
+      "growthPct": 5,
+      "population": {
+        "2020": 36000,
+        "2021": 36000,
+        "2022": 36200,
+        "2023": 36600,
+        "2024": 36900,
+        "2025": 37300,
+        "2026": 37800
+      },
+      "workingAgeSharePct": 58.7
+    },
+    "Kuching": {
+      "childrenSharePct": 18.8,
+      "growthPct": 3.18,
+      "population": {
+        "2020": 609200,
+        "2021": 612500,
+        "2022": 615800,
+        "2023": 621300,
+        "2024": 625000,
+        "2025": 626900,
+        "2026": 628600
+      },
+      "workingAgeSharePct": 63.4
+    },
+    "Lawas": {
+      "childrenSharePct": 23.8,
+      "growthPct": 5.46,
+      "population": {
+        "2020": 36600,
+        "2021": 36900,
+        "2022": 37200,
+        "2023": 37700,
+        "2024": 38100,
+        "2025": 38300,
+        "2026": 38600
+      },
+      "workingAgeSharePct": 57.8
+    },
+    "Limbang": {
+      "childrenSharePct": 21.6,
+      "growthPct": 3.77,
+      "population": {
+        "2020": 45100,
+        "2021": 45300,
+        "2022": 45600,
+        "2023": 46100,
+        "2024": 46500,
+        "2025": 46700,
+        "2026": 46800
+      },
+      "workingAgeSharePct": 60.5
+    },
+    "Lingga": {
+      "childrenSharePct": 17,
+      "growthPct": null,
+      "population": {
+        "2025": 8900,
+        "2026": 8800
+      },
+      "seriesNote": "A district DOSM first lists in 2025, so there is no 2020 figure and no growth since then.",
+      "workingAgeSharePct": 62.5
+    },
+    "Lubok Antu": {
+      "childrenSharePct": 17.4,
+      "growthPct": 0.41,
+      "population": {
+        "2020": 24600,
+        "2021": 24700,
+        "2022": 24600,
+        "2023": 24600,
+        "2024": 24600,
+        "2025": 24700,
+        "2026": 24700
+      },
+      "workingAgeSharePct": 58.7
+    },
+    "Lundu": {
+      "childrenSharePct": 21.4,
+      "growthPct": 4.78,
+      "population": {
+        "2020": 33500,
+        "2021": 33700,
+        "2022": 33800,
+        "2023": 34200,
+        "2024": 34400,
+        "2025": 34800,
+        "2026": 35100
+      },
+      "workingAgeSharePct": 60.1
+    },
+    "Maradong": {
+      "childrenSharePct": 22.5,
+      "growthPct": 2.96,
+      "population": {
+        "2020": 20300,
+        "2021": 20400,
+        "2022": 20500,
+        "2023": 20700,
+        "2024": 20800,
+        "2025": 20900,
+        "2026": 20900
+      },
+      "workingAgeSharePct": 58.4
+    },
+    "Marudi": {
+      "childrenSharePct": 21.2,
+      "growthPct": 0.53,
+      "population": {
+        "2020": 18800,
+        "2021": 19200,
+        "2022": 18800,
+        "2023": 18700,
+        "2024": 18400,
+        "2025": 18600,
+        "2026": 18900
+      },
+      "workingAgeSharePct": 61.4
+    },
+    "Matu": {
+      "childrenSharePct": 20.5,
+      "growthPct": 1.84,
+      "population": {
+        "2020": 16300,
+        "2021": 16600,
+        "2022": 16400,
+        "2023": 16500,
+        "2024": 16400,
+        "2025": 16500,
+        "2026": 16600
+      },
+      "workingAgeSharePct": 60.8
+    },
+    "Miri": {
+      "childrenSharePct": 17.7,
+      "growthPct": 4.06,
+      "population": {
+        "2020": 248900,
+        "2021": 250400,
+        "2022": 251200,
+        "2023": 254400,
+        "2024": 256100,
+        "2025": 257600,
+        "2026": 259000
+      },
+      "workingAgeSharePct": 66.2
+    },
+    "Mukah": {
+      "childrenSharePct": 21.4,
+      "growthPct": 1.65,
+      "population": {
+        "2020": 42300,
+        "2021": 42800,
+        "2022": 42500,
+        "2023": 42700,
+        "2024": 42500,
+        "2025": 42700,
+        "2026": 43000
+      },
+      "workingAgeSharePct": 63
+    },
+    "Pakan": {
+      "childrenSharePct": 20.3,
+      "growthPct": 1.94,
+      "population": {
+        "2020": 15500,
+        "2021": 15500,
+        "2022": 15600,
+        "2023": 15600,
+        "2024": 15700,
+        "2025": 15700,
+        "2026": 15800
+      },
+      "workingAgeSharePct": 61.4
+    },
+    "Pantu": {
+      "childrenSharePct": 16.8,
+      "growthPct": null,
+      "population": {
+        "2025": 10700,
+        "2026": 10700
+      },
+      "seriesNote": "A district DOSM first lists in 2025, so there is no 2020 figure and no growth since then.",
+      "workingAgeSharePct": 59.8
+    },
+    "Pusa": {
+      "childrenSharePct": 23.5,
+      "growthPct": 4.08,
+      "population": {
+        "2020": 19600,
+        "2021": 19600,
+        "2022": 19700,
+        "2023": 20000,
+        "2024": 20200,
+        "2025": 20300,
+        "2026": 20400
+      },
+      "workingAgeSharePct": 53.4
+    },
+    "Samarahan": {
+      "childrenSharePct": 18.4,
+      "growthPct": 6.94,
+      "population": {
+        "2020": 128300,
+        "2021": 132700,
+        "2022": 133500,
+        "2023": 134600,
+        "2024": 135600,
+        "2025": 136500,
+        "2026": 137200
+      },
+      "workingAgeSharePct": 68.1
+    },
+    "Saratok": {
+      "childrenSharePct": 18.2,
+      "growthPct": 2.16,
+      "population": {
+        "2020": 23100,
+        "2021": 23100,
+        "2022": 23100,
+        "2023": 23400,
+        "2024": 23500,
+        "2025": 23500,
+        "2026": 23600
+      },
+      "workingAgeSharePct": 62.7
+    },
+    "Sarikei": {
+      "childrenSharePct": 19.9,
+      "growthPct": 2.95,
+      "population": {
+        "2020": 44000,
+        "2021": 44200,
+        "2022": 44400,
+        "2023": 44700,
+        "2024": 45000,
+        "2025": 45200,
+        "2026": 45300
+      },
+      "workingAgeSharePct": 60.7
+    },
+    "Sebauh": {
+      "childrenSharePct": 15.8,
+      "growthPct": 6.76,
+      "population": {
+        "2020": 29600,
+        "2021": 28200,
+        "2022": 29100,
+        "2023": 31200,
+        "2024": 31300,
+        "2025": 31500,
+        "2026": 31600
+      },
+      "workingAgeSharePct": 73.4
+    },
+    "Sebuyau": {
+      "childrenSharePct": 21,
+      "growthPct": null,
+      "population": {
+        "2025": 12500,
+        "2026": 12400
+      },
+      "seriesNote": "A district DOSM first lists in 2025, so there is no 2020 figure and no growth since then.",
+      "workingAgeSharePct": 58.1
+    },
+    "Selangau": {
+      "childrenSharePct": 17.8,
+      "growthPct": 5.05,
+      "population": {
+        "2020": 19800,
+        "2021": 19800,
+        "2022": 19900,
+        "2023": 20300,
+        "2024": 20500,
+        "2025": 20600,
+        "2026": 20800
+      },
+      "workingAgeSharePct": 62.5
+    },
+    "Serian": {
+      "childrenSharePct": 21.2,
+      "growthPct": null,
+      "population": {
+        "2020": 85300,
+        "2021": 85500,
+        "2022": 86000,
+        "2023": 86900,
+        "2024": 87600,
+        "2025": 56500,
+        "2026": 56700
+      },
+      "seriesNote": "A step of -35.5% between 2024 and 2025 in DOSM's file, the year new districts first appear: read as a change of boundary, so growth since 2020 is not shown.",
+      "workingAgeSharePct": 58.4
+    },
+    "Sibu": {
+      "childrenSharePct": 17.5,
+      "growthPct": 3.63,
+      "population": {
+        "2020": 248100,
+        "2021": 247600,
+        "2022": 249000,
+        "2023": 252900,
+        "2024": 255400,
+        "2025": 256300,
+        "2026": 257100
+      },
+      "workingAgeSharePct": 64.7
+    },
+    "Siburan": {
+      "childrenSharePct": 19.6,
+      "growthPct": null,
+      "population": {
+        "2025": 31900,
+        "2026": 32200
+      },
+      "seriesNote": "A district DOSM first lists in 2025, so there is no 2020 figure and no growth since then.",
+      "workingAgeSharePct": 58.7
+    },
+    "Simunjan": {
+      "childrenSharePct": 20,
+      "growthPct": null,
+      "population": {
+        "2020": 36200,
+        "2021": 36400,
+        "2022": 36500,
+        "2023": 36900,
+        "2024": 37000,
+        "2025": 12000,
+        "2026": 12000
+      },
+      "seriesNote": "A step of -67.6% between 2024 and 2025 in DOSM's file, the year new districts first appear: read as a change of boundary, so growth since 2020 is not shown.",
+      "workingAgeSharePct": 55.8
+    },
+    "Song": {
+      "childrenSharePct": 26.9,
+      "growthPct": 4,
+      "population": {
+        "2020": 10000,
+        "2021": 10000,
+        "2022": 10000,
+        "2023": 10200,
+        "2024": 10300,
+        "2025": 10300,
+        "2026": 10400
+      },
+      "workingAgeSharePct": 54.8
+    },
+    "Sri Aman": {
+      "childrenSharePct": 19,
+      "growthPct": null,
+      "population": {
+        "2020": 61200,
+        "2021": 61300,
+        "2022": 61100,
+        "2023": 61300,
+        "2024": 61300,
+        "2025": 42900,
+        "2026": 43100
+      },
+      "seriesNote": "A step of -30% between 2024 and 2025 in DOSM's file, the year new districts first appear: read as a change of boundary, so growth since 2020 is not shown.",
+      "workingAgeSharePct": 59.4
+    },
+    "Subis": {
+      "childrenSharePct": 17.7,
+      "growthPct": -2.62,
+      "population": {
+        "2020": 57300,
+        "2021": 58700,
+        "2022": 56600,
+        "2023": 56000,
+        "2024": 55500,
+        "2025": 55600,
+        "2026": 55800
+      },
+      "workingAgeSharePct": 67.4
+    },
+    "Tanjung Manis": {
+      "childrenSharePct": 20,
+      "growthPct": 1.27,
+      "population": {
+        "2020": 7900,
+        "2021": 8100,
+        "2022": 7900,
+        "2023": 8000,
+        "2024": 7900,
+        "2025": 7900,
+        "2026": 8000
+      },
+      "workingAgeSharePct": 58.8
+    },
+    "Tatau": {
+      "childrenSharePct": 20.9,
+      "growthPct": 2.19,
+      "population": {
+        "2020": 31900,
+        "2021": 32400,
+        "2022": 32000,
+        "2023": 32100,
+        "2024": 31900,
+        "2025": 32300,
+        "2026": 32600
+      },
+      "workingAgeSharePct": 64.4
+    },
+    "Tebedu": {
+      "childrenSharePct": 16.8,
+      "growthPct": 1.59,
+      "population": {
+        "2020": 25200,
+        "2021": 25200,
+        "2022": 25300,
+        "2023": 25500,
+        "2024": 25700,
+        "2025": 25600,
+        "2026": 25600
+      },
+      "workingAgeSharePct": 61.7
+    },
+    "Telang Usan": {
+      "childrenSharePct": 12.7,
+      "growthPct": -0.57,
+      "population": {
+        "2020": 17400,
+        "2021": 17400,
+        "2022": 17400,
+        "2023": 17400,
+        "2024": 17400,
+        "2025": 17300,
+        "2026": 17300
+      },
+      "workingAgeSharePct": 65.9
+    }
+  },
+  "note": "OpenStreetMap counts are \"mapped in OpenStreetMap — at least this many\", never a total: schools and clinics in particular are under-mapped. The job indicators are places of work that are mapped (offices, industrial, commercial and retail land-use areas counted by the centre of their outline, malls), not jobs. Distances are straight line from the area's single point, not travel time. Population is DOSM's district estimate for 1 January, a district-wide figure that says nothing of any one area inside it. Redistribution is permitted under CC BY 4.0 and ODbL with attribution.",
+  "osmBase": "2026-11-01T08:00:35Z",
+  "populationAsOf": "2026-01-01",
+  "retrieved": "2026-11-01",
+  "sources": {
+    "places": {
+      "attribution": "© OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "measure": "Features mapped by volunteers. Counts are \"mapped in OpenStreetMap — at least this many\", not totals.",
+      "name": "OpenStreetMap, through the Overpass API",
+      "url": "https://www.openstreetmap.org/copyright"
+    },
+    "population": {
+      "attribution": "Source: Department of Statistics Malaysia (DOSM), CC BY 4.0",
+      "licence": "CC BY 4.0",
+      "licenceBasis": "developer.data.gov.my states \"License: CC BY 4.0\" (read 1 Nov 2026). DOSM's own terms page could not be retrieved.",
+      "measure": "Population in thousands as published, annual on 1 January, both sexes, all ethnic groups; stored here in persons to the 100.",
+      "name": "Department of Statistics Malaysia (DOSM) — population by district",
+      "url": "https://storage.dosm.gov.my/population/population_district.csv"
+    }
+  },
+  "totals": {
+    "clinics": 199,
+    "collegesAndUniversities": 67,
+    "commercialLanduse": 150,
+    "hospitals": 52,
+    "industrialLanduse": 443,
+    "kindergartens": 124,
+    "malls": 81,
+    "offices": 1984,
+    "retailLanduse": 110,
+    "schools": 673
+  },
+  "version": 1
+}
