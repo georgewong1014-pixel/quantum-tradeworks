@@ -12600,6 +12600,207 @@ try {
   }
   /* ---- end els-brief ---- */
 
+  /* ---- shoplot ---- */
+  /* SHOPLOT STARTING SCENARIOS — SARAWAK (the owner, 1 Nov 2026;
+     94-shoplot-scenarios.js). Option (a): one rent for the building, no
+     change to dealModel.
+     SL1 — each town's three scenarios load as Lab columns A, B and C: A the
+           calculator's deal, B and C 'tpl:' columns; each named by its
+           scenario and chipped "Illustrative starting scenario — <town>",
+           on the page as in the lab's state; the parts card lists the three;
+           every deal is a whole shoplot, commercial, on the subsale route,
+           its rent the sum of its parts and its vacancy the allowance that
+           gives the same rent after vacancy.
+     SL2 — every NAPIC figure in SHOPLOT_NAPIC is recomputed here from
+           data/napic-h1-2025.json: the middle of the schemes (the median of
+           each scheme's midpoint), the lowest and highest, the count, the
+           price rows' floor-area rule (200–1,500 m²) and the middle floor
+           area; each scenario's price, built-up area and NAPIC lines are
+           those figures.
+     SL3 — no figure of any scenario is the reader's own: nothing touched,
+           no evidence the badges read as Yours, every box Default, every
+           evidence driver Illustrative, the deal a sample.
+     SL4 — a saved property with unsaved changes on the calculator: starting
+           a scenario writes nothing to the saved work, keeps the changes
+           aside for "Restore my previous deal" (which brings them back),
+           and an untouched scenario never displaces what is kept; Save
+           adds one property and leaves the other as it was.
+     SL5 — the model is the one it was: the sample and the R1 deals print
+           the same fingerprints before and after, the sample P1 R1's. */
+  {
+    const fs = await import('node:fs');
+    const napicSrc = JSON.parse(fs.readFileSync(new URL('./data/napic-h1-2025.json', import.meta.url), 'utf8'));
+    const fp = `(() => {
+      const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+      const print = (d) => { const s = JSON.stringify(dealModel(d)); return fnv(s) + ':' + s.length; };
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const deals = { sample: base(), land: { ...base(), propertyType: 'Land', landSqft: 4000, sqft: 0 }, shophouse: { ...base(), propertyType: 'Shophouse', rent: 3500, sqft: 1600 },
+        condoAsCommercial: { ...base(), propertyClassOverride: 'commercial' }, taxed: { ...base(), rent: 3600, marginalTaxPct: 24 }, cash: { ...base(), downPct: 100 },
+        lowValuation: { ...base(), bankValuation: 540000 }, noTenure: { ...base(), tenureYears: 0 },
+        managed: { ...base(), selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 150, renovation: 60000, renoValueRecoveryPct: 40 } };
+      return Object.fromEntries(Object.entries(deals).map(([k, d]) => [k, print(d)]));
+    })()`;
+    let printsBefore = null;
+    try { printsBefore = await evaluate(fp); } catch (e) { printsBefore = null; }
+
+    /* SL2 — the recompute, in Node, from the file itself. */
+    try {
+      const med = (xs) => { const v = xs.slice().sort((a, b) => a - b); return v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2; };
+      const fig = (rows) => ({ mid: med(rows.map(b => (b.min + b.max) / 2)), lo: Math.min(...rows.map(b => b.min)), hi: Math.max(...rows.map(b => b.max)), schemes: rows.length });
+      const page = JSON.parse(await evaluate(`JSON.stringify({ N: SHOPLOT_NAPIC, rule: SHOPLOT_PRICE_FLOOR_SQM, per: SHOPLOT_SQFT_PER_SQM,
+        deals: SHOPLOT_TOWNS.flatMap(t => t.scenarios.map(s => ({ ref: t.id + '/' + s.key, d: shoplotDeal(t.id + '/' + s.key), lines: shoplotLines(t.id + '/' + s.key), spec: s.lines }))) })`));
+      const p = [];
+      if (JSON.stringify(page.rule) !== '[200,1500]') p.push(`the price rows' floor-area rule is ${JSON.stringify(page.rule)}, not 200–1,500 m²`);
+      const towns = Object.keys(page.N);
+      if (towns.join(',') !== 'kuching,samarahan,sibu,bintulu,miri') p.push(`the towns are ${towns.join(', ')}`);
+      const left = [];
+      let n = 0;
+      for (const id of towns) {
+        const T = page.N[id], div = T.division;
+        const all = napicSrc.benchmarks.filter(b => b.division === div && b.table === 'Prices of Shop' && b.propertyType === 'THREE STOREY SHOP');
+        const kept = all.filter(b => b.floorSqm >= page.rule[0] && b.floorSqm <= page.rule[1]);
+        all.filter(b => !kept.includes(b)).forEach(b => left.push(`${b.scheme} (${b.floorSqm} m²)`));
+        const want = { price: { ...fig(kept), floorSqm: med(kept.map(b => b.floorSqm)) },
+          shop: { area: T.shop.area, ...fig(napicSrc.benchmarks.filter(b => b.division === div && b.table === 'Rentals of Ground Floor Shop' && b.propertyType === T.shop.area)) },
+          office: { area: T.office.area, ...fig(napicSrc.benchmarks.filter(b => b.division === div && b.table === 'Rentals of Office in Shop' && b.propertyType === T.office.area)) } };
+        for (const part of ['price', 'shop', 'office']) for (const [k, v] of Object.entries(want[part])) {
+          n++;
+          if (T[part][k] !== v) p.push(`${id} ${part}.${k} is ${T[part][k]} in the page, ${v} recomputed`);
+        }
+        if (!(want.shop.schemes > 0 && want.office.schemes > 0 && want.price.schemes > 0)) p.push(`${id}: a figure rests on no scheme`);
+      }
+      if (left.sort().join('; ') !== 'Jalan Kwong Lee Bank (4800 m²); Miri Times Square (85 m²); One Garden City Residence (108.5 m²)') p.push(`the rule leaves out ${left.join('; ')}`);
+      for (const x of page.deals) {
+        const T = page.N[x.ref.split('/')[0]];
+        if (x.d.price !== T.price.mid) p.push(`${x.ref}: price ${x.d.price}, not ${T.price.mid}`);
+        if (x.d.sqft !== Math.round(T.price.floorSqm * page.per)) p.push(`${x.ref}: built-up ${x.d.sqft} sq ft, not the middle floor area`);
+        x.spec.forEach((l, i) => { if (l.napic && x.lines[i].gross !== T[l.napic].mid * (l.floors || 1)) p.push(`${x.ref} line ${i + 1}: ${x.lines[i].gross}, not NAPIC's ${T[l.napic].mid}`); });
+        if (x.spec[0]?.napic !== 'shop') p.push(`${x.ref}: the ground floor is not at NAPIC's ground-floor figure`);
+        if (x.ref.endsWith('/A') && !(x.spec.length === 3 && x.spec.every(l => l.napic && !l.rooms))) p.push(`${x.ref}: column A is not the shop and two office floors at NAPIC's figures`);
+      }
+      if (p.length) fail('shoplot SL2: the NAPIC figures equal the recompute', p);
+      else ok(`shoplot SL2: ${n} NAPIC figures of 5 towns equal their recompute from data/napic-h1-2025.json — the middle of the schemes, the lowest and highest, the scheme counts and the middle floor area; the floor-area rule leaves out exactly ${left.length} price rows (${left.join('; ')}); every scenario's price, built-up area and NAPIC lines are those figures, and every column A is the shop and two offices at them`);
+    } catch (e) { fail('shoplot SL2: the NAPIC figures could not be recomputed', String(e.message).split('\n')[0]); }
+
+    /* SL1, SL3, SL4 — in the page. */
+    try {
+      const r = JSON.parse(await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const ls = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); ls[k] = localStorage.getItem(k); }
+        const keepDeal = State.deal;
+        const out = { towns: [], own: [], keep: {} };
+        try {
+          /* SL1 */
+          for (const t of SHOPLOT_TOWNS) {
+            shoplotStart(t.id); await w(900);
+            const lab = LAB.deal;
+            const chip = 'Illustrative starting scenario — ' + t.name;
+            const card = document.getElementById('lab-slcard');
+            const deals = ['A', 'B', 'C'].map(k => shoplotDeal(t.id + '/' + k));
+            out.towns.push({ id: t.id, chip, view: State.view,
+              cols: (lab?.cols || []).map(c => ({ key: c.key, source: c.source, name: c.name, chip: labChipOf(c) })),
+              titles: t.scenarios.map(s => s.title),
+              domChips: [...document.querySelectorAll('.lab-cols .lab-cmp-chip')].map(n => n.textContent),
+              status: document.getElementById('lab-status')?.textContent || null,
+              card: card ? { refs: [...card.querySelectorAll('[data-sl]')].map(n => n.dataset.sl), statement: (card.textContent.match(/not a recommendation/g) || []).length } : null,
+              dealRef: State.deal.shoplot, kind: propertyStatus(State.deal).kind,
+              deals: deals.map((d, i) => { const ls2 = shoplotLines(t.id + '/' + 'ABC'[i]); const eff = ls2.reduce((a, l) => a + l.net * (1 - l.vacancyPct / 100), 0); const m = dealModel(d);
+                return { cls: propertyClassOf(d), sub: dealCommercialSubtype(d), route: dealRoute(d), rent: d.rent, sum: ls2.reduce((a, l) => a + l.net, 0), effModel: m.effectiveRent / 12, eff }; }) });
+          }
+          /* SL3 */
+          const keys = [...new Set([...Object.keys(PC_FIELD_DEF), ...PROPERTY_REVIEW.map(f => f.k), ...LAB_INPUTS.map(x => x.k), ...EVIDENCE_DRIVERS])];
+          for (const t of SHOPLOT_TOWNS) for (const s of t.scenarios) {
+            const ref = t.id + '/' + s.key, d = pmNormalInputs(shoplotDeal(ref));
+            const bad = [];
+            if (dealIsTheReaders(d)) bad.push('the reader\\'s');
+            if (Object.keys(d.touched || {}).length || d.userStarted) bad.push('touched');
+            for (const [k, v] of Object.entries(d.evidence || {})) if (['user', 'public', 'verified'].includes(v) || KIND_OF_EVIDENCE[v] === 'yours') bad.push('evidence ' + k + ' ' + v);
+            for (const k of keys) {
+              if (pcFieldOwn(d, k) === 'yours') bad.push(k + ' boxed Yours');
+              if (KIND_OF_EVIDENCE[shownEvidence(d, k)] === 'yours') bad.push(k + ' shown Yours');
+            }
+            for (const k of EVIDENCE_DRIVERS) if (evidenceDriversFor(d).includes(k) && shownEvidence(d, k) !== 'illustrative_default') bad.push(k + ' not Illustrative');
+            if (propertyStatus(d).kind !== 'sample') bad.push('status ' + propertyStatus(d).kind);
+            out.own.push({ ref, bad, keys: keys.length });
+          }
+          /* SL4 */
+          const rec = pmNewRecord({ ...pmSampleDeal(), price: 480000, touched: { price: true } }, 'SL4 saved property', new Date().toISOString());
+          persistWork([rec, ...loadWork()]);
+          openPropertyModel(rec.id, { show: false });
+          State.deal.rent = 2700; markTouched(State.deal, 'rent'); saveDeal();
+          const workBefore = JSON.stringify(loadWork()), dealBefore = pmCopy(State.deal);
+          out.keep.dirty = propertyStatus(State.deal).dirty;
+          shoplotStart('sibu'); await w(900);
+          out.keep.workSame = JSON.stringify(loadWork()) === workBefore;
+          out.keep.kept = pmSame(store.read('dealBeforeLink', null) || {}, dealBefore) && store.read('dealBeforeLink', null)?.modelId === rec.id;
+          out.keep.onCalc = State.deal.shoplot;
+          shoplotStart('miri'); await w(900);
+          out.keep.keptStill = pmSame(store.read('dealBeforeLink', null) || {}, dealBefore);
+          out.keep.workSame2 = JSON.stringify(loadWork()) === workBefore;
+          out.keep.restored = restoreDealBeforeLink() && pmSame(State.deal, dealBefore) && State.deal.modelId === rec.id;
+          shoplotStart('bintulu'); await w(900);
+          const n0 = loadWork().length;
+          const saved = saveActiveProperty({ name: 'SL4 shoplot' });
+          const after = loadWork();
+          out.keep.saved = !!saved && after.length === n0 + 1 && JSON.stringify(after.find(x => x.id === rec.id)) === JSON.stringify(JSON.parse(workBefore).find(x => x.id === rec.id));
+          out.keep.savedUntouched = !!saved && !dealIsTheReaders(pmInputsOf(pmFind(saved.id)));
+        } finally {
+          localStorage.clear(); for (const [k, v] of Object.entries(ls)) localStorage.setItem(k, v);
+          State.deal = keepDeal; delete LAB.deal; labSubject = null;
+          navigate('/property/calculator?view=full'); await w(500);
+        }
+        return JSON.stringify(out);
+      })()`));
+      /* SL1 */
+      const p1 = [];
+      for (const t of r.towns) {
+        const c = t.cols;
+        if (c.length !== 3 || c[0].source !== 'deal' || c[1].source !== `tpl:${t.id}/B` || c[2].source !== `tpl:${t.id}/C`) p1.push(`${t.id}: columns ${JSON.stringify(c.map(x => x.source))}`);
+        if (c.map(x => x.name).join('|') !== t.titles.join('|')) p1.push(`${t.id}: named ${c.map(x => x.name).join(' | ')}`);
+        if (!c.every(x => x.chip === t.chip) || t.domChips.length !== 3 || !t.domChips.every(x => x === t.chip)) p1.push(`${t.id}: chips ${JSON.stringify(c.map(x => x.chip))}, on the page ${JSON.stringify(t.domChips)}`);
+        if (t.status !== t.chip || t.view !== 'propertyLab') p1.push(`${t.id}: the page says "${t.status}" on ${t.view}`);
+        if (!t.card || t.card.refs.join(',') !== `${t.id}/A,${t.id}/B,${t.id}/C` || t.card.statement !== 1) p1.push(`${t.id}: the parts card ${JSON.stringify(t.card)}`);
+        if (t.dealRef !== `${t.id}/A` || t.kind !== 'sample') p1.push(`${t.id}: the calculator holds ${t.dealRef} as ${t.kind}`);
+        t.deals.forEach((d, i) => {
+          if (d.cls !== 'commercial' || d.sub !== 'whole-shoplot' || d.route !== 'subsale') p1.push(`${t.id}/${'ABC'[i]}: ${d.cls}, ${d.sub}, ${d.route}`);
+          if (d.rent !== d.sum || Math.abs(d.effModel - d.eff) > d.rent * 0.00005 + 0.01) p1.push(`${t.id}/${'ABC'[i]}: rent ${d.rent} against parts ${d.sum}; after vacancy ${d.effModel} against ${d.eff}`);
+        });
+      }
+      if (r.towns.length !== 5) p1.push(`${r.towns.length} towns`);
+      if (p1.length) fail('shoplot SL1: the scenarios load as labelled illustrative columns', p1);
+      else ok(`shoplot SL1: each of the 5 towns opens in the Lab as A (the calculator's deal, an untouched sample) and B and C ('tpl:' columns), named by its scenarios and chipped "Illustrative starting scenario — <town>" in the lab and on the page, the page's name the chip, the parts card listing A, B and C and "not a recommendation" once; all 15 deals are a whole shoplot, commercial, subsale, the rent the sum of the parts and the model's rent after vacancy the parts' to the cent`);
+      /* SL3 */
+      const p3 = r.own.filter(x => x.bad.length).map(x => `${x.ref}: ${x.bad.join(', ')}`);
+      if (p3.length || r.own.length !== 15) fail('shoplot SL3: no figure of a scenario is the reader\'s own', p3.length ? p3 : `${r.own.length} scenarios`);
+      else ok(`shoplot SL3: none of the 15 scenarios marks a figure as the reader's — nothing touched, no evidence the badges read as Yours, none of ${r.own[0].keys} boxes Yours, every evidence driver Illustrative, each a sample`);
+      /* SL4 */
+      const k = r.keep, p4 = [];
+      if (!k.dirty) p4.push('the saved property was not opened with an unsaved change');
+      if (!k.workSame || !k.workSame2) p4.push('starting a scenario wrote to the saved work');
+      if (!k.kept) p4.push('the unsaved changes were not kept aside with their property');
+      if (k.onCalc !== 'sibu/A') p4.push(`the calculator holds ${k.onCalc}`);
+      if (!k.keptStill) p4.push('a second scenario displaced the changes kept aside');
+      if (!k.restored) p4.push('"Restore my previous deal" did not bring the changes back');
+      if (!k.saved || !k.savedUntouched) p4.push(`Save: ${JSON.stringify({ saved: k.saved, untouched: k.savedUntouched })}`);
+      if (p4.length) fail('shoplot SL4: the reader\'s saved deal is untouched until Save', p4);
+      else ok('shoplot SL4: with a saved property\'s unsaved changes on the calculator, starting Sibu then Miri writes nothing to the saved work, keeps the changes aside with their property (the second scenario does not displace them), and "Restore my previous deal" brings them back; Save adds one property, its figures still the tool\'s, and leaves the other byte for byte');
+    } catch (e) { fail('shoplot: the scenarios could not be run', String(e.message).split('\n')[0]); }
+
+    /* SL5 */
+    try {
+      const after = await evaluate(fp);
+      const p5 = [];
+      if (!printsBefore) p5.push('no fingerprints were taken before');
+      else for (const [k, v] of Object.entries(after)) if (printsBefore[k] !== v) p5.push(`${k} printed ${printsBefore[k]}, then ${v}`);
+      if (after.sample !== '403db6fd:31593') p5.push(`the sample prints ${after.sample} (P1 R1's 403db6fd:31593)`);
+      const used = await evaluate(`typeof shoplotDeal === 'function' && SHOPLOT_TOWNS.length === 5`);
+      if (!used) p5.push('the scenarios are not in the page');
+      if (p5.length) fail('shoplot SL5: the model\'s fingerprints are unchanged', p5);
+      else ok(`shoplot SL5: the ${Object.keys(after).length} R1 deals print the same fingerprints before and after every scenario is loaded, the sample P1 R1's 403db6fd:31593 — dealModel is the one it was`);
+    } catch (e) { fail('shoplot SL5: the fingerprints could not be taken', String(e.message).split('\n')[0]); }
+  }
+  /* ---- end shoplot ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

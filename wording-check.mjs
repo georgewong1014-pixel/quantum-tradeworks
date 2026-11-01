@@ -480,6 +480,46 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end scenario-lab ---- */
 
+/* ---- shoplot ---- */
+/* THE SHOPLOT STARTING SCENARIOS ARE STARTING POINTS, NEVER ADVICE (the
+   owner, 1 Nov 2026; 94-shoplot-scenarios.js). In the module's text —
+   comments left out — no word that ranks, recommends, forecasts or grades
+   a deal is used as a claim, only in a sentence that denies it ("— not a
+   recommendation"); NAPIC's figure is never called a median, and a
+   transaction is named only to deny it (NAPIC's figures are the middle of
+   the schemes it sampled, the owner's wording); the statement is said
+   exactly as decided; every scenario's chip says it is illustrative.
+   Absent, the module is said to be. */
+{
+  const SL_BANNED = /\b(best|recommend\w*|winners?|top picks?|you should|better deal|outperform\w*|forecasts?|guarantee[ds]?|undervalued|overvalued|bargains?|good deal|great deal|safest|riskiest|below market|above market|worth buying)\b/gi;
+  const SL_DENIAL = new RegExp(`${DENIAL.source}|\\bno\\b|\\bnot\\b|nothing|never`, 'i');
+  let src = null;
+  try { src = readFileSync(join(ROOT, 'src', 'js', '94-shoplot-scenarios.js'), 'utf8'); } catch { src = null; }
+  if (src === null) {
+    bad++;
+    console.error('FAIL  the shoplot starting scenarios module is missing (src/js/94-shoplot-scenarios.js), so its words cannot be checked');
+  } else {
+    const text = uncommented(src);
+    const p = [];
+    let seen = 0;
+    for (const m of text.matchAll(SL_BANNED)) {
+      seen++;
+      const s = sentenceAt(text, m.index, m[0].length);
+      if (!SL_DENIAL.test(s)) p.push(`"${m[0]}" used as a claim: “${s.slice(0, 200)}”`);
+    }
+    for (const m of text.matchAll(/\bmedians?\b/gi)) p.push(`"${m[0]}": NAPIC's figure is the middle of the schemes it sampled, never a median — “${sentenceAt(text, m.index, m[0].length).slice(0, 160)}”`);
+    for (const m of text.matchAll(/\btransactions?\b/gi)) { const s = sentenceAt(text, m.index, m[0].length); if (!/schemes, not transactions/.test(s)) p.push(`"${m[0]}" not in "schemes, not transactions": “${s.slice(0, 160)}”`); }
+    const STATEMENT = 'Starting points built from the middle of the schemes NAPIC sampled in H1 2025 and illustrative assumptions — not a recommendation.';
+    if (!src.includes(`'${STATEMENT}'`)) p.push('the statement is not said as decided');
+    if (!/Illustrative starting scenario — \$\{/.test(src)) p.push('the chip "Illustrative starting scenario — <town>" is not written');
+    if (/'public'/.test(text.replace(/never 'public'/g, ''))) p.push('a scenario figure is given the evidence `public`, which the badges read as Yours');
+    bad += p.length;
+    if (p.length) { console.error(`FAIL  ${p.length} problem(s) in the shoplot starting scenarios' words (94-shoplot-scenarios.js):`); p.forEach(x => console.error(`      ${x}`)); }
+    else console.log(`ok    the shoplot starting scenarios rank, recommend and forecast nothing (${seen} use${seen === 1 ? '' : 's'} of such a word, each denied), never call NAPIC's figure a median or a transaction, say the statement as decided and chip every scenario Illustrative`);
+  }
+}
+/* ---- end shoplot ---- */
+
 /* ---- property-investing ---- */
 /* THE PROPERTY LANDING MAKES NO MARKETING CLAIM (the owner's decision of
    7 Oct 2026: /property-investing is approved as a page about what ships;
