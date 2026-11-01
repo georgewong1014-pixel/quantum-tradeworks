@@ -597,6 +597,10 @@ const TOOLS = [
     status: 'live', statusNote: 'Sarawak transacted prices and achieved rents you record, each with what it rests on.',
     proof: { journey: 'registers', step: 'Record a transaction and a rent: each listed with what it rests on' },
     action: { label: 'Record a comparable', path: '/property/comparables' } },
+  /* The owner, 1 Nov 2026: supply, asking price, demand and transacted price, by area and type, from snapshots the reader records (94-market-pulse.js). */
+  { id: 'marketPulse', product: 'property', label: 'Market pulse', path: '/property/market', views: ['marketPulse'], tab: true,
+    status: 'beta', statusNote: 'Supply, asking price, demand and transacted price for the areas you track, from the counts and prices you record yourself; nothing is fetched from a listing site and nothing is scored.',
+    action: { label: 'Record a snapshot', path: '/property/market' } },
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
     status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
     proof: { journey: 'registers', step: 'Record a property: it is listed with what is known and what is not' },
@@ -1293,6 +1297,7 @@ const ROUTES = [
   { path: '/property/models/:property/proposal', view: 'propertyProposal', title: 'Client proposal' },
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
+  { path: '/property/market',     view: 'marketPulse', title: 'Market pulse' },
   { path: '/property/areas',      view: 'areas',       title: 'Area screen' },
   /* The area screen's second view: Kuching on a map of this site's own
      files, the NAPIC schemes OpenStreetMap places on it (92-kuching-map.js). */
@@ -1391,6 +1396,7 @@ const META = {
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
   propertyLab: 'Move nine inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
   comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
+  marketPulse: 'Supply, asking price, demand and transacted price by area and property type, from the counts and prices you record. Nothing is fetched from a listing site; nothing is ranked or scored.',
   areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
   areaMap:     'Kuching on a map made of this site’s own files, with the NAPIC housing schemes OpenStreetMap names placed on it — positions only, each with its evidence; NAPIC’s ranges stay in the list.',
   wheel:       'A cash-secured put and covered call cycle modelled from figures you enter — no chain data, no recommended contract.',
@@ -2008,7 +2014,7 @@ const SECTION_OF = {
   userdata: 'userdata', plans: 'plans',
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
-  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property', areaMap: 'property', propertyLab: 'property',
+  property: 'property', opportunities: 'property', comparables: 'property', marketPulse: 'property', areas: 'property', areaMap: 'property', propertyLab: 'property',
   propertyModels: 'property',
   /* A document of one saved property, not a tool of its own: Property's
      page with no tab current, as the decision record is. */
@@ -3144,6 +3150,8 @@ const SERVED_READS = {
      the product's Start here panel and the line's deal are the reader's own. */
   areaMap: ['startHere', 'deal', 'savedWork'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere', 'deal', 'savedWork'],
+  /* The market pulse draws the same register (and the deal's town and type as the form's first choice, on a first visit). */
+  marketPulse: ['observations', 'registerActor', 'registerLog', 'startHere', 'deal', 'savedWork'],
   opportunities: ['opportunities', 'startHere', 'deal', 'savedWork'],
   tradingIndex: ['qttiPlan', 'savedWork', 'startHere'],
   wheel: ['wheelPlan', 'wheelLegs', 'savedWork', 'startHere'],

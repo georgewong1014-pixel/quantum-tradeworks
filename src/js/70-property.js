@@ -3986,6 +3986,9 @@ const OBSERVATION_KINDS = [
   { id:'land-sold',  label:'Transacted land price',unit:'RM',       family:'land',  asking:false, area:'land' },
   { id:'mgmt-fee',   label:'Management or service charge', unit:'RM/month', family:'cost', asking:false, area:'built' },
   { id:'vacancy',    label:'Weeks vacant',         unit:'weeks',    family:'other', asking:false },
+  /* The owner, 1 Nov 2026 (Market pulse, 94-market-pulse.js): how many were listed for sale in an area
+     and type on a day, counted by the reader from a search they ran; a count, not a price, so not asking. */
+  { id:'listed',     label:'Listings counted',     unit:'listings', family:'count', asking:false },
 ];
 const OBS_BY_ID = Object.fromEntries(OBSERVATION_KINDS.map(k => [k.id, k]));
 const EVIDENCE_BY_ID = Object.fromEntries(EVIDENCE.map(e => [e.id, e]));
