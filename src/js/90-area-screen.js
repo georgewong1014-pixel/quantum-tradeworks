@@ -200,7 +200,7 @@ VIEWS.areas = () => {
 
   /* ---- the map ---- */
   const mapCard = el('div', { class: 'card' });
-  mapCard.append(cardHead(`${city.name} — ${layer.label.toLowerCase()}`, layer.why, null, AK));
+  mapCard.append(cardHead(`${city.name} — ${layer.label.toLowerCase()}`, layer.why, null, layer.badge || AK));
 
   const paint = (n) => {
     if (!shown.includes(n)) return null;
@@ -248,8 +248,9 @@ VIEWS.areas = () => {
   if (layer.caveat) mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm);color:var(--bronze)' }, layer.caveat));
   /* The positions' note is said once, in "What this screen cannot tell
      you" (the Day-10 pre-audit, CL-14); here, a quantity layer's banding. */
-  if (layer.kind === 'quantity') mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'));
+  if (layer.kind === 'quantity') mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, layer.badge
+    ? 'Shading is banded against the range present in this town, not an absolute scale, and the map is read one town at a time. A darker point holds a larger value; it is not a better or a worse area, and open a locality in the table for the full evidence.'
+    : 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'));
   if (hasWorkedExample()) {
     const n = sampleObservations().length;
     const warn = el('div', { class: 'card', style: 'border-color:var(--bronze)' });
@@ -412,6 +413,10 @@ VIEWS.areas = () => {
         ` — model a property here. The district of ${st.kind === 'model' ? `“${st.rec.name}”` : 'the deal on the calculator'} becomes ${S.editing}; its figures stay as they are.`]) : null,
       usePlaceControl(S.city, S.editing, { id: 'area-use-in-calc' }),
     ]));
+    /* The owner, 1 Nov 2026: who lives in the district and what is mapped
+       within 5 km, before the transactions — evidence the reader did not have
+       to record. */
+    wrap.append(everydayReachPanel(S.city, S.editing));
     wrap.append(officialBenchmarkPanel(S.city, S.editing));
     wrap.append(localityTransactionPanel(S.city, S.editing));
     wrap.append(landRiskPanel(S.city, S.editing));

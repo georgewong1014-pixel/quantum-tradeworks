@@ -2455,6 +2455,9 @@ function labMetricView(metric, lab) {
         `${am.total} record${am.total === 1 ? '' : 's'} for the district${am.sampleN ? `, ${am.sampleN} of them worked-example figures` : ''}`,
         lr.sentence,
         `Demand test: ${dt.verdict}`,
+        /* The owner, 1 Nov 2026: what is mapped near the place, and its district's
+           population — facts, left out when the file holds none for the area. */
+        ...reachLabLines(r.d.city, r.d.district),
       ];
     };
     const tbl = { field: 'district', fmt: null, form: 'facts', title: 'Where each column is',

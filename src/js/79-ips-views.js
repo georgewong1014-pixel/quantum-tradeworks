@@ -72,6 +72,7 @@ function demandPanel(city, area) {
      runner): nothing in a row could give way. The note now sits under the
      source it describes, in the same cell, where it wraps as far as it must —
      three columns, and the only fixed width is the select's own. */
+  const hintFor = (id) => reachHint(city, area, id);
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
   t.append(el('thead', {}, el('tr', {}, ['Source', 'State', 'Counts'].map((h, i) =>
     el('th', { style: i ? null : 'text-align:left' }, h)))));
@@ -101,6 +102,11 @@ function demandPanel(city, area) {
         i.source.fragile && !i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'fragile') : null,
         el('div', { class: 'caption', style: 'text-align:left;white-space:normal;overflow-wrap:normal;font-weight:400;margin-top:2px;min-width:8rem' },
           i.state ? i.state.note : i.source.ask),
+        /* The owner, 1 Nov 2026: a line of evidence from the reach file beside
+           employment, education and healthcare. A hint only — the reader still
+           marks the source, and the verdict, the grade and the IPS do not read it. */
+        hintFor(i.source.id) ? el('div', { class: 'caption reach-hint', 'data-reach-hint': i.source.id, title: 'Mapped in OpenStreetMap: at least this many, straight line from the area’s point. A hint — mark the source yourself.',
+          style: 'text-align:left;white-space:normal;overflow-wrap:normal;font-weight:400;margin-top:2px;min-width:8rem' }, hintFor(i.source.id)) : null,
       ].filter(Boolean)),
       el('td', { style: 'text-align:left' }, sel),
       el('td', { style: 'text-align:left' }, i.counts
@@ -111,6 +117,8 @@ function demandPanel(city, area) {
   t.append(tb);
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
   test.warnings.forEach(w => card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' }, w)));
+  if (test.items.some(i => hintFor(i.source.id))) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    'A “Within 5 km” line is a hint from OpenStreetMap, where counts are at least this many and never a total, measured straight line from the area’s point. It marks nothing: you record each source above, and the verdict, the grade and the IPS read only what you record.'));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'An announced source is recorded and never counted until it operates. That single rule is the one this product would keep '
     + 'if it could keep only one: the demand story that has not happened yet has carried more Malaysian off-plan losses than any other.'));

@@ -206,7 +206,7 @@ const APP_FILES_MARKER = '@APP_FILES';
    are git-ignored, exist only on the reader's own machine, and publishing a hash
    of them in a public repo would leak a fingerprint of licensed data. They keep
    plain URLs and no-store, which is what fetchJson falls back to. */
-const VERSIONED = ['us.json', 'instruments.json', 'sarawak-geo.json',
+const VERSIONED = ['us.json', 'instruments.json', 'sarawak-geo.json', 'sarawak-reach.json',
   /* The Kuching map's style, light and dark, and the buildings OpenStreetMap
      records a height for (map-assets.mjs): asked for by the map page alone.
      Its tile file, glyphs and sprites are named by what they hold (a build's
