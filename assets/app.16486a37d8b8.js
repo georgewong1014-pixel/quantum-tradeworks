@@ -549,8 +549,11 @@ function exportEverything() {
   /* The envelope says which data the file was taken against, as well as
      which model: every saved item inside carries its own stamp, and this is
      the same record for the file as a whole. */
+  /* And the fee rulebook (the 31 Oct 2026 operational audit, #3): the saved
+     properties inside are priced by it, and the model version above is the
+     Equities model, which no property figure reads. */
   const out = { format:'quantum-tradeworks/user-data', version:EXPORT_VERSION,
-                exportedAt:new Date().toISOString(), model:MODEL_VERSION,
+                exportedAt:new Date().toISOString(), model:MODEL_VERSION, feeRulebook:FEE_TABLE.version,
                 dataVersions: buildStamp('universe').data, data:{} };
   PORTABLE_KEYS.forEach(({ k }) => {
     const v = store.read(k, null);
@@ -576,6 +579,14 @@ const siblingFileOf = (doc) => !doc || typeof doc !== 'object' ? null
   : doc.format === 'quantum-tradeworks/user-data' ? 'everything'
   : !doc.format && isRecord(doc.series) ? 'prices' : null;
 
+/* Whether dotted version a is later than b (1.10.0 after 1.9.0); false when
+   either is not a plain dotted number, so nothing is called newer on a guess. */
+function versionIsNewer(a, b) {
+  const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+  if ([...x, ...y].some(n => !Number.isFinite(n))) return false;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+}
 function importEverything(doc) {
   const sibling = siblingFileOf(doc);
   if (sibling && sibling !== 'everything') return { ok:false, err: SIBLING_FILES[sibling] };
@@ -605,6 +616,10 @@ function importEverything(doc) {
   const version = Number.isFinite(Number(doc.version)) ? Number(doc.version) : null;
   return { ok:true, incoming, ignored, refused, missing, version, newer: version !== null && version > EXPORT_VERSION,
     model: typeof doc.model === 'string' ? doc.model : null, exportedAt:doc.exportedAt,
+    /* A file from before the rulebook was recorded carries none, and restores
+       as before; one from a later rulebook is named (openRestoreDrawer). */
+    feeRulebook: typeof doc.feeRulebook === 'string' ? doc.feeRulebook : null,
+    newerRulebook: typeof doc.feeRulebook === 'string' && versionIsNewer(doc.feeRulebook, FEE_TABLE.version),
     /* Every kind replaced, or none (writeAllOrNothing): { ok:true }, or
        { ok:false, error } with what this browser held left as it was. */
     apply() {
@@ -2384,12 +2399,22 @@ function buildStamp(subject) {
   });
   const illus = companies.filter(c => !c.real).length;
   const asOfs = [...new Set(companies.map(c => (c.real ? c.retrieved : AS_OF) || null).filter(Boolean))];
-  return {
+  const stamp = {
     v: 1, model: MODEL_VERSION, data,
     asOf: asOfs.length ? asOfs.join(', ') : (kind === 'universe' ? AS_OF : null),
     illustrative: companies.length ? (illus === 0 ? 'none' : illus === companies.length ? 'all' : 'some') : null,
     savedAt: new Date().toISOString(),
   };
+  /* The fee rulebook a saved property was priced under (the 31 Oct 2026
+     operational audit, #3). The stamp recorded the Equities model for a
+     property, which no property figure reads, and never the rulebook that
+     prices its duties and fees: after rulebook 1.5.0 changed the valuation
+     fee a property saved earlier still read "Current", and an Equities-only
+     model change would have read "Model moved" on every saved property.
+     Only a property carries it; a stamp saved before this has none, and
+     stampDiff says so rather than guess. */
+  if (kind === 'property' && typeof FEE_TABLE !== 'undefined') stamp.fees = FEE_TABLE.version;
+  return stamp;
 }
 
 /* What moved between a stamp and now. Model and data are reported apart,
@@ -2412,7 +2437,42 @@ const shortHash = (h) => h ? String(h).slice(0, 7) : 'unrecorded';
    sentence changes. */
 const DATA_NAME = { 'us.json': 'SEC filings', 'personal-fundamentals.json': 'your statements' };
 const dataName = (k) => DATA_NAME[k] || k;
-function stampDiff(stamp, legacy = null) {
+/* The data files of a stamp that are not the ones this build carries. */
+const stampDataMoves = (stamp) => Object.entries(stamp.data || {})
+  .filter(([k, d]) => d && d.v != null && currentDataVersion(k) != null && d.v !== currentDataVersion(k))
+  .map(([k, d]) => ({ key: k, then: d.v, now: currentDataVersion(k), generated: d.generated || null }));
+const dataMoveLine = (m) => m.key === ILLUS_SET
+  ? `Data moved: the illustrative set was dated ${m.then}; it is now dated ${m.now}.`
+  : `Data moved: saved against ${dataName(m.key)} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; now ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`;
+/* A saved property is read against the fee rulebook that prices it and the
+   property data files it read, never the Equities model (the 31 Oct 2026
+   operational audit, #3). One saved before the rulebook was recorded has no
+   `fees`; it says so, and is not reported moved or current. */
+function propertyStampDiff(stamp) {
+  if (!stamp || typeof stamp !== 'object' || !stamp.model)
+    return { status: 'unstamped', stamped: false, modelMoved: null, feesMoved: null, dataMoved: null, moved: [],
+      label: 'Saved before versions were recorded',
+      text: 'Neither the fee rulebook nor the data version was recorded, so whether either has moved cannot be said.' };
+  const feesNow = typeof FEE_TABLE !== 'undefined' ? FEE_TABLE.version : null;
+  const known = typeof stamp.fees === 'string' && stamp.fees !== '';
+  const feesMoved = known && feesNow ? stamp.fees !== feesNow : null;
+  const moved = stampDataMoves(stamp);
+  const dataMoved = moved.length > 0;
+  const parts = [];
+  if (feesMoved) parts.push(`Fee rulebook moved: saved on ${stamp.fees}, now ${feesNow}.`);
+  moved.forEach(m => parts.push(dataMoveLine(m)));
+  if (feesMoved === null) {
+    return { status: 'unstamped', stamped: true, modelMoved: false, feesMoved: null, dataMoved, moved,
+      label: 'Saved before the rulebook was recorded',
+      text: [...parts, 'The fee rulebook it was saved under was not recorded, so whether the rulebook has moved since cannot be said.'].join(' ') };
+  }
+  const status = feesMoved && dataMoved ? 'both' : feesMoved ? 'fees' : dataMoved ? 'data' : 'current';
+  return { status, stamped: true, modelMoved: false, feesMoved, dataMoved, moved,
+    label: { both: 'Fee rulebook and data moved', fees: 'Fee rulebook moved', data: 'Data moved', current: 'Current' }[status],
+    text: parts.length ? parts.join(' ') : 'Saved under the current fee rulebook and data versions — neither has moved since.' };
+}
+function stampDiff(stamp, legacy = null, subject = null) {
+  if (subject === 'property') return propertyStampDiff(stamp);
   if (!stamp || typeof stamp !== 'object' || !stamp.model) {
     const model = legacy?.model || null;
     const modelMoved = model ? model !== MODEL_VERSION : null;
@@ -2423,15 +2483,11 @@ function stampDiff(stamp, legacy = null) {
         : 'Neither the model nor the data version was recorded, so whether either has moved cannot be said.' };
   }
   const modelMoved = stamp.model !== MODEL_VERSION;
-  const moved = Object.entries(stamp.data || {})
-    .filter(([k, d]) => d && d.v != null && currentDataVersion(k) != null && d.v !== currentDataVersion(k))
-    .map(([k, d]) => ({ key: k, then: d.v, now: currentDataVersion(k), generated: d.generated || null }));
+  const moved = stampDataMoves(stamp);
   const dataMoved = moved.length > 0;
   const parts = [];
   if (modelMoved) parts.push(`Model moved: ${modelMoveText(stamp.model)}.`);
-  moved.forEach(m => parts.push(m.key === ILLUS_SET
-    ? `Data moved: the illustrative set was dated ${m.then}; it is now dated ${m.now}.`
-    : `Data moved: saved against ${dataName(m.key)} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; now ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`));
+  moved.forEach(m => parts.push(dataMoveLine(m)));
   const status = modelMoved && dataMoved ? 'both' : modelMoved ? 'model' : dataMoved ? 'data' : 'current';
   return { status, stamped: true, modelMoved, dataMoved, moved,
     label: { both: 'Model and data moved', model: 'Model moved', data: 'Data moved', current: 'Current' }[status],
@@ -12614,8 +12670,11 @@ function toast(msg) {
      (70-property.js); what is not the reader's own — the seeded example deal,
      the sample projects' synthetic transactions, fee lines still placeholders
      — is labelled where it shows, and the note says so.
-   - Business Intelligence is not built. It is text with a badge, never a
-     link or a button, and SHOW_UNBUILT keeps it out of the app sidebar. */
+   - Business Intelligence is not built. It is never a link or a button, and
+     SHOW_UNBUILT keeps it out of the app sidebar, the header's menus and the
+     footer's Products (the owner's scope direction, 1 Nov 2026; QT-SCOPE-02);
+     it stays in the table for /status, /how-it-works' "Not built yet" line
+     and the search. */
 /* THE QUALIFIER (the owner's decisions D5 and D17, 2026-10-05): a few words
    that say, beside the status word and in sight, what the status rests on.
    The homepage card shows each product's; Property's is shown wherever its
@@ -14312,7 +14371,11 @@ function resourceHere() {
 /* The four products as rows: name, badge, blurb. A product that is not built
    is a row of text — no link, no button, nothing to press. */
 function productRows() {
-  return PRODUCTS.map(p => {
+  /* The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the header's menu
+     and the phone sheet list the products that exist. Business Intelligence,
+     which is not built, was a greyed row among them; it is listed where the
+     site says what exists and what does not (/status, /pricing, /about). */
+  return PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => {
     const kids = [
       el('span', { class: 'pp-ico', 'aria-hidden': 'true', html: icon(PRODUCT_ICON[p.id] || 'grid', 18) }),
       el('span', { class: 'pp-body' }, [
@@ -14388,7 +14451,8 @@ function sidebarItem(n, extra = []) {
    it, and buildNav marks the current item again: the same links, so nothing
    moves. The phone's sheet is not served: it is hidden until the script
    opens it, and every link in it is in the header's menus and the footer.
-   Business Intelligence, which is not built, is text in all of them. */
+   Business Intelligence, which is not built, is in none of them (the owner's
+   scope direction, 1 Nov 2026); before that it was text with a badge. */
 const NAV_MARKUP = {
   /* The public header: Products, Saved work, How it works, Help (the owner's
      quick-wins brief, fix 5, 30 Oct 2026). Saved work is new, the sidebar's
@@ -14415,7 +14479,12 @@ const NAV_MARKUP = {
   /* The footer's Products and Resources, from the same tables. Unchanged by
      the header's list of 30 Oct 2026: every link the header gave up is here
      or in the Company column (index.template.html). */
-  footProducts: () => PRODUCTS.map(p => el('li', {}, p.path
+  /* The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the footer's
+     Products column lists the three that exist. Business Intelligence stood
+     in it as a fourth item with a "Coming soon" badge, in the same list as
+     the live products; the footer's one line, "Business planning: planned,
+     not yet scheduled.", says what is not built. */
+  footProducts: () => PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => el('li', {}, p.path
     ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))),
   footResources: () => [
@@ -22087,6 +22156,15 @@ VIEWS.research = () => {
     head.append(rp);
   }
   wrap.append(head);
+  /* THE COMPANY PAGE SAYS ITS RESEARCH IS READY (the owner's scope direction,
+     1 Nov 2026, QT-SCOPE-03): one line under the identity header, naming only
+     what the header offers — "Add to watchlist" (the page's save: there is no
+     separate save of a company) and "Compare". Once the company is on the
+     list, it offers Compare alone. A filed company only: an illustrative one
+     carries synthetic figures, and "your research is ready" over them would
+     claim a result that is not real. No counter, no tracking. */
+  if (c.real) wrap.append(el('p', { class: 'body co-ready', id: 'co-ready' },
+    `Your company research is ready. Review the data sources and assumptions, then ${State.watchlist.includes(c.id) ? '' : 'add it to a watchlist or '}compare it with other companies.`));
 
   /* ---------- Strategy Lens (directive 7.1) ----------
      Above the research tabs, not replacing them. The tabs answer "what are the
@@ -28131,7 +28209,8 @@ const PUB_VISUALS = { equities: pubVisEquities, scanner: pubVisScanner, property
    card's one action, an <h3> link stretched over the card — its qualifier
    with the ⓘ, one short limit line, and its visual. What sits over the stretched link (the ⓘ,
    the visual's own link and control, a badge) is its own target: no link, button or <details> inside a link.
-   Business, which is not built, is not a card: one line of text below. */
+   Business, which is not built, is not a card and, since 1 Nov 2026, is not
+   on the homepage at all (QT-SCOPE-02). */
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
@@ -28172,11 +28251,12 @@ VIEWS.marketing = () => {
   products.append(el('h2', { class: 'sr-only', id: 'pub-products-h' }, 'What would you like to do?'));
   const built = PRODUCTS.filter(p => p.path && p.actionPath);
   products.append(el('div', { class: 'pub-cards' }, built.map(pubProductCard)));
-  for (const p of PRODUCTS.filter(x => !x.path)) {
-    products.append(el('p', { class: 'pub-soon', 'data-product': p.id }, [
-      el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
-    ]));
-  }
+  /* The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the line under the
+     cards, "Business Intelligence · Plan my business · Coming soon", is gone.
+     A first-time visitor chooses among three things that exist; what is not
+     built is said where the site lists what exists and what does not (the
+     footer's one line, /status, /pricing, /about, /how-it-works below its
+     three products). */
   wrap.append(products);
 
   /* -- 3. an example path through the work (plan 3.4, D22) ------------------
@@ -28644,23 +28724,28 @@ VIEWS.howItWorks = () => {
     'Each product starts from something you choose or enter, shows its working, and keeps what you save in this browser. '
     + 'Here is each one step by step, how they connect, and worked examples computed by the products’ own models.'));
   hd.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
-  /* A jump link for each product that is built. Business Intelligence was a
-     fourth identical pill — a link, styled as a way into a product the brief
-     says is never a link or a button. It is text here, with its badge, as on
-     the homepage card; its section below is still on the page. */
+  /* A jump link for each product that is built.
+     The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the first view is
+     about the three products that exist. Business Intelligence, which is not
+     built, was a fourth item here (text with its badge), a row in the status
+     legend and a section of its own; it is now one short "Not built yet" line
+     below the three products' sections. */
+  const built = P.filter(p => p.path);
   const toc = el('ul', { class: 'hiw-toc-list' });
-  P.forEach(p => toc.append(el('li', {}, p.path
-    ? pubJump(`hiw-${p.id}`, { class: 'hiw-toc-link' }, p.name)
-    : el('span', { class: 'hiw-toc-soon' }, [p.name, pubBadge(p)]))));
+  built.forEach(p => toc.append(el('li', {}, pubJump(`hiw-${p.id}`, { class: 'hiw-toc-link' }, p.name))));
   toc.append(el('li', {}, pubJump('hiw-journey', { class: 'hiw-toc-link' }, 'The connected journey')));
   hd.append(el('nav', { class: 'hiw-toc', 'aria-label': 'On this page' }, toc));
   wrap.append(hd);
 
   wrap.append(hiwRely());
-  wrap.append(hiwStatus(P));
+  wrap.append(hiwStatus(built));
   const list = el('div', { class: 'hiw-products' });
-  P.forEach(p => list.append(hiwProduct(p)));
+  built.forEach(p => list.append(hiwProduct(p)));
   wrap.append(list);
+  const unbuilt = P.filter(p => !p.path);
+  if (unbuilt.length) wrap.append(el('p', { class: 'hiw-soon hiw-unbuilt' }, [
+    /* One text node after the label: two adjacent strings are two nodes when drawn and one in the served HTML (coverage-frames). */
+    el('strong', {}, 'Not built yet: '), `${unbuilt.map(p => `${p.name} (${String(p.blurb || '').replace(/\.$/, '').toLowerCase()})`).join(', ')}. There is nothing to open.`]));
   wrap.append(hiwJourney());
 
   wrap.append(el('section', { class: 'hiw-end', 'aria-labelledby': 'hiw-end-h' }, [
@@ -30490,7 +30575,7 @@ function workspaceItems() {
     const prop = w.kind === 'property' && typeof pmIsProperty === 'function' && pmIsProperty(w);
     const nSc = prop ? (w.scenarios || []).length : 0;
     items.push({
-      kind: prop ? 'property' : 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
+      kind: prop ? 'property' : 'work', key: w.id, prop, stampAs: w.kind === 'property' ? 'property' : null, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
       created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
       sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
       detail: (sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
@@ -30505,11 +30590,13 @@ function workspaceItems() {
     });
   });
 
-  items.forEach(it => { it.diff = stampDiff(it.stamp, it.legacy); });
+  /* A saved property is read against the fee rulebook and its property data,
+     not the Equities model (the 31 Oct 2026 operational audit, #3). */
+  items.forEach(it => { it.diff = stampDiff(it.stamp, it.legacy, it.stampAs || null); });
   return items;
 }
 
-const WS_STATUS_CLASS = { current: 'chip chip-ok', model: 'chip chip-warn', data: 'chip chip-warn', both: 'chip chip-warn', unstamped: 'chip' };
+const WS_STATUS_CLASS = { current: 'chip chip-ok', model: 'chip chip-warn', fees: 'chip chip-warn', data: 'chip chip-warn', both: 'chip chip-warn', unstamped: 'chip' };
 /* Every clock time saved here comes from toISOString, so it is UTC in both of
    its forms — the ISO one, and the tool snapshot's "2026-09-28 07:28", which
    was printed with no zone and read eight hours early in Malaysia. A bare
@@ -30547,9 +30634,9 @@ VIEWS.workspace = () => {
      How it works read. */
   const lim = savedProtection({ cls: 'ws-limits', own: all.some(i => !i.sample), badge: toolBadge('saved'),
     extra: all.length ? [el('details', { class: 'explain', 'data-version-flags': '' }, [
-      el('summary', {}, 'What “Model moved” and “Data moved” mean'),
+      el('summary', {}, 'What “Model moved”, “Fee rulebook moved” and “Data moved” mean'),
       el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--xs);max-width:72ch' },
-        `“Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`),
+        `“Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Fee rulebook moved” means a saved property was saved under another version of the duties and fees it is priced with (now ${FEE_TABLE.version}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`),
     ])] : [] });
   wrap.append(lim);
 
@@ -30568,7 +30655,7 @@ VIEWS.workspace = () => {
      Screens pressed left no button pressed and "Nothing saved matches that
      filter" over two saved cases. The filter goes back to All. */
   if (W.kind !== 'all' && !counts[W.kind]) W.kind = 'all';
-  const moved = all.filter(i => ['model', 'data', 'both'].includes(i.diff.status)).length;
+  const moved = all.filter(i => ['model', 'fees', 'data', 'both'].includes(i.diff.status)).length;
   const unstamped = all.filter(i => i.diff.status === 'unstamped').length;
   const bar = el('div', { class: 'card ws-filters' });
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Show saved items of one kind', style: 'flex-wrap:wrap' });
@@ -30594,7 +30681,7 @@ VIEWS.workspace = () => {
   const samplesN = all.filter(i => i.sample).length;
   const samplesSaid = !samplesN ? '' : samplesN === all.length ? (all.length === 1 ? ', a sample — not yours' : ', all samples — not yours') : `, ${samplesN} of them sample${samplesN === 1 ? '' : 's'} — not yours`;
   bar.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model or data version that has since changed` : ''}${unstamped ? `; ${unstamped} saved before versions were recorded, so whether the data under ${unstamped === 1 ? 'it' : 'them'} has moved cannot be said` : ''}${moved || unstamped ? '' : '; none saved under a model or data version that has since changed'}.`));
+    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model, fee rulebook or data version that has since changed` : ''}${unstamped ? `; ${unstamped} saved before versions were recorded, so whether the data or rulebook under ${unstamped === 1 ? 'it' : 'them'} has moved cannot be said` : ''}${moved || unstamped ? '' : '; none saved under a model, fee rulebook or data version that has since changed'}.`));
   /* The summary counted only the stamped items, so one saved before stamping
      read as current while its row said it cannot be told (the 20 Oct 2026
      sweep, copy-equities-25). */
@@ -30657,7 +30744,13 @@ VIEWS.workspace = () => {
       ]),
       el('div', { class: 'ws-cell' }, [el('span', { class: 'ws-label' }, 'Saved'), el('span', { class: 'num' }, fmtSaved(i.created))]),
       el('div', { class: 'ws-cell ws-ver' }, [el('span', { class: 'ws-label' }, 'Versions'),
-        ...(i.stamp || i.legacy?.model
+        /* A property shows the fee rulebook it was priced under; the Equities
+           model it also carries is not what its status reads. */
+        ...(i.stampAs === 'property'
+          ? (i.stamp?.model
+            ? [el('span', {}, i.stamp.fees ? `Fee rulebook ${i.stamp.fees}` : 'Fee rulebook not recorded'), el('span', { class: 'caption' }, stampDataText(i.stamp))]
+            : [el('span', { class: 'caption' }, 'not recorded')])
+          : i.stamp || i.legacy?.model
           ? [el('span', {}, i.stamp?.model || i.legacy?.model), el('span', { class: 'caption' }, i.stamp ? stampDataText(i.stamp) : 'data version not recorded')]
           : [el('span', { class: 'caption' }, 'not recorded')])]),
       el('div', { class: 'ws-cell' }, [el('span', { class: 'ws-label' }, 'Status'), status,
@@ -33088,7 +33181,73 @@ function caseRaisedAt(d = new Date()) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())} ${zone}`;
 }
 
+/* WHICH PRODUCT A REPORT IS ABOUT (the 31 Oct 2026 operational audit, #2).
+   The form offered only the equity metrics (ROIC first) and the text recorded
+   the equities model, the illustrative set's date and the company count, on
+   every page. A Property report arrived as "Return on invested capital" under
+   Equities versions, and triage began with an email asking what it was about.
+   The page the drawer opened over decides: its product, by the same table the
+   sidebar reads (productOf; the decision record by the tool whose work it
+   prints). Property pages offer the property figures by their own names —
+   METRIC_HELP's labels for the results and FEE_TABLE's for the fee lines — the
+   Scanner pages its three kinds of thing, and the Equities pages the metrics
+   as before. The Cash Wheel, the decision record of a wheel, and every page
+   outside a product get a short general list: their figures are not the
+   screener's. */
+const REPORT_EQUITY_VIEWS = new Set(['researchHome', 'research', 'researchReport', 'researchQueue', 'discover', 'compare', 'sarawak']);
+const REPORT_PROPERTY_KEYS = ['propSafeCash', 'propCashflow', 'netYield', 'grossYield', 'propInstalment', 'propBreakEvenOccupancy', 'propValueLessLoan', 'propNetExit', 'propIrr'];
+function reportOrigin() {
+  const view = State.view;
+  const product = (typeof decisionRecordSection === 'function' && decisionRecordSection()) || productOf(view);
+  const page = matchRoute(location.pathname)?.title || null;
+  if (product === 'property') {
+    /* Only the page's name is filled in, and the address's query is not
+       recorded: the calculator keeps the whole deal in it (?d=), and a report
+       carries no private figure unless the reader types one. */
+    return { kind: 'property', route: location.pathname, subject: page || '',
+      subjectLabel: 'Page or property this is about', subjectHint: 'the page is filled in; name a property only if you choose to',
+      groups: [
+        { label: 'Results', items: REPORT_PROPERTY_KEYS.map(k => METRIC_HELP[k]?.label).filter(Boolean) },
+        { label: 'Fee and duty lines', items: [...Object.values(FEE_TABLE.lines).map(l => l.label), 'A fee or duty line not listed'] },
+        { label: null, items: ['Something else'] },
+      ],
+      recorded: `The page’s name, fee rulebook ${FEE_TABLE.version} and the build. Nothing from your deal unless you type it.` };
+  }
+  if (product === 'scanner') {
+    return { kind: 'scanner', route: location.pathname + location.search, subject: page || '',
+      subjectLabel: 'Page or setup this is about', subjectHint: 'the page is filled in',
+      groups: [{ label: null, items: ['A scanner setup', 'An evaluation', 'An example', 'Something else'] }],
+      recorded: 'The page you were on and the build.' };
+  }
+  if (product === 'equities' && REPORT_EQUITY_VIEWS.has(view)) {
+    const co = (view === 'research' || view === 'researchReport') ? BY_ID.get(State.ticker)?.c : null;
+    return { kind: 'equities', route: location.pathname + location.search,
+      subject: co ? `${co.tk || co.id}${co.name ? ` — ${co.name}` : ''}` : '',
+      subjectLabel: 'Company or property this is about', subjectHint: 'e.g. MSFT, or a Sibu condominium',
+      groups: [{ label: null, items: FIELDS.map(f => f.label) }],
+      recorded: `The page you were on, model version ${MODEL_VERSION}, data as of ${AS_OF}, the universe as loaded and the build.` };
+  }
+  return { kind: 'general', route: location.pathname + location.search, subject: '',
+    subjectLabel: 'Company or property this is about', subjectHint: 'e.g. MSFT, or a Sibu condominium',
+    groups: [{ label: null, items: ['A figure or number', 'A date or version', 'A source or link', 'Wording or a label', 'Something else'] }],
+    recorded: 'The page you were on and the build.' };
+}
+/* The build the reader is running, from the hashed file name the page loads
+   the app by (app.<12 hex>.js, build.mjs). The source copy, index.html, keeps
+   the script inline and has no such name; the report then says so. */
+function reportBuild() {
+  const src = document.querySelector('script[src*="/assets/app."]')?.getAttribute('src') || '';
+  const m = /(app\.[0-9a-f]{12}\.js)(?:[?#]|$)/.exec(src);
+  return m ? m[1] : null;
+}
+
 function correctionPayload(c) {
+  /* A case recorded before the audit has no kind: it keeps the equities lines
+     it was recorded with. A kind other than equities carries its own. */
+  const tail = c.kind === 'property' ? [`Fee rulebook ${c.feeRulebook}`]
+    : (c.kind === 'scanner' || c.kind === 'general') ? []
+    : [`Model version: ${c.modelVersion}`, `Data as of: ${c.asOf}`, `Universe at the time: ${c.coverage}`];
+  if (c.kind) tail.push(c.build ? `Build ${c.build}` : 'Build not recorded (the app was loaded inline, not as a hashed file)');
   return [
     `Correction case ${c.id}`,
     `Raised: ${c.createdAt}`,
@@ -33101,9 +33260,7 @@ function correctionPayload(c) {
     ``,
     c.description || '(no description given)',
     ``,
-    `Model version: ${c.modelVersion}`,
-    `Data as of: ${c.asOf}`,
-    `Universe at the time: ${c.coverage}`,
+    ...tail,
   ].join('\n');
 }
 
@@ -33178,6 +33335,10 @@ function openRestoreDrawer() {
        where this browser holds something for it — kept as it is. */
     if (r.newer) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-newer': '' },
       `This file is from a newer version; only what this version knows is restored.`));
+    /* A file from a later fee rulebook is named the way a different model is
+       (the 31 Oct 2026 operational audit, #3). */
+    if (r.newerRulebook) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-rulebook': '' },
+      `The file was exported under fee rulebook ${r.feeRulebook}; this version is ${FEE_TABLE.version}. Saved properties in it are read against this version’s rulebook.`));
     const keptHere = heldKinds(r.missing || []);
     if (keptHere.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-missing': '' },
       `Not in this file, so kept as this browser holds them: ${keptHere.map(k => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k).join(', ')}.${r.model && r.model !== MODEL_VERSION ? ` The file was exported under model ${r.model}; this version is ${MODEL_VERSION}.` : ''}`));
@@ -33270,7 +33431,8 @@ function openReportError() {
       ? 'This records a case in this browser and gives it an identifier. It does not send anything — there is no server — so the last step gives you the report to send yourself, from your own email program.'
       : 'This records a case in this browser and gives it an identifier. It does not send anything — there is no server and no contact address yet — so the last step hands you the case to send yourself.'));
 
-  const state = { item: (FIELDS[0] && FIELDS[0].label) || '', subject: '', shownValue: '', expectedValue: '', sourceRef: '', description: '' };
+  const origin = reportOrigin();
+  const state = { item: origin.groups[0].items[0] || '', subject: origin.subject, shownValue: '', expectedValue: '', sourceRef: '', description: '' };
   const field = (label, key, kind, placeholder) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
     f.append(el('label', { for: `err-${key}` }, label));
@@ -33286,10 +33448,16 @@ function openReportError() {
   f1.append(el('label', { for: 'errItem' }, 'Data item'));
   const sel = el('select', { class: 'select', id: 'errItem',
     onchange: e => { state.item = e.target.value; } });
-  FIELDS.forEach(f => sel.append(el('option', { value: f.label }, f.label)));
+  origin.groups.forEach(g => {
+    const host = g.label ? el('optgroup', { label: g.label }) : sel;
+    g.items.forEach(x => host.append(el('option', { value: x }, x)));
+    if (g.label) sel.append(host);
+  });
   f1.append(sel); body.append(f1);
 
-  field('Company or property this is about', 'subject', 'text', 'e.g. MSFT, or a Sibu condominium');
+  field(origin.subjectLabel, 'subject', 'text', origin.subjectHint);
+  /* field() builds the input empty; a page's own subject is put in it. */
+  if (origin.subject) { const sj = body.querySelector('#err-subject'); if (sj) sj.value = origin.subject; }
   field('What the page shows', 'shownValue', 'text', 'the figure as displayed');
   field('What it should be', 'expectedValue', 'text', 'leave blank if you only know it is wrong');
   field('Source that disagrees', 'sourceRef', 'text', 'a filing, a page, a document — a source makes this verifiable rather than a disagreement');
@@ -33298,7 +33466,7 @@ function openReportError() {
   body.append(el('div', { class: 'sunk', style: 'margin-bottom:var(--md)' },
     el('dl', { class: 'kv' }, [
       el('dt', {}, 'Recorded with the case'),
-      el('dd', { style: 'text-align:left' }, `The page you were on, model version ${MODEL_VERSION}, data as of ${AS_OF}, and the universe as loaded.`),
+      el('dd', { style: 'text-align:left' }, origin.recorded),
     ])));
 
   body.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
@@ -33311,7 +33479,8 @@ function openReportError() {
     const c = {
       id: nextCaseId(now),
       createdAt: caseRaisedAt(now),
-      route: location.pathname + location.search,
+      route: origin.route, kind: origin.kind, build: reportBuild(),
+      ...(origin.kind === 'property' ? { feeRulebook: `${FEE_TABLE.version}, checked ${FEE_TABLE.checkedOn}` } : {}),
       status: supportEmail() ? 'recorded here, not confirmed received' : 'recorded — not sent',
       modelVersion: MODEL_VERSION, asOf: AS_OF,
       /* A case is evidence. Recording the sample counts against it because the
@@ -33338,10 +33507,16 @@ function openReportError() {
       const addr = supportEmail();
       /* With a support address (LAUNCH.contactEmail), the report is the visitor's
          to send: the address is shown as text, the mailto is a convenience, and
-         the case stays recorded here, not confirmed received. */
+         the case stays recorded here, not confirmed received.
+         QT-D17-01 (the owner's wording, 1 Nov 2026): it opens with what happened
+         and what did not — saved in this browser, nothing sent — and what the
+         reader can do: copy it, or export it (Export everything, on Your data,
+         carries every case and a restore brings them back). It said "Recorded
+         here as ID, not confirmed received", which says less about the sending
+         than about the receipt. */
       w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, addr
-        ? [`Recorded here as ${c.id}, not confirmed received. Nothing on this site sends it: copy the report and send it to `, el('strong', { 'data-support-address': '' }, addr), ', from your own email program.']
-        : `Recorded in this browser as ${c.id}. Nothing has been sent and nobody has received it — there is no server, and no contact address is published yet. Copy the case below and keep it, or send it once there is somewhere to send it to.`));
+        ? ['Correction case saved in this browser. Nothing has been sent. Copy or export the case if you want to report it: copy the report and send it to ', el('strong', { 'data-support-address': '' }, addr), `, from your own email program. It is recorded here as ${c.id}, not confirmed received.`]
+        : `Correction case saved in this browser. Nothing has been sent. Copy or export the case if you want to report it — no contact address is published yet, so keep it until there is somewhere to send it to. It is recorded here as ${c.id}.`));
       const pre = el('textarea', { class: 'input', 'aria-label': `Case ${c.id}, as text to copy`, style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px' });
       pre.value = correctionPayload(c);
       w.append(pre);
@@ -38256,6 +38431,8 @@ function pmStampRecord(rec, at) {
   rec.modelVersion = MODEL_VERSION;
   rec.asOf = AS_OF;
   rec.editor = 'this browser';
+  /* The stamp carries the fee rulebook beside the model (buildStamp; the
+     31 Oct 2026 operational audit, #3); modelVersion stays as it was. */
   rec.stamp = buildStamp('property');
 }
 /* When a property last changed. A record saved since this page loaded by
@@ -38785,6 +38962,28 @@ function usePlaceControl(city, area, { id } = {}) {
     `${area} is not one of ${town}'s listed districts, so the calculator cannot model it by name.`);
   return el('button', { class: 'btn btn-ghost btn-sm', id: id || null, onclick: () => usePlaceInCalculator(city, area) },
     `Use ${area} in the calculator`);
+}
+
+/* ---------------------------------------------------- the completion line */
+/* THE ANSWER SAYS IT IS READY (the owner's scope direction, 1 Nov 2026,
+   QT-SCOPE-03): one short line over the calculator's answer, so a first-time
+   visitor knows the result is there and what to do with it. It names only
+   actions that are on the page: "Save this property" (or "Save this scenario")
+   in the model bar and the action bar; in the full model, the Share / Export
+   row's proposal, report and decision record; once saved, the bar's "Compare
+   scenarios". The Quick model has no export of its own, so its line does not
+   offer one. THE SAMPLE DEAL GETS NO LINE: "Your property scenario is ready"
+   would claim the reader's own work is ready when nothing here is theirs yet
+   (dealIsTheReaders is false, propertyStatus 'sample'); nor does a deal with no
+   purchase price, which the model cannot answer. No counter, no tracking. */
+function propertyReadyLine(d = State.deal, { full = false } = {}) {
+  const st = propertyStatus(d);
+  if (st.kind === 'sample' || !(num0(d?.price) > 0)) return null;
+  const keep = st.kind !== 'model' || st.dirty;
+  const words = keep
+    ? `Your property scenario is ready. Review the assumptions, save ${st.kind === 'model' && st.sc ? 'this scenario' : 'this property'}${full ? ' or export a copy' : ''}.`
+    : `Your property scenario is ready and saved in this browser. Review the assumptions${full ? ', compare scenarios or export a copy' : ' or compare scenarios'}.`;
+  return el('p', { class: 'body pc-ready', id: full ? 'pc-ready' : 'pc-q-ready', 'data-state': keep ? 'unsaved' : 'saved' }, words);
 }
 
 /* ---------------------------------------------------------- the model bar */
@@ -44992,6 +45191,9 @@ function pcQuickView(d, m, g, DK) {
   const res = el('div', { class: 'pc-q-results' });
   const ans = el('div', { class: 'card ls-section pc-q-answer', id: 'pc-q-answer', 'aria-labelledby': 'pc-q-answer-h', style: `--pc-grade:var(${PC_GRADE_TONE[g.grade]})` });
   ans.append(el('h2', { class: 'h-card pc-q-h', id: 'pc-q-answer-h' }, 'The answer'));
+  /* The completion line (the owner's scope direction, 1 Nov 2026), not on the sample deal. */
+  const ready = propertyReadyLine(d);
+  if (ready) ans.append(ready);
   const figs = pcAnswerFigs(d, m);
   const cards = el('div', { class: 'grid pc-answers pc-q-cards' });
   const [sl, sv, ss] = figs.safe;
@@ -45061,7 +45263,11 @@ function pcQuickView(d, m, g, DK) {
 let pcElsOpen = false;
 let pcElsReq = '';
 const ELS_LINK_WORDS = 'Open the ELS website';
-const ELS_ACTION_WORDS = 'Explore design and renovation planning with ELS';
+/* The owner's Day 19 instructions (QT-D19-02, 1 Nov 2026): words only. The drawer's
+   heading is the question; the links to it keep "ELS" so the reader knows where
+   they lead. */
+const ELS_HEADING_WORDS = 'Need design or renovation planning?';
+const ELS_ACTION_WORDS = 'Need design or renovation planning? Copy a brief for ELS';
 /* Where the panel is addressed from, as a section is (#scenarios): no deal and
    nothing private in it; the calculator opens the full model for it
    (pcArrivalView) and keeps the deal it holds. */
@@ -45081,7 +45287,7 @@ function pcOpenElsPanel() {
 function pcElsPanel(d) {
   const det = el('details', { class: 'pc-more pc-els', id: 'els-plan', open: pcElsOpen ? '' : null });
   det.addEventListener('toggle', () => { pcElsOpen = det.open; });
-  det.append(el('summary', { class: 'pc-more-sum pc-els-sum', id: 'els-plan-sum' }, ELS_ACTION_WORDS));
+  det.append(el('summary', { class: 'pc-more-sum pc-els-sum', id: 'els-plan-sum' }, ELS_HEADING_WORDS));
 
   const status = el('span', { class: 'metaline pc-els-status', id: 'els-status', role: 'status' });
   const brief = el('textarea', { class: 'input pc-els-brief', id: 'els-brief', readonly: '', rows: '12', spellcheck: 'false' });
@@ -45099,7 +45305,7 @@ function pcElsPanel(d) {
     try {
       if (!navigator.clipboard) throw new Error('no clipboard');
       await navigator.clipboard.writeText(brief.value);
-      status.textContent = 'Copied';
+      status.textContent = 'Brief copied. Nothing has been sent to ELS. You decide whether to share it.';
     } catch {
       /* Refused (an insecure page, a policy, a browser that asks first): the
          brief is selected where the reader can see it, and how to copy it said. */
@@ -45109,7 +45315,8 @@ function pcElsPanel(d) {
   };
 
   det.append(el('div', { class: 'pc-els-body' }, [
-    el('p', { class: 'pc-els-lede' }, 'ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.'),
+    /* The owner's lede (Day 19), then the brief's own limit, unchanged. */
+    el('p', { class: 'pc-els-lede' }, 'Your Quantum assessment is complete independently of ELS. If you would like design or renovation assistance, you can review and copy a summary to share with ELS yourself. ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.'),
     el('div', { class: 'pc-els-field' }, [
       el('label', { for: 'els-requirements' }, 'Your requirements'),
       requirements,
@@ -45117,9 +45324,9 @@ function pcElsPanel(d) {
     el('div', { class: 'pc-els-field' }, [
       el('label', { for: 'els-brief' }, 'Your brief'),
       brief]),
-    el('p', { class: 'pc-els-before', id: 'els-before' }, 'Review and copy your brief. Nothing is sent to ELS: you paste it there yourself if you want to.'),
+    el('p', { class: 'pc-els-before', id: 'els-before' }, 'Nothing is sent to ELS. On its website, choose how to contact them and paste your brief there.'),
     el('div', { class: 'pc-els-acts' }, [
-      el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'els-copy', onclick: copy }, 'Copy brief'),
+      el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'els-copy', onclick: copy }, 'Copy my property brief'),
       el('a', { class: 'btn btn-ghost btn-sm', id: 'els-link', href: ELS_URL, target: '_blank', rel: 'noopener noreferrer',
         html: `${ELS_LINK_WORDS} ${icon('ext', 10)}` }),
       status]),
@@ -45245,6 +45452,9 @@ VIEWS.property = () => {
      the line that could not be priced — a tenure of 0 left it out of the
      total and the tile said it was in. A short total says it is short, as
      the ledger's does. */
+  /* The completion line over the figures (the owner's scope direction, 1 Nov 2026), not on the sample deal. */
+  const ready = propertyReadyLine(d, { full: true });
+  if (ready) onePage.append(ready);
   const answers = el('div', { class: 'grid g-4 pc-answers' });
   /* THE SYSTEM'S METRIC CARDS (37-layout-system.js): the safe cash and the
      month are the decision (L1, first and at the card-metric size), the
@@ -51177,6 +51387,19 @@ const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that
    figure it named that the tiles' badges do not, is named by "What these
    figures rest on" (appreciation); the name "Sample deal" and the
    Illustrative badges still say it is a sample. */
+/* THE LAB'S COMPLETION LINE (the owner's scope direction, 1 Nov 2026, QT-SCOPE-03):
+   under the four figures, once, for a deal that is the reader's — a saved
+   property or a deal they have entered. "Save" and "export" are the page's own:
+   the identity line's Save (this property, or the column as a scenario) and the
+   Keep card's "Export PDF / Share with client", which opens once what is
+   shown is saved. Its words hold in either state, so a move that turns one off
+   does not leave the line wrong. The untouched sample deal gets none: "ready"
+   would claim the reader's own work is ready. */
+function labReadyLine(lab, sample) {
+  const d = labSubjectInputs(lab);
+  if (sample || !d || !(num0(d.price) > 0)) return null;
+  return el('p', { class: 'body lab-ready', id: 'lab-ready' }, 'Your property scenario is ready. Review the assumptions, save your analysis or export a copy.');
+}
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
@@ -51208,6 +51431,8 @@ function labHeader(P, lab) {
        83-property-decision.js) after the line that names the property and
        its disclosures, and before the figures their answers lead. */
     hd.append(labIdentity(P, lab, status, !rec && st.kind === 'sample'), labQuestions(P, lab), labTiles(P, lab));
+    const ready = labReadyLine(lab, !rec && st.kind === 'sample');
+    if (ready) hd.append(ready);
     /* The assumption the figures depend on most, from the model's own
        sensitivity, in four words under them: the cash and the month, the
        one they swing with, and — in the next-step tile and the count above
@@ -65465,7 +65690,7 @@ const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
    text; a suite with no result for the commit reads "Not run for <commit>",
    never Pass. */
 const HEALTH_CHECKS_FILE = 'health/checks.json';
-const checksServed = (function checksServed(checks, journeys, suites) {
+const checksServed = (function checksServed(checks, journeys, suites, build) {
   const REPO_URL = 'https://github.com/georgewong1014-pixel/quantum-tradeworks';
   const KINDS = [['journeys', 'Journeys', 'journeys.mjs, on the live site'], ['numbers', 'Numbers', 'known-answer and invariant suites, in CI'],
     ['data', 'Data', 'the shipped data and the register, in CI'], ['layout', 'Layout & served pages', 'phone widths, first frames and served pages, in CI']];
@@ -65497,6 +65722,19 @@ const checksServed = (function checksServed(checks, journeys, suites) {
   const pending = forSite && cdoc.pending === true && !cdoc.suites.some(s => s && (s.status === 'PASS' || s.status === 'FAIL'));
   const pendingAt = pending ? when(cdoc.recordedAt) : null;
   const status = {};
+  /* THE BUILD THESE RESULTS ARE FOR (QT-D19-03). */
+  const appRe = /^app\.[0-9a-f]{12}\.js$/;
+  const serving = typeof build === 'string' && appRe.test(build) ? build : null;
+  const ran = cdoc && typeof cdoc.app === 'string' && appRe.test(cdoc.app) ? cdoc.app : null;
+  let buildLine = '';
+  if (cdoc) {
+    const [how, words] = !ran
+      ? ['unknown', 'It is not known which build these results ran on: the record does not name one.' + (serving ? ' This page is served by ' + serving + '.' : '')]
+      : !serving ? ['unknown', 'These results ran on ' + ran + ' (CI on ' + sha7(cdoc.commit) + '); which build serves this page is not known here.']
+      : ran === serving ? ['same', 'These results are for the build serving this page (' + serving + ').']
+      : ['earlier', 'These results are for an earlier build (' + ran + ', CI on ' + sha7(cdoc.commit) + '); this build’s checks are not recorded yet. This page is served by ' + serving + '.'];
+    buildLine = '<li class="kind-build caption" id="health-build" data-build="' + how + '">' + esc(words) + '</li>';
+  }
   const rows = KINDS.map(([id, name, of]) => {
     let st, line, items = '';
     if (id === 'journeys') {
@@ -65559,7 +65797,7 @@ const checksServed = (function checksServed(checks, journeys, suites) {
   });
   const ci = 'Runs in your browser when the page loads — results for this commit from CI: ' + ciSaid.join(' · ')
     + (forSite ? ' · ' + target + (ciAt ? ', ' + ciAt : '') : '') + ' · <a class="journey-line-link" href="#health-kinds-h">details</a>';
-  return { kinds: rows, ci, status, commit: target };
+  return { kinds: buildLine + rows, ci, status, commit: target };
 });
 const CHECK_SUITES = [{"id":"model-test","name":"model-test","kind":"numbers"},{"id":"equity-test","name":"equity-test","kind":"numbers"},{"id":"register-test","name":"register-test","kind":"numbers"},{"id":"scanner-test","name":"scanner-test","kind":"numbers"},{"id":"ingest-test","name":"ingest-test","kind":"numbers"},{"id":"history-store-test","name":"history-store-test","kind":"numbers"},{"id":"data-check","name":"data-check","kind":"data"},{"id":"register-check","name":"register-check","kind":"data"},{"id":"served-check-data","name":"served-check, data blocks","kind":"data"},{"id":"served-check","name":"served-check, pages","kind":"layout"},{"id":"build-check","name":"build --check","kind":"layout"},{"id":"prerender-check","name":"prerender --check","kind":"layout"},{"id":"sweep","name":"sweep","kind":"layout"},{"id":"coverage-frames","name":"coverage-frames","kind":"layout"},{"id":"mobile","name":"mobile","kind":"layout"}];
 /* What the line beside a product's badge proves, and what it does not. */
@@ -66149,12 +66387,15 @@ function statusModelPaint() {
    "Checked in your browser now", what CI found on this commit for Numbers
    and Data, so a reader with no script reads a result there. Both served by
    the build from the committed records, drawn empty here with data-now,
-   kept as served until this tab's own reads of both records return, then
+   QT-D19-03: its first line says whether the results are for the build
+   serving the page (reportBuild, 65-learn.js: the hashed file the page
+   loaded the app by, the name the build wrote the served line from).
+   Kept as served until this tab's own reads of both records return, then
    drawn from them with the same function (checksServed) — the proof slots'
    way, so the served block and the drawn one are one text and take the same
    lines. Nothing in them is the tab's own now. */
 const checksDrawn = () => (HEALTH.journeys && HEALTH.checks && checksServed
-  ? checksServed(HEALTH.checks.state === 'ok' ? HEALTH.checks.doc : null, HEALTH.journeys.state === 'ok' ? HEALTH.journeys.doc : null, CHECK_SUITES) : null);
+  ? checksServed(HEALTH.checks.state === 'ok' ? HEALTH.checks.doc : null, HEALTH.journeys.state === 'ok' ? HEALTH.journeys.doc : null, CHECK_SUITES, reportBuild()) : null);
 function keptOrDrawn(node, sel, part) {
   const out = checksDrawn();
   if (out) node.innerHTML = out[part];

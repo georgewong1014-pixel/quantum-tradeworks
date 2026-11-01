@@ -5716,6 +5716,8 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    as it printed. */
 .checks-kinds { list-style: none; padding: 0; margin: var(--sm) 0 0; }
 #views[data-served] ul.checks-kinds[data-now=""]:empty::before { content: none; }
+/* QT-D19-03: the first line, which build the results are for. */
+.kind-build { margin: 0; padding: 0 0 var(--sm); max-width: 72ch; overflow-wrap: anywhere; }
 .kind-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .kind-row > .health-chip { flex: none; min-width: 4.75rem; justify-content: center; }
 .kind-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
@@ -7379,3 +7381,13 @@ input.au-in[type="text"] { text-align: left; }
 :root[data-theme="dark"] .km-canvas .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); }
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .km-canvas .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); } }
 /* ---- end kuching-map ---- */
+/* ---- completion lines (the owner's scope direction, 1 Nov 2026, QT-SCOPE-03) ----
+   One short line where a free journey's result appears: the calculator's
+   answer, the Lab's figures and a filed company's page. A plain sentence in
+   the body's own size, a step heavier than the text around it; no box, no
+   icon, no colour of its own. */
+.pc-ready, .lab-ready, .co-ready { font-weight: var(--weight-semibold); color: var(--ink); max-width: 70ch; line-height: 1.5; }
+.pc-ready { margin: 0 0 var(--md); }
+.lab-ready { margin: 0; }
+.co-ready { margin: 0 0 var(--md); }
+/* ---- end completion lines ---- */
