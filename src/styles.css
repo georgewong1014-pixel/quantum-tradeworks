@@ -6333,6 +6333,24 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .pq-more-list { margin: var(--ls-within) 0 0; padding-left: 18px; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
 .pq-more-list > li + li { margin-top: var(--ls-within); }
 @media (pointer: coarse), (max-width: 768px) { .pq-more-sum { padding: 12px 0; } }
+/* Shoplot starting scenarios (the owner, 1 Nov 2026; 94-shoplot-scenarios.js):
+   the entry beside the commercial choice, and the parts card in the Lab.
+   44px targets at every width. */
+.sl-entry { display: flex; flex-direction: column; gap: var(--ls-within); max-width: var(--ls-measure); }
+.sl-entry-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm); }
+.sl-town-label { font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); }
+.sl-entry .select, .sl-entry .btn { min-height: 44px; }
+.sl-entry .select { width: auto; min-width: 11em; padding-right: 30px; background-position: calc(100% - 14px) 19px, calc(100% - 9px) 19px; }
+.sl-entry .sl-statement { margin: 0; }
+.sl-card { padding: var(--md); min-width: 0; }
+.sl-statement { margin: var(--ls-within) 0 0; max-width: var(--ls-measure); }
+.sl-card .sl-col > .pc-more-sum { min-height: 44px; }
+.sl-parts { margin: 0; padding-left: 18px; font-size: var(--ls-meta); line-height: 1.5; color: var(--ink-2); }
+.sl-parts > li + li { margin-top: var(--ls-within); }
+.sl-part .kind-badge { vertical-align: baseline; }
+.sl-note { margin: var(--ls-within) 0 0; font-size: var(--ls-meta); line-height: 1.5; color: var(--ink-2); max-width: var(--ls-measure); }
+.sl-calc { margin: var(--ls-within) 0 0; max-width: var(--ls-measure); }
+.sl-calc a { display: inline-flex; align-items: center; min-height: 44px; }
 @media (max-width: 639.98px) {
   /* Tight to the identity line above and the tiles below: the line, the
      questions and the four figures share a phone's first screen. */

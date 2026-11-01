@@ -335,7 +335,12 @@ const LAB_LISTENERS = new Set();
 const LAB_PANELS = new Set();
 
 const labKeyOf = (spec) => (spec?.kind === 'model' ? `m:${spec.id}` : 'deal');
-const labSourceKind = (c) => (String(c.source).startsWith('sc:') ? 'sc' : String(c.source).startsWith('pm:') ? 'pm' : String(c.source).startsWith('opp:') ? 'opp' : c.source);
+const labSourceKind = (c) => (String(c.source).startsWith('sc:') ? 'sc' : String(c.source).startsWith('pm:') ? 'pm' : String(c.source).startsWith('opp:') ? 'opp' : String(c.source).startsWith('tpl:') ? 'tpl' : c.source);
+/* A column's chip: a shoplot starting scenario names its town (the owner, 1
+   Nov 2026; 94-shoplot-scenarios.js), and so does the calculator's deal
+   while it is one nobody has touched. */
+const labChipOf = (c) => (labSourceKind(c) === 'tpl' ? shoplotChip(c.source.slice(4))
+  : labSourceKind(c) === 'deal' && shoplotOf(State.deal) ? shoplotChip(State.deal.shoplot) : LAB_SOURCE_CHIP[labSourceKind(c)]);
 /* A COLUMN FROM THE OPPORTUNITY REGISTER (the 11 Oct audit, #7): 'opp:<id>',
    a property the reader recorded there and has not saved as a property —
    its figures the register's own (oppDeal, 80-registers.js), its
@@ -371,6 +376,9 @@ const labColRec = (lab, col) => { const id = labColRecId(lab, col); return id ? 
    scenarios) that is not the subject. */
 function labForeignCol(key, id, subjectId = null) {
   if (id === 'sample') return labCol(key, 'sample', 'Sample deal', pmSampleDeal(), { prop: 'sample' });
+  /* A shoplot starting scenario, 'tpl:<town>/<A|B|C>' (the owner, 1 Nov 2026):
+     the tool's, as the sample is, its figures untouched. */
+  if (String(id).startsWith('tpl:')) { const d = shoplotDeal(String(id).slice(4)); return d ? labCol(key, id, shoplotTitle(String(id).slice(4)), d, { prop: id }) : null; }
   /* A record of the opportunity register; once saved as a property, that
      property's column. */
   const oid = labOppRef(id);
@@ -416,7 +424,7 @@ const labMoveCount = (col) => Object.keys(col.moves).length;
 const labMarked = (col) => [...new Set([...Object.keys(col.inherited || {}), ...Object.keys(col.moves)])];
 /* The name of the column that is the calculator's deal, as that deal is
    now: the sample until the reader changes a figure of it. */
-const labDealName = () => (propertyStatus(State.deal).kind === 'sample' ? 'Sample deal' : 'On the calculator');
+const labDealName = () => (propertyStatus(State.deal).kind !== 'sample' ? 'On the calculator' : shoplotOf(State.deal) ? shoplotTitle(State.deal.shoplot) : 'Sample deal');
 /* The subject a plain /property/lab opens: the calculator's deal, which is
    a saved property's once one is open there. */
 const labDealSubject = () => { const st = propertyStatus(State.deal); return st.kind === 'model' ? `m:${st.rec.id}` : 'deal'; };
@@ -434,6 +442,7 @@ function labSourceInputs(lab, col) {
     return sc ? pmSavedInputs(other, sc) : null;
   }
   if (k === 'sample') return pmSampleDeal();
+  if (k === 'tpl') return shoplotDeal(col.source.slice(4));
   /* A register record: as the register holds it now. */
   if (k === 'opp') { const o = oppById(labOppRef(col.source)); return o ? oppDeal(o) : null; }
   if (!lab.model) return null;
@@ -937,11 +946,13 @@ function labDraw(P, focusId = null) {
   /* Columns of more than one property, route or asset: each on its own
      model, side by side, under a lens (P6). */
   const cross = labCrossRoute(lab) ? labXrCard(P, lab) : null;
+  /* A shoplot starting scenario's parts and notes (94-shoplot-scenarios.js). */
+  const shoplot = P.compact ? null : shoplotLabCard(P, lab);
   /* On a saved property, refurbish or not: four options on P6's columns. */
   const refurb = !P.compact && lab.model ? labRefurbCard(P, lab) : null;
   /* On a saved property, what it actually did beside what was modelled (QT-06). */
   const actuals = !P.compact && lab.model ? labActualsCard(P, lab) : null;
-  outputs.append(...[chain, routePrice, commercial, evidence, cross, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard, price].filter(Boolean));
+  outputs.append(...[chain, routePrice, commercial, evidence, cross, shoplot, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard, price].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
@@ -997,7 +1008,7 @@ function labHeader(P, lab) {
   if (P.compact) {
     hd.append(el('p', { class: 'lab-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ', el('span', {}, LAB_CLAIM)]));
     if (rec) status.append('Columns from ', el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
-    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'),
+    else if (st.kind === 'sample') status.append(el('strong', {}, shoplotOf(State.deal) ? shoplotChip(State.deal.shoplot) : 'Sample deal'),
       ' — illustrative figures, not a real listing. Every driving figure is the tool’s illustrative default until you change it.');
     else if (st.kind === 'model') status.append('The deal on the calculator, as it was when the lab opened — ', el('strong', {}, `“${st.rec.name}”`), ' is saved since; open it from My properties to see its columns.');
     else status.append('The deal on the calculator — not saved as a property.');
@@ -1007,7 +1018,7 @@ function labHeader(P, lab) {
        figures. The status line is the identity line's name. */
     status.classList.add('lab-id-name');
     if (rec) status.append(el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
-    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'));
+    else if (st.kind === 'sample') status.append(el('strong', {}, shoplotOf(State.deal) ? shoplotChip(State.deal.shoplot) : 'Sample deal'));
     /* Reached only by a panel given the deal as its subject while the
        calculator holds a saved property: the page itself opens that
        property (labArrive). */
@@ -2366,7 +2377,7 @@ function labCompare(P, lab) {
    is drawn from, and redrawn from in place while its shape holds. */
 function labMetricView(metric, lab) {
   const cols = lab.cols;
-  const row = (c) => ({ key: c.key, name: labShownName(lab, c), chip: LAB_SOURCE_CHIP[labSourceKind(c)], active: c.key === lab.active, m: c.cur?.m || null, g: c.cur?.g || null, d: c.work });
+  const row = (c) => ({ key: c.key, name: labShownName(lab, c), chip: labChipOf(c), active: c.key === lab.active, m: c.cur?.m || null, g: c.cur?.g || null, d: c.work });
   const rows = cols.map(row);
   const vm = { metric, tables: [], words: [], twin: null, caption: `Compared by ${(LAB_METRICS.find(x => x.id === metric) || {}).say}. Order: ${cols.map(c => c.key).join(', ')}.` };
   const one = (field, fmt, value, extra = {}) => ({ field, fmt, rows: rows.map(r => {
@@ -2606,7 +2617,7 @@ function labColumnsCard(P, lab) {
   const list = el('ul', { class: 'lab-cols' });
   for (const c of lab.cols) {
     const li = el('li', { class: `lab-col-row lab-c-${c.key}${c.key === lab.active ? ' is-active' : ''}` });
-    li.append(el('span', { class: 'lab-col-name' }, [labLetter(c.key), el('strong', {}, ` ${c.key} — ${c.name}`), ' ', el('span', { class: 'lab-cmp-chip' }, LAB_SOURCE_CHIP[labSourceKind(c)]),
+    li.append(el('span', { class: 'lab-col-name' }, [labLetter(c.key), el('strong', {}, ` ${c.key} — ${c.name}`), ' ', el('span', { class: 'lab-cmp-chip' }, labChipOf(c)),
       labMoveCount(c) ? el('span', { class: 'lab-tag lab-tag-whatif' }, `${labMoveCount(c)} move${labMoveCount(c) === 1 ? '' : 's'} not saved`) : null]));
     /* Where a register record's figures came from, under its name (#7). */
     const prov = labProvWords(lab, c);
@@ -2700,7 +2711,9 @@ function labCommits(P, lab, col) {
   /* The property the column is of (P6): the subject's, another saved one's,
      or none — the calculator's unsaved deal, or the sample. */
   const rec = labColRec(lab, col);
-  const sample = col.prop === 'sample';
+  const tpl = String(col.prop || '').startsWith('tpl:');
+  const sample = col.prop === 'sample' || tpl;
+  const sampleName = tpl ? 'an illustrative starting scenario' : 'the sample deal';
   /* A register record (#7), or one removed from the register since. */
   const opp = labColOpp(col);
   const gone = !opp && String(col.prop || '').startsWith('opp:');
@@ -2752,7 +2765,7 @@ function labCommits(P, lab, col) {
      line; why a scenario needs a property, what a commit marks as the
      reader's and why the grade can stay U, under "How saving works" (L3,
      closed) — every word of it kept. */
-  const line = sample ? `${col.key} is the sample deal — open it in the calculator to save it as a property of yours.`
+  const line = sample ? `${col.key} is ${sampleName} — open it in the calculator to save it as a property of yours.`
     : opp ? `Save keeps ${col.key} as a property, its source and dates with it.`
     : gone ? `${col.key}’s record is no longer in your register — open it in the calculator to keep it.`
     : !rec ? (labScenarioAfterProperty(lab, col) ? `One Save keeps the property and ${col.key} as its scenario.` : `Save keeps the property — and ${col.key}, once moved, as its scenario.`)
@@ -2760,7 +2773,7 @@ function labCommits(P, lab, col) {
     : differs ? `${col.key} is saved as “${col.name}” — move a figure to save again.`
     : `${col.key} is the property as saved — move a figure first.`;
   const why = [];
-  if (sample) why.push(`The sample deal is the tool’s, not a property saved here, so ${col.key} has no property to keep a scenario of. Opened in the calculator, its figures become a deal of yours to save there.`);
+  if (sample) why.push(`${tpl ? 'An illustrative starting scenario' : 'The sample deal'} is the tool’s, not a property saved here, so ${col.key} has no property to keep a scenario of. Opened in the calculator, its figures become a deal of yours to save there.`);
   else if (opp) why.push(`${col.key} is a property you recorded in your opportunity register (${oppProvenanceWords(opp)}). Its figures are the register’s: what the record states, and where it states nothing the calculator’s figures stand in, marked as the tool’s. `
     + `Save keeps it as a property of yours tied to that record, its source and dates kept with it; opened in the calculator it is saved so too, as the register’s Open does. Until then it is a what-if, and nothing is written.`);
   else if (gone) why.push(`${col.key} was a record of your opportunity register, removed since. Its figures are kept here as a lab variant; opened in the calculator they become a deal of yours to save there.`);
@@ -3193,7 +3206,7 @@ const LAB_XR_ROWS = [
   { id: 'cmYieldM', label: 'Net yield at the model rent', only: 'commercial', cell: (f) => {
       const c = f.cm, y = c.yields;
       if (!isNum(y.model)) return labXrUnavailable('needs a model rent');
-      return { value: labR4(y.model), text: cmPct(y.model), kind: y.modelKind, sub: `at ${pqMoney(c.model)} a month, your model rent` };
+      return { value: labR4(y.model), text: cmPct(y.model), kind: y.modelKind, sub: `at ${pqMoney(c.model)} a month, ${y.modelKind === 'illustrative' ? 'the model rent — illustrative, not yours' : 'your model rent'}` };
     } },
   { id: 'cmReserve', label: '12-month lease-down reserve', only: 'commercial', cell: (f) => {
       const c = f.cm, r = c.lease.scenarios.find(s => s.months === 12);
@@ -3230,7 +3243,7 @@ const LAB_XR_CHARTS = {
    order (only those some column has), every column's cell, and the chart. */
 function labXrView(lab) {
   const lens = LAB_LENS_BY_ID[lab.lens] || LAB_LENS_BY_ID[LAB_LENS_DEFAULT];
-  const cols = lab.cols.map(c => ({ key: c.key, name: labXrName(lab, c), chip: LAB_SOURCE_CHIP[labSourceKind(c)], ra: labRouteAsset(c.work), prov: labProvWords(lab, c), active: c.key === lab.active, f: labXrFacts(c) }));
+  const cols = lab.cols.map(c => ({ key: c.key, name: labXrName(lab, c), chip: labChipOf(c), ra: labRouteAsset(c.work), prov: labProvWords(lab, c), active: c.key === lab.active, f: labXrFacts(c) }));
   const rows = lens.order.map(id => LAB_XR_ROW_BY_ID[id]).filter(r => !r.only || cols.some(x => x.f && labXrApplies(r, x.f)))
     .map((r, i) => ({ id: r.id, label: r.label, neg: !!r.neg, level: i < 2 ? 1 : 2, cells: cols.map(x => labXrCell(r, x.f)) }));
   const spec = LAB_XR_CHARTS[lens.chart];
@@ -3613,7 +3626,7 @@ function labComparisonRefs(lab) {
   const refs = [], left = [];
   for (const c of lab.cols) {
     const k = labSourceKind(c);
-    const ref = k === 'base' ? `pm:${lab.model}` : k === 'sc' ? `pm:${lab.model}/${c.source.slice(3)}` : k === 'pm' || k === 'sample' ? c.source
+    const ref = k === 'base' ? `pm:${lab.model}` : k === 'sc' ? `pm:${lab.model}/${c.source.slice(3)}` : k === 'pm' || k === 'sample' || k === 'tpl' ? c.source
       : c.key === 'A' ? `pm:${lab.model}` : null;
     if (ref && !refs.includes(ref)) refs.push(ref); else left.push(c.key);
   }
@@ -3622,6 +3635,7 @@ function labComparisonRefs(lab) {
 /* A saved comparison's columns, named as they are now. */
 const labRefName = (ref) => {
   if (ref === 'sample') return 'Sample deal';
+  if (String(ref).startsWith('tpl:')) return `${shoplotTitle(ref.slice(4))} (${shoplotChip(ref.slice(4))})`;
   const r = labPmRef(ref), rec = r && pmFind(r.id), sc = rec && r.sc ? pmScenario(rec, r.sc) : null;
   return !rec ? 'no longer saved' : sc ? `${rec.name} — ${sc.name}` : r.sc ? `${rec.name} — a scenario no longer saved` : rec.name;
 };
