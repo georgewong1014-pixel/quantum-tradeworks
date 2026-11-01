@@ -5,7 +5,7 @@
       "areas": {
         "Jepak": {
           "district": "Bintulu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "districtBasis": "inside the OpenStreetMap boundary of Bintulu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 10.4,
@@ -35,7 +35,7 @@
         },
         "Kemena": {
           "district": "Bintulu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "districtBasis": "inside the OpenStreetMap boundary of Bintulu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 3.8,
@@ -65,7 +65,7 @@
         },
         "Kidurong": {
           "district": "Bintulu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "districtBasis": "inside the OpenStreetMap boundary of Bintulu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 0.4,
@@ -95,7 +95,7 @@
         },
         "Parkcity": {
           "district": "Bintulu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "districtBasis": "inside the OpenStreetMap boundary of Bintulu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 5.6,
@@ -155,7 +155,7 @@
         },
         "Sibiew": {
           "district": "Bintulu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "districtBasis": "inside the OpenStreetMap boundary of Bintulu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 4.7,
@@ -185,7 +185,7 @@
         },
         "Tanjung Batu": {
           "district": "Bintulu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "districtBasis": "inside the OpenStreetMap boundary of Bintulu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 4.2,
@@ -215,7 +215,7 @@
         },
         "Town centre": {
           "district": "Bintulu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Bintulu",
+          "districtBasis": "inside the OpenStreetMap boundary of Bintulu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 4.8,
@@ -250,7 +250,7 @@
       "areas": {
         "Batu Kawa": {
           "district": "Kuching",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "districtBasis": "inside the OpenStreetMap boundary of Kuching district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 6.3,
@@ -280,7 +280,7 @@
         },
         "City centre": {
           "district": "Kuching",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "districtBasis": "inside the OpenStreetMap boundary of Kuching district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 0.8,
@@ -310,7 +310,7 @@
         },
         "Kota Samarahan": {
           "district": "Samarahan",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Samarahan; a Samarahan Division town, as SARAWAK_CITIES (70-property.js) records",
+          "districtBasis": "inside the OpenStreetMap boundary of Samarahan district (a district-level Nominatim lookup, 1 Nov 2026); Kota Samarahan is a town of the Samarahan Division",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.1,
@@ -340,7 +340,7 @@
         },
         "Matang": {
           "district": "Kuching",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "districtBasis": "inside the OpenStreetMap boundary of Kuching district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 6.1,
@@ -370,7 +370,7 @@
         },
         "Petra Jaya": {
           "district": "Kuching",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "districtBasis": "inside the OpenStreetMap boundary of Kuching district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.8,
@@ -400,7 +400,7 @@
         },
         "Samarahan": {
           "district": "Kuching",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching; this is the Kuching–Samarahan expressway corridor, not Kota Samarahan",
+          "districtBasis": "inside the OpenStreetMap boundary of Kuching district (a district-level Nominatim lookup, 1 Nov 2026); “Samarahan” here is the Kuching–Samarahan expressway corridor, not Kota Samarahan",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.7,
@@ -430,7 +430,7 @@
         },
         "Stutong": {
           "district": "Kuching",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "districtBasis": "inside the OpenStreetMap boundary of Kuching district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.4,
@@ -460,7 +460,7 @@
         },
         "Tabuan": {
           "district": "Kuching",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Kuching",
+          "districtBasis": "inside the OpenStreetMap boundary of Kuching district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1,
@@ -495,7 +495,7 @@
       "areas": {
         "City centre": {
           "district": "Miri",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "districtBasis": "inside the OpenStreetMap boundary of Miri district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.2,
@@ -525,7 +525,7 @@
         },
         "Lutong": {
           "district": "Miri",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "districtBasis": "inside the OpenStreetMap boundary of Miri district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 0.1,
@@ -555,7 +555,7 @@
         },
         "Marina": {
           "district": "Miri",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "districtBasis": "inside the OpenStreetMap boundary of Miri district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 0.3,
@@ -585,7 +585,7 @@
         },
         "Permyjaya": {
           "district": "Miri",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "districtBasis": "inside the OpenStreetMap boundary of Miri district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.2,
@@ -615,7 +615,7 @@
         },
         "Pujut": {
           "district": "Miri",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "districtBasis": "inside the OpenStreetMap boundary of Miri district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.2,
@@ -645,7 +645,7 @@
         },
         "Senadin": {
           "district": "Miri",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "districtBasis": "inside the OpenStreetMap boundary of Miri district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.3,
@@ -675,7 +675,7 @@
         },
         "Taman Tunku": {
           "district": "Miri",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "districtBasis": "inside the OpenStreetMap boundary of Miri district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 2.5,
@@ -705,7 +705,7 @@
         },
         "Tudan": {
           "district": "Miri",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Miri",
+          "districtBasis": "inside the OpenStreetMap boundary of Miri district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.4,
@@ -740,7 +740,7 @@
       "areas": {
         "Jalan Salim": {
           "district": "Sibu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "districtBasis": "inside the OpenStreetMap boundary of Sibu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 13.5,
@@ -770,7 +770,7 @@
         },
         "Jalan Teku": {
           "district": "Sibu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "districtBasis": "inside the OpenStreetMap boundary of Sibu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 0.8,
@@ -800,7 +800,7 @@
         },
         "Lanang": {
           "district": "Sibu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "districtBasis": "inside the OpenStreetMap boundary of Sibu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 2.2,
@@ -830,7 +830,7 @@
         },
         "Permai": {
           "district": "Sibu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "districtBasis": "inside the OpenStreetMap boundary of Sibu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 4.5,
@@ -860,7 +860,7 @@
         },
         "Rejang Park": {
           "district": "Sibu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "districtBasis": "inside the OpenStreetMap boundary of Sibu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1,
@@ -890,7 +890,7 @@
         },
         "Sibujaya": {
           "district": "Sibu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "districtBasis": "inside the OpenStreetMap boundary of Sibu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 14.2,
@@ -920,7 +920,7 @@
         },
         "Town centre": {
           "district": "Sibu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "districtBasis": "inside the OpenStreetMap boundary of Sibu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 1.1,
@@ -950,7 +950,7 @@
         },
         "Ulu Sungai Merah": {
           "district": "Sibu",
-          "districtBasis": "inside the OpenStreetMap district boundary (Nominatim district-level lookup, 1 Nov 2026) for Sibu",
+          "districtBasis": "inside the OpenStreetMap boundary of Sibu district (a district-level Nominatim lookup, 1 Nov 2026)",
           "nearest": {
             "collegeOrUniversity": {
               "km": 2.3,
@@ -1598,7 +1598,7 @@
     }
   },
   "note": "OpenStreetMap counts are \"mapped in OpenStreetMap — at least this many\", never a total: schools and clinics in particular are under-mapped. The job indicators are places of work that are mapped (offices, industrial, commercial and retail land-use areas counted by the centre of their outline, malls), not jobs. Distances are straight line from the area's single point, not travel time. Population is DOSM's district estimate for 1 January, a district-wide figure that says nothing of any one area inside it. Redistribution is permitted under CC BY 4.0 and ODbL with attribution.",
-  "osmBase": "2026-11-01T08:00:35Z",
+  "osmBase": "2026-11-01T08:12:39Z",
   "populationAsOf": "2026-01-01",
   "retrieved": "2026-11-01",
   "sources": {

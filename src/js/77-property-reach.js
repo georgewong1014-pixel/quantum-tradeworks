@@ -112,15 +112,21 @@ function everydayReachPanel(city, area) {
     return card;
   }
 
+  /* Two columns, the source under each figure: a third column for the source
+     was wider than a phone's card, and its words were cut. */
   const table = (label, rows) => {
-    const t = el('table', { class: 'dt' });
-    t.append(el('thead', {}, el('tr', {}, ['Measure', 'Figure', 'Source, as of'].map((h, i) => el('th', { style: 'text-align:left' }, h)))));
+    const t = el('table', { class: 'dt', style: 'table-layout:fixed;width:100%' });
+    t.append(el('colgroup', {}, ['36%', '64%'].map(w => el('col', { style: `width:${w}` }))));
+    t.append(el('thead', {}, el('tr', {}, ['Measure', 'Figure, source and date'].map(h => el('th', { style: 'text-align:left' }, h)))));
     t.append(el('tbody', {}, rows.map(x => x.group
-      ? el('tr', {}, el('th', { scope: 'colgroup', colspan: '3', class: 'eyebrow', style: 'text-align:left;white-space:normal' }, x.group))
+      ? el('tr', {}, el('th', { scope: 'colgroup', colspan: '2', class: 'eyebrow', style: 'text-align:left;white-space:normal' }, x.group))
       : el('tr', { 'data-reach-row': x.id }, [
           el('th', { scope: 'row', style: 'text-align:left;white-space:normal;overflow-wrap:normal' }, x.label),
-          el('td', { style: 'text-align:left;white-space:normal;overflow-wrap:normal' }, [x.figure, x.sub ? el('div', { class: 'metaline' }, x.sub) : null].filter(Boolean)),
-          el('td', { class: 'caption', style: 'text-align:left;white-space:normal;overflow-wrap:normal' }, x.src),
+          el('td', { style: 'text-align:left;white-space:normal;overflow-wrap:normal' }, [
+            x.figure,
+            x.sub ? el('div', { class: 'metaline' }, x.sub) : null,
+            el('div', { class: 'metaline', 'data-reach-src': '' }, x.src),
+          ].filter(Boolean)),
         ]))));
     gridKeyboard(t, label);
     return el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t);
@@ -133,7 +139,7 @@ function everydayReachPanel(city, area) {
   } else {
     const d = r.district, y = String(sarawakReach.populationAsOf).slice(0, 4);
     const first = Math.min(...Object.keys(d.population).map(Number));
-    card.append(el('p', { class: 'metaline' }, `${area} lies in the ${r.districtName} district (${r.rec.districtBasis}). These figures are the district’s as a whole and say nothing of ${area} alone.`));
+    card.append(el('p', { class: 'metaline' }, `${area} is placed in the ${r.districtName} district: ${r.rec.districtBasis}. These figures are the district’s as a whole and say nothing of ${area} alone.`));
     card.append(table(`The ${r.districtName} district: population and age mix. Arrow keys move between cells.`, [
       { id: 'population', label: 'Population', figure: `${fmtNum(d.population[y], 0)} people`, src: reachSrcPop() },
       isNum(d.growthPct)

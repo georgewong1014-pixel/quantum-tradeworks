@@ -3227,7 +3227,7 @@ const REACH_MAPPED_WHY = ' Counted within 5 km, straight line, of the area’s s
 const REACH_LAYERS = [
   { id:'reachHospitals', label:'Hospitals within 5 km (mapped)', kind:'quantity', unit:'mapped', badge: REACH_BADGE,
     why:'Hospitals mapped in OpenStreetMap near each area.' + REACH_MAPPED_WHY,
-    caveat:'OpenStreetMap, as of the date on the area’s “Everyday reach” panel. Where none is mapped, the hospital may simply not be.',
+    caveat:'OpenStreetMap, as of the date on the area’s “Everyday reach” panel. Where none is mapped, a hospital may exist and not yet be mapped.',
     value:(c, a) => reachCount(c, a, 'hospitals'),
     text:(c, a) => reachCountText(c, a, 'hospitals') },
   { id:'reachSchools', label:'Schools within 5 km (mapped)', kind:'quantity', unit:'mapped', badge: REACH_BADGE,

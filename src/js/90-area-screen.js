@@ -249,7 +249,7 @@ VIEWS.areas = () => {
   /* The positions' note is said once, in "What this screen cannot tell
      you" (the Day-10 pre-audit, CL-14); here, a quantity layer's banding. */
   if (layer.kind === 'quantity') mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, layer.badge
-    ? 'Shading is banded against the range present in this town, not an absolute scale, and the map is read one town at a time. A darker point holds a larger value; it is not a better or a worse area, and open a locality in the table for the full evidence.'
+    ? 'Shading is banded against the range present in this town, not an absolute scale, and the map is read one town at a time. A darker point holds a larger value, which says nothing about which area suits a purchase. Open a locality in the table below for the full evidence.'
     : 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'));
   if (hasWorkedExample()) {
     const n = sampleObservations().length;
