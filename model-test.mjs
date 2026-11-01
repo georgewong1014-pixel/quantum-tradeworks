@@ -12424,7 +12424,10 @@ try {
            figure, are the sample's: "Not set".
      EB5 — the requirements are the reader's words after their label, empty
            by default, cut at 1,000.
-     EB6 — the panel's words as written, the link to the ELS home page with
+     EB6 — (words changed 1 Nov 2026, QT-D19-02: heading "Need design or renovation
+           planning?", the owner's lede, "Copy my property brief", "Nothing is sent to
+           ELS. On its website, choose how to contact them and paste your brief
+           there.") the panel's words as written, the link to the ELS home page with
            no query or hash, in a new tab, with no opener or referrer; the
            requirements box empty with no placeholder; the brief box
            read-only and equal to the builder's text. */
@@ -12585,16 +12588,17 @@ try {
     if (p5.length) fail('els EB5: the requirements are the reader\'s own words', p5);
     else ok('els EB5: the requirements follow their label as typed (trimmed, a second line indented) and are cut at 1,000 characters; empty by default');
     const p6 = [], pn = r.panel;
-    if (pn.summary !== 'Explore design and renovation planning with ELS' || !pn.closed || pn.id !== 'els-plan') p6.push(`the panel is ${JSON.stringify([pn.summary, pn.closed, pn.id])}`);
-    if (pn.lede !== 'ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.') p6.push(`the lede reads "${pn.lede}"`);
-    if (pn.before !== 'Review and copy your brief. Nothing is sent to ELS: you paste it there yourself if you want to.') p6.push(`the line before the link reads "${pn.before}"`);
+    /* (the owner's Day 19 instructions, QT-D19-02, 1 Nov 2026: words only): the heading, the lede, the line before the link and the copy button changed; the link, its address and the rest did not. */
+    if (pn.summary !== 'Need design or renovation planning?' || !pn.closed || pn.id !== 'els-plan') p6.push(`the panel is ${JSON.stringify([pn.summary, pn.closed, pn.id])}`);
+    if (pn.lede !== 'Your Quantum assessment is complete independently of ELS. If you would like design or renovation assistance, you can review and copy a summary to share with ELS yourself. ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.') p6.push(`the lede reads "${pn.lede}"`);
+    if (pn.before !== 'Nothing is sent to ELS. On its website, choose how to contact them and paste your brief there.') p6.push(`the line before the link reads "${pn.before}"`);
     if (!pn.link || pn.link.text !== 'Open the ELS website' || pn.link.href !== 'https://els.alumax.pro/' || pn.link.target !== '_blank' || pn.link.rel !== 'noopener noreferrer' || !pn.link.ext) p6.push(`the link is ${JSON.stringify(pn.link)}`);
     if (/[?#]/.test(pn.link?.href || '') || /[?#]/.test(pn.constUrl) || pn.nonLink !== 1) p6.push(`the link carries a query or hash, or there are ${pn.nonLink} links`);
     if (!pn.req || pn.req.value !== '' || pn.req.placeholder !== null || pn.req.label !== 'Your requirements') p6.push(`the requirements box is ${JSON.stringify(pn.req)}`);
     if (!pn.box || !pn.box.ro || !pn.box.same || pn.box.label !== 'Your brief') p6.push(`the brief box is ${JSON.stringify(pn.box)}`);
-    if (pn.copy !== 'Copy brief') p6.push(`the copy button reads "${pn.copy}"`);
+    if (pn.copy !== 'Copy my property brief') p6.push(`the copy button reads "${pn.copy}"`);
     if (p6.length) fail('els EB6: the panel\'s words and its link', p6);
-    else ok('els EB6: the panel is a closed "Explore design and renovation planning with ELS" with the lede and the line before the link as written, one link "Open the ELS website" to https://els.alumax.pro/ (no query, no hash; new tab, noopener noreferrer, the external-link marker), an empty requirements box with no placeholder, a read-only brief box equal to the builder\'s text, and "Copy brief"');
+    else ok('els EB6: the panel is a closed "Need design or renovation planning?" with the owner\'s lede (and ELS\'s own limit after it) and the line before the link as written, one link "Open the ELS website" to https://els.alumax.pro/ (no query, no hash; new tab, noopener noreferrer, the external-link marker), an empty requirements box with no placeholder, a read-only brief box equal to the builder\'s text, and "Copy my property brief"');
   } catch (e) {
     fail('els: the brief could not be run', String(e.message).split('\n')[0]);
   }

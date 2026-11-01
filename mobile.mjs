@@ -5334,7 +5334,7 @@ for (const w of [360, 390]) {
    2026; the 31 Oct review). At 360×640 and 390×844, in the page's font and
    in Verdana: /property/calculator#els-plan opens the full model at Decide
    with the panel open (the arrival the Quick model's and the Lab's links
-   use); its summary, "Copy brief" and "Open the ELS website" are each at
+   use); its summary, "Copy my property brief" (Day 19 wording, QT-D19-02, 1 Nov 2026) and "Open the ELS website" are each at
    least 44px in both directions; the requirements and brief boxes and the
    buttons stay inside the screen, a long requirement typed included; the
    page scrolls no way sideways. The Quick model's text link
@@ -5385,7 +5385,7 @@ for (const w of [360, 390]) {
       if (!r.open) fails.push(`${at}: the panel is not open on arrival`);
       if (r.section !== 'report' || !r.sectionShown) fails.push(`${at}: the panel's section is ${r.section}${r.sectionShown ? '' : ' and not shown'}, not Decide in sight`);
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
-      for (const [name, b, tall, wide] of [['summary', r.sum, 43.5, 43.5], ['Copy brief', r.copy, 43.5, 43.5], ['Open the ELS website', r.link, 43.5, 43.5]]) {
+      for (const [name, b, tall, wide] of [['summary', r.sum, 43.5, 43.5], ['Copy my property brief', r.copy, 43.5, 43.5], ['Open the ELS website', r.link, 43.5, 43.5]]) {
         if (!b) fails.push(`${at}: ${name} is not in sight`);
         else if (b.h < tall || b.w < wide) fails.push(`${at}: ${name} is ${b.w}×${b.h}px, not 44px both ways`);
         else if (b.r > r.vw || b.l < 0) fails.push(`${at}: ${name} runs off the screen (${b.l}–${b.r} of ${r.vw})`);
@@ -5411,7 +5411,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL els-panel — the optional ELS panel on a phone: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   els-panel: /property/calculator#els-plan opens the panel at Decide at 360 and 390, in the page's font and in Verdana — ${said.join('; ')}; the summary, Copy brief and the link to ELS 44px both ways, the boxes and buttons inside the screen with a long requirement typed, nothing sideways; the Quick model's and the Lab's text links 44px`);
+  else console.log(`ok   els-panel: /property/calculator#els-plan opens the panel at Decide at 360 and 390, in the page's font and in Verdana — ${said.join('; ')}; the summary, Copy my property brief and the link to ELS 44px both ways, the boxes and buttons inside the screen with a long requirement typed, nothing sideways; the Quick model's and the Lab's text links 44px`);
 }
 /* ---- end els-panel ---- */
 /* ---- calc-quick ---- */
