@@ -42,7 +42,7 @@ const ROUTES = [
   '/app/equities/msft/source-data', '/app/equities/msft/statements', '/app/equities/aapl/valuation',
   '/discover/sarawak', '/property',
   /* The calculator opens the Quick model; its full model is ?view=full (QT-003). */
-  '/property/calculator', '/property/calculator?view=full', '/property/opportunities', '/property/comparables', '/property/areas', '/us-options/wheel', '/property/calculator?view=full&city=sibu',
+  '/property/calculator', '/property/calculator?view=full', '/property/opportunities', '/property/comparables', '/property/market', '/property/areas', '/us-options/wheel', '/property/calculator?view=full&city=sibu',
   '/research/trading-index', '/learn/trading-index', '/trading-index',
   '/wheel', '/cash-wheel', '/options', '/my/wheel', '/my/options',
   '/property/calculator?view=full&city=miri&district=lutong&type=shophouse',
@@ -1447,7 +1447,7 @@ for (const route of ROUTES) {
     ['equities', ['/research', '/discover/screener', '/discover/value-map', '/compare', '/research/queue', '/discover/sarawak', '/us-options/wheel']],
     ['scanner', ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/setups/new', '/app/scanner/alerts',
       '/app/scanner/backtest', '/app/scanner/watchlists', '/app/scanner/settings', '/research/trading-index']],
-    ['property', ['/property', '/property/models', '/property/calculator', '/property/areas', '/property/comparables', '/property/opportunities']],
+    ['property', ['/property', '/property/models', '/property/calculator', '/property/areas', '/property/comparables', '/property/market', '/property/opportunities']],
   ];
   /* My Alerts is being rebuilt beside this (Release B, B1): it is held to
      the workspace header, which the shell draws, and not to a head its own
