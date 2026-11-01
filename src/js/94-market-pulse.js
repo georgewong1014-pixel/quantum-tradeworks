@@ -661,8 +661,8 @@ function mpEmpty() {
 VIEWS.marketPulse = () => {
   const wrap = el('div', { class: 'mp-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(pageHead({ title: 'Market pulse',
-    lede: 'Supply, asking price, demand and transacted price for the areas you track, from the counts and prices you record.',
-    note: 'Your own snapshots, by town, area and property type. Nothing is fetched from a listing site, and nothing here is ranked or scored.' }));
+    lede: 'Supply, demand and prices, from the counts you record.',
+    note: 'Supply, asking price, demand and transacted price, from your own snapshots by town, area and property type. Nothing is fetched from a listing site, and nothing here is ranked or scored.' }));
   wrap.append(mpSnapshotForm());
 
   const model = marketPulseModel(State.observations || []);
