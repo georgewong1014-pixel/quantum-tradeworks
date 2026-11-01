@@ -11158,6 +11158,67 @@ try {
     if (p.length) fail('the support route switches on with LAUNCH.contactEmail and leaves the waitlist off; with no address nothing changes', p);
     else ok('the support route: with no address /contact, the report form and the waitlist read as before; with an address set at run time /contact shows it once and Privacy says what writing to it hands over, the report\'s last step offers "Copy the report", the address as text and a mailto, the case reads "recorded here, not confirmed received", and the waitlist stays off');
   }
+
+  /* THE REPORT FORM FOLLOWS THE PAGE IT WAS OPENED OVER (the 31 Oct 2026
+     operational audit, #2). It offered only the equity metrics, ROIC first, and
+     recorded the equities model and the illustrative set's date on every page,
+     so a Property report arrived labelled "Return on invested capital" under
+     Equities versions. From the calculator the first item is a property figure
+     and the text holds the fee rulebook's version (read from FEE_TABLE, not
+     written here) and the build, with none of the deal and none of the equities
+     lines; from a company page the company is filled in and the equities
+     versions are there; the Scanner and any other page get their own lists. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const had = new Set(State.corrections || []);
+      const out = { fee: FEE_TABLE.version, feeLabels: Object.values(FEE_TABLE.lines).map(l => l.label), cash: METRIC_HELP.propSafeCash.label,
+        roic: FIELDS[0].label, model: MODEL_VERSION, price: String(State.deal && State.deal.price) };
+      const raise = async (path) => {
+        navigate(path); await w(400);
+        openReportError(); await w(200);
+        const sel = document.getElementById('errItem');
+        const o = { path: location.pathname + location.search, items: [...sel.options].map(x => x.value), first: sel.value, subject: document.getElementById('err-subject').value };
+        const d = document.getElementById('err-description'); d.value = 'the figure is wrong'; d.dispatchEvent(new Event('input'));
+        [...document.querySelectorAll('#drawer button')].find(b => b.textContent.trim() === 'Save this case here').click(); await w(400);
+        o.text = document.querySelector('#drawer textarea')?.value || '';
+        closeDrawer({ restore: false }); await w(300);
+        return o;
+      };
+      try {
+        out.property = await raise('/property/calculator?city=Sibu');
+        out.lab = await raise('/property/lab');
+        const c = (U.find(x => x.c.real) || U[0]).c;
+        out.co = { tk: c.tk || c.id, name: c.name };
+        out.company = await raise(companyPath(c));
+        out.scanner = await raise('/app/scanner');
+        out.general = await raise('/about');
+      } finally {
+        State.corrections = (State.corrections || []).filter(c => had.has(c));
+        saveCorrections();
+      }
+      return out;
+    })()`);
+    const p = [];
+    const prop = r.property, lab = r.lab, co = r.company;
+    if (prop.first !== r.cash || /Return on invested capital/.test(prop.items.join('|')) || !prop.items.includes('Something else') || !prop.items.includes('A fee or duty line not listed') || !r.feeLabels.every(l => prop.items.includes(l)))
+      p.push(`from the calculator the items begin "${prop.first}" (want "${r.cash}") and hold ${prop.items.length}: ${prop.items.slice(0, 4).join(' | ')} …`);
+    if (!prop.text.includes('Fee rulebook ' + r.fee) || !/Build app\.[0-9a-f]{12}\.js/.test(prop.text)) p.push(`a property report lacks "Fee rulebook ${r.fee}" or "Build app.<hash>.js": ${prop.text.slice(-260)}`);
+    if (/Model version|Data as of|Universe at the time|metrics 1\.\d/.test(prop.text)) p.push('a property report carries the equities versions: ' + prop.text.slice(-260));
+    if (/Sibu|city=|\?d=/.test(prop.text) || (r.price.length > 3 && prop.text.includes(r.price)) || !/\nPage: \/property\/calculator\n/.test(prop.text)) p.push('a property report carries the address query or a deal figure: ' + prop.text.slice(0, 260));
+    if (prop.subject !== 'Property deal calculator' || !/\nSubject: Property deal calculator\n/.test(prop.text)) p.push('a property report\'s subject is "' + prop.subject + '" (want the page name only)');
+    if (lab.first !== r.cash || !lab.text.includes('Fee rulebook ' + r.fee)) p.push('the Scenario Lab offers "' + lab.first + '" first, or lacks the rulebook version');
+    if (co.first !== r.roic || !co.subject.includes(r.co.tk) || (r.co.name && !co.subject.includes(r.co.name)) || !co.text.includes('Subject: ' + co.subject)
+      || !co.text.includes('Model version: ' + r.model) || !/\nData as of: /.test(co.text) || !/\nUniverse at the time: /.test(co.text) || !/Build app\.[0-9a-f]{12}\.js/.test(co.text) || /Fee rulebook/.test(co.text))
+      p.push('a company page\'s report: first item "' + co.first + '", subject "' + co.subject + '" (want ' + r.co.tk + '), text ' + co.text.slice(0, 120));
+    if (r.scanner.first !== 'A scanner setup' || r.scanner.items.join('|') !== 'A scanner setup|An evaluation|An example|Something else' || /Model version|Fee rulebook/.test(r.scanner.text) || !/Build app\./.test(r.scanner.text))
+      p.push('the scanner\'s report: ' + r.scanner.items.join('|') + ' / ' + r.scanner.text.slice(-120));
+    if (r.general.items[r.general.items.length - 1] !== 'Something else' || r.general.items.length > 6 || r.general.items.includes(r.roic) || /Model version|Fee rulebook/.test(r.general.text) || !/Build app\./.test(r.general.text) || r.general.subject !== '')
+      p.push('the general report: ' + r.general.items.join('|') + ' / subject "' + r.general.subject + '"');
+    if (/received/i.test(prop.text)) p.push('a report text claims receipt');
+    if (p.length) fail('the report form follows the page: a property page offers the property figures and carries the fee rulebook version and the build, a company page its company and the equities versions', p);
+    else ok('the report form follows the page: the calculator and the Lab offer "' + r.cash + '" first with the fee lines and carry "Fee rulebook ' + r.fee + '" and the build, with the page name only and none of the deal or the equities lines; a company page fills in its company and keeps the equities versions; the Scanner and an unrelated page get their own short lists');
+  }
   {
     const { readFileSync, readdirSync } = await import('node:fs');
     const SRC = new URL('./src/js/', import.meta.url);

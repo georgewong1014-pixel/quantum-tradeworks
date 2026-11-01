@@ -832,7 +832,73 @@ function caseRaisedAt(d = new Date()) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())} ${zone}`;
 }
 
+/* WHICH PRODUCT A REPORT IS ABOUT (the 31 Oct 2026 operational audit, #2).
+   The form offered only the equity metrics (ROIC first) and the text recorded
+   the equities model, the illustrative set's date and the company count, on
+   every page. A Property report arrived as "Return on invested capital" under
+   Equities versions, and triage began with an email asking what it was about.
+   The page the drawer opened over decides: its product, by the same table the
+   sidebar reads (productOf; the decision record by the tool whose work it
+   prints). Property pages offer the property figures by their own names —
+   METRIC_HELP's labels for the results and FEE_TABLE's for the fee lines — the
+   Scanner pages its three kinds of thing, and the Equities pages the metrics
+   as before. The Cash Wheel, the decision record of a wheel, and every page
+   outside a product get a short general list: their figures are not the
+   screener's. */
+const REPORT_EQUITY_VIEWS = new Set(['researchHome', 'research', 'researchReport', 'researchQueue', 'discover', 'compare', 'sarawak']);
+const REPORT_PROPERTY_KEYS = ['propSafeCash', 'propCashflow', 'netYield', 'grossYield', 'propInstalment', 'propBreakEvenOccupancy', 'propValueLessLoan', 'propNetExit', 'propIrr'];
+function reportOrigin() {
+  const view = State.view;
+  const product = (typeof decisionRecordSection === 'function' && decisionRecordSection()) || productOf(view);
+  const page = matchRoute(location.pathname)?.title || null;
+  if (product === 'property') {
+    /* Only the page's name is filled in, and the address's query is not
+       recorded: the calculator keeps the whole deal in it (?d=), and a report
+       carries no private figure unless the reader types one. */
+    return { kind: 'property', route: location.pathname, subject: page || '',
+      subjectLabel: 'Page or property this is about', subjectHint: 'the page is filled in; name a property only if you choose to',
+      groups: [
+        { label: 'Results', items: REPORT_PROPERTY_KEYS.map(k => METRIC_HELP[k]?.label).filter(Boolean) },
+        { label: 'Fee and duty lines', items: [...Object.values(FEE_TABLE.lines).map(l => l.label), 'A fee or duty line not listed'] },
+        { label: null, items: ['Something else'] },
+      ],
+      recorded: `The page’s name, fee rulebook ${FEE_TABLE.version} and the build. Nothing from your deal unless you type it.` };
+  }
+  if (product === 'scanner') {
+    return { kind: 'scanner', route: location.pathname + location.search, subject: page || '',
+      subjectLabel: 'Page or setup this is about', subjectHint: 'the page is filled in',
+      groups: [{ label: null, items: ['A scanner setup', 'An evaluation', 'An example', 'Something else'] }],
+      recorded: 'The page you were on and the build.' };
+  }
+  if (product === 'equities' && REPORT_EQUITY_VIEWS.has(view)) {
+    const co = (view === 'research' || view === 'researchReport') ? BY_ID.get(State.ticker)?.c : null;
+    return { kind: 'equities', route: location.pathname + location.search,
+      subject: co ? `${co.tk || co.id}${co.name ? ` — ${co.name}` : ''}` : '',
+      subjectLabel: 'Company or property this is about', subjectHint: 'e.g. MSFT, or a Sibu condominium',
+      groups: [{ label: null, items: FIELDS.map(f => f.label) }],
+      recorded: `The page you were on, model version ${MODEL_VERSION}, data as of ${AS_OF}, the universe as loaded and the build.` };
+  }
+  return { kind: 'general', route: location.pathname + location.search, subject: '',
+    subjectLabel: 'Company or property this is about', subjectHint: 'e.g. MSFT, or a Sibu condominium',
+    groups: [{ label: null, items: ['A figure or number', 'A date or version', 'A source or link', 'Wording or a label', 'Something else'] }],
+    recorded: 'The page you were on and the build.' };
+}
+/* The build the reader is running, from the hashed file name the page loads
+   the app by (app.<12 hex>.js, build.mjs). The source copy, index.html, keeps
+   the script inline and has no such name; the report then says so. */
+function reportBuild() {
+  const src = document.querySelector('script[src*="/assets/app."]')?.getAttribute('src') || '';
+  const m = /(app\.[0-9a-f]{12}\.js)(?:[?#]|$)/.exec(src);
+  return m ? m[1] : null;
+}
+
 function correctionPayload(c) {
+  /* A case recorded before the audit has no kind: it keeps the equities lines
+     it was recorded with. A kind other than equities carries its own. */
+  const tail = c.kind === 'property' ? [`Fee rulebook ${c.feeRulebook}`]
+    : (c.kind === 'scanner' || c.kind === 'general') ? []
+    : [`Model version: ${c.modelVersion}`, `Data as of: ${c.asOf}`, `Universe at the time: ${c.coverage}`];
+  if (c.kind) tail.push(c.build ? `Build ${c.build}` : 'Build not recorded (the app was loaded inline, not as a hashed file)');
   return [
     `Correction case ${c.id}`,
     `Raised: ${c.createdAt}`,
@@ -845,9 +911,7 @@ function correctionPayload(c) {
     ``,
     c.description || '(no description given)',
     ``,
-    `Model version: ${c.modelVersion}`,
-    `Data as of: ${c.asOf}`,
-    `Universe at the time: ${c.coverage}`,
+    ...tail,
   ].join('\n');
 }
 
@@ -1014,7 +1078,8 @@ function openReportError() {
       ? 'This records a case in this browser and gives it an identifier. It does not send anything — there is no server — so the last step gives you the report to send yourself, from your own email program.'
       : 'This records a case in this browser and gives it an identifier. It does not send anything — there is no server and no contact address yet — so the last step hands you the case to send yourself.'));
 
-  const state = { item: (FIELDS[0] && FIELDS[0].label) || '', subject: '', shownValue: '', expectedValue: '', sourceRef: '', description: '' };
+  const origin = reportOrigin();
+  const state = { item: origin.groups[0].items[0] || '', subject: origin.subject, shownValue: '', expectedValue: '', sourceRef: '', description: '' };
   const field = (label, key, kind, placeholder) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
     f.append(el('label', { for: `err-${key}` }, label));
@@ -1030,10 +1095,16 @@ function openReportError() {
   f1.append(el('label', { for: 'errItem' }, 'Data item'));
   const sel = el('select', { class: 'select', id: 'errItem',
     onchange: e => { state.item = e.target.value; } });
-  FIELDS.forEach(f => sel.append(el('option', { value: f.label }, f.label)));
+  origin.groups.forEach(g => {
+    const host = g.label ? el('optgroup', { label: g.label }) : sel;
+    g.items.forEach(x => host.append(el('option', { value: x }, x)));
+    if (g.label) sel.append(host);
+  });
   f1.append(sel); body.append(f1);
 
-  field('Company or property this is about', 'subject', 'text', 'e.g. MSFT, or a Sibu condominium');
+  field(origin.subjectLabel, 'subject', 'text', origin.subjectHint);
+  /* field() builds the input empty; a page's own subject is put in it. */
+  if (origin.subject) { const sj = body.querySelector('#err-subject'); if (sj) sj.value = origin.subject; }
   field('What the page shows', 'shownValue', 'text', 'the figure as displayed');
   field('What it should be', 'expectedValue', 'text', 'leave blank if you only know it is wrong');
   field('Source that disagrees', 'sourceRef', 'text', 'a filing, a page, a document — a source makes this verifiable rather than a disagreement');
@@ -1042,7 +1113,7 @@ function openReportError() {
   body.append(el('div', { class: 'sunk', style: 'margin-bottom:var(--md)' },
     el('dl', { class: 'kv' }, [
       el('dt', {}, 'Recorded with the case'),
-      el('dd', { style: 'text-align:left' }, `The page you were on, model version ${MODEL_VERSION}, data as of ${AS_OF}, and the universe as loaded.`),
+      el('dd', { style: 'text-align:left' }, origin.recorded),
     ])));
 
   body.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
@@ -1055,7 +1126,8 @@ function openReportError() {
     const c = {
       id: nextCaseId(now),
       createdAt: caseRaisedAt(now),
-      route: location.pathname + location.search,
+      route: origin.route, kind: origin.kind, build: reportBuild(),
+      ...(origin.kind === 'property' ? { feeRulebook: `${FEE_TABLE.version}, checked ${FEE_TABLE.checkedOn}` } : {}),
       status: supportEmail() ? 'recorded here, not confirmed received' : 'recorded — not sent',
       modelVersion: MODEL_VERSION, asOf: AS_OF,
       /* A case is evidence. Recording the sample counts against it because the
