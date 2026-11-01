@@ -954,7 +954,8 @@ const HOME_PAGE = read(HOME);
     }
     if (list.some(l => /Business Intelligence/.test(l.text))) p.push(`${where} links Business Intelligence, which is not built`);
   }
-  if (!/Business Intelligence/.test(words(sample.pubnav)) || !/Business Intelligence/.test(words(sample.footProducts))) p.push('Business Intelligence is not in the header\'s and the footer\'s Products as text');
+  /* The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the product that is not built is in neither list, as text or as a link. */
+  if (/Business Intelligence/.test(words(sample.pubnav)) || /Business Intelligence/.test(words(sample.footProducts))) p.push('Business Intelligence, which is not built, is in the header\'s or the footer\'s Products');
   /* The header's links since 30 Oct 2026 (quick-wins fix 5): Plans, Build status, About, Privacy and Terms are the footer's. */
   for (const href of ['/how-it-works', '/my/workspace', '/contact', '/corrections', '/learn/product-boundaries', '/methodology', '/data-sources', '/learn/glossary', '/learn'])
     if (!pub.some(l => l.href === href)) p.push(`#pubnav has no link to ${href}`);
@@ -2408,7 +2409,7 @@ const HOME_PAGE = read(HOME);
         served), no link, button or <details> inside a link; the Property
         card links /property/lab; the Scanner's ⓘ says "this site ships no
         prices"; the badges on /, /how-it-works and the footer read Beta,
-        Beta, Live and Coming soon; Business is text;
+        Beta, Live and Coming soon; Business is not on / or in the header or footer lists (QT-SCOPE-02);
    3.4, N9  the example path: an "Example" label, 50 words or fewer, two
         <ol>s of 5 and 4 links each served 200, no digit, ticker or company
         name; "Saved in this browser" once, one link to /my/data;
@@ -2527,14 +2528,42 @@ const HOME_PAGE = read(HOME);
   }
   const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
   if (!scanNote || !/this site ships no prices/.test(rawText(scanNote))) p.push('/: the Scanner card\'s ⓘ does not say "this site ships no prices"');
-  const WANT = { equities: 'Beta', scanner: 'Beta', property: 'Available', business: 'Coming soon' };
+  const WANT = { equities: 'Beta', scanner: 'Beta', property: 'Available' };
   const badgeIn = (n) => { const b = n && all(n).find(x => has(x, 'status-badge')); return b ? sight(b) : null; };
   for (const [id, want] of Object.entries(WANT)) {
-    const onHome = id === 'business' ? badgeIn(hm && all(hm).find(n => has(n, 'pub-soon'))) : badgeIn(cardOf(id));
+    const onHome = badgeIn(cardOf(id));
     if (onHome !== want) p.push(`/: the ${id} badge reads ${JSON.stringify(onHome)}, not "${want}"`);
   }
-  const soon = hm && all(hm).find(n => has(n, 'pub-soon'));
-  if (!soon || all(soon).some(n => n.tag === 'a') || !/Business Intelligence · Plan my business ·/.test(sight(soon))) p.push(`/: Business is not one line of text, "Business Intelligence · Plan my business · Coming soon" (${soon ? sight(soon) : 'none'})`);
+  /* QT-SCOPE-02 (the owner's scope direction, 1 Nov 2026): the first view names only what exists.
+     "Business Intelligence" is not in the homepage's main, the header, /app's "Choose a tool" or
+     /how-it-works above its one "Not built yet" line; that line is the page's only mention, short,
+     and below the three products' sections. */
+  if (hm && all(hm).some(n => has(n, 'pub-soon'))) p.push('/: the line for the unbuilt product (.pub-soon) is back under the cards');
+  if (hm && /Business Intelligence|Plan my business/.test(rawText(hm))) p.push('/: the homepage\'s main names the unbuilt product');
+  {
+    const hdr = (home.match(/<nav class="pubnav" id="pubnav"[\s\S]*?<\/nav>/) || [''])[0];
+    if (/Business Intelligence|Plan my business/.test(hdr)) p.push('/: the header names the unbuilt product');
+    const app = got.get('/app')?.body || (await getAll(['/app'])).get('/app')?.body || '';
+    const am = mainOf(app);
+    const ch = am && all(am).find(n => attr(n, 'id') === 'dash-tools-hd');
+    const chSec = ch && all(am).find(n => n.tag === 'section' && all(n).includes(ch));
+    if (am && /Business Intelligence|Plan my business/.test(rawText(chSec || am))) p.push('/app: "Choose a tool" names the unbuilt product');
+    const hiwBody = (await getAll(['/how-it-works'])).get('/how-it-works')?.body || '';
+    const hm2 = mainOf(hiwBody);
+    const mine = hm2 ? all(hm2) : [];
+    const line = mine.find(n => has(n, 'hiw-unbuilt'));
+    if (!hm2) p.push('/how-it-works: no main');
+    else if (!line) p.push('/how-it-works: no "Not built yet" line (.hiw-unbuilt)');
+    else {
+      const first = rawText(hm2).split(rawText(line))[0];
+      if (/Business Intelligence|Plan my business/.test(first)) p.push('/how-it-works: the first view, above the "Not built yet" line, names the unbuilt product');
+      if (!/^Not built yet: Business Intelligence/.test(rawText(line)) || wordsIn(rawText(line)).length > 25) p.push(`/how-it-works: the unbuilt line reads "${rawText(line)}", not one short "Not built yet" line`);
+      const secs = mine.filter(n => n.tag === 'section' && /^hiw-(equities|scanner|property|business)$/.test(attr(n, 'id') || '')).map(n => attr(n, 'id'));
+      if (JSON.stringify(secs) !== JSON.stringify(['hiw-equities', 'hiw-scanner', 'hiw-property'])) p.push(`/how-it-works: product sections ${JSON.stringify(secs)}, not the three that exist`);
+      const toc = mine.find(n => has(n, 'hiw-toc'));
+      if (toc && /Business/.test(rawText(toc))) p.push('/how-it-works: the contents list names the unbuilt product');
+    }
+  }
   const hiw = got.get('/how-it-works')?.body || '';
   const hiwNodes = all(T(hiw));
   for (const [id, want] of Object.entries(WANT)) {
@@ -4286,8 +4315,8 @@ const HOME_PAGE = read(HOME);
    root's description, og: and twitter: tags promised a next release no plan
    or date is behind. They say "planned, not yet scheduled" — from
    POSITIONING, typed once (wording-check) — and Business Intelligence is
-   still "Coming soon" as text on / and /how-it-works, never a link (held by
-   the homepage block above). Held on every page served: no "is next", and
+   named, since 1 Nov 2026 (QT-SCOPE-02), only in /how-it-works's one "Not built
+   yet" line and never as a link (held by the homepage block above). Held on every page served: no "is next", and
    the footer's line and the root's description say it as approved. */
 {
   const p = [];

@@ -8007,7 +8007,8 @@ try {
         view: State.view,
         primary: [...h.querySelectorAll('.btn-primary')].map(b => b.getAttribute('href')),
         sections: P.map(p => { const s = h.querySelector('#hiw-' + p.id);
-          return s ? { id: p.id, built: !!p.path, steps: s.querySelectorAll('.hiw-step').length, links: s.querySelectorAll('a').length } : { id: p.id, missing: true }; }),
+          return s ? { id: p.id, built: !!p.path, steps: s.querySelectorAll('.hiw-step').length, links: s.querySelectorAll('a').length } : { id: p.id, built: !!p.path, missing: true }; }),
+        unbuilt: [...h.querySelectorAll('.hiw-unbuilt')].map(x => x.textContent.replace(/\\s+/g, ' ').trim()),
         legend: h.querySelectorAll('.hiw-status-item').length,
         journey: h.querySelectorAll('.hiw-path-step').length,
         proofs: [...h.querySelectorAll('.proof-card .proof-hd')].map(x => x.firstElementChild?.textContent),
@@ -8038,7 +8039,8 @@ try {
       p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
     if (home.explore !== null) p.push(`"Explore products" is back on the homepage (${home.explore})`);
     if (home.cards.length !== home.want.filter(w => w.path).length) p.push(`${home.cards.length} product cards for ${home.want.filter(w => w.path).length} built products`);
-    if (!home.soon || home.soon.links || home.soon.badge !== 'Coming soon') p.push(`Business on the homepage: ${JSON.stringify(home.soon)}`);
+    /* The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the line for the unbuilt product left the homepage. */
+    if (home.soon) p.push(`Business is back on the homepage: ${JSON.stringify(home.soon)}`);
     home.want.filter(w => w.path).forEach((want, i) => {
       const c = home.cards[i] || {};
       if (c.title !== want.task) p.push(`card ${i + 1} is titled "${c.title}", not "${want.task}"`);
@@ -8057,10 +8059,13 @@ try {
     if (hiw.view !== 'howItWorks') p.push(`/how-it-works renders ${hiw.view}`);
     if (!hiw.primary.length || hiw.primary.some(x => !/\/app$/.test(x || ''))) p.push(`/how-it-works primary actions: ${JSON.stringify(hiw.primary)}`);
     hiw.sections.forEach(s => {
-      if (s.missing) p.push(`/how-it-works has no section for ${s.id}`);
+      /* 1 Nov 2026 (QT-SCOPE-02): a product that is not built has no section, only the one "Not built yet" line below the three. */
+      if (s.missing && s.built) p.push(`/how-it-works has no section for ${s.id}`);
+      else if (s.missing) return;
       else if (s.built && s.steps !== 5) p.push(`${s.id}: ${s.steps} workflow steps, not 5`);
       else if (!s.built && (s.steps || s.links)) p.push(`${s.id} is not built and shows ${s.steps} steps and ${s.links} links`);
     });
+    if (hiw.unbuilt.length !== 1 || !/^Not built yet: Business Intelligence/.test(hiw.unbuilt[0]) || hiw.unbuilt[0].split(/\s+/).length > 25) p.push(`/how-it-works: the unbuilt product is ${JSON.stringify(hiw.unbuilt)}, not one short "Not built yet" line`);
     if (hiw.legend !== 6) p.push(`${hiw.legend} status meanings, not 6 (the four written, and Delayed and Unavailable)`);
     if (hiw.journey !== 5) p.push(`${hiw.journey} journey steps, not 5`);
     for (const t of ['Sarawak property', 'US options Cash Wheel', 'QT Trading Index'])
@@ -8073,7 +8078,7 @@ try {
     if (pick.illus && !/illustrative figures/.test(pick.illus.label)) p.push(`an illustrative company's preview is not labelled: "${pick.illus.label}"`);
     if (pick.real && !/filed with the SEC/.test(pick.real.label)) p.push(`a filed company's preview does not say so: "${pick.real.label}"`);
     if (p.length) fail('release-a public: the homepage and /how-it-works say what the brief says, and every link on them opens a page', p);
-    else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS with ${home.figures} charts and Business as text; /how-it-works has the steps, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
+    else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS with ${home.figures} charts and no line for the unbuilt Business product; /how-it-works has the three products' steps, one "Not built yet" line, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
   }
   /* ---- end release-a: public ---- */
   /* ---- home: example outputs ---- */

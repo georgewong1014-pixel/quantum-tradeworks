@@ -376,8 +376,11 @@ function toast(msg) {
      (70-property.js); what is not the reader's own — the seeded example deal,
      the sample projects' synthetic transactions, fee lines still placeholders
      — is labelled where it shows, and the note says so.
-   - Business Intelligence is not built. It is text with a badge, never a
-     link or a button, and SHOW_UNBUILT keeps it out of the app sidebar. */
+   - Business Intelligence is not built. It is never a link or a button, and
+     SHOW_UNBUILT keeps it out of the app sidebar, the header's menus and the
+     footer's Products (the owner's scope direction, 1 Nov 2026; QT-SCOPE-02);
+     it stays in the table for /status, /how-it-works' "Not built yet" line
+     and the search. */
 /* THE QUALIFIER (the owner's decisions D5 and D17, 2026-10-05): a few words
    that say, beside the status word and in sight, what the status rests on.
    The homepage card shows each product's; Property's is shown wherever its
@@ -2074,7 +2077,11 @@ function resourceHere() {
 /* The four products as rows: name, badge, blurb. A product that is not built
    is a row of text — no link, no button, nothing to press. */
 function productRows() {
-  return PRODUCTS.map(p => {
+  /* The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the header's menu
+     and the phone sheet list the products that exist. Business Intelligence,
+     which is not built, was a greyed row among them; it is listed where the
+     site says what exists and what does not (/status, /pricing, /about). */
+  return PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => {
     const kids = [
       el('span', { class: 'pp-ico', 'aria-hidden': 'true', html: icon(PRODUCT_ICON[p.id] || 'grid', 18) }),
       el('span', { class: 'pp-body' }, [
@@ -2150,7 +2157,8 @@ function sidebarItem(n, extra = []) {
    it, and buildNav marks the current item again: the same links, so nothing
    moves. The phone's sheet is not served: it is hidden until the script
    opens it, and every link in it is in the header's menus and the footer.
-   Business Intelligence, which is not built, is text in all of them. */
+   Business Intelligence, which is not built, is in none of them (the owner's
+   scope direction, 1 Nov 2026); before that it was text with a badge. */
 const NAV_MARKUP = {
   /* The public header: Products, Saved work, How it works, Help (the owner's
      quick-wins brief, fix 5, 30 Oct 2026). Saved work is new, the sidebar's
@@ -2177,7 +2185,12 @@ const NAV_MARKUP = {
   /* The footer's Products and Resources, from the same tables. Unchanged by
      the header's list of 30 Oct 2026: every link the header gave up is here
      or in the Company column (index.template.html). */
-  footProducts: () => PRODUCTS.map(p => el('li', {}, p.path
+  /* The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the footer's
+     Products column lists the three that exist. Business Intelligence stood
+     in it as a fourth item with a "Coming soon" badge, in the same list as
+     the live products; the footer's one line, "Business planning: planned,
+     not yet scheduled.", says what is not built. */
+  footProducts: () => PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => el('li', {}, p.path
     ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))),
   footResources: () => [
