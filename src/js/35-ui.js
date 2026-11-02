@@ -1183,21 +1183,24 @@ const POSITIONING = {
   title: 'Quantum Tradeworks — your financial decision workspace',
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
-  kicker: 'Research · Monitor · Model · Plan',
+  /* "Plan" left with the unbuilt product (QT-D20-02, 2 Nov 2026). */
+  kicker: 'Research · Monitor · Model',
   /* The hero's lede under the held h1: with it, 15 words. The three tools as
      the three things a visitor can do, in the cards' own words (the owner's
      quick-wins brief, 29 Oct 2026; was "Companies, market setups and
      property, in one workspace."). Not "test investment rules": nothing
      here runs a rule. */
   lede: 'Research companies. Create scanner setups. Model property decisions.',
-  /* The footer's line on every page. Business planning is "planned, not
-     yet scheduled" (the owner's decision of 11 Oct 2026; the claims audit,
-     R-20): "is next" promised a release no plan or date is behind.
-     Business Intelligence stays "Coming soon" as text, never a link. */
-  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled.',
+  /* The footer's line on every page: the three tools that exist. It said
+     "Business planning: planned, not yet scheduled." (the owner's decision
+     of 11 Oct 2026; the claims audit, R-20, had removed "is next"); since
+     2 Nov 2026 (QT-D20-02) the unbuilt product is named only in
+     /how-it-works's one "Not built yet" line, so no page's footer gives it
+     a place beside the tools that work. */
+  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property.',
   /* The site root's description, og:description and twitter:description:
      the one-liner and what the site will not do. */
-  description: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled. Research only — no recommendations.',
+  description: 'A financial decision workspace: research a company, build your own setups, model a property. Research only — no recommendations.',
 };
 
 const ROUTES = [
@@ -2100,9 +2103,11 @@ function productRows() {
       : el('div', { class: 'pp-row pp-row-off', 'data-product': p.id }, kids));
   });
 }
-/* Under the product rows: where every badge's note is printed. */
+/* Under the product rows: where every badge's note is printed. No row
+   wears Coming soon since the unbuilt product left the menu (QT-SCOPE-02), so
+   the link names the two badges it does (QT-D20-02, 2 Nov 2026). */
 const productsLegendLink = () => el('p', { class: 'pp-foot' },
-  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Available, Beta and Coming soon mean'));
+  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Available and Beta mean'));
 /* Drawn twice — the menu and the phone sheet — so each copy's labels carry
    their own ids. */
 function helpLists(prefix) {

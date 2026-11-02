@@ -158,7 +158,10 @@ function searchPageIndex() {
     if (!byCanon.has(c)) byCanon.set(c, r);
   };
   const alsoCalled = (r, name) => { if (name && name !== r.label && !r.aka.includes(name)) r.aka.push(name); };
+  /* Not the unbuilt product (QT-D20-02, 2 Nov 2026): a Product row with nowhere
+     to go read as a fourth tool. /how-it-works, which names it, is searchable. */
   PRODUCTS.forEach(p => {
+    if (!p.path && !SHOW_UNBUILT) return;
     if (p.path && !searchOpens(p.path)) return;
     add({ label: p.name, in: 'Product', note: p.path ? p.blurb : p.statusNote, path: p.path || null,
       icon: PRODUCT_ICON[p.id] || 'grid', product: p.id, tool: null, aka: [p.short, p.task].filter(Boolean) });

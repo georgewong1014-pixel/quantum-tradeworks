@@ -4363,7 +4363,8 @@ const HOME_PAGE = read(HOME);
    POSITIONING, typed once (wording-check) — and Business Intelligence is
    named, since 1 Nov 2026 (QT-SCOPE-02), only in /how-it-works's one "Not built
    yet" line and never as a link (held by the homepage block above). Held on every page served: no "is next", and
-   the footer's line and the root's description say it as approved. */
+   since 2 Nov 2026 (QT-D20-02) the footer's line and the root's description
+   do not name the unbuilt product at all: the three tools that exist. */
 {
   const p = [];
   const got = await getAll(statics);
@@ -4371,9 +4372,9 @@ const HOME_PAGE = read(HOME);
   if (next.length) p.push(`"Business planning is next." is served on ${next.length} page(s): ${next.slice(0, 6).join(', ')}${next.length > 6 ? ' …' : ''}`);
   const foot = (/<p class="body foot-desc">([^<]*)<\/p>/.exec(got.get('/about')?.body || '') || [])[1]?.replace(/&amp;/g, '&') || '';
   const desc = headOf(got.get('/')?.body || '').description || '';
-  if (!/Business planning: planned, not yet scheduled\./.test(foot)) p.push(`the footer's line reads "${foot}"`);
-  if (!/Business planning: planned, not yet scheduled\./.test(desc)) p.push(`/'s description reads "${desc}"`);
-  judge(p, `business planning "planned, not yet scheduled" (the owner's decision of 11 Oct 2026): no page says it "is next"; the footer reads "${foot}"`,
+  if (/Business planning|Business Intelligence/.test(foot) || !/model a property\.$/.test(foot)) p.push(`the footer's line reads "${foot}"`);
+  if (/Business planning|Business Intelligence/.test(desc) || !/model a property\./.test(desc)) p.push(`/'s description reads "${desc}"`);
+  judge(p, `business planning (the owner's decision of 11 Oct 2026; QT-D20-02): no page says it "is next", and neither the footer nor the description names it; the footer reads "${foot}"`,
     'a page still says business planning is next');
 }
 /* ---- end claims-business-planning ---- */

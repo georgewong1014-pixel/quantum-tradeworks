@@ -8130,7 +8130,7 @@ try {
     if (home.h1 !== 'Understand what drives the result before relying on the number.') p.push(`homepage h1: "${home.h1}"`);
     /* D5: the kicker is the footer's tagline only; the hero is the h1, the
        lede and one action, with no "Explore products". */
-    if (home.kicker != null || home.tagline !== 'Research · Monitor · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
+    if (home.kicker != null || home.tagline !== 'Research · Monitor · Model') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
     if (home.primary.length !== 1 || home.primary[0][0] !== 'Choose a tool' || home.primary[0][1] !== '#products')
       p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
     if (home.explore !== null) p.push(`"Explore products" is back on the homepage (${home.explore})`);
