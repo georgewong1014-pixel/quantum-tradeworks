@@ -7336,7 +7336,7 @@ input.au-in[type="text"] { text-align: left; }
 .pc-els { margin-top: var(--lg); padding-top: var(--md); border-top: 1px solid var(--line); min-width: 0; }
 .pc-els > .pc-els-sum { color: var(--ink); }
 .pc-els-body { display: flex; flex-direction: column; gap: var(--md); margin: var(--xs) 0 0 16px; min-width: 0; max-width: var(--ls-measure); }
-.pc-els-lede { margin: 0; font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
+.pc-els-lede, .pc-els-roles { margin: 0; font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
 .pc-els-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .pc-els-field > label { font-size: var(--ls-support); font-weight: var(--weight-semibold); line-height: 20px; color: var(--ink); }
 .pc-els-field > .metaline { margin: 0; }

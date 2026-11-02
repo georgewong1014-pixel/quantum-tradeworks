@@ -1555,10 +1555,11 @@ function readPropertyUrl(d) {
    property's id. A sample figure never appears as an amount, and a figure the
    reader typed is said to be theirs: editing an assumption does not make it
    checked by anyone, so the brief never calls it verified, approved or
-   confirmed. ELS does not yet expose a page of its own that receives a brief,
-   so the reader brings the copy to their first contact; nothing here claims
-   that ELS will see, prefill or receive anything. */
-const ELS_URL = 'https://els.alumax.pro/';
+   confirmed. The link goes to ELS's own enquiry page (/contact, since the
+   owner's Day 20 review, 2 Nov 2026), where the reader pastes the brief
+   themselves; nothing here claims that ELS will see, prefill or receive
+   anything, and the link carries no query or hash. */
+const ELS_URL = 'https://els.alumax.pro/contact';
 const ELS_BRIEF_ID = 'qt-property-brief/1';
 const ELS_REQUIREMENTS_MAX = 1000;
 const ELS_NOT_SET = {

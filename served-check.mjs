@@ -1920,7 +1920,7 @@ const HOME_PAGE = read(HOME);
 /* THE OPTIONAL ELS LINKS, SERVED (the owner's Day 18 instructions, 31 Oct
    2026; briefs/README-els-referral.md). The panel itself is the full
    model's, drawn by script (model-test els-brief holds its words, its link
-   to https://els.alumax.pro/ and that its brief names no figure of the
+   to https://els.alumax.pro/contact and that its brief names no figure of the
    deal). What is served is the two text links to it, each once and each
    carrying nothing of the deal:
    - /property/calculator, served in the Quick model: one link,

@@ -3562,10 +3562,9 @@ function pcQuickView(d, m, g, DK) {
 /* THE OPTIONAL ELS PANEL (the owner's Day 18 instructions, 31 Oct 2026;
    briefs/README-els-referral.md). One quiet drawer in the full model, after
    the results and the report actions and never above them: a short brief the
-   reader reviews, edits and copies, then a plain link to the ELS website.
+   reader reviews, edits and copies, then a plain link to ELS's enquiry page.
    Nothing is sent — no request to ELS, no prefill, no tracking, no query or
-   hash on the link. ELS does not yet expose a page of its own that receives a
-   brief, so the reader brings the copy to their first contact. Calculating,
+   hash on the link; the reader pastes the brief into the enquiry themselves. Calculating,
    comparing and saving need none of it; the brief is a pure function of the
    deal (elsBrief, 70-property.js) and the panel keeps nothing of its own: it
    is open or closed and holds the typed requirements in this tab's memory
@@ -3573,7 +3572,8 @@ function pcQuickView(d, m, g, DK) {
    tab, so the model in this one is exactly as it was when the reader returns. */
 let pcElsOpen = false;
 let pcElsReq = '';
-const ELS_LINK_WORDS = 'Open the ELS website';
+/* The owner's Day 20 wording (QT-D19-02, 2 Nov 2026); was "Open the ELS website". */
+const ELS_LINK_WORDS = 'Open the ELS enquiry';
 /* The owner's Day 19 instructions (QT-D19-02, 1 Nov 2026): words only. The drawer's
    heading is the question; the links to it keep "ELS" so the reader knows where
    they lead. */
@@ -3626,8 +3626,10 @@ function pcElsPanel(d) {
   };
 
   det.append(el('div', { class: 'pc-els-body' }, [
-    /* The owner's lede (Day 19), then the brief's own limit, unchanged. */
-    el('p', { class: 'pc-els-lede' }, 'Your Quantum assessment is complete independently of ELS. If you would like design or renovation assistance, you can review and copy a summary to share with ELS yourself. ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.'),
+    /* The owner's Day 20 wording (QT-D19-02, 2 Nov 2026): the lede, then who is
+       responsible for what, then the brief's own limit, unchanged. */
+    el('p', { class: 'pc-els-lede' }, 'Your Quantum assessment is complete. If you want design or renovation support, review and copy this brief. Quantum sends nothing to ELS.'),
+    el('p', { class: 'pc-els-roles', id: 'els-roles' }, 'ELS is a separate business. ELS provides design and specification. If ELS+ is separately contracted, ELS+ is responsible for delivering the contracted renovation works, appointing and managing trades, quality checks and handover, and agreed rectification. ELS quotations need its own assessment of the property; nothing here is a quotation or an approved budget.'),
     el('div', { class: 'pc-els-field' }, [
       el('label', { for: 'els-requirements' }, 'Your requirements'),
       requirements,
@@ -3635,7 +3637,7 @@ function pcElsPanel(d) {
     el('div', { class: 'pc-els-field' }, [
       el('label', { for: 'els-brief' }, 'Your brief'),
       brief]),
-    el('p', { class: 'pc-els-before', id: 'els-before' }, 'Nothing is sent to ELS. On its website, choose how to contact them and paste your brief there.'),
+    el('p', { class: 'pc-els-before', id: 'els-before' }, 'Open ELS and paste the brief into the enquiry yourself. Opening ELS does not send this brief or confirm that anyone received it.'),
     el('div', { class: 'pc-els-acts' }, [
       el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'els-copy', onclick: copy }, 'Copy my property brief'),
       el('a', { class: 'btn btn-ghost btn-sm', id: 'els-link', href: ELS_URL, target: '_blank', rel: 'noopener noreferrer',

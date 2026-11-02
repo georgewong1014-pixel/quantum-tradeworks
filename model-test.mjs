@@ -12531,7 +12531,7 @@ try {
       const a = p.querySelector('#els-link'), req = p.querySelector('#els-requirements'), box = p.querySelector('#els-brief');
       const panel = {
         summary: p.querySelector('summary').textContent, closed: !p.open, id: p.id,
-        lede: p.querySelector('.pc-els-lede').textContent, before: p.querySelector('#els-before').textContent,
+        lede: p.querySelector('.pc-els-lede').textContent, roles: p.querySelector('#els-roles')?.textContent, before: p.querySelector('#els-before').textContent,
         link: a && { text: a.textContent.trim(), href: a.getAttribute('href'), target: a.target, rel: a.rel, ext: !!a.querySelector('svg') },
         req: req && { value: req.value, placeholder: req.getAttribute('placeholder'), label: p.querySelector('label[for=els-requirements]')?.textContent },
         box: box && { ro: box.hasAttribute('readonly'), same: box.value === elsBrief(base(), '').text, label: p.querySelector('label[for=els-brief]')?.textContent },
@@ -12588,17 +12588,19 @@ try {
     if (p5.length) fail('els EB5: the requirements are the reader\'s own words', p5);
     else ok('els EB5: the requirements follow their label as typed (trimmed, a second line indented) and are cut at 1,000 characters; empty by default');
     const p6 = [], pn = r.panel;
-    /* (the owner's Day 19 instructions, QT-D19-02, 1 Nov 2026: words only): the heading, the lede, the line before the link and the copy button changed; the link, its address and the rest did not. */
+    /* (the owner's Day 19 instructions, QT-D19-02, 1 Nov 2026: words only): the heading, the lede, the line before the link and the copy button changed.
+       The owner's Day 20 review (2 Nov 2026): the lede, who is responsible for what, the line before the link, and the link — "Open the ELS enquiry", to ELS's /contact. */
     if (pn.summary !== 'Need design or renovation planning?' || !pn.closed || pn.id !== 'els-plan') p6.push(`the panel is ${JSON.stringify([pn.summary, pn.closed, pn.id])}`);
-    if (pn.lede !== 'Your Quantum assessment is complete independently of ELS. If you would like design or renovation assistance, you can review and copy a summary to share with ELS yourself. ELS is a separate design and renovation business. Its quotations need its own assessment of the property; nothing here is a quotation or an approved budget.') p6.push(`the lede reads "${pn.lede}"`);
-    if (pn.before !== 'Nothing is sent to ELS. On its website, choose how to contact them and paste your brief there.') p6.push(`the line before the link reads "${pn.before}"`);
-    if (!pn.link || pn.link.text !== 'Open the ELS website' || pn.link.href !== 'https://els.alumax.pro/' || pn.link.target !== '_blank' || pn.link.rel !== 'noopener noreferrer' || !pn.link.ext) p6.push(`the link is ${JSON.stringify(pn.link)}`);
+    if (pn.lede !== 'Your Quantum assessment is complete. If you want design or renovation support, review and copy this brief. Quantum sends nothing to ELS.') p6.push(`the lede reads "${pn.lede}"`);
+    if (pn.roles !== 'ELS is a separate business. ELS provides design and specification. If ELS+ is separately contracted, ELS+ is responsible for delivering the contracted renovation works, appointing and managing trades, quality checks and handover, and agreed rectification. ELS quotations need its own assessment of the property; nothing here is a quotation or an approved budget.') p6.push(`the responsibility line reads "${pn.roles}"`);
+    if (pn.before !== 'Open ELS and paste the brief into the enquiry yourself. Opening ELS does not send this brief or confirm that anyone received it.') p6.push(`the line before the link reads "${pn.before}"`);
+    if (!pn.link || pn.link.text !== 'Open the ELS enquiry' || pn.link.href !== 'https://els.alumax.pro/contact' || pn.link.target !== '_blank' || pn.link.rel !== 'noopener noreferrer' || !pn.link.ext) p6.push(`the link is ${JSON.stringify(pn.link)}`);
     if (/[?#]/.test(pn.link?.href || '') || /[?#]/.test(pn.constUrl) || pn.nonLink !== 1) p6.push(`the link carries a query or hash, or there are ${pn.nonLink} links`);
     if (!pn.req || pn.req.value !== '' || pn.req.placeholder !== null || pn.req.label !== 'Your requirements') p6.push(`the requirements box is ${JSON.stringify(pn.req)}`);
     if (!pn.box || !pn.box.ro || !pn.box.same || pn.box.label !== 'Your brief') p6.push(`the brief box is ${JSON.stringify(pn.box)}`);
     if (pn.copy !== 'Copy my property brief') p6.push(`the copy button reads "${pn.copy}"`);
     if (p6.length) fail('els EB6: the panel\'s words and its link', p6);
-    else ok('els EB6: the panel is a closed "Need design or renovation planning?" with the owner\'s lede (and ELS\'s own limit after it) and the line before the link as written, one link "Open the ELS website" to https://els.alumax.pro/ (no query, no hash; new tab, noopener noreferrer, the external-link marker), an empty requirements box with no placeholder, a read-only brief box equal to the builder\'s text, and "Copy my property brief"');
+    else ok('els EB6: the panel is a closed "Need design or renovation planning?" with the owner\'s lede, who is responsible for what (ELS design and specification; ELS+ delivery only if separately contracted) with ELS\'s own limit, and the line before the link as written, one link "Open the ELS enquiry" to https://els.alumax.pro/contact (no query, no hash; new tab, noopener noreferrer, the external-link marker), an empty requirements box with no placeholder, a read-only brief box equal to the builder\'s text, and "Copy my property brief"');
   } catch (e) {
     fail('els: the brief could not be run', String(e.message).split('\n')[0]);
   }

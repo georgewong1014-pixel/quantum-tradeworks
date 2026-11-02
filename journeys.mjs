@@ -1544,7 +1544,7 @@ const JOURNEYS = [
         const clip = await tab.eval(`navigator.clipboard.readText()`);
         if (clip.split('\r\n').join('\n') !== shown) throw new StepError(`the clipboard holds ${JSON.stringify(clip.slice(0, 120))}, not the brief the panel shows`);
         const link = await tab.eval(`(() => { const a = document.getElementById('els-link'); return { href: a.getAttribute('href'), target: a.target, rel: a.rel }; })()`);
-        if (link.href !== 'https://els.alumax.pro/' || link.target !== '_blank' || link.rel !== 'noopener noreferrer') throw new StepError(`the link to ELS is ${JSON.stringify(link)}`);
+        if (link.href !== 'https://els.alumax.pro/contact' || link.target !== '_blank' || link.rel !== 'noopener noreferrer') throw new StepError(`the link to ELS is ${JSON.stringify(link)}`);
         if (await tab.eval('JSON.stringify(State.deal)') !== deal) throw new StepError('opening the panel and copying the brief changed the deal');
         if (await tab.eval(`Object.keys(localStorage).some(k => (localStorage.getItem(k) || '').includes('two bathrooms'))`)) throw new StepError('the requirements were stored in this browser');
       });
