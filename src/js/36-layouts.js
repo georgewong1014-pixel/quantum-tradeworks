@@ -84,8 +84,9 @@ const START_HERE = {
     gets: 'You get its statements, ratios and a valuation range, each figure with its formula and source — US filers from their SEC filings, the Malaysian set illustrative.',
   },
   scanner: {
-    does: 'Checks rules you write against each daily close of the price history you supply.',
-    gets: 'You see each bar on which a setup held, on price history you supply; nothing is sent. This site ships no prices, and the worker is not distributed yet.',
+    /* The owner's Day 20 wording (QT-D20-01, 2 Nov 2026), kept true: the rules are checked here, in the browser, on a price file the reader opens; only recording matches needs the worker. */
+    does: 'Create your own technical rules and see each bar on which they held.',
+    gets: 'Scanning needs your own price history; this site ships none and nothing is sent. Recording matches needs a local worker that is not distributed yet.',
   },
   property: {
     does: 'Models what buying and letting a property does to your cash.',
