@@ -13494,21 +13494,24 @@ const POSITIONING = {
   title: 'Quantum Tradeworks — your financial decision workspace',
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
-  kicker: 'Research · Monitor · Model · Plan',
+  /* "Plan" left with the unbuilt product (QT-D20-02, 2 Nov 2026). */
+  kicker: 'Research · Monitor · Model',
   /* The hero's lede under the held h1: with it, 15 words. The three tools as
      the three things a visitor can do, in the cards' own words (the owner's
      quick-wins brief, 29 Oct 2026; was "Companies, market setups and
      property, in one workspace."). Not "test investment rules": nothing
      here runs a rule. */
   lede: 'Research companies. Create scanner setups. Model property decisions.',
-  /* The footer's line on every page. Business planning is "planned, not
-     yet scheduled" (the owner's decision of 11 Oct 2026; the claims audit,
-     R-20): "is next" promised a release no plan or date is behind.
-     Business Intelligence stays "Coming soon" as text, never a link. */
-  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled.',
+  /* The footer's line on every page: the three tools that exist. It said
+     "Business planning: planned, not yet scheduled." (the owner's decision
+     of 11 Oct 2026; the claims audit, R-20, had removed "is next"); since
+     2 Nov 2026 (QT-D20-02) the unbuilt product is named only in
+     /how-it-works's one "Not built yet" line, so no page's footer gives it
+     a place beside the tools that work. */
+  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property.',
   /* The site root's description, og:description and twitter:description:
      the one-liner and what the site will not do. */
-  description: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled. Research only — no recommendations.',
+  description: 'A financial decision workspace: research a company, build your own setups, model a property. Research only — no recommendations.',
 };
 
 const ROUTES = [
@@ -14411,9 +14414,11 @@ function productRows() {
       : el('div', { class: 'pp-row pp-row-off', 'data-product': p.id }, kids));
   });
 }
-/* Under the product rows: where every badge's note is printed. */
+/* Under the product rows: where every badge's note is printed. No row
+   wears Coming soon since the unbuilt product left the menu (QT-SCOPE-02), so
+   the link names the two badges it does (QT-D20-02, 2 Nov 2026). */
 const productsLegendLink = () => el('p', { class: 'pp-foot' },
-  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Available, Beta and Coming soon mean'));
+  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Available and Beta mean'));
 /* Drawn twice — the menu and the phone sheet — so each copy's labels carry
    their own ids. */
 function helpLists(prefix) {
@@ -16503,8 +16508,9 @@ const START_HERE = {
     gets: 'You get its statements, ratios and a valuation range, each figure with its formula and source — US filers from their SEC filings, the Malaysian set illustrative.',
   },
   scanner: {
-    does: 'Checks rules you write against each daily close of the price history you supply.',
-    gets: 'You see each bar on which a setup held, on price history you supply; nothing is sent. This site ships no prices, and the worker is not distributed yet.',
+    /* The owner's Day 20 wording (QT-D20-01, 2 Nov 2026), kept true: the rules are checked here, in the browser, on a price file the reader opens; only recording matches needs the worker. */
+    does: 'Create your own technical rules and see each bar on which they held.',
+    gets: 'Scanning needs your own price history; this site ships none and nothing is sent. Recording matches needs a local worker that is not distributed yet.',
   },
   property: {
     does: 'Models what buying and letting a property does to your cash.',
@@ -21873,7 +21879,8 @@ function researchExample(x) {
 VIEWS.researchHome = () => {
   const wrap = el('div', { class: 'ls-page rf-page' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
-  wrap.append(pageHead({ title: 'Research a company', lede: 'Search by name, ticker, listing code or CIK.' }));
+  /* The lede says what the research is (the owner's Day 20 wording, QT-D20-01, 2 Nov 2026; was "Search by name, ticker, listing code or CIK.", which the search box's examples still show). */
+  wrap.append(pageHead({ title: 'Research a company', lede: 'Research a company’s financial performance using clearly labelled filed or illustrative information.' }));
 
   const inp = el('input', { class: 'input', type:'search', placeholder:'Maybank, 1155, AAPL, CIK0000320193…',
     'aria-label':'Search for a company', style: 'flex:1;min-width:200px' });
@@ -45493,7 +45500,8 @@ VIEWS.property = () => {
   /* The one head every product page wears (pageHead, 36-layouts.js). Its
      second line — what the model covers — is a drawer under it (N3, D18):
      the top of the page is the deal and its answer, the method a tap away. */
-  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.' }));
+  /* The lede says the outcome (the owner's Day 20 wording, QT-D20-01, 2 Nov 2026; was "What owning this property would do to your cash, from the figures you enter."). */
+  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'See how much cash a property needs, what it may cost each month, and how assumptions change the result.' }));
   wrap.append(el('details', { class: 'pc-more pc-more-page' }, [
     el('summary', { class: 'pc-more-sum' }, 'What this calculator models'),
     /* No comparison with other tools (none was surveyed) and no "true"
@@ -68969,7 +68977,10 @@ function searchPageIndex() {
     if (!byCanon.has(c)) byCanon.set(c, r);
   };
   const alsoCalled = (r, name) => { if (name && name !== r.label && !r.aka.includes(name)) r.aka.push(name); };
+  /* Not the unbuilt product (QT-D20-02, 2 Nov 2026): a Product row with nowhere
+     to go read as a fourth tool. /how-it-works, which names it, is searchable. */
   PRODUCTS.forEach(p => {
+    if (!p.path && !SHOW_UNBUILT) return;
     if (p.path && !searchOpens(p.path)) return;
     add({ label: p.name, in: 'Product', note: p.path ? p.blurb : p.statusNote, path: p.path || null,
       icon: PRODUCT_ICON[p.id] || 'grid', product: p.id, tool: null, aka: [p.short, p.task].filter(Boolean) });

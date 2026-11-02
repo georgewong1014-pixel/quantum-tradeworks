@@ -236,8 +236,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3cae7287a82926d3",
-      "changed": "2026-10-24"
+      "digest": "28374587630be014",
+      "changed": "2026-11-02"
     },
     "pages/app/equities/compare.html": {
       "path": "/app/equities/compare",
@@ -294,8 +294,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3cae7287a82926d3",
-      "changed": "2026-10-24"
+      "digest": "28374587630be014",
+      "changed": "2026-11-02"
     },
     "pages/app/scanner.html": {
       "path": "/app/scanner",
@@ -323,8 +323,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f60dd9e3cb002844",
-      "changed": "2026-10-31"
+      "digest": "0a1355eabeeaeb7f",
+      "changed": "2026-11-02"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -352,8 +352,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b777a375323a1a7e",
-      "changed": "2026-10-24"
+      "digest": "aaabf371b1b8a2f8",
+      "changed": "2026-11-02"
     },
     "pages/app/scanner/backtest.html": {
       "path": "/app/scanner/backtest",
@@ -381,8 +381,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "69567a9fb8a92f1a",
-      "changed": "2026-10-24"
+      "digest": "c96adb013c27c247",
+      "changed": "2026-11-02"
     },
     "pages/app/scanner/market.html": {
       "path": "/app/scanner/market",
@@ -410,8 +410,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "235d06109b9147a3",
-      "changed": "2026-10-24"
+      "digest": "82e1b16970600b38",
+      "changed": "2026-11-02"
     },
     "pages/app/scanner/settings.html": {
       "path": "/app/scanner/settings",
@@ -439,8 +439,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "797eab0fab5a13d6",
-      "changed": "2026-10-24"
+      "digest": "12661c6d50665a1b",
+      "changed": "2026-11-02"
     },
     "pages/app/scanner/setups.html": {
       "path": "/app/scanner/setups",
@@ -468,8 +468,8 @@
         "cellStops": 0,
         "emptyDetails": 1
       },
-      "digest": "dcc32b8c12d5c0c9",
-      "changed": "2026-10-31"
+      "digest": "56d56013afb1546e",
+      "changed": "2026-11-02"
     },
     "pages/app/scanner/setups/new.html": {
       "path": "/app/scanner/setups/new",
@@ -497,8 +497,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "badbeb45ef64fd2e",
-      "changed": "2026-10-24"
+      "digest": "04a8aaad48d0be91",
+      "changed": "2026-11-02"
     },
     "pages/app/scanner/watchlists.html": {
       "path": "/app/scanner/watchlists",
@@ -526,8 +526,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e9b0b371daacc6cc",
-      "changed": "2026-10-24"
+      "digest": "2d1cc22b0f5ea2e9",
+      "changed": "2026-11-02"
     },
     "pages/company/aapl-apple-inc.html": {
       "path": "/company/aapl-apple-inc",
@@ -4443,8 +4443,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "38a1b721cfe0c238",
-      "changed": "2026-10-24"
+      "digest": "e372bd93ec2f656c",
+      "changed": "2026-11-02"
     },
     "pages/methodology.html": {
       "path": "/methodology",
@@ -4671,8 +4671,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f60dd9e3cb002844",
-      "changed": "2026-10-31"
+      "digest": "0a1355eabeeaeb7f",
+      "changed": "2026-11-02"
     },
     "pages/my/theses.html": {
       "path": "/my/theses",
@@ -5015,8 +5015,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "60e4a88bb23a1fbb",
-      "changed": "2026-11-01"
+      "digest": "86b32750fda3b247",
+      "changed": "2026-11-02"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -5189,8 +5189,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3cae7287a82926d3",
-      "changed": "2026-10-24"
+      "digest": "28374587630be014",
+      "changed": "2026-11-02"
     },
     "pages/research/queue.html": {
       "path": "/research/queue",
@@ -5247,8 +5247,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "38a1b721cfe0c238",
-      "changed": "2026-10-24"
+      "digest": "e372bd93ec2f656c",
+      "changed": "2026-11-02"
     },
     "pages/start.html": {
       "path": "/start",
