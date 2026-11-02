@@ -893,8 +893,8 @@ function researchExample(x) {
 VIEWS.researchHome = () => {
   const wrap = el('div', { class: 'ls-page rf-page' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
-  /* The lede says what the research is (the owner's Day 20 wording, QT-D20-01, 2 Nov 2026; was "Search by name, ticker, listing code or CIK.", which the search box's examples still show). */
-  wrap.append(pageHead({ title: 'Research a company', lede: 'Research a company’s financial performance using clearly labelled filed or illustrative information.' }));
+  /* The lede says what the research is (the owner's Day 20 wording, QT-D20-01, 2 Nov 2026, held to the head's one line; was "Search by name, ticker, listing code or CIK.", which the search box's examples still show). */
+  wrap.append(pageHead({ title: 'Research a company', lede: 'A company’s financial performance, from labelled filed or illustrative data.' }));
 
   const inp = el('input', { class: 'input', type:'search', placeholder:'Maybank, 1155, AAPL, CIK0000320193…',
     'aria-label':'Search for a company', style: 'flex:1;min-width:200px' });

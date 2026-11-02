@@ -3676,8 +3676,8 @@ VIEWS.property = () => {
   /* The one head every product page wears (pageHead, 36-layouts.js). Its
      second line — what the model covers — is a drawer under it (N3, D18):
      the top of the page is the deal and its answer, the method a tap away. */
-  /* The lede says the outcome (the owner's Day 20 wording, QT-D20-01, 2 Nov 2026; was "What owning this property would do to your cash, from the figures you enter."). */
-  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'See how much cash a property needs, what it may cost each month, and how assumptions change the result.' }));
+  /* The lede says the outcome (the owner's Day 20 wording, QT-D20-01, 2 Nov 2026, held to the head's one line; was "What owning this property would do to your cash, from the figures you enter."). */
+  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'See the cash needed, the monthly cost and how assumptions change the result.' }));
   wrap.append(el('details', { class: 'pc-more pc-more-page' }, [
     el('summary', { class: 'pc-more-sum' }, 'What this calculator models'),
     /* No comparison with other tools (none was surveyed) and no "true"
