@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, research-case, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, research-case, corrections, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -852,12 +852,17 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
   const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true });
   const S = (m, p = {}) => browser.send(m, p, sessionId);
   const requests = new Map();
-  const tab = { errors: [], prompt: 'Journey check', history: null, dialogs: 0, S };
+  /* sent: every request the page made, with what it carried (the corrections
+     journey holds a saved case to having left in none of them). */
+  const tab = { errors: [], prompt: 'Journey check', history: null, dialogs: 0, sent: [], S };
   const listener = (m) => {
     if (m.sessionId !== sessionId) return;
     const p = m.params || {};
     switch (m.method) {
-      case 'Network.requestWillBeSent': requests.set(p.requestId, p.request.url); break;
+      case 'Network.requestWillBeSent':
+        requests.set(p.requestId, p.request.url);
+        tab.sent.push({ url: p.request.url, method: p.request.method, body: p.request.postData || '' });
+        break;
       case 'Network.responseReceived':
         if (p.response.status >= 400) tab.errors.push({ kind: 'http', text: `${p.response.status} ${p.response.url}`, url: p.response.url });
         break;
@@ -1527,7 +1532,9 @@ const JOURNEYS = [
          and calls the sample's renovation "Not set"; and the deal is as it
          was — modelling, saving and the reports needed none of it. Not an
          outcome step: the journey's declared outcomes are the tool's own. */
-      await step(j, tab, 'The optional ELS panel: open it, copy the brief, the clipboard matches the panel and the deal is unchanged', BUDGET.action * 3, async () => {
+      /* (QT-D19-02, the Day 22 brief) The step's name says where the link
+         goes and that the roles are stated, so /status shows what it checked. */
+      await step(j, tab, 'The optional ELS panel: open it, the roles stated, copy the brief, the clipboard matches the panel, the link opens the ELS enquiry page (els.alumax.pro/contact) and the deal is unchanged', BUDGET.action * 3, async () => {
         const deal = await tab.eval('JSON.stringify(State.deal)');
         await tab.click(`document.getElementById('els-plan-sum')`, 'Need design or renovation planning?');
         await tab.expect(`document.getElementById('els-plan')?.open && !!document.getElementById('els-brief')?.checkVisibility()`, 'pressing "Need design or renovation planning?" did not open the panel');
@@ -1543,8 +1550,10 @@ const JOURNEYS = [
         await tab.expect(`document.getElementById('els-status')?.textContent === 'Brief copied. Nothing has been sent to ELS. You decide whether to share it.'`, async () => `Copy my property brief said “${await tab.eval(`document.getElementById('els-status')?.textContent || ''`)}”, not “Brief copied. Nothing has been sent to ELS. You decide whether to share it.”`, 4000);
         const clip = await tab.eval(`navigator.clipboard.readText()`);
         if (clip.split('\r\n').join('\n') !== shown) throw new StepError(`the clipboard holds ${JSON.stringify(clip.slice(0, 120))}, not the brief the panel shows`);
-        const link = await tab.eval(`(() => { const a = document.getElementById('els-link'); return { href: a.getAttribute('href'), target: a.target, rel: a.rel }; })()`);
-        if (link.href !== 'https://els.alumax.pro/contact' || link.target !== '_blank' || link.rel !== 'noopener noreferrer') throw new StepError(`the link to ELS is ${JSON.stringify(link)}`);
+        const link = await tab.eval(`(() => { const a = document.getElementById('els-link'); return { href: a.getAttribute('href'), target: a.target, rel: a.rel, words: a.textContent.trim() }; })()`);
+        if (link.href !== 'https://els.alumax.pro/contact' || link.target !== '_blank' || link.rel !== 'noopener noreferrer' || link.words !== 'Open the ELS enquiry') throw new StepError(`the link to ELS is ${JSON.stringify(link)}`);
+        const roles = await tab.eval(`document.getElementById('els-roles')?.textContent || ''`);
+        if (!/^ELS is a separate business\. ELS provides design and specification\. If ELS\+ is separately contracted, ELS\+ is responsible for/.test(roles) || !/nothing here is a quotation/.test(roles)) throw new StepError(`the panel's roles read “${roles.slice(0, 160)}”`);
         if (await tab.eval('JSON.stringify(State.deal)') !== deal) throw new StepError('opening the panel and copying the brief changed the deal');
         if (await tab.eval(`Object.keys(localStorage).some(k => (localStorage.getItem(k) || '').includes('two bathrooms'))`)) throw new StepError('the requirements were stored in this browser');
       });
@@ -3896,6 +3905,86 @@ const JOURNEYS = [
       } finally {
         await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
       }
+    },
+  },
+  {
+    /* THE CORRECTION CASE, KEPT ACROSS A RELOAD (QT-D17-01; the Day 22
+       brief, 4 Nov 2026). equity-test proves the whole case in one page
+       (report, keep, reopen, copy, export, recover); this is the same case
+       on the site as served, through a fresh load: a wrong figure reported
+       from Apple's page with synthetic values, saved here, the page loaded
+       again from its address, the case listed on /corrections under the
+       same id and reopened with the same text, copied — and no request the
+       page made carries it, none leaves the site, and nothing says it was
+       sent or received. Nothing but this browser's own storage is written,
+       and that goes with the journey's context. */
+    id: 'corrections', name: 'Correction case: reported from a company page, saved in this browser, reopened after a reload and copied — nothing sent',
+    outcomes: ['Save the case: “saved in this browser. Nothing has been sent”', 'Copy it: the clipboard holds the case', 'Load /corrections afresh: the case is listed under its id',
+      'Open it: the same case, copied again', 'No request carried the case or left the site'],
+    async run(j, tab) {
+      const MARK = `synthetic journey case ${new Date().toISOString().slice(0, 16)}`;
+      let id = null, saved = null, from = 0;
+      await step(j, tab, 'Open Apple’s company page', BUDGET.load, async () => {
+        await tab.goto('/company/aapl-apple-inc');
+        await tab.expect(`State.view === 'research' && /Apple/i.test(document.querySelector('main h1')?.textContent || '')`, 'the address did not open Apple’s company page');
+      });
+      await step(j, tab, 'Report a data error: what is recorded is shown first', BUDGET.action, async () => {
+        await tab.click(visible('[data-action="report-error"]'), '“Report a data error”');
+        await tab.expect(`document.getElementById('drawerTitle')?.textContent.trim() === 'Report a data error' && !!document.getElementById('err-description')`, '“Report a data error” opened no form');
+        const r = await tab.eval(`({ shown: (document.querySelector('#drawer .sunk')?.textContent || '').replace(/\\s+/g, ' '), model: MODEL_VERSION, asOf: AS_OF })`);
+        if (!r.shown.includes(r.model) || !r.shown.includes(r.asOf)) throw new StepError(`before saving, the form says it records “${r.shown.slice(0, 160)}”, without model ${r.model} and data date ${r.asOf}`);
+      });
+      await step(j, tab, 'Save the case: “saved in this browser. Nothing has been sent”', BUDGET.action * 2, async () => {
+        await tab.fill(`document.getElementById('err-shownValue')`, '1,234', 'What the page shows');
+        await tab.fill(`document.getElementById('err-expectedValue')`, '2,345', 'What it should be');
+        await tab.fill(`document.getElementById('err-description')`, MARK, 'What looks wrong?');
+        from = tab.sent.length;
+        await tab.click(byText('#drawer button', '/^Save this case here$/'), '“Save this case here”');
+        await tab.expect(`/^Case \\S+ saved here, not sent$/.test(document.getElementById('drawerTitle')?.textContent.trim() || '')`, async () => `saving titled the drawer “${await tab.eval(`document.getElementById('drawerTitle')?.textContent.trim() || ''`)}”, not “Case … saved here, not sent”`);
+        const r = await tab.eval(`({ id: State.corrections[0]?.id || null, stored: (JSON.parse(localStorage.getItem('vl.corrections') || 'null') || []).map(c => c.id),
+          said: (document.querySelector('#drawer p.body')?.textContent || '').replace(/\\s+/g, ' ').trim(), text: document.querySelector('#drawer textarea')?.value || '' })`);
+        if (!r.id || r.stored.join() !== r.id) throw new StepError(`the case is not kept in this browser under one id: ${r.id} / stored ${r.stored.join()}`);
+        if (!r.said.startsWith('Correction case saved in this browser. Nothing has been sent.')) throw new StepError(`the confirmation reads “${r.said.slice(0, 160)}”`);
+        if (/\b(submitted|thank you|will be reviewed|will reply)\b/i.test(r.said) || /\breceived\b/i.test(r.said.replace(/not confirmed received/g, ''))) throw new StepError(`the confirmation implies the case was sent or received: “${r.said.slice(0, 200)}”`);
+        if (!r.text.startsWith(`Correction case ${r.id}\n`) || !r.text.includes('Shown: 1,234') || !r.text.includes('Should be: 2,345') || !r.text.includes(MARK)) throw new StepError(`the case's text lacks its id or the figures typed: ${JSON.stringify(r.text.slice(0, 200))}`);
+        id = r.id; saved = r.text;
+      });
+      await step(j, tab, 'Copy it: the clipboard holds the case', BUDGET.action, async () => {
+        await tab.grantClipboard();
+        await tab.click(byText('#drawer button', '/^Copy the (report|case)$/'), '“Copy the report”');
+        await tab.expect(`/Case copied/.test(document.getElementById('toast')?.textContent || '')`, 'copying said nothing was copied', 4000);
+        const clip = (await tab.eval('navigator.clipboard.readText()')).split('\r\n').join('\n');
+        if (clip !== saved) throw new StepError(`the clipboard holds ${JSON.stringify(clip.slice(0, 120))}, not the case saved`);
+      });
+      await step(j, tab, 'Load /corrections afresh: the case is listed under its id', BUDGET.load, async () => {
+        await tab.goto('/corrections');
+        await tab.expect(`(document.getElementById('my-cases')?.innerText || '').includes(${JSON.stringify(id)})`, async () => `after a fresh load /corrections lists “${(await tab.eval(`(document.getElementById('my-cases')?.innerText || '').replace(/\\s+/g, ' ')`)).slice(0, 160)}”, not ${id}`);
+      });
+      await step(j, tab, 'Open it: the same case, copied again', BUDGET.action * 2, async () => {
+        const open = `[...document.querySelectorAll('#my-cases tr')].find(r => r.querySelector('td')?.textContent.trim() === ${JSON.stringify(id)})?.querySelector('button')`;
+        await tab.click(open, `The case's “Open”`);
+        await tab.expect(`document.getElementById('drawerTitle')?.textContent.trim() === ${JSON.stringify(`Case ${id}`)}`, `“Open” did not show case ${id}`);
+        const text = await tab.eval(`document.querySelector('#drawer textarea')?.value || ''`);
+        if (text !== saved) throw new StepError(`reopened after the reload, the case reads ${JSON.stringify(text.slice(0, 160))}, not the text saved`);
+        await tab.eval('navigator.clipboard.writeText("")');
+        await tab.click(byText('#drawer button', '/^Copy$/'), '“Copy”');
+        await tab.expect(`/Case copied/.test(document.getElementById('toast')?.textContent || '')`, 'copying said nothing was copied', 4000);
+        const clip = (await tab.eval('navigator.clipboard.readText()')).split('\r\n').join('\n');
+        if (clip !== saved) throw new StepError(`copied after the reload, the clipboard holds ${JSON.stringify(clip.slice(0, 120))}, not the case saved`);
+      });
+      await step(j, tab, 'No request carried the case or left the site', BUDGET.action, async () => {
+        const site = new URL(BASE).origin;
+        const sent = tab.sent.slice(from).filter(s => /^https?:/.test(s.url));
+        /* The fresh load of /corrections asks for its page at least: none
+           seen means the requests were not watched, and the check below
+           would prove nothing. */
+        if (!sent.some(s => new URL(s.url).pathname === '/corrections')) throw new StepError(`no request for /corrections was seen after the save (${sent.length} seen) — the page's requests were not watched`);
+        const carried = sent.filter(s => [id, MARK, encodeURIComponent(MARK)].some(x => s.url.includes(x) || s.body.includes(x)));
+        if (carried.length) throw new StepError(`the case went out in ${carried.length} request(s): ${carried[0].method} ${carried[0].url.slice(0, 100)}`);
+        const away = sent.filter(s => new URL(s.url).origin !== site);
+        if (away.length) throw new StepError(`the page asked ${away.length} address(es) off the site: ${away[0].url.slice(0, 100)}`);
+        if (await tab.where() !== '/corrections') throw new StepError(`the journey ended on ${await tab.where()}, not /corrections — a mail program or another page was opened`);
+      });
     },
   },
   {
