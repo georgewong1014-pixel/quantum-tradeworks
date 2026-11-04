@@ -1822,9 +1822,11 @@ const JOURNEYS = [
          saves the property and then B as its scenario — B's rent and rate,
          moved above and never saved, kept in it and in its column. */
       await step(j, tab, 'Save the property, then B as a scenario', BUDGET.action * 3, async () => {
-        const moved = await tab.eval(`(() => { const c = LAB.deal?.cols.find(x => x.key === 'B'); return c ? JSON.stringify({ rent: c.work.rent, ratePct: c.work.ratePct, moves: Object.keys(c.moves).sort() }) : null; })()`);
+        const moved = await tab.eval(`(() => { const c = LAB.deal?.cols.find(x => x.key === 'B'), a = LAB.deal?.cols.find(x => x.key === 'A');
+          return c ? JSON.stringify({ rent: c.work.rent, ratePct: c.work.ratePct, moves: Object.keys(c.moves).sort(), a: a ? { rent: a.work.rent, ratePct: a.work.ratePct } : null }) : null; })()`);
         if (!moved) throw new StepError('the Lab holds no column B on the unsaved deal');
         const was = JSON.parse(moved);
+        if (!was.a || (was.a.rent === was.rent && was.a.ratePct === was.ratePct)) throw new StepError(`column A reads ${JSON.stringify(was.a)}, the same as B's moved rent and rate, so the save below could not show A kept apart`);
         if (was.moves.join() !== 'ratePct,rent') throw new StepError(`B's unsaved moves are ${was.moves.join(', ') || 'none'}, not the rent and the rate moved above`);
         await tab.expect(`/^Save this property and B as a scenario/.test(document.getElementById('lab-id-save')?.textContent || '')`, async () => `beside the identity line: “${await tab.eval(`document.querySelector('.lab-id-act')?.textContent || ''`)}”, not one Save for the property and B`);
         /* The phone's bar (Analyse · Compare · Save this) starts the same save. */
@@ -1840,15 +1842,19 @@ const JOURNEYS = [
         const r = JSON.parse(await tab.eval(`(() => {
           const rec = pmFind(State.deal.modelId), sc = (rec?.scenarios || [])[0];
           const lab = rec && LAB['m:' + rec.id], col = lab?.cols.find(c => c.key === 'B');
-          const inputs = sc ? pmSavedInputs(rec, sc) : null;
+          const inputs = sc ? pmSavedInputs(rec, sc) : null, base = rec ? pmSavedInputs(rec) : null, colA = lab?.cols.find(c => c.key === 'A');
           return JSON.stringify({ name: rec?.name || null, scenarios: (rec?.scenarios || []).length, source: col?.source || null,
             saved: inputs ? { rent: inputs.rent, ratePct: inputs.ratePct } : null, col: col ? { rent: col.work.rent, ratePct: col.work.ratePct } : null,
+            base: base ? { rent: base.rent, ratePct: base.ratePct } : null, colA: colA ? { rent: colA.work.rent, ratePct: colA.work.ratePct } : null,
             identity: (document.querySelector('.lab-id-act')?.textContent || '').trim() });
         })()`));
         if (r.name !== name) throw new StepError(`the property saved is “${r.name}”, not “${name}”`);
         if (r.scenarios !== 1 || !String(r.source).startsWith('sc:')) throw new StepError(`after one Save the property has ${r.scenarios} scenarios and B is ${r.source}, not its saved scenario`);
         if (r.saved?.rent !== was.rent || r.saved?.ratePct !== was.ratePct) throw new StepError(`B's moves were rent ${was.rent} and rate ${was.ratePct}; the scenario saved rent ${r.saved?.rent} and rate ${r.saved?.ratePct}`);
         if (r.col?.rent !== was.rent || r.col?.ratePct !== was.ratePct) throw new StepError(`B's column went from rent ${was.rent} and rate ${was.ratePct} to ${r.col?.rent} and ${r.col?.ratePct} with the save`);
+        /* Saving B as a scenario does not write over the property itself (Day 20, QT-D20-01: no silent overwriting of another scenario). */
+        if (r.base?.rent !== was.a.rent || r.base?.ratePct !== was.a.ratePct) throw new StepError(`the property was saved with rent ${r.base?.rent} and rate ${r.base?.ratePct}, not A's ${was.a.rent} and ${was.a.ratePct}: B's moves reached the property`);
+        if (r.colA?.rent !== was.a.rent || r.colA?.ratePct !== was.a.ratePct) throw new StepError(`A's column went from rent ${was.a.rent} and rate ${was.a.ratePct} to ${r.colA?.rent} and ${r.colA?.ratePct} with the save`);
         if (r.identity !== 'Saved in this browser') throw new StepError(`beside the identity line after the save: “${r.identity}”`);
       });
       /* "EXPORT PDF / SHARE WITH CLIENT" (plan 4.5): quiet, after Save, and off
