@@ -11577,8 +11577,10 @@ try {
         navigate('/my/theses'); await w(500);
         out.restoredCard = parts(t.id);
 
-        /* a case from before: no suggested, no snapshot — one made as the old button made it, and the seeded sample */
-        const other = ['MSFT-SEC', 'WMT-SEC', 'KO-SEC', 'PG-SEC'].map(x => BY_ID.get(x)).find(x => x && x.c.id !== A.id && !State.theses.some(y => y.ticker === x.c.id));
+        /* a case from before: no suggested, no snapshot — one made as the old button made it, and the seeded sample.
+           A company with no price, as the case above is: on the owner's machine KO has a personal price, and an old
+           case on it evaluates its condition as Breached rather than Awaiting update (5 Nov 2026). */
+        const other = ['MSFT-SEC', 'WMT-SEC', 'KO-SEC', 'PG-SEC'].map(x => BY_ID.get(x)).find(x => x && x.c.id !== A.id && !isNum(x.c.px?.p) && !State.theses.some(y => y.ticker === x.c.id));
         const old = { id: 'told-day8', ticker: other.c.id, oneLine: '', quality: '', valCase: '', catalysts: [], risks: [],
           conds: [{ type: 'val', op: '>', v: 15, label: 'Price moves more than 15% above the base-case model estimate' }],
           horizon: '3–5 years', review: '2027-01-19', conf: 'Low', questions: [], created: '2026-09-01', stamp: buildStamp(other.c) };
