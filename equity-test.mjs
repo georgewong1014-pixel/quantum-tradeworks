@@ -11346,7 +11346,7 @@ try {
           const li = document.getElementById('health-build'), layout = document.getElementById('kind-layout');
           out.lines[name] = { how: li?.dataset.build || null, text: li?.textContent.trim() || null, first: document.getElementById('health-kinds')?.firstElementChild === li,
             layout: layout?.dataset.status || null, chip: layout?.querySelector('.health-chip')?.textContent.trim() || null, okChip: !!layout?.querySelector('.chip-ok'),
-            glance: document.getElementById('health-glance-build')?.textContent.trim() ?? null, glanceShown: !!document.getElementById('health-glance-build')?.getClientRects().length };
+            glance: document.getElementById('health-glance-build')?.textContent.trim() ?? null, glanceShown: (document.getElementById('health-glance-build')?.getBoundingClientRect().height || 0) > 0 };
         }
       } finally { HEALTH.checks = kept; kindsPaint(); }
       return out;
