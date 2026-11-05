@@ -1500,7 +1500,7 @@ const HOME_PAGE = read(HOME);
       const pass = suites.filter(s => s[2] === 'PASS').length;
       if (st === 'PASS' && pass !== mine.length) p.push(`${name}: Pass with ${pass} of ${mine.length} suites passing — a suite not run or failed is never a pass`);
       if (st === 'PASS' && !new RegExp(`^${mine.length} of ${mine.length} suites pass( · [\\d,]+ of [\\d,]+ checks)? · CI on ${SHA}, \\d{1,2} [A-Z][a-z]{2} \\d{4}, \\d{2}:\\d{2} UTC · run log$`).test(text)) p.push(`${name}: "${text.slice(0, 120)}" — not its counts, CI's commit ${SHA} and its time`);
-      if (st === 'NOT-RUN' && !(SHA ? text.startsWith(`Not run for ${SHA}: `) : text.startsWith('Not run'))) p.push(`${name}: not run, and it does not say "Not run for ${SHA}": "${text.slice(0, 100)}"`);
+      if (st === 'NOT-RUN' && !(SHA ? text.startsWith(`Not run for ${SHA}: `) || /^Not run for this build \(app\.[0-9a-f]{12}\.js\)\. The last recorded result is an earlier build’s /.test(text) : text.startsWith('Not run'))) p.push(`${name}: not run, and it does not say "Not run for ${SHA}": "${text.slice(0, 100)}"`);
       /* Still running in CI when recorded (the 13 Oct 2026 audit, #2): Pending
          for the commit, in the warning colour, every suite Pending — never a
          pass. */
@@ -1532,12 +1532,25 @@ const HOME_PAGE = read(HOME);
         : how === 'same' ? `These results are for the build serving this page (${pageApp}).`
         : `These results are for an earlier build (${ran}, CI on ${String(crec.commit).slice(0, 7)}); this build’s checks are not recorded yet.`;
       if (li[1] !== how || !text.startsWith(wantText) || !text.includes(pageApp)) p.push(`/status's build line is "${li[1]}: ${text}", where the page loads ${pageApp} and the record's app is ${ran || 'not named'} — want ${how}: "${wantText}"`);
+      /* QT-D23-01: an earlier build's results answer for none of this one's
+         kinds, and the opening card says this build's are not run yet. */
+      if (how === 'earlier' && Object.values(want.status).some(s => s !== 'NOT RUN')) p.push(`/status shows a result for this build (${pageApp}) from an earlier build's record (${ran}): ${JSON.stringify(want.status)}`);
+    }
+  }
+  {
+    const glance = /<p class="metaline status-build-glance" id="health-glance-build"[^>]*>([\s\S]*?)<\/p>/.exec(status)?.[1];
+    if (glance == null) p.push('/status serves no #health-glance-build on its opening card');
+    else {
+      if (glance !== want.glance) p.push(`/status's #health-glance-build is not the records': served "${words(glance).slice(0, 120)}", the records "${words(want.glance).slice(0, 120)}"`);
+      const at = status.indexOf('id="health-glance-build"');
+      if (!(status.indexOf('id="status-glance"') < at && at < status.indexOf('id="health-journeys-sum"'))) p.push('/status: #health-glance-build is not on the opening card, above the last run');
     }
   }
   if (ci == null) p.push('/status serves no #health-ci beside the in-browser checks');
   else {
     if (ci !== want.ci) p.push(`/status's #health-ci is not the records': "${words(ci).slice(0, 120)}"`);
-    if (!/^Runs in your browser when the page loads — results for this commit from CI: Numbers (PASS|FAIL|not run for [0-9a-f]{7})\b.* · Data (PASS|FAIL|not run for [0-9a-f]{7})\b/.test(words(ci))) p.push(`#health-ci does not read "Runs in your browser when the page loads — results for this commit from CI: Numbers … · Data …": "${words(ci).slice(0, 140)}"`);
+    if (!/^Runs in your browser when the page loads — results for this commit from CI: Numbers (PASS|FAIL|not run for [0-9a-f]{7})\b.* · Data (PASS|FAIL|not run for [0-9a-f]{7})\b/.test(words(ci))
+      && !/^Runs in your browser when the page loads — results for this build from CI: not run yet; the last recorded are an earlier build’s \(app\.[0-9a-f]{12}\.js\) · details$/.test(words(ci))) p.push(`#health-ci does not read "Runs in your browser when the page loads — results for this commit from CI: Numbers … · Data …": "${words(ci).slice(0, 140)}"`);
     const at = status.indexOf('id="health-ci"'), b = status.indexOf('>Checked in your browser now</h3>'), q = status.indexOf('id="health-quick"');
     if (!(b > -1 && b < at && at < q)) p.push('/status: #health-ci is not served under "Checked in your browser now", above the in-browser checks');
     if (want.status.numbers !== 'PASS' && /Numbers PASS/.test(words(ci))) p.push(`#health-ci says Numbers PASS where the record does not: "${words(ci).slice(0, 120)}"`);

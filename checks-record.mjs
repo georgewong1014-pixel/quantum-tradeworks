@@ -343,9 +343,15 @@ export function issueDecision(doc, { now = new Date() } = {}) {
                #health-kinds says whether the results are for that build
                (QT-D19-03): the same, an earlier one (the record's `app` and
                its commit are named, and this build's checks are not recorded
-               yet), or not known (the record names none). It changes no
-               suite's status: a failed, missing or not-run suite reads as
-               it did. */
+               yet), or not known (the record names none). The same build,
+               or not known: no suite's status changes. An earlier build
+               (QT-D23-01, the Day 23 audit, 5 Nov 2026): every kind reads
+               "Not run for this build" — an earlier build's Pass never
+               answers for the one serving — with the earlier build's result
+               kept in the row, said to be that build's; the line beside the
+               in-browser checks says so too, and `glance` is the line the
+               page's opening card shows above the last run (empty
+               otherwise). */
 export function checksServed(checks, journeys, suites, build) {
   const REPO_URL = 'https://github.com/georgewong1014-pixel/quantum-tradeworks';
   const KINDS = [['journeys', 'Journeys', 'journeys.mjs, on the live site'], ['numbers', 'Numbers', 'known-answer and invariant suites, in CI'],
@@ -382,7 +388,7 @@ export function checksServed(checks, journeys, suites, build) {
   const appRe = /^app\.[0-9a-f]{12}\.js$/;
   const serving = typeof build === 'string' && appRe.test(build) ? build : null;
   const ran = cdoc && typeof cdoc.app === 'string' && appRe.test(cdoc.app) ? cdoc.app : null;
-  let buildLine = '';
+  let buildLine = '', earlier = false;
   if (cdoc) {
     const [how, words] = !ran
       ? ['unknown', 'It is not known which build these results ran on: the record does not name one.' + (serving ? ' This page is served by ' + serving + '.' : '')]
@@ -390,7 +396,11 @@ export function checksServed(checks, journeys, suites, build) {
       : ran === serving ? ['same', 'These results are for the build serving this page (' + serving + ').']
       : ['earlier', 'These results are for an earlier build (' + ran + ', CI on ' + sha7(cdoc.commit) + '); this build’s checks are not recorded yet. This page is served by ' + serving + '.'];
     buildLine = '<li class="kind-build caption" id="health-build" data-build="' + how + '">' + esc(words) + '</li>';
+    earlier = how === 'earlier';
   }
+  const thisBuild = 'Not run for this build (' + serving + ')';
+  const glance = earlier ? '<span class="chip health-chip">Not run</span> for this build yet. This page is served by ' + esc(serving)
+    + '; the run below, and CI’s results, are for an earlier build (' + esc(ran) + '). This build’s results are shown once CI and the live journeys have run on it.' : '';
   const rows = KINDS.map(([id, name, of]) => {
     let st, line, items = '';
     if (id === 'journeys') {
@@ -433,6 +443,11 @@ export function checksServed(checks, journeys, suites, build) {
         return '<li data-mark="' + (r ? (r.status === 'PASS' ? 'ok' : 'fail') : pending ? 'pending' : 'notrun') + '"><span class="kind-mark">' + mark + '</span> ' + esc(s.name) + count + '<span class="kind-said"> — ' + said + '</span></li>';
       }).join('') + '</ol>';
     }
+    /* An earlier build's result, kept as that build's: this build's is not run. */
+    if (earlier && st !== 'NOT RUN' && (id !== 'journeys' || forSite)) {
+      line = thisBuild + '. The last recorded result is an earlier build’s (' + esc(ran) + '): ' + line;
+      st = 'NOT RUN';
+    }
     status[id] = st;
     return '<li class="kind-row" id="kind-' + id + '" data-status="' + st.replace(' ', '-') + '">'
       + '<span class="chip health-chip' + (CHIP[st][0] ? ' ' + CHIP[st][0] : '') + '">' + CHIP[st][1] + '</span>'
@@ -441,7 +456,7 @@ export function checksServed(checks, journeys, suites, build) {
   }).join('');
   /* The line beside the in-browser checks: what CI found on this commit for
      the two kinds those checks sample. */
-  const ciSaid = ['numbers', 'data'].map(id => {
+  const ciSaid = earlier ? [] : ['numbers', 'data'].map(id => {
     const name = KINDS.find(k => k[0] === id)[1];
     if (status[id] === 'NOT RUN') return name + ' not run for ' + (target || 'this commit');
     if (status[id] === 'PENDING') return name + ' pending for ' + target + ' (CI still running)';
@@ -451,9 +466,10 @@ export function checksServed(checks, journeys, suites, build) {
     const of = mine.reduce((a, s) => a + (byId[s.id] && Number.isFinite(byId[s.id].passed) ? byId[s.id].passed + (Number.isFinite(byId[s.id].failed) ? byId[s.id].failed : 0) : 0), 0);
     return name + ' ' + status[id] + ' (' + pass + ' of ' + mine.length + ' suites' + (of ? ', ' + n(checked) + '/' + n(of) + ' checks' : '') + ')';
   });
-  const ci = 'Runs in your browser when the page loads — results for this commit from CI: ' + ciSaid.join(' · ')
-    + (forSite ? ' · ' + target + (ciAt ? ', ' + ciAt : '') : '') + ' · <a class="journey-line-link" href="#health-kinds-h">details</a>';
-  return { kinds: buildLine + rows, ci, status, commit: target };
+  const ci = (earlier ? 'Runs in your browser when the page loads — results for this build from CI: not run yet; the last recorded are an earlier build’s (' + esc(ran) + ')'
+    : 'Runs in your browser when the page loads — results for this commit from CI: ' + ciSaid.join(' · ') + (forSite ? ' · ' + target + (ciAt ? ', ' + ciAt : '') : ''))
+    + ' · <a class="journey-line-link" href="#health-kinds-h">details</a>';
+  return { kinds: buildLine + rows, ci, glance, status, commit: target };
 }
 
 /* ─── COLLECT (journeys.yml) ──────────────────────────────────────────────── */
@@ -645,12 +661,23 @@ function selfTest() {
   t(unknownRec[1] === 'unknown' && /^It is not known which build these results ran on: the record does not name one\. This page is served by app\.0123456789ab\.js\.$/.test(unknownRec[2]), `served: a record with no app — "${unknownRec[2]}"`);
   t(buildOf(checksServed(withApp, jrec, SUITES, null))[1] === 'unknown' && buildOf(checksServed(placeholder(), jrec, SUITES, A1)).length === 0 && buildOf(checksServed(null, null, SUITES, A1)).length === 0,
     'served: no build to compare says it is not known here; no record, no line');
-  /* The statement changes no suite's label: a failed, missing or not-run suite reads exactly as before, whichever build serves. */
+  /* The same build, or none named, changes no suite's label: a failed, missing or not-run suite reads exactly as before.
+     An earlier build (QT-D23-01): every kind is Not run for this build, its result kept as the earlier build's. */
   const failedRec = record({ commit: sha, app: A1, entries: entries.map(x => (x.id === 'mobile' ? { ...x, status: 'FAIL', failed: 1 } : x.id === 'sweep' ? { id: 'sweep', status: 'NOT RUN' } : x)) });
   const noBuild = checksServed(failedRec, jrec, SUITES), onEarlier = checksServed(failedRec, jrec, SUITES, A2), onSame = checksServed(failedRec, jrec, SUITES, A1);
   const bare = (o) => o.kinds.replace(/<li class="kind-build[^>]*>[^<]*<\/li>/, '');
-  t(JSON.stringify(onEarlier.status) === JSON.stringify(noBuild.status) && onEarlier.status.layout === 'FAIL' && bare(onEarlier) === bare(noBuild).replace(/<li class="kind-build[^>]*>[^<]*<\/li>/, '') && bare(onSame) === bare(onEarlier) && onEarlier.ci === onSame.ci && !/chip-ok/.test(onEarlier.kinds.slice(onEarlier.kinds.indexOf('id="kind-layout"'), onEarlier.kinds.indexOf('id="kind-layout"') + 120)),
-    'served: an earlier or the same build changes no suite\'s status, count or label — a failed suite is still FAIL, a not-run one still Not run');
+  t(JSON.stringify(onSame.status) === JSON.stringify(noBuild.status) && onSame.status.layout === 'FAIL' && bare(onSame) === bare(noBuild) && onSame.ci === noBuild.ci && onSame.glance === '' && noBuild.glance === '',
+    'served: the same build, or none named, changes no suite\'s status, count or label — a failed suite is still FAIL, a not-run one still Not run, and no glance line');
+  const kindRow = (o, id) => { const at = o.kinds.indexOf('id="kind-' + id + '"'); return o.kinds.slice(at, o.kinds.indexOf('</p>', o.kinds.indexOf('<p class="caption">', at))); };
+  t(Object.values(onEarlier.status).every(v => v === 'NOT RUN') && !/chip-(ok|warn|critical)/.test(onEarlier.kinds.replace(/<ol class="kind-suites"[\s\S]*?<\/ol>/g, ''))
+    && ['journeys', 'numbers', 'data', 'layout'].every(id => kindRow(onEarlier, id).includes('<p class="caption">Not run for this build (' + A2 + '). The last recorded result is an earlier build’s (' + A1 + '): '))
+    && /earlier build’s \(app\.0123456789ab\.js\): \d+ of \d+ suites pass, 1 failed/.test(kindRow(onEarlier, 'layout')),
+    'served: an earlier build — every kind Not run for this build, no result\'s colour, the earlier result kept and named as that build\'s (' + kindRow(onEarlier, 'layout').replace(/<[^>]*>/g, ' ').slice(0, 160) + ')');
+  t(/^Runs in your browser when the page loads — results for this build from CI: not run yet; the last recorded are an earlier build’s \(app\.0123456789ab\.js\) · /.test(onEarlier.ci) && !/PASS|FAIL/.test(onEarlier.ci)
+    && onEarlier.glance === '<span class="chip health-chip">Not run</span> for this build yet. This page is served by ' + A2 + '; the run below, and CI’s results, are for an earlier build (' + A1 + '). This build’s results are shown once CI and the live journeys have run on it.',
+    'served: an earlier build — the CI line and the opening card\'s line say not run for this build (' + onEarlier.ci.slice(0, 90) + ' | ' + onEarlier.glance.slice(0, 60) + ')');
+  const passEarlier = checksServed(withApp, jrec, SUITES, A2);
+  t(passEarlier.status.numbers === 'NOT RUN' && passEarlier.status.journeys === 'NOT RUN' && !/chip-ok/.test(passEarlier.kinds.replace(/<ol class="kind-suites"[\s\S]*?<\/ol>/g, '')), 'served: an earlier build\'s all-green record shows no Pass chip for the build serving');
   t(/kind-build/.test(String(checksServed)) && !/\b(document|window|location|el|fetch|HEALTH|BASE|SUITES|KINDS_)\b\s*[.(]/.test(String(checksServed)), 'checksServed: still self-contained with the build line in it');
 
   /* THE ISSUE (the 31 Oct 2026 operational audit, #6): decided here, offline. */

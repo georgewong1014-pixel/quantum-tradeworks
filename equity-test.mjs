@@ -11345,7 +11345,8 @@ try {
           kindsPaint(); await w(80);
           const li = document.getElementById('health-build'), layout = document.getElementById('kind-layout');
           out.lines[name] = { how: li?.dataset.build || null, text: li?.textContent.trim() || null, first: document.getElementById('health-kinds')?.firstElementChild === li,
-            layout: layout?.dataset.status || null, chip: layout?.querySelector('.health-chip')?.textContent.trim() || null, okChip: !!layout?.querySelector('.chip-ok') };
+            layout: layout?.dataset.status || null, chip: layout?.querySelector('.health-chip')?.textContent.trim() || null, okChip: !!layout?.querySelector('.chip-ok'),
+            glance: document.getElementById('health-glance-build')?.textContent.trim() ?? null, glanceShown: !!document.getElementById('health-glance-build')?.getClientRects().length };
         }
       } finally { HEALTH.checks = kept; kindsPaint(); }
       return out;
@@ -11356,9 +11357,11 @@ try {
     if (L.same.how !== 'same' || L.same.text !== `These results are for the build serving this page (${b}).`) p.push(`same build: ${JSON.stringify(L.same)}`);
     if (L.earlier.how !== 'earlier' || !L.earlier.text.startsWith('These results are for an earlier build (app.000000000000.js, CI on ' + r.commit.slice(0, 7) + '); this build’s checks are not recorded yet.') || !L.earlier.text.includes(b)) p.push(`earlier build: ${JSON.stringify(L.earlier)}`);
     if (L.none.how !== 'unknown' || !L.none.text.startsWith('It is not known which build these results ran on: the record does not name one.')) p.push(`record with no app: ${JSON.stringify(L.none)}`);
-    for (const [k, v] of Object.entries(L)) if (!v.first || v.layout !== 'FAIL' || v.chip !== 'Fail' || v.okChip) p.push(`${k}: the line is not first, or the failed suite no longer reads Fail (${JSON.stringify({ first: v.first, layout: v.layout, chip: v.chip, okChip: v.okChip })})`);
-    if (p.length) fail('/status says whether its CI results are for the build serving it — the same build, an earlier one, or a record that names none — and a failed suite stays Fail', p);
-    else ok('/status says whether its CI results are for the build serving it: "…for the build serving this page (' + b + ')", "…for an earlier build (app.…, CI on <commit>); this build’s checks are not recorded yet", and "It is not known which build these results ran on" for a record that names none — a failed suite stays Fail under all three');
+    /* The same build, or none named: the failed suite reads Fail. An earlier build's (QT-D23-01): Not run for this build, and the opening card says so. */
+    for (const k of ['same', 'none']) { const v = L[k]; if (!v.first || v.layout !== 'FAIL' || v.chip !== 'Fail' || v.okChip || v.glance !== '' || v.glanceShown) p.push(`${k}: the line is not first, the failed suite no longer reads Fail, or the opening card says not run (${JSON.stringify(v)})`); }
+    { const v = L.earlier; if (!v.first || v.layout !== 'NOT-RUN' || v.chip !== 'Not run' || v.okChip || !v.glanceShown || !v.glance.startsWith('Not run for this build yet. This page is served by ' + b + '; the run below, and CI’s results, are for an earlier build (app.000000000000.js).')) p.push(`earlier: the failed suite of an earlier build is not Not run for this one, or the opening card does not say so (${JSON.stringify(v)})`); }
+    if (p.length) fail('/status says whether its CI results are for the build serving it — the same build, an earlier one, or a record that names none — a failed suite stays Fail for its own build, and an earlier build\'s answers for none of this one\'s', p);
+    else ok('/status says whether its CI results are for the build serving it: "…for the build serving this page (' + b + ')", "…for an earlier build (app.…, CI on <commit>); this build’s checks are not recorded yet", and "It is not known which build these results ran on" for a record that names none — a failed suite stays Fail for the same build and an unnamed one; an earlier build\'s is "Not run" for this one, and the opening card says "Not run for this build yet"');
   }
 
   /* THE CORRECTION-CASE JOURNEY, END TO END (QT-D17-01): report a wrong figure

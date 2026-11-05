@@ -1218,6 +1218,10 @@ export function withServedRecord(r, served) {
     /* Property's "Model:" line (N2d; statusPropertySection, 91-health.js):
        the property journeys' last recorded results, time and commit. */
     put(/(<span class="status-model-result"[^>]*\bdata-now=""[^>]*>)(<\/span>)/, served.model, 'an empty .status-model-result marked data-now');
+    /* Above the last run (QT-D23-01; glanceBuildNode, 91-health.js): "Not run
+       for this build yet" while the records are an earlier build's, else empty. */
+    if (!served.checks) throw new Error('withServedRecord: /status needs the CI results\' record too (servedRecords)');
+    put(/(<p class="metaline status-build-glance" id="health-glance-build"[^>]*\bdata-now=""[^>]*>)(<\/p>)/, served.checks.glance, 'an empty #health-glance-build marked data-now');
     /* The four kinds, each its own result (the 10 Oct audit; kindsNode,
        91-health.js), and CI's results beside the in-browser checks. */
     if (!served.checks) throw new Error('withServedRecord: /status needs the CI results\' record too (servedRecords)');

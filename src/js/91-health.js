@@ -672,12 +672,16 @@ function keptOrDrawn(node, sel, part) {
 }
 const kindsNode = () => keptOrDrawn(el('ul', { id: 'health-kinds', class: 'checks-kinds', 'data-now': '' }), '#health-kinds', 'kinds');
 const ciNode = () => keptOrDrawn(el('p', { class: 'metaline', id: 'health-ci', 'data-now': '' }), '#health-ci', 'ci');
+/* Above the last run, on the page's opening card (QT-D23-01): empty while the
+   results are for the build serving the page; "Not run for this build yet"
+   while they are an earlier build's, so that run does not answer for this one. */
+const glanceBuildNode = () => keptOrDrawn(el('p', { class: 'metaline status-build-glance', id: 'health-glance-build', 'data-now': '' }), '#health-glance-build', 'glance');
 function kindsPaint() {
   const out = checksDrawn();
   if (!out) return;
   const place = notePlace();
   try {
-    for (const [sel, part] of [['#health-kinds', 'kinds'], ['#health-ci', 'ci']]) {
+    for (const [sel, part] of [['#health-kinds', 'kinds'], ['#health-ci', 'ci'], ['#health-glance-build', 'glance']]) {
       const n = document.querySelector(`#views ${sel}`);
       if (n && n.innerHTML !== out[part]) n.innerHTML = out[part];
     }
