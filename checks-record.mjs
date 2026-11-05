@@ -399,8 +399,8 @@ export function checksServed(checks, journeys, suites, build) {
     earlier = how === 'earlier';
   }
   const thisBuild = 'Not run for this build (' + serving + ')';
-  const glance = earlier ? '<span class="chip health-chip">Not run</span> for this build yet. This page is served by ' + esc(serving)
-    + '; the run below, and CI’s results, are for an earlier build (' + esc(ran) + '). This build’s results are shown once CI and the live journeys have run on it.' : '';
+  const glance = earlier ? '<span class="chip health-chip">Not run</span> yet on the version of the site you are using (' + esc(serving)
+    + '). The run below, and the suites’ results, are for an earlier version (' + esc(ran) + '); this version’s are shown once they have run on it.' : '';
   const rows = KINDS.map(([id, name, of]) => {
     let st, line, items = '';
     if (id === 'journeys') {
@@ -674,7 +674,7 @@ function selfTest() {
     && /earlier build’s \(app\.0123456789ab\.js\): \d+ of \d+ suites pass, 1 failed/.test(kindRow(onEarlier, 'layout')),
     'served: an earlier build — every kind Not run for this build, no result\'s colour, the earlier result kept and named as that build\'s (' + kindRow(onEarlier, 'layout').replace(/<[^>]*>/g, ' ').slice(0, 160) + ')');
   t(/^Runs in your browser when the page loads — results for this build from CI: not run yet; the last recorded are an earlier build’s \(app\.0123456789ab\.js\) · /.test(onEarlier.ci) && !/PASS|FAIL/.test(onEarlier.ci)
-    && onEarlier.glance === '<span class="chip health-chip">Not run</span> for this build yet. This page is served by ' + A2 + '; the run below, and CI’s results, are for an earlier build (' + A1 + '). This build’s results are shown once CI and the live journeys have run on it.',
+    && onEarlier.glance === '<span class="chip health-chip">Not run</span> yet on the version of the site you are using (' + A2 + '). The run below, and the suites’ results, are for an earlier version (' + A1 + '); this version’s are shown once they have run on it.' && !/this build/i.test(onEarlier.glance),
     'served: an earlier build — the CI line and the opening card\'s line say not run for this build (' + onEarlier.ci.slice(0, 90) + ' | ' + onEarlier.glance.slice(0, 60) + ')');
   const passEarlier = checksServed(withApp, jrec, SUITES, A2);
   t(passEarlier.status.numbers === 'NOT RUN' && passEarlier.status.journeys === 'NOT RUN' && !/chip-ok/.test(passEarlier.kinds.replace(/<ol class="kind-suites"[\s\S]*?<\/ol>/g, '')), 'served: an earlier build\'s all-green record shows no Pass chip for the build serving');

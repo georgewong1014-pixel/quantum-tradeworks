@@ -1259,7 +1259,7 @@ VIEWS.status = () => {
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
       'A real browser works through the main journeys on the live site, twice a day. This is the latest run. A journey shows that a path works, not that any figure on it is accurate.'),
   ])));
-  journeys.append(glanceBuildNode());   /* "Not run for this build yet", while the run is an earlier build's (QT-D23-01) */
+  journeys.append(glanceBuildNode());   /* "Not run yet on the version of the site you are using", while the run is an earlier build's (QT-D23-01) */
   journeys.append(health.glanceSum);
   wrap.append(journeys);
 

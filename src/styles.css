@@ -5715,7 +5715,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    as it printed. */
 .checks-kinds { list-style: none; padding: 0; margin: var(--sm) 0 0; }
 #views[data-served] ul.checks-kinds[data-now=""]:empty::before { content: none; }
-/* QT-D23-01: above the last run, "Not run for this build yet" while the
+/* QT-D23-01: above the last run, "Not run yet on the version of the site you are using" while the
    records are an earlier build's; empty, and no height, otherwise (not
    display:none, which the render leaves out: prerender.mjs drops it, and the
    build would find no slot to serve the line into). */
