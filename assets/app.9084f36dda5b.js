@@ -65362,6 +65362,7 @@ VIEWS.status = () => {
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
       'A real browser works through the main journeys on the live site, twice a day. This is the latest run. A journey shows that a path works, not that any figure on it is accurate.'),
   ])));
+  journeys.append(glanceBuildNode());   /* "Not run for this build yet", while the run is an earlier build's (QT-D23-01) */
   journeys.append(health.glanceSum);
   wrap.append(journeys);
 
@@ -66078,7 +66079,7 @@ const checksServed = (function checksServed(checks, journeys, suites, build) {
   const appRe = /^app\.[0-9a-f]{12}\.js$/;
   const serving = typeof build === 'string' && appRe.test(build) ? build : null;
   const ran = cdoc && typeof cdoc.app === 'string' && appRe.test(cdoc.app) ? cdoc.app : null;
-  let buildLine = '';
+  let buildLine = '', earlier = false;
   if (cdoc) {
     const [how, words] = !ran
       ? ['unknown', 'It is not known which build these results ran on: the record does not name one.' + (serving ? ' This page is served by ' + serving + '.' : '')]
@@ -66086,7 +66087,11 @@ const checksServed = (function checksServed(checks, journeys, suites, build) {
       : ran === serving ? ['same', 'These results are for the build serving this page (' + serving + ').']
       : ['earlier', 'These results are for an earlier build (' + ran + ', CI on ' + sha7(cdoc.commit) + '); this build’s checks are not recorded yet. This page is served by ' + serving + '.'];
     buildLine = '<li class="kind-build caption" id="health-build" data-build="' + how + '">' + esc(words) + '</li>';
+    earlier = how === 'earlier';
   }
+  const thisBuild = 'Not run for this build (' + serving + ')';
+  const glance = earlier ? '<span class="chip health-chip">Not run</span> for this build yet. This page is served by ' + esc(serving)
+    + '; the run below, and CI’s results, are for an earlier build (' + esc(ran) + '). This build’s results are shown once CI and the live journeys have run on it.' : '';
   const rows = KINDS.map(([id, name, of]) => {
     let st, line, items = '';
     if (id === 'journeys') {
@@ -66129,6 +66134,11 @@ const checksServed = (function checksServed(checks, journeys, suites, build) {
         return '<li data-mark="' + (r ? (r.status === 'PASS' ? 'ok' : 'fail') : pending ? 'pending' : 'notrun') + '"><span class="kind-mark">' + mark + '</span> ' + esc(s.name) + count + '<span class="kind-said"> — ' + said + '</span></li>';
       }).join('') + '</ol>';
     }
+    /* An earlier build's result, kept as that build's: this build's is not run. */
+    if (earlier && st !== 'NOT RUN' && (id !== 'journeys' || forSite)) {
+      line = thisBuild + '. The last recorded result is an earlier build’s (' + esc(ran) + '): ' + line;
+      st = 'NOT RUN';
+    }
     status[id] = st;
     return '<li class="kind-row" id="kind-' + id + '" data-status="' + st.replace(' ', '-') + '">'
       + '<span class="chip health-chip' + (CHIP[st][0] ? ' ' + CHIP[st][0] : '') + '">' + CHIP[st][1] + '</span>'
@@ -66137,7 +66147,7 @@ const checksServed = (function checksServed(checks, journeys, suites, build) {
   }).join('');
   /* The line beside the in-browser checks: what CI found on this commit for
      the two kinds those checks sample. */
-  const ciSaid = ['numbers', 'data'].map(id => {
+  const ciSaid = earlier ? [] : ['numbers', 'data'].map(id => {
     const name = KINDS.find(k => k[0] === id)[1];
     if (status[id] === 'NOT RUN') return name + ' not run for ' + (target || 'this commit');
     if (status[id] === 'PENDING') return name + ' pending for ' + target + ' (CI still running)';
@@ -66147,9 +66157,10 @@ const checksServed = (function checksServed(checks, journeys, suites, build) {
     const of = mine.reduce((a, s) => a + (byId[s.id] && Number.isFinite(byId[s.id].passed) ? byId[s.id].passed + (Number.isFinite(byId[s.id].failed) ? byId[s.id].failed : 0) : 0), 0);
     return name + ' ' + status[id] + ' (' + pass + ' of ' + mine.length + ' suites' + (of ? ', ' + n(checked) + '/' + n(of) + ' checks' : '') + ')';
   });
-  const ci = 'Runs in your browser when the page loads — results for this commit from CI: ' + ciSaid.join(' · ')
-    + (forSite ? ' · ' + target + (ciAt ? ', ' + ciAt : '') : '') + ' · <a class="journey-line-link" href="#health-kinds-h">details</a>';
-  return { kinds: buildLine + rows, ci, status, commit: target };
+  const ci = (earlier ? 'Runs in your browser when the page loads — results for this build from CI: not run yet; the last recorded are an earlier build’s (' + esc(ran) + ')'
+    : 'Runs in your browser when the page loads — results for this commit from CI: ' + ciSaid.join(' · ') + (forSite ? ' · ' + target + (ciAt ? ', ' + ciAt : '') : ''))
+    + ' · <a class="journey-line-link" href="#health-kinds-h">details</a>';
+  return { kinds: buildLine + rows, ci, glance, status, commit: target };
 });
 const CHECK_SUITES = [{"id":"model-test","name":"model-test","kind":"numbers"},{"id":"equity-test","name":"equity-test","kind":"numbers"},{"id":"register-test","name":"register-test","kind":"numbers"},{"id":"scanner-test","name":"scanner-test","kind":"numbers"},{"id":"ingest-test","name":"ingest-test","kind":"numbers"},{"id":"history-store-test","name":"history-store-test","kind":"numbers"},{"id":"data-check","name":"data-check","kind":"data"},{"id":"register-check","name":"register-check","kind":"data"},{"id":"served-check-data","name":"served-check, data blocks","kind":"data"},{"id":"served-check","name":"served-check, pages","kind":"layout"},{"id":"build-check","name":"build --check","kind":"layout"},{"id":"prerender-check","name":"prerender --check","kind":"layout"},{"id":"sweep","name":"sweep","kind":"layout"},{"id":"coverage-frames","name":"coverage-frames","kind":"layout"},{"id":"mobile","name":"mobile","kind":"layout"}];
 /* What the line beside a product's badge proves, and what it does not. */
@@ -66767,12 +66778,16 @@ function keptOrDrawn(node, sel, part) {
 }
 const kindsNode = () => keptOrDrawn(el('ul', { id: 'health-kinds', class: 'checks-kinds', 'data-now': '' }), '#health-kinds', 'kinds');
 const ciNode = () => keptOrDrawn(el('p', { class: 'metaline', id: 'health-ci', 'data-now': '' }), '#health-ci', 'ci');
+/* Above the last run, on the page's opening card (QT-D23-01): empty while the
+   results are for the build serving the page; "Not run for this build yet"
+   while they are an earlier build's, so that run does not answer for this one. */
+const glanceBuildNode = () => keptOrDrawn(el('p', { class: 'metaline status-build-glance', id: 'health-glance-build', 'data-now': '' }), '#health-glance-build', 'glance');
 function kindsPaint() {
   const out = checksDrawn();
   if (!out) return;
   const place = notePlace();
   try {
-    for (const [sel, part] of [['#health-kinds', 'kinds'], ['#health-ci', 'ci']]) {
+    for (const [sel, part] of [['#health-kinds', 'kinds'], ['#health-ci', 'ci'], ['#health-glance-build', 'glance']]) {
       const n = document.querySelector(`#views ${sel}`);
       if (n && n.innerHTML !== out[part]) n.innerHTML = out[part];
     }
