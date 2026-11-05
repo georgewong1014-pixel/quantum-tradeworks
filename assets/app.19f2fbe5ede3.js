@@ -65362,7 +65362,7 @@ VIEWS.status = () => {
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
       'A real browser works through the main journeys on the live site, twice a day. This is the latest run. A journey shows that a path works, not that any figure on it is accurate.'),
   ])));
-  journeys.append(glanceBuildNode());   /* "Not run for this build yet", while the run is an earlier build's (QT-D23-01) */
+  journeys.append(glanceBuildNode());   /* "Not run yet on the version of the site you are using", while the run is an earlier build's (QT-D23-01) */
   journeys.append(health.glanceSum);
   wrap.append(journeys);
 
@@ -66090,8 +66090,8 @@ const checksServed = (function checksServed(checks, journeys, suites, build) {
     earlier = how === 'earlier';
   }
   const thisBuild = 'Not run for this build (' + serving + ')';
-  const glance = earlier ? '<span class="chip health-chip">Not run</span> for this build yet. This page is served by ' + esc(serving)
-    + '; the run below, and CI’s results, are for an earlier build (' + esc(ran) + '). This build’s results are shown once CI and the live journeys have run on it.' : '';
+  const glance = earlier ? '<span class="chip health-chip">Not run</span> yet on the version of the site you are using (' + esc(serving)
+    + '). The run below, and the suites’ results, are for an earlier version (' + esc(ran) + '); this version’s are shown once they have run on it.' : '';
   const rows = KINDS.map(([id, name, of]) => {
     let st, line, items = '';
     if (id === 'journeys') {
@@ -66779,7 +66779,7 @@ function keptOrDrawn(node, sel, part) {
 const kindsNode = () => keptOrDrawn(el('ul', { id: 'health-kinds', class: 'checks-kinds', 'data-now': '' }), '#health-kinds', 'kinds');
 const ciNode = () => keptOrDrawn(el('p', { class: 'metaline', id: 'health-ci', 'data-now': '' }), '#health-ci', 'ci');
 /* Above the last run, on the page's opening card (QT-D23-01): empty while the
-   results are for the build serving the page; "Not run for this build yet"
+   results are for the build serving the page; "Not run yet on the version of the site you are using"
    while they are an earlier build's, so that run does not answer for this one. */
 const glanceBuildNode = () => keptOrDrawn(el('p', { class: 'metaline status-build-glance', id: 'health-glance-build', 'data-now': '' }), '#health-glance-build', 'glance');
 function kindsPaint() {
