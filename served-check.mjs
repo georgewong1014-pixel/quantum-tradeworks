@@ -3693,7 +3693,7 @@ const HOME_PAGE = read(HOME);
     /* The first screen's four actions and the two closed explanations (the owner's list of 7 Nov 2026): served, so they are there before the script. */
     {
       const byId = (id) => inside.find(n => attr(n, 'id') === id);
-      const acts = [['lab-act-compare', 'button', 'Compare scenarios', null], ['lab-act-saved', 'a', 'Reopen saved work', '/property/models'], ['lab-act-backup', 'a', 'Export or restore', '/my/data']];
+      const acts = [['lab-act-compare', 'a', 'Compare scenarios', '/property#lab-cmp-h'], ['lab-act-saved', 'a', 'Reopen saved work', '/property/models'], ['lab-act-backup', 'a', 'Export or restore', '/my/data']];
       for (const [id, tag, words, to] of acts) {
         const n = byId(id);
         if (!n || n.tag !== tag || rawText(n) !== words || (to && attr(n, 'href') !== to) || B.hasClass(n, 'btn-primary')) p.push(`/property/lab: "${words}" is ${n ? `${n.tag} "${rawText(n)}" to ${attr(n, 'href')}` : 'not served'}, not a secondary ${tag}${to ? ` to ${to}` : ''}`);

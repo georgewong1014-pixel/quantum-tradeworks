@@ -6539,7 +6539,8 @@ try {
           out.acts = [...document.querySelectorAll('#views .lab-acts > *')].map(n => ({ id: n.id, tag: n.tagName, words: t(n), href: n.getAttribute('href'), primary: n.classList.contains('btn-primary'), tall: Math.round(n.getBoundingClientRect().height) }));
           out.explain = ['lab-how', 'lab-why'].map(id => { const d = document.getElementById(id); return { open: d?.open, sum: t(d?.querySelector(':scope > summary')), terms: [...(d?.querySelectorAll('dt') || [])].map(t), said: [...(d?.querySelectorAll('dd') || [])].map(t) }; });
           out.explainWant = ['simple', 'context'].map(part => ['propSafeCash', 'propCashflow', 'netYield'].map(k => METRIC_HELP[k][part]));
-          out.explainBefore = !!(document.querySelector('#views .lab-explain')?.compareDocumentPosition(document.querySelector('#views .lab')) & Node.DOCUMENT_POSITION_FOLLOWING);
+          { const x = document.querySelector('#views .lab-explain'), tiles = document.querySelector('#views .lab-tiles'), grid = document.querySelector('#views .lab-grid');
+            out.explainPlace = !!(x && tiles && grid && (tiles.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING) && (x.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING)); }
           /* The fold: opened by its summary, kept, with the keyboard on it, across a redraw. */
           more.querySelector('summary').click(); await w(80);
           out.opened = more.open && [...more.querySelectorAll('.lab-row')].every(n => n.checkVisibility());
@@ -6602,12 +6603,12 @@ try {
       if (H.cta !== 'Model a property' || H.primaries.join('|') !== 'Model a property' || /btn-primary/.test(H.save)) p.push(`the primary buttons in sight are ${JSON.stringify(H.primaries)} and Save is "${H.save}", not one "Model a property" and a secondary Save`);
       if (r.enter.tag !== 'A' || r.enter.href !== '/property/calculator#d-price' || r.enter.why !== 'Opens the calculator') p.push(`"Model a property" is ${JSON.stringify(r.enter)}, not a link to /property/calculator#d-price described by "Opens the calculator"`);
       {
-        const want = [['lab-enter', 'A', 'Model a property', '/property/calculator#d-price', true], ['lab-act-compare', 'BUTTON', 'Compare scenarios', null, false],
+        const want = [['lab-enter', 'A', 'Model a property', '/property/calculator#d-price', true], ['lab-act-compare', 'A', 'Compare scenarios', '/property#lab-cmp-h', false],
           ['lab-act-saved', 'A', 'Reopen saved work', '/property/models', false], ['lab-act-backup', 'A', 'Export or restore', '/my/data', false]];
         const got = r.acts.map(a => [a.id, a.tag, a.words, a.href, a.primary]);
         if (JSON.stringify(got) !== JSON.stringify(want) || r.acts.some(a => a.tall < 43.5)) p.push(`the first screen's four actions are ${JSON.stringify(r.acts)}`);
         const [how, why] = r.explain;
-        if (how.open || why.open || how.sum !== 'How calculated' || why.sum !== 'Why this matters' || !r.explainBefore) p.push(`the two explanations are not closed, named "How calculated" and "Why this matters", above the Lab: ${JSON.stringify({ how: [how.open, how.sum], why: [why.open, why.sum], before: r.explainBefore })}`);
+        if (how.open || why.open || how.sum !== 'How calculated' || why.sum !== 'Why this matters' || !r.explainPlace) p.push(`the two explanations are not closed, named "How calculated" and "Why this matters", under the tiles and above the inputs: ${JSON.stringify({ how: [how.open, how.sum], why: [why.open, why.sum], place: r.explainPlace })}`);
         if (how.terms.join('|') !== 'Cash required|Monthly position|Net yield' || JSON.stringify(how.said) !== JSON.stringify(r.explainWant[0]) || JSON.stringify(why.said) !== JSON.stringify(r.explainWant[1])) p.push('the explanations are not the three headline figures in METRIC_HELP\'s own words');
       }
       /* The journey: press the link, type a price in the calculator's box, return to the Lab: the Purchase price tile reads it, "Yours". */

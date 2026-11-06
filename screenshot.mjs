@@ -178,7 +178,8 @@ try {
   await Promise.race([loaded, new Promise((r) => setTimeout(r, 15000))]);
   await new Promise((r) => setTimeout(r, WAIT));
   if (EVAL) {
-    await cdp.send('Runtime.evaluate', { expression: EVAL, awaitPromise: true }, sessionId);
+    const evr = await cdp.send('Runtime.evaluate', { expression: EVAL, awaitPromise: true, returnByValue: true }, sessionId);
+    if (evr?.result?.value !== undefined) console.log('EVAL', typeof evr.result.value === 'string' ? evr.result.value : JSON.stringify(evr.result.value));
     await new Promise((r) => setTimeout(r, 400));
   }
 

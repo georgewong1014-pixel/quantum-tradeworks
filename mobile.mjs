@@ -3161,7 +3161,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL n3-first-view — /property's first screen (N3, D18): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, the two questions (at 1440 whole; on a phone their 44px summary line, folded), its four tiles and its one primary, "Enter your property figures" (which puts the price box on the first screen), whole on it — ${said.join('; ')}; on a phone Save and the price’s Replace link are 44px targets and nothing scrolls sideways`);
+  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, the two questions (at 1440 whole; on a phone their 44px summary line, folded), its four tiles and its one primary, "Model a property" (which puts the price box on the first screen), whole on it — ${said.join('; ')}; on a phone Save and the price’s Replace link are 44px targets and nothing scrolls sideways`);
 }
 /* ---- end n3-first-view ---- */
 /* ---- layout-system ---- */
@@ -4293,8 +4293,9 @@ for (const w of [360, 390]) {
   };
   const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
   const TERMS = 'route:auction~reservePrice:420000~auctionDepositPct:10~auctionDepositOf:reserve~auctionBalanceDays:90~auctionComp1:600000~auctionComp2:640000~auctionRepairs:15000~arrearsMaintenance:3000~auctionHoldMonths:3';
-  /* 390's `before` rose from 138 to 154 on 31 Oct 2026 (Day 18 follow-up, QT-D18-01): the introduction (14 words) shows on a phone, between the heading and its button (4), measured 147; the old line under the sample's name, which was not counted, went. */
-  const BOUND = { 1440: { before: 184, all: 574 }, 390: { before: 154, all: 485 } };
+  /* 390's `before` rose from 138 to 154 on 31 Oct 2026 (Day 18 follow-up, QT-D18-01): the introduction (14 words) shows on a phone, between the heading and its button (4), measured 147; the old line under the sample's name, which was not counted, went.
+     To 168 on 7 Nov 2026 (the owner's first-screen list): the one button's four words are four actions' eleven, and two closed explanations' names (five words) stand under the tiles; measured 161. */
+  const BOUND = { 1440: { before: 184, all: 574 }, 390: { before: 168, all: 485 } };
   /* What the eye can see, as a reader who opens nothing does. */
   const SEEN = `const seen = (n, root = document.querySelector('main') || document.body) => {
       const p = n.nodeType === 3 ? n.parentElement : n;
@@ -4430,7 +4431,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL lab-words — the Scenario Lab's words before its figures (the 9 Oct audit, #5): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 154/485 at 390); on a phone Cash required and Monthly position lead, side by side, the purchase price a compact row above them and the yield one under them, each with its tag or badge, "Enter your property figures" above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the supporting line beside the chip, the one sentence over the boxes and each box's Default tag, and the unverified lines, in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
+  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 154/485 at 390); on a phone Cash required and Monthly position lead, side by side, the purchase price a compact row above them and the yield one under them, each with its tag or badge, "Model a property" above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the supporting line beside the chip, the one sentence over the boxes and each box's Default tag, and the unverified lines, in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
 }
 /* ---- end lab-words ---- */
 /* ---- lab-row-kinds ---- */
