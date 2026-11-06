@@ -4917,7 +4917,7 @@
         ]
       },
       "inert": {
-        "buttons": 40,
+        "buttons": 41,
         "fields": 20,
         "choices": 30,
         "roles": 0,
@@ -4928,8 +4928,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7b0a7cb859e7fa4b",
-      "changed": "2026-11-01"
+      "digest": "d0ab9003885501bf",
+      "changed": "2026-11-06"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -5062,7 +5062,7 @@
         ]
       },
       "inert": {
-        "buttons": 40,
+        "buttons": 41,
         "fields": 20,
         "choices": 30,
         "roles": 0,
@@ -5073,8 +5073,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7b0a7cb859e7fa4b",
-      "changed": "2026-11-01"
+      "digest": "d0ab9003885501bf",
+      "changed": "2026-11-06"
     },
     "pages/property/market.html": {
       "path": "/property/market",
