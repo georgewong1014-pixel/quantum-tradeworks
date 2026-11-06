@@ -4077,12 +4077,40 @@ const LAB_LEDE = 'Model your property’s cash requirement, monthly position and
    secondary beside the identity line and in the phone's bar. While a name is
    asked for, that form's Save is the one to press and this is a secondary for
    the time (labDraw). */
-const LAB_ENTER_WORDS = 'Enter your property figures';
+/* THE FIRST SCREEN'S FOUR ACTIONS (the owner's list of 7 Nov 2026, answered
+   "add to the current page"): model a property, compare scenarios, reopen
+   saved work, export or restore. The first is Day 18's one primary — the same
+   link, to the same box, renamed from "Enter your property figures" — and the
+   three beside it are secondaries, so the page still has one primary. Compare
+   goes to the comparison on this page (labGoTo, as the phone's bar does); the
+   other two are real links to My properties and to Your data & settings, where
+   Export everything and Restore from a file are. */
+const LAB_ENTER_WORDS = 'Model a property';
 const LAB_ENTER_PATH = '/property/calculator#d-price';
+const LAB_ACTS = [['lab-act-saved', '/property/models', 'Reopen saved work'], ['lab-act-backup', '/my/data', 'Export or restore']];
 function labEnterLink() {
-  const go = (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(LAB_ENTER_PATH); };
-  return [el('a', { class: 'btn btn-primary lab-enter', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go }, LAB_ENTER_WORDS),
+  const plain = (e) => !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button);
+  const go = (path) => (e) => { if (!plain(e)) return; e.preventDefault(); navigate(path); };
+  return [el('div', { class: 'lab-acts' }, [
+    el('a', { class: 'btn btn-primary lab-enter', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go(LAB_ENTER_PATH) }, LAB_ENTER_WORDS),
+    el('button', { type: 'button', class: 'btn btn-ghost lab-act', id: 'lab-act-compare', onclick: () => labGoTo('compare') }, 'Compare scenarios'),
+    ...LAB_ACTS.map(([id, path, words]) => el('a', { class: 'btn btn-ghost lab-act', id, href: href(path), onclick: go(path) }, words))]),
     el('span', { class: 'sr-only', id: 'lab-enter-why' }, 'Opens the calculator')];
+}
+/* THE EXPLANATIONS, BEHIND TWO NAMES (the same list, item 1): "How calculated"
+   and "Why this matters", closed, under the four actions. Each is the three
+   headline figures in METRIC_HELP's own words (00-core.js: `simple` is how a
+   figure is worked out, `context` what it does and does not tell), so nothing
+   here is a second account of the model. The one-sentence limits beside the
+   results stay where they are. */
+const LAB_EXPLAIN_KEYS = ['propSafeCash', 'propCashflow', 'netYield'];
+function labExplain() {
+  const rows = (part) => el('dl', { class: 'lab-explain-list' }, LAB_EXPLAIN_KEYS.flatMap(k => [el('dt', {}, METRIC_HELP[k].label), el('dd', {}, METRIC_HELP[k][part])]));
+  const sec = (id, title, body) => el('details', { class: 'pc-more lab-explain-sec', id }, [el('summary', { class: 'pc-more-sum' }, title), el('div', { class: 'lab-explain-body' }, body)]);
+  const more = el('a', { href: href('/methodology/property'), onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate('/methodology/property'); } }, 'The full method');
+  return el('div', { class: 'lab-explain' }, [
+    sec('lab-how', 'How calculated', [rows('simple'), el('p', { class: 'metaline' }, ['Every figure comes from the inputs on this page, by the model the calculator runs. ', more, '.'])]),
+    sec('lab-why', 'Why this matters', [rows('context'), el('p', { class: 'metaline' }, 'The starting figures are illustrative. Put in your own before reading anything into a result.')])]);
 }
 VIEWS.propertyLab = () => {
   labArrive();
@@ -4096,6 +4124,7 @@ VIEWS.propertyLab = () => {
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
     lede: LAB_LEDE, action: labEnterLink() }));
+  wrap.append(labExplain());
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the
