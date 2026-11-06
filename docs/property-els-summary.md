@@ -63,17 +63,13 @@ The brief is plain text and can be kept or sent any other way. The reader can st
 
 **The figures have their own route.** The client proposal from "Export PDF / Share with client" carries the financial workings, the fee rulebook version, and which inputs are still sample values. Sharing it is the reader's own act.
 
-## A possible version 2: not built, the owner's decision
+## Financial figures stay out
 
-The Day 24 brief asks for the summary to include the transaction type, purchase assumptions, a financial summary and the model version. Version 1 excludes these under the owner's instruction above, so they are not added here.
+**The owner's decision, 6 November 2026, under the current referral policy.** ELS needs design requirements, not Quantum's financial assessment. The referral stays optional and copy-and-paste only, with no integration.
 
-If the owner decides they should be added, the smallest safe form would be:
-- a separate block, **off by default**, that the reader turns on while looking at it;
-- each value labelled entered, illustrative or estimated, as the proposal already does;
-- the model version and fee rulebook version named, because the figures would then come from them;
-- a new version, `qt-property-brief/2`, with the tests changed to match. Version 1's tests fail on any such figure today, by design.
+The Day 24 brief asked for purchase assumptions, a financial summary and the model version. They are not part of this contract, and no version that carries them is planned. That covers the purchase price, mortgage and financing details, rental yield, cash flow, returns, affordability, financial assumptions, saved-assessment identifiers and financial reports.
 
-**The question for the owner:** does ELS need financial figures to give design or renovation advice? A design studio can ask for a budget in its own enquiry form, which version 1's allowance already covers. Unless ELS asks for more, version 1 is enough.
+The one amount the brief can carry is the renovation allowance, and only once the reader has typed it and reviewed it. It is the reader's own budget for the work, not a figure from Quantum's assessment.
 
 ## What a receiver must supply first
 
