@@ -737,6 +737,41 @@ function selfTest() {
     const checked = others.filter(k => new RegExp(`needs\\.${k}\\.result`).test(gate) && new RegExp(`\\[ "\\$${k.toUpperCase()}" = success \\]`).test(gate));
     t(/^ {4}if: always\(\)$/m.test(gate) && !unneeded.length && checked.length === others.length,
       `checks.yml "release gate": runs whatever happened (always()), needs every other job and passes only when each succeeded (${checked.length} of ${others.length} checked${unneeded.length ? `; not needed: ${unneeded.join(', ')}` : ''})`);
+    /* The gate's own step, run (QT-D13-01, the Day 24 brief): nothing else is
+       a fixture of it. All three succeeded passes; any one failed, skipped,
+       cancelled or missing does not. */
+    const gateScript = /^ {8}run: \|\n((?: {10}[^\n]*\n)+)/m.exec(gate)?.[1].replace(/^ {10}/gm, '') || '';
+    const gateRun = (over) => {
+      const env = { ...process.env };
+      for (const k of others) env[k.toUpperCase()] = over[k] ?? 'success';
+      const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', gateScript], { env, encoding: 'utf8' });
+      return r.error ? `bash could not run: ${r.error.message}` : r.status;
+    };
+    const gateWrong = [];
+    if (!gateScript) gateWrong.push('its step has no run script');
+    else {
+      if (gateRun({}) !== 0) gateWrong.push(`all succeeded: ${gateRun({})}`);
+      for (const k of others) for (const out of ['failure', 'skipped', 'cancelled', '']) {
+        const got = gateRun({ [k]: out });
+        if (got === 0 || typeof got === 'string') gateWrong.push(`${k} ${out || 'missing'}: ${got}`);
+      }
+    }
+    t(!gateWrong.length, `checks.yml "release gate", its own script run: all three succeeded passes; each job failed, skipped, cancelled or missing does not${gateWrong.length ? ` — not: ${gateWrong.slice(0, 4).join('; ')}` : ` (${others.length * 4 + 1} cases)`}`);
+    /* What Deployment Checks is set to, and what would stop it working. It
+       matches a check by its name, and the docs warn that two of one name
+       collide. A check that needs the live site would wait for a deployment
+       that is waiting for it. A path filter would leave a commit with no gate,
+       whose deployment never goes live. No workflow deploys: Vercel's Git
+       integration is the one path to production. */
+    const GATE_NAME = 'release gate — every required job passed';
+    const live = ['checks.yml', 'journeys.yml', 'checks-record.yml'].map(n => [n, readFileSync(join(ROOT, '.github/workflows', n), 'utf8').replace(/\r\n/g, '\n').split('\n').filter(l => !/^\s*#/.test(l)).join('\n')]);
+    const named = live.flatMap(([n, text]) => [...text.matchAll(/^ {4}name: (.*)$/gm)].map(m => [n, m[1].trim()]));
+    t(named.filter(([, x]) => x === GATE_NAME).length === 1 && named.find(([, x]) => x === GATE_NAME)[0] === 'checks.yml' && /^ {4}name: release gate — every required job passed$/m.test(gate)
+      && readFileSync(join(ROOT, 'docs/release-gate.md'), 'utf8').includes(GATE_NAME),
+      'the gate: one job of that name, in checks.yml, as docs/release-gate.md tells the owner to select it');
+    t(!/--url production|vercel\.app/.test(cmds) && !/\bpaths(-ignore)?:|branches-ignore:/.test(cmds) && /^ {2}push:\n {4}branches: \['\*\*'\]$/m.test(cmds) && /^ {2}workflow_dispatch:$/m.test(cmds),
+      'checks.yml: needs no live site, so it cannot wait on the deployment waiting on it; no path filter, so every commit gets a gate; and it can be started on a commit a workflow pushed');
+    t(!live.some(([, text]) => /vercel (deploy|--prod|promote)|VERCEL_TOKEN|deployments\/.*\/promote/i.test(text)), 'no workflow deploys or promotes: Vercel\'s Git integration is the one path to production');
   }
   const rf = join(ROOT, '.github/workflows/checks-record.yml');
   if (existsSync(rf)) {

@@ -86,8 +86,9 @@ on:
 # commit whose journeys fail never goes live. This workflow is what follows
 # the release — the same journeys against the live site. Two consequences
 # here:
-#   - a deployment's run waits up to an hour for the site to serve its build
-#     (the checks take 39 to 52 minutes), inside a 75-minute job;
+#   - a deployment's run waits up to two hours for the site to serve its build
+#     (the checks took 83 to 87 minutes on the six runs to 5 Nov 2026; they took
+#     39 to 52 when this wait was set at an hour), inside a 220-minute job;
 #   - the record this workflow commits is pushed with its own token, and a
 #     push made with it starts no workflow — so checks.yml would never run on
 #     it, and its deployment would wait for checks that never come. It starts
@@ -122,11 +123,11 @@ jobs:
       group: journeys
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    # Up to an hour waiting for a held deployment to go live, then the run,
+    # Up to two hours waiting for a held deployment to go live, then the run,
     # then up to 90 minutes for checks.yml to finish on the served commit
     # where Deployment Checks did not already hold the deployment for it
     # (CI ran 77 minutes on 12 Oct 2026, past the 50 it was given).
-    timeout-minutes: 170
+    timeout-minutes: 220
     env:
       # What started the run, and its public log: both are recorded.
       TRIGGER: ${{ github.event_name == 'deployment_status' && 'deployment' || github.event_name == 'schedule' && 'schedule' || 'dispatch' }}
@@ -153,7 +154,7 @@ jobs:
           "${{ steps.chrome.outputs.chrome-path }}" --version
 
       # --url production is the template's canonical origin. After a
-      # deployment, --commit waits (up to an hour: a deployment held for its
+      # deployment, --commit waits (up to two hours: a deployment held for its
       # Deployment Checks goes live only once checks.yml passes on it) for
       # the site to serve that commit's build before the journeys start, and
       # records it as served; a build not served by then is recorded as what
@@ -168,7 +169,7 @@ jobs:
           node journeys.mjs --url production \
             --trigger "$TRIGGER" --run "$RUN_URL" \
             --json "$RUNNER_TEMP/journeys.json" --markdown "$RUNNER_TEMP/journeys.md" \
-            ${DEPLOY_SHA:+--commit "$DEPLOY_SHA" --wait 3600}
+            ${DEPLOY_SHA:+--commit "$DEPLOY_SHA" --wait 7200}
           echo "exit=$?" >> "$GITHUB_OUTPUT"
 
       - name: job summary

@@ -604,9 +604,11 @@ function selfTest() {
     t(!!perms && perms[1].trim().split('\n').map(s => s.trim()).sort().join(',') === 'actions: write,checks: read,contents: write,issues: write', 'the workflow: permissions actions, contents and issues write, and checks read (CI\'s annotations on the served commit), nothing else');
     const wait = Number((/--commit "\$DEPLOY_SHA" --wait (\d+)/.exec(y) || [])[1]);
     const limit = Number((/^ {4}timeout-minutes: (\d+)$/m.exec(y) || [])[1]);
-    /* 2.3: the checks take 39–52 minutes, so a deployment held for them
-       goes live up to an hour after it is made. */
-    t(wait >= 3600 && limit >= 75 && limit * 60 >= wait + 600, `the workflow: a deployment's run waits ${wait || 'no'}s for its build (an hour at least) inside a ${limit || '?'}-minute job (75 at least) with ten to spare`);
+    /* 2.3, and QT-D13-01 (6 Nov 2026): the checks take 83–87 minutes, so a
+       deployment held for them goes live that long after it is made. A wait
+       shorter than that gives up first, and the run tests and records the
+       build the release replaced. */
+    t(wait >= 7200 && limit * 60 >= wait + 600, `the workflow: a deployment's run waits ${wait || 'no'}s for its build (two hours at least) inside a ${limit || '?'}-minute job with ten to spare`);
     t(/git push origin HEAD:main; then\n\s+gh workflow run checks\.yml [^\n]*--ref main/.test(y) && /GH_TOKEN: \$\{\{ github\.token \}\}/.test(y.slice(y.indexOf('record the result on main'))), 'the workflow: the record it pushes has checks.yml started on it, so its deployment can pass its Deployment Checks');
     /* D16 and N1b–N1d. Comments may tell the history; the commands may not
        carry it. */
