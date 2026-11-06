@@ -4917,7 +4917,7 @@
         ]
       },
       "inert": {
-        "buttons": 41,
+        "buttons": 40,
         "fields": 20,
         "choices": 30,
         "roles": 0,
@@ -4928,7 +4928,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d0ab9003885501bf",
+      "digest": "36d2a81dbe58db40",
       "changed": "2026-11-06"
     },
     "pages/property/areas.html": {
@@ -5062,7 +5062,7 @@
         ]
       },
       "inert": {
-        "buttons": 41,
+        "buttons": 40,
         "fields": 20,
         "choices": 30,
         "roles": 0,
@@ -5073,7 +5073,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d0ab9003885501bf",
+      "digest": "36d2a81dbe58db40",
       "changed": "2026-11-06"
     },
     "pages/property/market.html": {
