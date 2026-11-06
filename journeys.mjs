@@ -3554,7 +3554,7 @@ const JOURNEYS = [
        page says when it was exported, and that nothing has changed since.
        The folder is deleted at the end. */
     id: 'backup', name: 'Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once',
-    outcomes: ['Export everything: the file holds each item, and the page says when', 'Import the file: each item back, once', 'Import it again: nothing doubled'],
+    outcomes: ['Export everything: the file holds each item, and the page says when', 'Import the file: each item back, once', 'Import it again: nothing doubled', 'Reopen the restored property: A and B as saved, its version shown, not a sample'],
     async run(j, tab) {
       const dir = join(tmpdir(), `qt-backup-journey-${process.pid}-${Date.now()}`);
       mkdirSync(dir, { recursive: true });
@@ -3575,7 +3575,7 @@ const JOURNEYS = [
             State.theses = [...State.theses, { id: 't-backup-1', ticker: 'MSFT-SEC', oneLine: 'Backup journey case.', quality: '', valCase: '', catalysts: [], risks: [], conds: [], horizon: '3–5 years', review: '2026-12-01', conf: 'Medium', questions: [], created: '2026-10-01' }]; saveTheses();
             State.priceAlerts = [...State.priceAlerts, { id: 'pa-backup-1', ticker: 'MSFT-SEC', op: '>', price: 600, note: 'Backup journey alert', updatedAt: at }]; store.write('priceAlerts', State.priceAlerts);
             addObservation({ district: 'Kuching', locality: 'Tabuan Jaya', date: '2026-08-14', price: 498000, sqft: 1250, propertyType: 'Terrace', sourceRef: 'SPA ref BJ-0814', sourceName: 'Own record', evidence: 'verified' });
-            const rec = pmNewRecord({ ...pmSampleDeal(), price: 512000, rent: 2300 }, 'Backup journey property', at);
+            const rec = pmNewRecord({ ...pmSampleDeal(), price: 512000, rent: 2300, touched: { price: true, rent: true } }, 'Backup journey property', at);
             if (!persistWork([rec, ...loadWork()])) return 'the property was not kept';
             const sc = pmAddScenario(rec.id, { rent: 2100 }, 'Backup journey: lower rent'); if (!sc) return 'the scenario was not kept';
             store.write('labComparisons', [{ id: 'lc-backup-1', name: 'Backup journey lab comparison', model: rec.id, cols: ['pm:' + rec.id, 'pm:' + rec.id + '/' + sc.id], lens: LAB_LENS_DEFAULT, metric: 'yield', createdAt: at }, ...labComparisons()]);
@@ -3651,6 +3651,35 @@ const JOURNEYS = [
         };
         await step(j, tab, 'Import the file: each item back, once', BUDGET.load + BUDGET.action * 3, () => restore(1));
         await step(j, tab, 'Import it again: nothing doubled', BUDGET.load + BUDGET.action * 3, () => restore(2));
+        /* WHAT A READER GETS BACK (QT-D24-01, the Day 24 brief, 6 Nov 2026). The
+           steps above hold the storage to the file; this holds the page to it:
+           Saved work lists the property as the reader's, with the rulebook it
+           was priced under; its Open brings the figures back into the calculator;
+           and the Scenario Lab (the dashboard's Continue) holds the property's
+           own figures in A and the scenario's in B, neither over the other. */
+        await step(j, tab, 'Reopen the restored property: A and B as saved, its version shown, not a sample', BUDGET.load * 3 + BUDGET.action, async () => {
+          await tab.goto('/my/workspace');
+          const row = `[...document.querySelectorAll('#views .ws-row')].find(r => r.querySelector('strong')?.textContent.trim() === 'Backup journey property')`;
+          const seen = await tab.eval(`(() => { const r = ${row}; return r ? { chips: [...r.querySelectorAll('.chip')].map(c => c.textContent.trim()), version: (r.querySelector('.ws-ver')?.textContent || '').replace(/\\s+/g, ' ').trim(), fees: FEE_TABLE.version } : null; })()`);
+          if (!seen) throw new StepError('Saved work does not list the restored property');
+          if (!seen.chips.includes('Saved property') || seen.chips.includes('sample')) throw new StepError(`Saved work marks the restored property ${JSON.stringify(seen.chips)}, not as the reader's own`);
+          if (!seen.version.includes(`Fee rulebook ${seen.fees}`)) throw new StepError(`its version reads “${seen.version}”, not fee rulebook ${seen.fees}`);
+          await tab.click(`(${row})?.querySelector('.ws-open')`, 'The restored property’s Open');
+          const id = await tab.eval(`pmAll().find(r => r.name === 'Backup journey property')?.id || null`);
+          await tab.expect(`location.pathname === '/property/calculator' && State.deal.price === 512000 && State.deal.rent === 2300`,
+            async () => `Open went to ${await tab.eval('location.pathname')} holding ${await tab.eval('JSON.stringify({ price: State.deal.price, rent: State.deal.rent })')}, not the calculator with price 512000 and rent 2300`);
+          await tab.goto(`/property?model=${id}`);
+          await tab.expect(`State.view === 'propertyLab'`, async () => `the saved property's address opened ${await tab.eval('State.view')}, not the Scenario Lab`);
+          await tab.expect(`(document.getElementById('lab-status')?.textContent || '').includes('Backup journey property')`, 'the Lab does not name the restored property');
+          const got = JSON.parse(await tab.eval(`(() => { const rec = pmFind(${JSON.stringify(id)}), sc = (rec?.scenarios || [])[0], lab = LAB['m:' + rec?.id];
+            const col = (k) => { const c = lab?.cols.find(x => x.key === k); return c ? { price: c.work.price, rent: c.work.rent, source: c.source } : null; };
+            const inputs = (x) => { const i = pmSavedInputs(rec, x); return { price: i.price, rent: i.rent }; };
+            return JSON.stringify({ a: col('A'), b: col('B'), base: inputs(), scenario: sc ? { name: sc.name, ...inputs(sc) } : null, modelVersion: rec?.modelVersion === MODEL_VERSION }); })()`));
+          if (got.base.price !== 512000 || got.base.rent !== 2300 || got.a?.price !== 512000 || got.a?.rent !== 2300) throw new StepError(`the property came back as ${JSON.stringify(got.base)}, column A ${JSON.stringify(got.a)}, not price 512000 and rent 2300`);
+          if (got.scenario?.name !== 'Backup journey: lower rent' || got.scenario.rent !== 2100 || got.scenario.price !== 512000) throw new StepError(`the scenario came back as ${JSON.stringify(got.scenario)}, not rent 2100 on the same price`);
+          if (got.b?.rent !== 2100 || !String(got.b.source).startsWith('sc:')) throw new StepError(`column B is ${JSON.stringify(got.b)}, not the saved scenario's rent 2100`);
+          if (!got.modelVersion) throw new StepError('the restored property does not carry the model version it was saved under');
+        });
       } finally {
         await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
       }

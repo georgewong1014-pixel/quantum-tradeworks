@@ -12548,6 +12548,19 @@ try {
     if (sLines[4] !== "Renovation allowance: Not set: the calculator's sample figure is not a budget") p1.push(`the sample's allowance line is "${sLines[4]}"`);
     if (/25,?000|25k|RM/.test(r.out.sample.text)) p1.push('the sample\'s renovation figure (or any amount) appears: ' + r.out.sample.text.match(/.{0,20}(25,?000|RM).{0,20}/)[0]);
     if (sLines[6] !== "Assumptions: Assumed (the sample's): property type, location, intended use, renovation allowance.") p1.push(`the sample's assumptions line is "${sLines[6]}"`);
+    /* The written contract (QT-D24-02) names the version the brief carries and
+       each of its lines, so changing the brief without it fails here. */
+    {
+      const { readFileSync } = await import('node:fs');
+      const src = readFileSync(new URL('./src/js/70-property.js', import.meta.url), 'utf8');
+      const doc = readFileSync(new URL('./docs/property-els-summary.md', import.meta.url), 'utf8');
+      const id = /const ELS_BRIEF_ID = '([^']+)'/.exec(src)?.[1];
+      const body = src.slice(src.indexOf('function elsBrief('), src.indexOf('CARRYING A COMPANY INTO A WORKSPACE'));
+      const labels = [...body.matchAll(/`([A-Z][A-Za-z ]+):/g)].map(m => m[1]);
+      const off = [!id && 'no version in the code', id && !doc.includes('## Version 1: `' + id + '`') && `the version ${id}`, labels.length !== 6 && `${labels.length} lines in the code, not 6`, ...labels.filter(l => !doc.includes(`| ${l} |`))].filter(Boolean);
+      if (off.length) fail('els: docs/property-els-summary.md describes the brief the code builds', off);
+      else ok(`els: docs/property-els-summary.md names the brief's version (${id}) and its ${labels.length} lines (${labels.join(', ')})`);
+    }
     if (p1.length) fail('els EB1: the sample deal gives "Not set" for the allowance and no amount', p1);
     else ok('els EB1: the sample deal\'s brief reads "Renovation allowance: Not set: the calculator\'s sample figure is not a budget", shows no amount, and lists property type, location, intended use and renovation allowance as Assumed (the sample\'s)');
     const p2 = [];
