@@ -4123,7 +4123,10 @@ VIEWS.propertyLab = () => {
      itself before it showed anything): where the figures come from — the
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: LAB_LEDE, action: labEnterLink() }));
+    lede: LAB_LEDE }));
+  /* Under the head, the page's own width: beside the heading the four would
+     not fit one row (the property flow's bar stands at the head's end). */
+  wrap.append(el('div', { class: 'lab-start' }, labEnterLink()));
   wrap.append(labExplain());
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
