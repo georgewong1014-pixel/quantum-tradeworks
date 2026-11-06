@@ -6467,7 +6467,7 @@ try {
       if (r.touched.price?.go || r.touched.price?.kind === 'illustrative_default' || r.touchedRests.block || r.touchedRests.go || r.save !== 'Save this property and B as a scenario') p.push(`with nothing left to replace, the price tile is ${JSON.stringify(r.touched.price)}, the rests block ${JSON.stringify(r.touchedRests)} and the identity line's Save "${r.save}"`);
       if (r.saved.price?.go || !/^“N3 tiles” · saved /.test(r.savedName)) p.push(`once saved: the price tile ${JSON.stringify(r.saved.price)}, the identity "${r.savedName}"`);
       /* Day 18 (QT-D18-01), as answered on 31 Oct 2026: "Enter your property figures" is a link to the calculator's price box, so the figure typed is the deal's own (it was a button into the Lab's box, a what-if on B, until then). */
-      if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`"Enter your property figures": ${JSON.stringify(r.go)}`);
+      if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`"Model a property": ${JSON.stringify(r.go)}`);
       if (r.goRests.view !== 'property' || r.goRests.path !== '/property/calculator' || r.goRests.focus !== 'd-price') p.push(`the rests block's link: ${JSON.stringify(r.goRests)}`);
       if (p.length) fail('n3 T1: /property\'s tiles are the model\'s figures of the deal on the calculator, and the next step leads on', p);
       else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; "Enter your property figures" and the rests block's "Review the defaults" opens the calculator with it in #d-price, and with every figure the reader's the price tile reads Yours and the block is gone; "Why" holds all ${W.gates} gates`);
@@ -6535,6 +6535,11 @@ try {
           out.figs = figs.length;
           /* Enter your property figures is a link to the calculator's price box, described by "Opens the calculator". */
           { const a = document.getElementById('lab-enter'); out.enter = { tag: a?.tagName, href: a?.getAttribute('href'), why: t(document.getElementById(a?.getAttribute('aria-describedby') || '')) }; }
+          /* The first screen's four actions and the two closed explanations (the owner's list of 7 Nov 2026). */
+          out.acts = [...document.querySelectorAll('#views .lab-acts > *')].map(n => ({ id: n.id, tag: n.tagName, words: t(n), href: n.getAttribute('href'), primary: n.classList.contains('btn-primary'), tall: Math.round(n.getBoundingClientRect().height) }));
+          out.explain = ['lab-how', 'lab-why'].map(id => { const d = document.getElementById(id); return { open: d?.open, sum: t(d?.querySelector(':scope > summary')), terms: [...(d?.querySelectorAll('dt') || [])].map(t), said: [...(d?.querySelectorAll('dd') || [])].map(t) }; });
+          out.explainWant = ['simple', 'context'].map(part => ['propSafeCash', 'propCashflow', 'netYield'].map(k => METRIC_HELP[k][part]));
+          out.explainBefore = !!(document.querySelector('#views .lab-explain')?.compareDocumentPosition(document.querySelector('#views .lab')) & Node.DOCUMENT_POSITION_FOLLOWING);
           /* The fold: opened by its summary, kept, with the keyboard on it, across a redraw. */
           more.querySelector('summary').click(); await w(80);
           out.opened = more.open && [...more.querySelectorAll('.lab-row')].every(n => n.checkVisibility());
@@ -6594,8 +6599,17 @@ try {
       /* Day 18 (QT-D18-01): the introduction, the one primary, the supporting line beside the chip. */
       const H = r.head;
       if (H.lede !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.' || H.h1 !== 'Scenario Lab' || !/^Beta$/i.test(H.badge)) p.push(`the head: ${JSON.stringify({ h1: H.h1, badge: H.badge, lede: H.lede })}`);
-      if (H.cta !== 'Enter your property figures' || H.primaries.join('|') !== 'Enter your property figures' || /btn-primary/.test(H.save)) p.push(`the primary buttons in sight are ${JSON.stringify(H.primaries)} and Save is "${H.save}", not one "Enter your property figures" and a secondary Save`);
-      if (r.enter.tag !== 'A' || r.enter.href !== '/property/calculator#d-price' || r.enter.why !== 'Opens the calculator') p.push(`"Enter your property figures" is ${JSON.stringify(r.enter)}, not a link to /property/calculator#d-price described by "Opens the calculator"`);
+      if (H.cta !== 'Model a property' || H.primaries.join('|') !== 'Model a property' || /btn-primary/.test(H.save)) p.push(`the primary buttons in sight are ${JSON.stringify(H.primaries)} and Save is "${H.save}", not one "Model a property" and a secondary Save`);
+      if (r.enter.tag !== 'A' || r.enter.href !== '/property/calculator#d-price' || r.enter.why !== 'Opens the calculator') p.push(`"Model a property" is ${JSON.stringify(r.enter)}, not a link to /property/calculator#d-price described by "Opens the calculator"`);
+      {
+        const want = [['lab-enter', 'A', 'Model a property', '/property/calculator#d-price', true], ['lab-act-compare', 'BUTTON', 'Compare scenarios', null, false],
+          ['lab-act-saved', 'A', 'Reopen saved work', '/property/models', false], ['lab-act-backup', 'A', 'Export or restore', '/my/data', false]];
+        const got = r.acts.map(a => [a.id, a.tag, a.words, a.href, a.primary]);
+        if (JSON.stringify(got) !== JSON.stringify(want) || r.acts.some(a => a.tall < 43.5)) p.push(`the first screen's four actions are ${JSON.stringify(r.acts)}`);
+        const [how, why] = r.explain;
+        if (how.open || why.open || how.sum !== 'How calculated' || why.sum !== 'Why this matters' || !r.explainBefore) p.push(`the two explanations are not closed, named "How calculated" and "Why this matters", above the Lab: ${JSON.stringify({ how: [how.open, how.sum], why: [why.open, why.sum], before: r.explainBefore })}`);
+        if (how.terms.join('|') !== 'Cash required|Monthly position|Net yield' || JSON.stringify(how.said) !== JSON.stringify(r.explainWant[0]) || JSON.stringify(why.said) !== JSON.stringify(r.explainWant[1])) p.push('the explanations are not the three headline figures in METRIC_HELP\'s own words');
+      }
       /* The journey: press the link, type a price in the calculator's box, return to the Lab: the Purchase price tile reads it, "Yours". */
       if (r.arrive.path !== '/property/calculator' || r.arrive.focus !== 'd-price') p.push(`pressing the link: ${JSON.stringify(r.arrive)}`);
       if (r.typed.value !== 'RM612,000' || !/^Yours/.test(r.typed.tag) || r.typed.own !== 'yours' || r.typed.rests !== '9 inputs') p.push(`after typing a price in the calculator and returning, the Purchase price tile reads ${JSON.stringify(r.typed)}, not RM612,000 with its Yours badge and nine inputs left in "What these figures rest on"`);

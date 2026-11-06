@@ -3617,11 +3617,11 @@ const HOME_PAGE = read(HOME);
     const exp = buttons.findIndex(n => /^Export PDF \/ Share with client$/.test(sight(n).trim()));
     if (save < 0) p.push('/property/lab serves no secondary (btn-ghost) “Save …” button');
     const primaries = inside.filter(n => (n.tag === 'button' || n.tag === 'a' || attr(n, 'data-inert') === 'button') && B.hasClass(n, 'btn-primary')).map(n => sight(n).trim());
-    if (primaries.join('|') !== 'Enter your property figures') p.push(`/property/lab serves the primary buttons ${JSON.stringify(primaries)}, not the one “Enter your property figures”`);
+    if (primaries.join('|') !== 'Model a property') p.push(`/property/lab serves the primary buttons ${JSON.stringify(primaries)}, not the one “Model a property”`);
     if (exp < 0) p.push('/property/lab serves no “Export PDF / Share with client” button');
     if (save >= 0 && exp >= 0) {
       if (!(save < exp)) p.push('“Export PDF / Share with client” does not come after Save');
-      if (B.hasClass(buttons[exp], 'btn-primary')) p.push('“Export PDF / Share with client” is btn-primary: “Enter your property figures” is the one primary');
+      if (B.hasClass(buttons[exp], 'btn-primary')) p.push('“Export PDF / Share with client” is btn-primary: “Model a property” is the one primary');
     }
     if (!/Save it first — a proposal is made from what is saved/.test(sight(views || tree[0]))) p.push('the reason “Save it first — a proposal is made from what is saved” is not in sight beside Export');
   }
@@ -3680,7 +3680,7 @@ const HOME_PAGE = read(HOME);
     if (price) {
       const tag = all(price).find(n => attr(n, 'data-own') !== null);
       if (!tag || attr(tag, 'data-own') !== 'default' || rawText(tag) !== 'Illustrative default') p.push(`/property/lab: the price tile's tag reads "${tag ? rawText(tag) : 'nothing'}", not the kind badge "Illustrative default"`);
-      if (all(price).some(n => n.tag === 'a' || n.tag === 'button')) p.push('/property/lab: the price tile has an action of its own — "Enter your property figures" in the head is the one call (Day 18)');
+      if (all(price).some(n => n.tag === 'a' || n.tag === 'button')) p.push('/property/lab: the price tile has an action of its own — "Model a property" in the head is the one call (Day 18)');
       if (!/^RM\s?572,000$/.test(sight(all(price).find(n => B.hasClass(n, 'ls-card-value')) || price).trim())) p.push('/property/lab: the price tile does not show the sample\'s RM572,000');
     }
     /* Day 18: the introduction, the one primary, the supporting line beside the chip. */
@@ -3688,8 +3688,21 @@ const HOME_PAGE = read(HOME);
     const lede2 = headTree ? all(headTree).find(n => B.hasClass(n, 'page-lede')) : null;
     if (!lede2 || rawText(lede2) !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.') p.push(`/property/lab: the introduction reads "${lede2 ? rawText(lede2) : 'nothing'}"`);
     const prim = inside.filter(n => (n.tag === 'button' || n.tag === 'a' || attr(n, 'data-inert') === 'button') && B.hasClass(n, 'btn-primary'));
-    if (prim.length === 1 && (prim[0].tag !== 'a' || attr(prim[0], 'href') !== '/property/calculator#d-price' || attr(prim[0], 'aria-describedby') !== 'lab-enter-why' || !inside.some(n => attr(n, 'id') === 'lab-enter-why' && rawText(n) === 'Opens the calculator'))) p.push('/property/lab: "Enter your property figures" is not a real link to /property/calculator#d-price described by "Opens the calculator"');
-    if (prim.length !== 1 || rawText(prim[0]) !== 'Enter your property figures' || attr(prim[0], 'id') !== 'lab-enter') p.push(`/property/lab: its primary buttons are ${JSON.stringify(prim.map(n => rawText(n)))}, not the one "Enter your property figures"`);
+    if (prim.length === 1 && (prim[0].tag !== 'a' || attr(prim[0], 'href') !== '/property/calculator#d-price' || attr(prim[0], 'aria-describedby') !== 'lab-enter-why' || !inside.some(n => attr(n, 'id') === 'lab-enter-why' && rawText(n) === 'Opens the calculator'))) p.push('/property/lab: "Model a property" is not a real link to /property/calculator#d-price described by "Opens the calculator"');
+    if (prim.length !== 1 || rawText(prim[0]) !== 'Model a property' || attr(prim[0], 'id') !== 'lab-enter') p.push(`/property/lab: its primary buttons are ${JSON.stringify(prim.map(n => rawText(n)))}, not the one "Model a property"`);
+    /* The first screen's four actions and the two closed explanations (the owner's list of 7 Nov 2026): served, so they are there before the script. */
+    {
+      const byId = (id) => inside.find(n => attr(n, 'id') === id);
+      const acts = [['lab-act-compare', 'button', 'Compare scenarios', null], ['lab-act-saved', 'a', 'Reopen saved work', '/property/models'], ['lab-act-backup', 'a', 'Export or restore', '/my/data']];
+      for (const [id, tag, words, to] of acts) {
+        const n = byId(id);
+        if (!n || n.tag !== tag || rawText(n) !== words || (to && attr(n, 'href') !== to) || B.hasClass(n, 'btn-primary')) p.push(`/property/lab: "${words}" is ${n ? `${n.tag} "${rawText(n)}" to ${attr(n, 'href')}` : 'not served'}, not a secondary ${tag}${to ? ` to ${to}` : ''}`);
+      }
+      for (const [id, words] of [['lab-how', 'How calculated'], ['lab-why', 'Why this matters']]) {
+        const d = byId(id), sum = d ? all(d).find(n => n.tag === 'summary') : null;
+        if (!d || d.tag !== 'details' || attr(d, 'open') !== null || !sum || rawText(sum) !== words) p.push(`/property/lab: "${words}" is not served as a closed section of that name`);
+      }
+    }
     const claimLine = 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.';
     const claimBox = inside.find(n => B.hasClass(n, 'lab-id-claim'));
     if (!claimBox || !rawText(claimBox).startsWith(`Not a valuation ${claimLine}`) ) p.push(`/property/lab: the line beside the "Not a valuation" chip reads "${claimBox ? rawText(claimBox).slice(0, 190) : 'nothing'}"`);
@@ -3810,7 +3823,7 @@ const HOME_PAGE = read(HOME);
     if (said.plans > 1) p.push(`/property serves ${said.plans} "See plans", not more than one`);
     const first = inside.find(n => isButton(n) && has(n, 'btn-primary'));
     /* Day 18 (QT-D18-01): the Lab's one primary is "Enter your property figures"; "Save this property" is a secondary. */
-    if (!first || sight(first).trim() !== 'Enter your property figures') p.push(`/property: its first btn-primary is "${first ? sight(first).trim() : 'none'}", not "Enter your property figures"`);
+    if (!first || sight(first).trim() !== 'Model a property') p.push(`/property: its first btn-primary is "${first ? sight(first).trim() : 'none'}", not "Model a property"`);
   }
   for (const path of ['/property', '/my/reports']) {
     const r = got.get(path);

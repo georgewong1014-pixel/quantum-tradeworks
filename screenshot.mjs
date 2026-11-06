@@ -17,7 +17,7 @@ import { join } from 'node:path';
 
 const [, , rawUrl, rawLabel] = process.argv;
 if (!rawUrl || rawUrl.startsWith('--')) {
-  console.error('usage: node screenshot.mjs <url> [label] [--width N] [--height N] [--dark] [--viewport-only] [--wait ms]');
+  console.error('usage: node screenshot.mjs <url> [label] [--width N] [--height N] [--dark] [--viewport-only] [--wait ms] [--eval js]');
   process.exit(1);
 }
 if (rawUrl.startsWith('file://')) {
@@ -37,6 +37,8 @@ const label = rawLabel && !rawLabel.startsWith('--') ? rawLabel : 'page';
 const WIDTH = Number(flag('width', 1440));
 const HEIGHT = Number(flag('height', 900));
 const WAIT = Number(flag('wait', 700));
+// --eval <js>: run in the page after it settles and before the capture (open a drawer, scroll to a section).
+const EVAL = flag('eval', '');
 const DARK = has('dark');
 const VIEWPORT_ONLY = has('viewport-only');
 const OUT_DIR = join(process.cwd(), 'temporary screenshots');
@@ -175,6 +177,10 @@ try {
   if (nav?.errorText) throw new Error(`Could not load ${rawUrl}: ${nav.errorText}. Is the server running on that port?`);
   await Promise.race([loaded, new Promise((r) => setTimeout(r, 15000))]);
   await new Promise((r) => setTimeout(r, WAIT));
+  if (EVAL) {
+    await cdp.send('Runtime.evaluate', { expression: EVAL, awaitPromise: true }, sessionId);
+    await new Promise((r) => setTimeout(r, 400));
+  }
 
   // Let lazy/animated content settle, then measure the real page height.
   const { result } = await cdp.send('Runtime.evaluate', {
