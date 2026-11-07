@@ -848,7 +848,7 @@ const expected = (e) => !!e.url && EXPECTED_ABSENT.some(re => re.test(e.url));
 class StepError extends Error {}
 const STOP = Symbol('stop');
 
-async function openTab(browser, { width = 1440, height = 900, storage = null } = {}) {
+async function openTab(browser, { width = 1440, height = 900, storage = null, mobile = false } = {}) {
   const { browserContextId } = await browser.send('Target.createBrowserContext', { disposeOnDetach: true });
   const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank', browserContextId });
   const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true });
@@ -909,7 +909,7 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
   };
   browser.listeners.add(listener);
   await S('Runtime.enable'); await S('Page.enable'); await S('Log.enable'); await S('Network.enable');
-  await S('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+  await S('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
   /* A Content-Security-Policy that blocks the app's own script renders
      nothing and says so once; this makes it an error a journey sees. */
   await S('Runtime.addBinding', { name: '__cspViolation' });
@@ -1471,6 +1471,79 @@ const JOURNEYS = [
         await both('Reopened');
         const head = await tab.text();
         if (!head.includes(`Saved comparison — ${name}`)) throw new StepError('the reopened page does not say which saved comparison it is');
+      });
+    },
+  },
+  /* THE SAME WORK ON A PHONE (QT-D25-01, the Day 25 brief, 7 Nov 2026).
+     A reader at 390×844 — the calculator one section at a time, its index
+     and the action bar at the foot — types a price, a rent and a deposit,
+     saves from the bar, finds the property in My properties, reopens it and
+     finds its figures as typed, its scenario column A from them and its
+     version carried. Emulation, not a phone: the owner's own device check is
+     the handoff's PHONE-DEVICE-CHECK.md, and this journey never claims it. */
+  {
+    id: 'property-phone', name: 'Property on a phone: enter, save, reopen', phone: true,
+    outcomes: ['On a phone, enter a price, a rent and a deposit, one section at a time', 'Save it from the action bar', 'It is listed with the saved properties', 'Reopen it: the figures as typed, not a sample'],
+    async run(j, tab) {
+      const fig = (labels) => tab.eval(`(${FIGURE})(${JSON.stringify(labels)})`);
+      const input = (re) => `(() => { const l = [...document.querySelectorAll('main label[for]')].find(x => ${re}.test(x.textContent.trim())); return l ? document.getElementById(l.htmlFor) : null; })()`;
+      const section = async (id, label) => {
+        await tab.click(`document.querySelector('.pc-index-link[data-sec="${id}"]')`, `The section index's "${label}"`);
+        await tab.expect(`document.querySelector('.pc-index-link[data-sec="${id}"]')?.classList.contains('is-on') && !!(${input('/./')})`, `the index's "${label}" did not open that section`, 4000);
+      };
+      const set = async (re, v, what) => { await tab.fill(input(re), v, what, { commit: true }); await sleep(250); };
+      await step(j, tab, 'Open the property calculator on a phone', BUDGET.load, async () => {
+        await tab.goto('/property/calculator?view=full');
+        const w = await tab.eval('JSON.stringify({ w: innerWidth, index: !!document.querySelector(".pc-index-link"), bar: !!document.getElementById("ls-act-save"), wide: document.documentElement.scrollWidth > innerWidth })');
+        const r = JSON.parse(w);
+        if (r.w !== 390 || !r.index || !r.bar) throw new StepError(`not the phone layout: ${w}`);
+        if (r.wide) throw new StepError('the page scrolls sideways at 390px');
+      });
+      let first;
+      await step(j, tab, 'On a phone, enter a price, a rent and a deposit, one section at a time', BUDGET.action * 4, async () => {
+        await section('acquisition', 'Acquisition');
+        await set('/^Purchase price/', '600000', 'The purchase price');
+        await section('rental', 'Rental & expenses');
+        await set('/^Expected monthly rent/', '3000', 'The monthly rent');
+        await section('financing', 'Financing');
+        await set('/^Deposit \\(%\\)/', '30', 'The deposit, which sets the loan');
+        first = { price: await tab.eval('State.deal.price'), rent: await tab.eval('State.deal.rent'), deposit: await tab.eval('State.deal.deposit ?? State.deal.depositPct ?? null') };
+        if (first.price !== 600000 || first.rent !== 3000) throw new StepError(`the deal holds ${JSON.stringify(first)}, not the price 600000 and rent 3000 typed`);
+        /* Decide, by the index: the yield from what was typed, on the screen. */
+        await tab.click(`document.querySelector('.pc-index-link[data-sec="report"]')`, 'The section index’s "Decide"');
+        await tab.expect(`!!(${FIGURE})(['Gross yield', 'Net yield'])`, 'the Decide section shows no yield', 4000);
+      });
+      const name = `Phone journey ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+      await step(j, tab, 'Save it from the action bar', BUDGET.action * 2, async () => {
+        const bar = await tab.eval(`(() => { const b = document.getElementById('ls-act-save'); if (!b) return null; const r = b.getBoundingClientRect(); return { h: r.height, w: r.width, bottom: r.bottom, vh: innerHeight, words: b.textContent.trim() }; })()`);
+        if (!bar || bar.h < 43.5 || bar.w < 43.5 || bar.bottom > bar.vh + 1) throw new StepError(`the bar's Save is ${JSON.stringify(bar)}, not a 44px target on the screen`);
+        await saveByNameForm(tab, `document.getElementById('ls-act-save')`, 'Save this, in the action bar', name);
+        await tab.expect(`/Saved/.test(document.getElementById('toast')?.textContent || '') || /Saved/.test(document.getElementById('pm-status')?.textContent || '')`, 'pressing Save this said nothing was saved', 4000);
+        const stored = await tab.eval(`pmAll().some(r => r.name === ${JSON.stringify(name)})`);
+        if (!stored) throw new StepError('the property is not among those saved in this browser');
+      });
+      await step(j, tab, 'It is listed with the saved properties', BUDGET.load, async () => {
+        await tab.goto('/property/models');
+        await tab.expect(`(document.querySelector('main')?.innerText || '').includes(${JSON.stringify(name)})`, `the saved property “${name}” is not listed on My properties`);
+        if (await tab.eval('document.documentElement.scrollWidth > innerWidth')) throw new StepError('My properties scrolls sideways at 390px');
+      });
+      await step(j, tab, 'Reopen it: the figures as typed, not a sample', BUDGET.load * 2 + BUDGET.action, async () => {
+        const id = await tab.eval(`pmAll().find(r => r.name === ${JSON.stringify(name)})?.id || null`);
+        if (!id) throw new StepError('the saved property has no id');
+        const open = `[...document.querySelectorAll('main a, main button')].find(n => n.getClientRects().length && /^Open\\b/.test(n.textContent.trim()) && (n.closest('article, li, tr, .ws-row, .pm-card, .card')?.textContent || '').includes(${JSON.stringify(name)}))`;
+        await tab.click(open, 'The saved property’s Open');
+        await tab.expect(`location.pathname === '/property/calculator' && State.deal.price === 600000 && State.deal.rent === 3000`,
+          async () => `Open went to ${await tab.eval('location.pathname')} holding ${await tab.eval('JSON.stringify({ price: State.deal.price, rent: State.deal.rent })')}, not the calculator with price 600000 and rent 3000`);
+        await tab.goto(`/property?model=${id}`);
+        await tab.expect(`State.view === 'propertyLab'`, async () => `the saved property's address opened ${await tab.eval('State.view')}, not the Scenario Lab`);
+        await tab.expect(`(document.getElementById('lab-status')?.textContent || '').includes(${JSON.stringify(name)})`, 'the Lab does not name the saved property');
+        const got = JSON.parse(await tab.eval(`(() => { const rec = pmFind(${JSON.stringify(id)}), lab = LAB['m:' + rec?.id];
+          const a = lab?.cols.find(x => x.key === 'A'); const i = pmSavedInputs(rec);
+          return JSON.stringify({ base: { price: i.price, rent: i.rent }, a: a ? { price: a.work.price, rent: a.work.rent } : null, modelVersion: rec?.modelVersion === MODEL_VERSION, sample: (document.getElementById('lab-status')?.textContent || '').includes('Sample deal'), wide: document.documentElement.scrollWidth > innerWidth }); })()`));
+        if (got.base.price !== 600000 || got.base.rent !== 3000 || got.a?.price !== 600000 || got.a?.rent !== 3000) throw new StepError(`the property came back as ${JSON.stringify(got.base)}, column A ${JSON.stringify(got.a)}, not price 600000 and rent 3000`);
+        if (got.sample) throw new StepError('the Lab calls the saved property a sample');
+        if (!got.modelVersion) throw new StepError('the saved property does not carry the model version it was saved under');
+        if (got.wide) throw new StepError('the Lab scrolls sideways at 390px on the saved property');
       });
     },
   },
@@ -4214,7 +4287,7 @@ async function main() {
       const t0 = Date.now();
       let tab = null;
       try {
-        tab = await openTab(browser, { storage: def.storage ? def.storage() : null });
+        tab = await openTab(browser, { storage: def.storage ? def.storage() : null, ...(def.phone ? { width: 390, height: 844, mobile: true } : {}) });
         await def.run(j, tab);
       } catch (e) {
         if (e !== STOP) j.fail(j.steps.length ? j.steps[j.steps.length - 1].name : 'Start', tab ? await tab.where() : null, `the check itself broke: ${e.message}`);
