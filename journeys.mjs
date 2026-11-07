@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, research-case, corrections, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property-phone, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, research-case, corrections, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
