@@ -8488,8 +8488,8 @@ try {
       try {
         /* A fresh profile's lists, as 05-plans.js seeds them and the migration dates them: no member dated. */
         const seed = (id, name, ids) => ({ id, name, ids: [...ids], added: Object.fromEntries(ids.map(x => [x, null])), createdAt: null, updatedAt: null, schema: WATCHLIST_SCHEMA });
-        State.watchlists = [seed('wl-1', 'Core watchlist', ['AAPL', 'MAYBANK', 'PBBANK', 'NVDA', 'AXREIT', 'TENAGA'].filter(x => BY_ID.has(x))),
-                            seed('wl-2', 'Bursa income', ['MAYBANK', 'PBBANK', 'PETGAS', 'KLCC', 'IGBREIT'].filter(x => BY_ID.has(x)))];
+        State.watchlists = [seed('wl-1', 'Core watchlist', ['AAPL', 'PBBANK', 'NVDA', 'AXREIT', 'TENAGA'].filter(x => BY_ID.has(x))),
+                            seed('wl-2', 'Bursa income', ['PBBANK', 'PETGAS', 'KLCC', 'IGBREIT'].filter(x => BY_ID.has(x)))];
         State.wlIdx = 0; saveWatchlists();
         const msft = [...BY_ID.keys()].find(k => /^MSFT/.test(k)) || 'MSFT';
         toggleWatch(msft, 0); await w(40);

@@ -2496,7 +2496,12 @@ function servingProblems({ rewrites, plan, vercel }) {
   const noindex = noindexByHeader(vercel);
   const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1].trim());
   if (!locs.length) out.push('sitemap.xml lists no addresses');
-  const byPath = new Map(plan.pages.map(p => [p.path, p]));
+  /* A filed company's own address is a page of its own too (companyPlan),
+     with its own head and render, and the sitemap lists each (the owner's
+     decision of 8 Nov 2026, QT-D26-03). An illustrative company's page says
+     noindex and is not for the sitemap: listed, it is named as such. */
+  const byPath = new Map([...plan.pages, ...(plan.companies || []).filter(co => co.company.real)].map(p => [p.path, p]));
+  const illustrative = new Set((plan.companies || []).filter(co => !co.company.real).map(co => co.path));
   const seen = new Set();
   for (const loc of locs) {
     if (seen.has(loc)) out.push(`sitemap.xml lists ${loc} twice`);
@@ -2504,7 +2509,8 @@ function servingProblems({ rewrites, plan, vercel }) {
     if (!loc.startsWith(plan.origin + '/')) { out.push(`sitemap.xml lists ${loc}, which is not on ${plan.origin}`); continue; }
     const path = loc.slice(plan.origin.length);
     const page = byPath.get(path);
-    if (!page) { out.push(`sitemap.xml lists ${path}, which no route without a parameter serves a page for`); continue; }
+    if (illustrative.has(path)) { out.push(`sitemap.xml lists ${path}, an illustrative company's page, which says noindex`); continue; }
+    if (!page) { out.push(`sitemap.xml lists ${path}, which no route without a parameter and no filed company's page serves`); continue; }
     if (page.head.canonical !== loc) out.push(`sitemap.xml lists ${path}, whose canonical is ${page.head.canonical}`);
     if (blocked(path)) out.push(`sitemap.xml lists ${path}, which robots.txt disallows`);
     if (noindex(path)) out.push(`sitemap.xml lists ${path}, which vercel.json serves with X-Robots-Tag: noindex`);
@@ -2524,6 +2530,9 @@ function servingProblems({ rewrites, plan, vercel }) {
 export function sitemapWithLastmod(text, plan, manifest) {
   const fileOf = new Map();
   for (const g of routePages(plan)) g.routes.forEach(p => fileOf.set(p.path, g.file));
+  /* And each filed company's own page, whose render is in the manifest under
+     its file like a route's (companyScope; QT-D26-03, 8 Nov 2026). */
+  for (const co of companyScope(plan)) fileOf.set(co.path, co.file);
   const problems = [];
   const body = text.replace(/<url>\s*<loc>([^<]+)<\/loc>(?:\s*<lastmod>[^<]*<\/lastmod>)?/g, (all, loc) => {
     const at = loc.trim();

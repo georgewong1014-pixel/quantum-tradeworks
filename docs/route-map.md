@@ -222,11 +222,17 @@ and vercel.json serves with `X-Robots-Tag: noindex` (plan item 1.1, 6 Oct
 2026), so a fetcher can read them and a search engine leaves them out; `/welcome` and `/start`, which are
 application shells rather than destinations; `/property/lab`, the Scenario
 Lab, whose canonical is `/property` since N3 (7 Oct 2026);
-parameterised pages. The
-company pages above are not listed either: whether search engines should be
-invited to index them — 19 of them show synthetic figures under a real
-listed company's name — is the owner's decision, not the build's, and
-`build.mjs --check` still holds the sitemap to the routes' own pages.
+parameterised pages.
+
+The filed companies' own pages (Company pages above) are listed, one `<url>`
+each in a generated block at the end of the file, since 8 Nov 2026 (the
+owner's decision, QT-D26-03): each is its own canonical, served its own page
+and render, allowed by `robots.txt` and under no `X-Robots-Tag`. The 19
+illustrative companies' pages — synthetic figures under a real listed
+company's name — say `noindex` and are not listed; `build.mjs --check`
+refuses one in the sitemap, as it refuses any address that is not a route's
+own page or a filed company's. `<lastmod>` on a company's entry is the day
+its render last changed, as for a route's.
 
 ## Navigation map
 
