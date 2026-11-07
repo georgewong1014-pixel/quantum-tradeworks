@@ -3119,7 +3119,7 @@ for (const w of [360, 390]) {
       /* The line under the sample's name went (31 Oct 2026, the Day 18 follow-up: "Sample figures are illustrative…" beside the chip says it); the section is named "Sample deal". The introduction shows at every width, whole, above the call. */
       if (r.assume) fails.push(`${at}: the old line under the sample's name, "Illustrative scenario: …", is still drawn`);
       if (!r.described) fails.push(`${at}: the identity section is not named "Sample deal" (aria-labelledby)`);
-      if (r.introText !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.' || !whole(r.intro) || (r.cta && r.intro && r.intro.b > r.cta.t + 1)) fails.push(`${at}: the introduction reads "${r.introText}" at ${r.intro ? `${r.intro.t}–${r.intro.b}px` : 'nowhere in sight'}, not whole in the first screen above "Enter your property figures"`);
+      if (r.introText !== 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.' || !whole(r.intro) || (r.cta && r.intro && r.intro.b > r.cta.t + 1)) fails.push(`${at}: the introduction reads "${r.introText}" at ${r.intro ? `${r.intro.t}–${r.intro.b}px` : 'nowhere in sight'}, not whole in the first screen above "Model a property"`);
             const labels = r.tiles.map(t => t.label);
       if (JSON.stringify(labels) !== JSON.stringify(['Purchase price', 'Cash required', 'Monthly position', 'Net yield'])) fails.push(`${at}: the tiles are ${JSON.stringify(labels)}`);
       r.tiles.forEach(t => { if (!whole(t.at)) fails.push(`${at}: the "${t.label}" tile ${t.at ? `(${t.at.t}–${t.at.b}px)` : ''} is not whole in the first ${r.vh}px`); });
@@ -3135,8 +3135,8 @@ for (const w of [360, 390]) {
       /* Day 18 (QT-D18-01, 31 Oct 2026): the page's one primary, "Enter your property figures", stands under the introduction, whole on the first screen and a 44px
          target, and is the only primary in sight (Save is a secondary); the first slider is no longer on the first screen — pressing the call brings the purchase
          price box into it, with the keyboard in it. */
-      if (!whole(r.cta) || r.cta.h < 43.5) fails.push(`${at}: "Enter your property figures" ${r.cta ? `(${r.cta.t}–${r.cta.b}px, ${r.cta.h}px high)` : '(none)'} is not a whole 44px target in the first ${r.vh}px`);
-      if (!r.ctaPrimary || r.primaries.join('|') !== 'Enter your property figures') fails.push(`${at}: the primary buttons in sight are ${JSON.stringify(r.primaries)}, not the one "Enter your property figures"`);
+      if (!whole(r.cta) || r.cta.h < 43.5) fails.push(`${at}: "Model a property" ${r.cta ? `(${r.cta.t}–${r.cta.b}px, ${r.cta.h}px high)` : '(none)'} is not a whole 44px target in the first ${r.vh}px`);
+      if (!r.ctaPrimary || r.primaries.join('|') !== 'Model a property') fails.push(`${at}: the primary buttons in sight are ${JSON.stringify(r.primaries)}, not the one "Model a property"`);
       /* As answered on 31 Oct 2026: the call is a real link to the calculator's price box, and pressing it puts the keyboard there. */
       {
         const p = await ev(`(async () => {
@@ -3147,8 +3147,8 @@ for (const w of [360, 390]) {
           const n = document.getElementById('d-price'), b = n ? n.getBoundingClientRect() : null;
           const dock = document.querySelector('body > .dock'), foot = dock && dock.getClientRects().length && getComputedStyle(dock).position === 'fixed' ? dock.getBoundingClientRect().top : innerHeight;
           return { ...out, focus: document.activeElement && document.activeElement.id, t: b && Math.round(b.top), b: b && Math.round(b.bottom), foot: Math.round(foot) }; })()`);
-        if (p.tag !== 'A' || p.href !== '/property/calculator#d-price') fails.push(`${at}: "Enter your property figures" is ${p.tag} to ${p.href}, not a link to /property/calculator#d-price`);
-        if (p.focus !== 'd-price' || p.t == null || p.t < 0 || p.b > p.foot) fails.push(`${at}: after "Enter your property figures" the keyboard is on #${p.focus} and the calculator's price box at ${p.t}–${p.b}px, not whole above ${p.foot}px`);
+        if (p.tag !== 'A' || p.href !== '/property/calculator#d-price') fails.push(`${at}: "Model a property" is ${p.tag} to ${p.href}, not a link to /property/calculator#d-price`);
+        if (p.focus !== 'd-price' || p.t == null || p.t < 0 || p.b > p.foot) fails.push(`${at}: after "Model a property" the keyboard is on #${p.focus} and the calculator's price box at ${p.t}–${p.b}px, not whole above ${p.foot}px`);
       }
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
       if (w < 600) {
@@ -3161,7 +3161,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL n3-first-view — /property's first screen (N3, D18): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, the two questions (at 1440 whole; on a phone their 44px summary line, folded), its four tiles and its one primary, "Enter your property figures" (which puts the price box on the first screen), whole on it — ${said.join('; ')}; on a phone Save and the price’s Replace link are 44px targets and nothing scrolls sideways`);
+  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, the two questions (at 1440 whole; on a phone their 44px summary line, folded), its four tiles and its one primary, "Model a property" (which puts the price box on the first screen), whole on it — ${said.join('; ')}; on a phone Save and the price’s Replace link are 44px targets and nothing scrolls sideways`);
 }
 /* ---- end n3-first-view ---- */
 /* ---- layout-system ---- */
@@ -3272,7 +3272,7 @@ for (const w of [360, 390]) {
             if (a.cut) fails.push(`${at}: "${a.word}" in the bar is cut short`);
           });
           /* 1 Nov 2026 (the owner's Day 18 lead, QT-D18-01): the first slider is no longer on the Lab's first screen — "Enter your property figures", a link to the calculator's price box, takes the reader to the first input and stands whole above the bar, a 44px target. (Until then this held the slider whole above the bar; at 390×844 it now starts at 771px, its top 18px above the bar's 789px, and in Verdana at 826px, wholly below it: below the fold, not a box cut by it.) */
-          if (path === '/property') { if (r.cta == null || r.cta[0] < 0 || r.cta[1] > r.bar.top || r.cta[2] < 43.5) fails.push(`${at}: "Enter your property figures" ${r.cta ? `(${r.cta[0]}–${r.cta[1]}px, ${r.cta[2]}px high)` : 'is not in sight'}, not a whole 44px target above the action bar from ${r.bar.top}px`); }
+          if (path === '/property') { if (r.cta == null || r.cta[0] < 0 || r.cta[1] > r.bar.top || r.cta[2] < 43.5) fails.push(`${at}: "Model a property" ${r.cta ? `(${r.cta[0]}–${r.cta[1]}px, ${r.cta[2]}px high)` : 'is not in sight'}, not a whole 44px target above the action bar from ${r.bar.top}px`); }
           if (r.firstScreen == null && path === '/property') fails.push(`${at}: no summary line of the two questions on /property's first screen`);
           else if (r.firstScreen != null && r.firstScreen > r.bar.top) fails.push(`${at}: the two questions' summary line ends at ${r.firstScreen}px, under the action bar from ${r.bar.top}px`);
           if (r.footEnd == null || r.footEnd > r.barTopAtEnd + 1) fails.push(`${at}: at the page's end the footer's last line ends at ${r.footEnd}px, under the bar from ${r.barTopAtEnd}px`);
@@ -3559,7 +3559,7 @@ for (const w of [360, 390]) {
         /* The first screen first: the slider above the bar (the Lab). */
         if (view === 'propertyLab') {
           const top = await ev(read(sec));
-          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
+          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Model a property" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
         }
         await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
@@ -3659,7 +3659,7 @@ for (const w of [360, 390]) {
         if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
         if (view === 'propertyLab') {
           const top = await ev(read(sec));
-          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
+          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Model a property" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
         }
         await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
@@ -3766,7 +3766,7 @@ for (const w of [360, 390]) {
         if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
         if (view === 'propertyLab') {
           const top = await ev(read(sec));
-          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
+          if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Model a property" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
         }
         await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
@@ -3869,7 +3869,7 @@ for (const w of [360, 390]) {
       if (got !== 'propertyLab') { fails.push(`${at}: opened ${got}`); continue; }
       if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const top = await ev(read);
-      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
+      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Model a property" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
       await ev(`(() => { const s = document.getElementById('lab-xr'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
       await sleep(200);
       const r = await ev(read);
@@ -3963,7 +3963,7 @@ for (const w of [360, 390]) {
       if (got !== 'propertyLab') { fails.push(`${at}: opened ${got}`); continue; }
       if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const top = await ev(read);
-      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
+      if (w === 390 && (!top.cta || !top.bar || top.cta.t < 0 || top.cta.b > top.bar.t || top.cta.h < 43.5)) fails.push(`${at}: "Model a property" ${top.cta ? `(${top.cta.t}–${top.cta.b}px, ${top.cta.h}px high)` : '(none)'} is not a whole 44px target above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen (Day 18: the call is a link to the calculator's price box; n3-first-view presses it)`);
       await ev(`(() => { const s = document.getElementById('lab-rf'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
       await sleep(200);
       const r = await ev(read);
@@ -4293,8 +4293,9 @@ for (const w of [360, 390]) {
   };
   const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
   const TERMS = 'route:auction~reservePrice:420000~auctionDepositPct:10~auctionDepositOf:reserve~auctionBalanceDays:90~auctionComp1:600000~auctionComp2:640000~auctionRepairs:15000~arrearsMaintenance:3000~auctionHoldMonths:3';
-  /* 390's `before` rose from 138 to 154 on 31 Oct 2026 (Day 18 follow-up, QT-D18-01): the introduction (14 words) shows on a phone, between the heading and its button (4), measured 147; the old line under the sample's name, which was not counted, went. */
-  const BOUND = { 1440: { before: 184, all: 574 }, 390: { before: 154, all: 485 } };
+  /* 390's `before` rose from 138 to 154 on 31 Oct 2026 (Day 18 follow-up, QT-D18-01): the introduction (14 words) shows on a phone, between the heading and its button (4), measured 147; the old line under the sample's name, which was not counted, went.
+     To 168 on 7 Nov 2026 (the owner's first-screen list): the one button's four words are four actions' eleven, and two closed explanations' names (five words) stand under the tiles; measured 161. */
+  const BOUND = { 1440: { before: 184, all: 574 }, 390: { before: 168, all: 485 } };
   /* What the eye can see, as a reader who opens nothing does. */
   const SEEN = `const seen = (n, root = document.querySelector('main') || document.body) => {
       const p = n.nodeType === 3 ? n.parentElement : n;
@@ -4378,7 +4379,7 @@ for (const w of [360, 390]) {
           if (JSON.stringify(t.map(x => x.label)) !== JSON.stringify(['Purchase price', 'Cash required', 'Monthly position', 'Net yield'])) fails.push(`${at}: the tiles are ${JSON.stringify(t.map(x => x.label))}, not Purchase price, Cash required, Monthly position, Net yield`);
         }
         /* Day 18 (QT-D18-01, 31 Oct 2026): "Enter your property figures" stands in the head, and the first slider is its press away (n3-first-view), no longer on the first screen of a phone. */
-        if (w === 390 && (!r.cta || r.cta.t < 0 || r.cta.b > r.barTop || r.cta.h < 43.5)) fails.push(`${at}: "Enter your property figures" ${r.cta ? `(${r.cta.t}–${r.cta.b}px, ${r.cta.h}px high)` : '(none in sight)'} is not a whole 44px target above the action bar (from ${r.barTop}px)`);
+        if (w === 390 && (!r.cta || r.cta.t < 0 || r.cta.b > r.barTop || r.cta.h < 43.5)) fails.push(`${at}: "Model a property" ${r.cta ? `(${r.cta.t}–${r.cta.b}px, ${r.cta.h}px high)` : '(none in sight)'} is not a whole 44px target above the action bar (from ${r.barTop}px)`);
       }
       t.forEach(x => { if (!x.badge) fails.push(`${at}: the "${x.label}" tile shows no kind badge`); });
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
@@ -4394,7 +4395,7 @@ for (const w of [360, 390]) {
       /* The disclosures in sight, nothing opened. */
       const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.beta, 'Beta', 'the Beta badge beside the title'], [r.page, 'Not a valuation', 'the chip'],
         [r.page, 'Sample figures are illustrative, not market evidence. Results are calculations, not an official valuation or investment recommendation.', 'the supporting line beside the chip'],
-        [r.page, 'Enter your property figures', 'the one call to action'],
+        [r.page, 'Model a property', 'the one call to action'],
         [r.page, 'on estimated lines', 'the cash required\'s estimated lines'], [r.firstKnob, 'Default', 'the first knob\'s Default tag'],
         [r.page, 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.', 'the one sentence over the boxes']];
       for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
@@ -4430,7 +4431,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL lab-words — the Scenario Lab's words before its figures (the 9 Oct audit, #5): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 154/485 at 390); on a phone Cash required and Monthly position lead, side by side, the purchase price a compact row above them and the yield one under them, each with its tag or badge, "Enter your property figures" above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the supporting line beside the chip, the one sentence over the boxes and each box's Default tag, and the unverified lines, in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
+  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 154/485 at 390); on a phone Cash required and Monthly position lead, side by side, the purchase price a compact row above them and the yield one under them, each with its tag or badge, "Model a property" above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the supporting line beside the chip, the one sentence over the boxes and each box's Default tag, and the unverified lines, in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
 }
 /* ---- end lab-words ---- */
 /* ---- lab-row-kinds ---- */

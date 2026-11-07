@@ -4325,6 +4325,26 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 /* Day 18: the one primary, "Enter your property figures", under the introduction; a 44px target at every width. */
 .page-hd.lab-page-hd { row-gap: 12px; }
 .lab-enter { min-height: 44px; }
+/* The first screen's four actions (7 Nov 2026): the one primary and three
+   secondaries in a row; two by two on a phone, each a 44px target. */
+.lab-start { clear: both; margin: 0 0 var(--sm); }
+.lab-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lab-acts .lab-act { min-height: 44px; }
+.lab-acts .btn:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; }
+/* "How calculated" and "Why this matters": closed, side by side under the head. */
+.lab-explain { clear: both; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0 var(--lg); margin: 2px 0 0; }
+.lab-explain > .lab-explain-sec { margin-top: 0; }
+.lab-explain > .lab-explain-sec[open] { flex: 1 1 100%; }
+.lab-explain-body { max-width: 70ch; padding: 4px 0 var(--sm) 16px; }
+.lab-explain-list { margin: 0 0 var(--xs); }
+.lab-explain-list dt { margin-top: var(--xs); font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); }
+.lab-explain-list dd { margin: 2px 0 0; font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
+@media (max-width: 599px) {
+  .lab-acts { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .lab-acts .btn { justify-content: center; padding-left: 8px; padding-right: 8px; white-space: nowrap; }
+  .lab-start { margin-bottom: 4px; }
+  .lab-explain { gap: 0 var(--md); }
+}
 .page-hd .page-note {
   margin-top: 6px; max-width: 76ch;
   font-size: var(--text-sm); line-height: 1.55; color: var(--ink-3);

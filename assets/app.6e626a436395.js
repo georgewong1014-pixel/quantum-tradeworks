@@ -51602,12 +51602,12 @@ const labBaseline = (lab, col) => {
 /* THE PANEL. Draws the lab for a subject into a box of its own; the page
    mounts one, and the map's side sheet will mount a compact one. Every id
    carries the panel's prefix, so two can stand on one page. */
-function scenarioLabPanel(container, { subject = null, compact = false, idPrefix = 'lab', address = true } = {}) {
+function scenarioLabPanel(container, { subject = null, compact = false, idPrefix = 'lab', address = true, explain = null } = {}) {
   /* The subject given, else the page's, else the calculator's deal. */
   let key = subject ? labEnsure(subject)?.key || null : null;
   if (!key) key = labSubject && LAB[labSubject] ? labSubject : labEnsure({ kind: 'deal' })?.key || null;
   if (address && !labSubject) labSubject = key;
-  const P = { idPrefix, compact, address, key, node: null, els: null, shape: null };
+  const P = { idPrefix, compact, address, key, node: null, els: null, shape: null, explain, explainOpen: {} };
   P.node = el('div', { class: `lab${compact ? ' lab-compact' : ''}`, id: labId(P, 'root') });
   labDraw(P);
   P.refresh = () => labDraw(P);
@@ -51773,6 +51773,11 @@ function labHeader(P, lab) {
        — what is missing and what to do. The subject's, as the tiles are. */
     const driver = propertyDriverLine(labSubjectInputs(lab), { cls: 'lab-driver' });
     if (driver) hd.append(driver);
+    /* The explanations behind two names, under the figures they explain
+       (labExplain, the page's; the head is drawn again on every change,
+       so each keeps whether the reader opened it on P). */
+    const explain = P.explain ? P.explain(P) : null;
+    if (explain) hd.append(explain);
   }
   return hd;
 }
@@ -54801,12 +54806,51 @@ const LAB_LEDE = 'Model your property’s cash requirement, monthly position and
    secondary beside the identity line and in the phone's bar. While a name is
    asked for, that form's Save is the one to press and this is a secondary for
    the time (labDraw). */
-const LAB_ENTER_WORDS = 'Enter your property figures';
+/* THE FIRST SCREEN'S FOUR ACTIONS (the owner's list of 7 Nov 2026, answered
+   "add to the current page"): model a property, compare scenarios, reopen
+   saved work, export or restore. The first is Day 18's one primary — the same
+   link, to the same box, renamed from "Enter your property figures" — and the
+   three beside it are secondaries, so the page still has one primary. Compare
+  is a link to the comparison's heading on this page — followed as a jump to
+   the chosen lens with script (labGoTo, as the phone's bar does), and by the
+   browser without it, where a button that only runs script would be inert
+   (prerender.mjs: an action, not a choice); the other two are real links to
+   My properties and to Your data & settings, where Export everything and
+   Restore from a file are. */
+const LAB_ENTER_WORDS = 'Model a property';
 const LAB_ENTER_PATH = '/property/calculator#d-price';
+const LAB_ACTS = [['lab-act-saved', '/property/models', 'Reopen saved work'], ['lab-act-backup', '/my/data', 'Export or restore']];
+const LAB_COMPARE_PATH = '/property#lab-cmp-h';
 function labEnterLink() {
-  const go = (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(LAB_ENTER_PATH); };
-  return [el('a', { class: 'btn btn-primary lab-enter', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go }, LAB_ENTER_WORDS),
+  const plain = (e) => !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button);
+  const go = (path) => (e) => { if (!plain(e)) return; e.preventDefault(); navigate(path); };
+  return [el('div', { class: 'lab-acts' }, [
+    el('a', { class: 'btn btn-primary lab-enter', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go(LAB_ENTER_PATH) }, LAB_ENTER_WORDS),
+    el('a', { class: 'btn btn-ghost lab-act', id: 'lab-act-compare', href: href(LAB_COMPARE_PATH), onclick: (e) => { if (plain(e) && labGoTo('compare')) e.preventDefault(); } }, 'Compare scenarios'),
+    ...LAB_ACTS.map(([id, path, words]) => el('a', { class: 'btn btn-ghost lab-act', id, href: href(path), onclick: go(path) }, words))]),
     el('span', { class: 'sr-only', id: 'lab-enter-why' }, 'Opens the calculator')];
+}
+/* THE EXPLANATIONS, BEHIND TWO NAMES (the same list, item 1): "How calculated"
+   and "Why this matters", closed, under the four figures they explain (the
+   panel's head draws them after the driver line, so on a phone the tiles
+   stay whole on the first screen above the bar; N3, D18). Each is the three
+   headline figures in METRIC_HELP's own words (00-core.js: `simple` is how a
+   figure is worked out, `context` what it does and does not tell), so nothing
+   here is a second account of the model. The one-sentence limits beside the
+   results stay where they are. */
+const LAB_EXPLAIN_KEYS = ['propSafeCash', 'propCashflow', 'netYield'];
+function labExplain(P) {
+  const rows = (part) => el('dl', { class: 'lab-explain-list' }, LAB_EXPLAIN_KEYS.flatMap(k => [el('dt', {}, METRIC_HELP[k].label), el('dd', {}, METRIC_HELP[k][part])]));
+  const sec = (id, title, body) => {
+    const d = el('details', { class: 'pc-more lab-explain-sec', id, open: P?.explainOpen?.[id] ? '' : null }, [el('summary', { class: 'pc-more-sum' }, title), el('div', { class: 'lab-explain-body' }, body)]);
+    d.addEventListener('toggle', () => { if (P) P.explainOpen[id] = d.open; });
+    return d;
+  };
+  /* Its own 44px line (the Lab's phone rule: every link a target). */
+  const more = el('p', { class: 'pc-rests-go-p' }, el('a', { class: 'pc-rests-go', href: href('/methodology/property'), onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate('/methodology/property'); } }, ['The full method', el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]));
+  return el('div', { class: 'lab-explain' }, [
+    sec('lab-how', 'How calculated', [rows('simple'), el('p', { class: 'metaline' }, 'Every figure comes from the inputs on this page, by the model the calculator runs.'), more]),
+    sec('lab-why', 'Why this matters', [rows('context'), el('p', { class: 'metaline' }, 'The starting figures are illustrative. Put in your own before reading anything into a result.')])]);
 }
 VIEWS.propertyLab = () => {
   labArrive();
@@ -54819,9 +54863,12 @@ VIEWS.propertyLab = () => {
      itself before it showed anything): where the figures come from — the
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: LAB_LEDE, action: labEnterLink() }));
+    lede: LAB_LEDE }));
+  /* Under the head, the page's own width: beside the heading the four would
+     not fit one row (the property flow's bar stands at the head's end). */
+  wrap.append(el('div', { class: 'lab-start' }, labEnterLink()));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
-  wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
+  wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true, explain: labExplain }).node);
   /* A record the reader asked to use from the comparables register (the
      guided evidence flow): named once the page is up, as an answer. */
   const pend = State.labUseComparable;
