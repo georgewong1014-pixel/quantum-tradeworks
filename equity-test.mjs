@@ -6240,7 +6240,15 @@ try {
     const locs = [...sm.matchAll(/<loc>https?:\/\/[^/<]+([^<]*)<\/loc>/g)].map(m => m[1] || '/');
     const r = await evaluate(`(() => {
       const locs = ${JSON.stringify(locs)};
-      const own = locs.map(p => { const rt = matchRoute(p); return [p, rt ? canonicalPath(rt) : 'no route']; }).filter(([p, c]) => p !== c);
+      /* A filed company's own address (QT-D26-03, 8 Nov 2026): its canonical
+         is companyPath's for the company the slug resolves to, whatever page
+         is open here; canonicalPath reads State.ticker, which is this page's. */
+      const canonOf = (p, rt) => {
+        const m = /^\\/company\\/([^/]+)$/.exec(p);
+        if (m) { const id = companyFromSlug(m[1]); const c = id && BY_ID.get(id)?.c; return c ? (c.real ? companyPath(c) : 'an illustrative company') : 'no company'; }
+        return canonicalPath(rt);
+      };
+      const own = locs.map(p => { const rt = matchRoute(p); return [p, rt ? canonOf(p, rt) : 'no route']; }).filter(([p, c]) => p !== c);
       const aliasPaths = new Set(ROUTES.filter(x => x.alias).map(x => x.path));
       const toAlias = ROUTES.filter(x => !x.path.includes(':')).map(x => [x.path, canonicalPath(x)]).filter(([, c]) => aliasPaths.has(c));
       return { n: locs.length, own, toAlias };

@@ -103,17 +103,22 @@ const State = {
 
   /* Multiple watchlists and portfolios. The single-list shape used earlier is
      migrated into the first entry so existing saved data is not lost. */
+  /* Maybank is in neither seeded list and has no seeded alert (the owner's
+     decision of 8 Nov 2026, QT-D26-01, after 11 Oct's "Maybank kept out"):
+     a list a first visit is handed, and an alert "above my bull case" on a
+     named bank, read as a selection. Nothing takes its place — a different
+     name there would be the same selection. Only the fallback: a reader's
+     saved lists and alerts are read as they are. */
   watchlists: store.read('watchlists', null) || [
     { id:'wl-1', name:'Core watchlist',
-      ids: store.read('watchlist', ['AAPL', 'MAYBANK', 'PBBANK', 'NVDA', 'AXREIT', 'TENAGA']) },
-    { id:'wl-2', name:'Bursa income', ids:['MAYBANK', 'PBBANK', 'PETGAS', 'KLCC', 'IGBREIT'] },
+      ids: store.read('watchlist', ['AAPL', 'PBBANK', 'NVDA', 'AXREIT', 'TENAGA']) },
+    { id:'wl-2', name:'Bursa income', ids:['PBBANK', 'PETGAS', 'KLCC', 'IGBREIT'] },
   ],
   wlIdx: 0,
   portfolios: store.read('portfolios', null),
   pfIdx: 0,
   priceAlerts: store.read('priceAlerts', [
     { id:'pa-1', ticker:'AAPL', op:'<', price:190, note:'Revisit if it reaches the base-case range' },
-    { id:'pa-2', ticker:'MAYBANK', op:'>', price:11.50, note:'Above my bull case' },
   ]),
 };
 
