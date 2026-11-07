@@ -8531,17 +8531,22 @@ const State = {
 
   /* Multiple watchlists and portfolios. The single-list shape used earlier is
      migrated into the first entry so existing saved data is not lost. */
+  /* Maybank is in neither seeded list and has no seeded alert (the owner's
+     decision of 8 Nov 2026, QT-D26-01, after 11 Oct's "Maybank kept out"):
+     a list a first visit is handed, and an alert "above my bull case" on a
+     named bank, read as a selection. Nothing takes its place — a different
+     name there would be the same selection. Only the fallback: a reader's
+     saved lists and alerts are read as they are. */
   watchlists: store.read('watchlists', null) || [
     { id:'wl-1', name:'Core watchlist',
-      ids: store.read('watchlist', ['AAPL', 'MAYBANK', 'PBBANK', 'NVDA', 'AXREIT', 'TENAGA']) },
-    { id:'wl-2', name:'Bursa income', ids:['MAYBANK', 'PBBANK', 'PETGAS', 'KLCC', 'IGBREIT'] },
+      ids: store.read('watchlist', ['AAPL', 'PBBANK', 'NVDA', 'AXREIT', 'TENAGA']) },
+    { id:'wl-2', name:'Bursa income', ids:['PBBANK', 'PETGAS', 'KLCC', 'IGBREIT'] },
   ],
   wlIdx: 0,
   portfolios: store.read('portfolios', null),
   pfIdx: 0,
   priceAlerts: store.read('priceAlerts', [
     { id:'pa-1', ticker:'AAPL', op:'<', price:190, note:'Revisit if it reaches the base-case range' },
-    { id:'pa-2', ticker:'MAYBANK', op:'>', price:11.50, note:'Above my bull case' },
   ]),
 };
 
@@ -43727,10 +43732,14 @@ const FEE_TABLE = {
   jurisdiction: 'Sarawak',
   /* Fill the owner first. Without one, nothing below gets re-checked when a
      schedule changes, and a stale rulebook is worse than an empty one
-     because it looks maintained. The owner reviews it (the owner's decision
-     of 15 Oct 2026). Due again when Budget 2027's stamp duty orders are
-     gazetted or a Finance Bill 2026 is tabled, and before 1 January 2027. */
-  reviewOwner: 'The owner of Quantum Tradeworks',
+     because it looks maintained. PENDING: no named reviewer has accepted
+     responsibility for it (the owner's decision of 8 Nov 2026, QT-D26-02,
+     which supersedes 15 Oct's "the owner reviews it" — a role is not a
+     reviewer, and no name is invented here). Null until one accepts. Due
+     again when Budget 2027's stamp duty orders are gazetted or a Finance
+     Bill 2026 is tabled, and before 1 January 2027. */
+  reviewOwner: null,
+  reviewOwnership: 'pending',
   nextReviewDue: '2026-12-15',
   /* THE LEDGER'S FIVE KINDS (the owner's decision of 9 Oct 2026, audit
      item #2): what a line IS, said beside it wherever it is shown — the
