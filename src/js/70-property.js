@@ -1899,10 +1899,14 @@ const FEE_TABLE = {
   jurisdiction: 'Sarawak',
   /* Fill the owner first. Without one, nothing below gets re-checked when a
      schedule changes, and a stale rulebook is worse than an empty one
-     because it looks maintained. The owner reviews it (the owner's decision
-     of 15 Oct 2026). Due again when Budget 2027's stamp duty orders are
-     gazetted or a Finance Bill 2026 is tabled, and before 1 January 2027. */
-  reviewOwner: 'The owner of Quantum Tradeworks',
+     because it looks maintained. PENDING: no named reviewer has accepted
+     responsibility for it (the owner's decision of 8 Nov 2026, QT-D26-02,
+     which supersedes 15 Oct's "the owner reviews it" — a role is not a
+     reviewer, and no name is invented here). Null until one accepts. Due
+     again when Budget 2027's stamp duty orders are gazetted or a Finance
+     Bill 2026 is tabled, and before 1 January 2027. */
+  reviewOwner: null,
+  reviewOwnership: 'pending',
   nextReviewDue: '2026-12-15',
   /* THE LEDGER'S FIVE KINDS (the owner's decision of 9 Oct 2026, audit
      item #2): what a line IS, said beside it wherever it is shown — the
