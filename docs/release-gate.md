@@ -1,8 +1,12 @@
 # Release gate: what must pass before a commit replaces production
 
-Written 29 October 2026 (QT-D13-01); checked against the repository, GitHub's records and Vercel's documentation on 6 November 2026. This explains how a commit reaches production and which checks count. It also covers the one setting that makes a failed check stop a release.
+Written 29 October 2026 (QT-D13-01); checked against the repository, GitHub's records and Vercel's documentation on 6 November 2026, and against GitHub's records again on 9 November 2026. This explains how a commit reaches production and which checks count. It also covers the one setting that makes a failed check stop a release.
 
 **State on 6 November 2026: the setting is off.** On `eb2f34fb2` the Production deployment succeeded at 21:31:54 UTC and its gate finished at 22:58:22 UTC, 86 minutes later.
+
+**Checked again on 9 November 2026: still off.** On `461bd3e59` (pushed 8 November) the Production deployment succeeded at 11:43:54 UTC, six seconds after `checks.yml` started on it (11:43:48); its gate passed at 13:08:18, 84 minutes after the site was already serving the commit. The bot's record `2af277184` did the same: live 13:09:33, gate 14:33:31. So today a failed or missing required check does **not** stop a commit reaching production; only the setting below does. The repository's own part is complete and tested: the gate job, `checks-record.mjs --self-test` (a job skipped, cancelled or missing fails the gate; a suite that did not run is recorded NOT RUN, never PASS) and `journeys.mjs --self-test` both passed on 9 November. Nothing in the repository was changed for this; there is no repository-controlled change that would help, as the next two paragraphs explain.
+
+**Two alternatives were considered and are not recommended.** (1) A GitHub ruleset or branch protection on `main` requiring the gate before a push lands: GitHub does control that, but every check runs *after* a push, so a direct push to `main` would be refused until the commit has been checked on another branch first — and the two bot workflows push their records straight to `main` with the workflow token, which cannot be a bypass actor, so each record would be refused and `/status` would stop updating. It would need the workflows rewritten, a second system. (2) Vercel's `ignoreCommand` in `vercel.json`: it runs at build time with no GitHub token and no way to wait, so it cannot ask whether checks that started seconds earlier have passed. Deployment Checks is the one place the hold belongs.
 
 ## How a commit reaches production
 
