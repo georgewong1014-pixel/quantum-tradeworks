@@ -28322,12 +28322,17 @@ VIEWS.marketing = () => {
   ]));
   const steps = (label, rows) => el('div', { class: 'pub-route' }, [
     el('h3', { class: 'pub-route-t', id: `pub-route-${label.toLowerCase()}` }, label),
-    el('ol', { class: 'pub-steps', 'aria-labelledby': `pub-route-${label.toLowerCase()}` }, rows.map(([t, to, glyph]) => el('li', { class: 'pub-step' },
-      pubLink(to, { class: 'pub-step-a' }, [el('span', { class: 'pub-step-node', 'aria-hidden': 'true', html: pubSvg(glyph, 16) }), el('span', { class: 'pub-step-t' }, t)])))),
+    el('ol', { class: 'pub-steps', 'aria-labelledby': `pub-route-${label.toLowerCase()}` }, rows.map(([t, to, glyph, note]) => el('li', { class: 'pub-step', 'data-step-state': note ? 'unavailable' : null },
+      pubLink(to, { class: 'pub-step-a' }, [el('span', { class: 'pub-step-node', 'aria-hidden': 'true', html: pubSvg(glyph, 16) }), el('span', { class: 'pub-step-txt' }, [el('span', { class: 'pub-step-t' }, t),
+        /* A step the site cannot yet do says so where it appears (the 9 Nov 2026
+           live audit): the homepage's example path showed "A match, if you run
+           the worker" while /how-it-works and the scanner's own pages say that
+           worker is not distributed. The note is the step's own, read with it. */
+        note ? el('span', { class: 'pub-step-note' }, note) : null])])))),
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A match, if you run the worker', '/app/scanner', 'bell'], ['Back to the company', '/research', 'loop']]),
+      ['A match', '/app/scanner', 'bell', 'Not available yet: the worker that records matches is not distributed'], ['Back to the company', '/research', 'loop']]),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
