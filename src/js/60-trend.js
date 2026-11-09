@@ -922,7 +922,7 @@ VIEWS.alerts = () => {
     rail.append(pac);
 
     const rules = el('div', { class: 'card' });
-    rules.append(cardHead('Alert types', 'Which types the research feed shows. Defaults are case-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
+    rules.append(cardHead('Alert types', 'Which types the research feed shows. Defaults are case-linked; price alerts work only on a price you enter, and are off by default. Your choice is kept in this browser.'));
     const notProduced = ALERT_KINDS.filter(k => k.built === false).map(k => k.label.toLowerCase());
     ALERT_KINDS.filter(k => k.built !== false).forEach(k => {
       const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });

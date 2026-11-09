@@ -252,7 +252,7 @@ function learnModels() {
   [['Every company type in the table is routed', 'Every row of the intended router is built, including the insurer and loss-making early-stage packs. Routing is by business model, not by sector label.'],
    ['Embedded value is not modelled', 'The insurer pack uses residual income with a combined-ratio check. A life insurer’s embedded value is not disclosed in this dataset, so an embedded-value model cannot be run and is not approximated.'],
    ['Sum of the parts is not a true SOTP', 'The holding-company pack values consolidated cash flow and applies an explicit discount, because segment-level earnings and capital are not carried here.'],
-   ['Routing is a default, not a verdict', 'Every pack’s assumptions are editable, and all nine methods are computed on every company regardless of which pack was selected.']]
+   ['Routing is a default, not a verdict', 'Every pack’s assumptions are shown (editing them is not available in this beta), and all nine methods are computed on every company regardless of which pack was selected.']]
     .forEach(([n, why], i) => nb.append(el('div', { class: i === 0 ? 'evidence support' : 'evidence counter', style: 'font-size:13px' },
       el('span', {}, [el('b', {}, n + ' — '), why]))));
   intro.append(nb);

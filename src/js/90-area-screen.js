@@ -1585,7 +1585,7 @@ VIEWS.plans = () => {
     ['Editable valuation assumptions', pl => pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
     ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown for now (not in this plan)'],
     ['Price alerts', pl => `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
-    ['Exports', pl => pl.limits.exports ? 'Yes' : 'No'],
+    ['CSV export (screener and statements)', pl => pl.limits.exports ? 'Yes' : 'No'],
     ['Property calculator', pl => pl.limits.propertyCalculator ? 'Included' : 'No'],
     ['Property reports', pl => pl.limits.propertyReports ? `${pl.limits.propertyReports} a month` : 'Per report, proposed'],
     ['Cross-asset net worth', pl => pl.limits.crossAsset ? 'Yes' : 'No'],

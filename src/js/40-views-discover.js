@@ -2322,7 +2322,7 @@ function riskPill(band) {
 const PROVENANCE = {
   reported:   { label: 'Reported',   cls: 'chip chip-ok',     note: 'Taken directly from a filed statement line. Not adjusted.' },
   calculated: { label: 'Derived',    cls: 'chip',             note: 'Arithmetic on reported lines. No assumption is involved, so it is exactly as reliable as the figures underneath it.' },
-  modelled:   { label: 'Modelled',   cls: 'chip chip-bronze', note: 'An output of assumptions you can see and change. A different set of assumptions gives a different number.' },
+  modelled:   { label: 'Modelled',   cls: 'chip chip-bronze', note: 'An output of assumptions you can see. A different set of assumptions gives a different number.' },
   market:     { label: 'Market',     cls: 'chip',             note: 'Needs a price. The price comes from the source stated on the company page — an end-of-day close you supplied or a figure you entered — never from a licensed feed, because none is connected.' },
   /* Two more kinds the four above could not say. A figure on a synthetic
      company is arithmetic like any other, but on lines that describe no

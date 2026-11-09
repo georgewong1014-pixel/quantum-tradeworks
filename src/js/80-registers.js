@@ -416,7 +416,7 @@ const CAPABILITY_REGISTER = [
             { file:'sweep.mjs', name:'Phase 3 — the scanner' },
             { file:'mobile.mjs', name:'no horizontal overflow at any width' },
             { file:'register-check.mjs', name:'register-check self-test' }] },
-  { name:'Alerts and monitoring', status:'beta', path:'/my/alerts',
+  { name:'Alerts', status:'beta', path:'/my/alerts',
     now:'Fact-change alerts and your price thresholds, with the scanner’s recorded matches beside them, each labelled by kind.', gate:'Stale-data and duplicate controls are not yet implemented.' },
   { name:'Bring your own market data', status:'maintenance', path:'/my/data',
     now:'Paste closes; they stay in this browser and never reach the site.' },

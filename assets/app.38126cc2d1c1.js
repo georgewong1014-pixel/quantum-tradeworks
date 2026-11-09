@@ -12729,7 +12729,7 @@ const PRODUCTS = [
      the dashboard's label for the same act, so the homepage and /app name
      it alike; it promises no watch either. */
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
-    task: 'Create a scanner setup', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
+    task: 'Create a scanner setup', blurb: 'Your own rules, checked against each daily close in your price history.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
@@ -16941,7 +16941,7 @@ function lsChipsInView(row) {
 const KIND_BADGES = {
   filed:        { word: 'Filed',        note: 'Taken from a statement filed with the US SEC, as filed, or from NAPIC’s published property market data, as published. Not adjusted.' },
   derived:      { word: 'Derived',      note: 'Arithmetic on figures of another kind, and exactly as reliable as they are. No assumption is involved.' },
-  modelled:     { word: 'Modelled',     note: 'An output of assumptions you can see and change. Other assumptions give another figure.' },
+  modelled:     { word: 'Modelled',     note: 'An output of assumptions you can see. Other assumptions give another figure.' },
   yours:        { word: 'Yours',        note: 'A figure you entered or imported, or evidence you recorded: a price, a close, a rent, a transaction you have seen.' },
   quoted:       { word: 'Quoted',       note: 'Quoted by a seller, a developer or their agent, or a quotation you were given and entered — a solicitor’s, a lender’s, an insurer’s — and not checked against a transaction.' },
   illustrative: { word: 'Illustrative', note: 'A synthetic or sample figure that describes no real company or property: an illustrative company, or the tool’s starting deal.' },
@@ -19339,7 +19339,7 @@ function riskPill(band) {
 const PROVENANCE = {
   reported:   { label: 'Reported',   cls: 'chip chip-ok',     note: 'Taken directly from a filed statement line. Not adjusted.' },
   calculated: { label: 'Derived',    cls: 'chip',             note: 'Arithmetic on reported lines. No assumption is involved, so it is exactly as reliable as the figures underneath it.' },
-  modelled:   { label: 'Modelled',   cls: 'chip chip-bronze', note: 'An output of assumptions you can see and change. A different set of assumptions gives a different number.' },
+  modelled:   { label: 'Modelled',   cls: 'chip chip-bronze', note: 'An output of assumptions you can see. A different set of assumptions gives a different number.' },
   market:     { label: 'Market',     cls: 'chip',             note: 'Needs a price. The price comes from the source stated on the company page — an end-of-day close you supplied or a figure you entered — never from a licensed feed, because none is connected.' },
   /* Two more kinds the four above could not say. A figure on a synthetic
      company is arithmetic like any other, but on lines that describe no
@@ -28370,7 +28370,7 @@ const HIW_FLOW = {
   equities: [
     ['Input', 'A company. Search by ticker, name or Bursa code, or narrow the list in the screener or on the value map.'],
     ['Analysis', 'Statements, ratios and a valuation model chosen for the business type. Every figure shows its formula, its period and its source.'],
-    ['Result', 'A report of what the company reported and what the model gives under assumptions you can see and change. No buy, sell or hold ratings, and no single-figure target price.'],
+    ['Result', 'A report of what the company reported and what the model gives under assumptions you can see (editing them is not available in this beta). No buy, sell or hold ratings, and no single-figure target price.'],
     ['Save', 'Put the company on a watchlist, save a valuation run or a comparison, or write an investment case.'],
     ['Next', 'Compare it with similar businesses, or write a scanner rule on the price history you supply for it.'],
   ],
@@ -28693,7 +28693,7 @@ const HIW_JOURNEY = [
   ['Research a company', 'Open its page: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
   ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'],
-  ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere.', '/app/scanner/alerts', 'Scanner alerts'],
+  ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere. Not available yet: the worker that records matches is not distributed.', '/app/scanner/alerts', 'Scanner alerts'],
   /* A match links to a company page only where its instrument is a company
      (scanSymbolLink, 86-scanner.js); a price-only instrument such as XAUUSD
      links to Tracked. The step said every match led to a company. */
@@ -30095,7 +30095,7 @@ VIEWS.about = () => trustPage('About',
   'Who is responsible for this product, and what it is and is not.',
   [
     ['What Quantum Tradeworks is',
-      ['A research tool. It shows the figures a company reported, derives measures from them, and models a range of values under assumptions you can see and change.',
+      ['A research tool. It shows the figures a company reported, derives measures from them, and models a range of values under assumptions you can see (editing them is not available in this beta).',
        'It is also a property calculator: you enter a purchase and it returns the monthly cash flow, the break-even rent and the cash required.']],
     ['What it is not',
       /* "Asks nothing about your circumstances" was unqualified, beside a
@@ -32371,7 +32371,7 @@ VIEWS.alerts = () => {
     rail.append(pac);
 
     const rules = el('div', { class: 'card' });
-    rules.append(cardHead('Alert types', 'Which types the research feed shows. Defaults are case-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
+    rules.append(cardHead('Alert types', 'Which types the research feed shows. Defaults are case-linked; price alerts work only on a price you enter, and are off by default. Your choice is kept in this browser.'));
     const notProduced = ALERT_KINDS.filter(k => k.built === false).map(k => k.label.toLowerCase());
     ALERT_KINDS.filter(k => k.built !== false).forEach(k => {
       const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
@@ -32658,7 +32658,7 @@ function learnModels() {
   [['Every company type in the table is routed', 'Every row of the intended router is built, including the insurer and loss-making early-stage packs. Routing is by business model, not by sector label.'],
    ['Embedded value is not modelled', 'The insurer pack uses residual income with a combined-ratio check. A life insurer’s embedded value is not disclosed in this dataset, so an embedded-value model cannot be run and is not approximated.'],
    ['Sum of the parts is not a true SOTP', 'The holding-company pack values consolidated cash flow and applies an explicit discount, because segment-level earnings and capital are not carried here.'],
-   ['Routing is a default, not a verdict', 'Every pack’s assumptions are editable, and all nine methods are computed on every company regardless of which pack was selected.']]
+   ['Routing is a default, not a verdict', 'Every pack’s assumptions are shown (editing them is not available in this beta), and all nine methods are computed on every company regardless of which pack was selected.']]
     .forEach(([n, why], i) => nb.append(el('div', { class: i === 0 ? 'evidence support' : 'evidence counter', style: 'font-size:13px' },
       el('span', {}, [el('b', {}, n + ' — '), why]))));
   intro.append(nb);
@@ -49603,7 +49603,7 @@ const CAPABILITY_REGISTER = [
             { file:'sweep.mjs', name:'Phase 3 — the scanner' },
             { file:'mobile.mjs', name:'no horizontal overflow at any width' },
             { file:'register-check.mjs', name:'register-check self-test' }] },
-  { name:'Alerts and monitoring', status:'beta', path:'/my/alerts',
+  { name:'Alerts', status:'beta', path:'/my/alerts',
     now:'Fact-change alerts and your price thresholds, with the scanner’s recorded matches beside them, each labelled by kind.', gate:'Stale-data and duplicate controls are not yet implemented.' },
   { name:'Bring your own market data', status:'maintenance', path:'/my/data',
     now:'Paste closes; they stay in this browser and never reach the site.' },
@@ -65749,7 +65749,7 @@ VIEWS.plans = () => {
     ['Editable valuation assumptions', pl => pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
     ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown for now (not in this plan)'],
     ['Price alerts', pl => `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
-    ['Exports', pl => pl.limits.exports ? 'Yes' : 'No'],
+    ['CSV export (screener and statements)', pl => pl.limits.exports ? 'Yes' : 'No'],
     ['Property calculator', pl => pl.limits.propertyCalculator ? 'Included' : 'No'],
     ['Property reports', pl => pl.limits.propertyReports ? `${pl.limits.propertyReports} a month` : 'Per report, proposed'],
     ['Cross-asset net worth', pl => pl.limits.crossAsset ? 'Yes' : 'No'],

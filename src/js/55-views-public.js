@@ -366,7 +366,7 @@ const HIW_FLOW = {
   equities: [
     ['Input', 'A company. Search by ticker, name or Bursa code, or narrow the list in the screener or on the value map.'],
     ['Analysis', 'Statements, ratios and a valuation model chosen for the business type. Every figure shows its formula, its period and its source.'],
-    ['Result', 'A report of what the company reported and what the model gives under assumptions you can see and change. No buy, sell or hold ratings, and no single-figure target price.'],
+    ['Result', 'A report of what the company reported and what the model gives under assumptions you can see (editing them is not available in this beta). No buy, sell or hold ratings, and no single-figure target price.'],
     ['Save', 'Put the company on a watchlist, save a valuation run or a comparison, or write an investment case.'],
     ['Next', 'Compare it with similar businesses, or write a scanner rule on the price history you supply for it.'],
   ],
@@ -689,7 +689,7 @@ const HIW_JOURNEY = [
   ['Research a company', 'Open its page: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
   ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'],
-  ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere.', '/app/scanner/alerts', 'Scanner alerts'],
+  ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere. Not available yet: the worker that records matches is not distributed.', '/app/scanner/alerts', 'Scanner alerts'],
   /* A match links to a company page only where its instrument is a company
      (scanSymbolLink, 86-scanner.js); a price-only instrument such as XAUUSD
      links to Tracked. The step said every match led to a company. */
@@ -2091,7 +2091,7 @@ VIEWS.about = () => trustPage('About',
   'Who is responsible for this product, and what it is and is not.',
   [
     ['What Quantum Tradeworks is',
-      ['A research tool. It shows the figures a company reported, derives measures from them, and models a range of values under assumptions you can see and change.',
+      ['A research tool. It shows the figures a company reported, derives measures from them, and models a range of values under assumptions you can see (editing them is not available in this beta).',
        'It is also a property calculator: you enter a purchase and it returns the monthly cash flow, the break-even rent and the cash required.']],
     ['What it is not',
       /* "Asks nothing about your circumstances" was unqualified, beside a

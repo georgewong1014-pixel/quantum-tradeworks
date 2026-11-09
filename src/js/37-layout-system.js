@@ -250,7 +250,7 @@ function lsChipsInView(row) {
 const KIND_BADGES = {
   filed:        { word: 'Filed',        note: 'Taken from a statement filed with the US SEC, as filed, or from NAPIC’s published property market data, as published. Not adjusted.' },
   derived:      { word: 'Derived',      note: 'Arithmetic on figures of another kind, and exactly as reliable as they are. No assumption is involved.' },
-  modelled:     { word: 'Modelled',     note: 'An output of assumptions you can see and change. Other assumptions give another figure.' },
+  modelled:     { word: 'Modelled',     note: 'An output of assumptions you can see. Other assumptions give another figure.' },
   yours:        { word: 'Yours',        note: 'A figure you entered or imported, or evidence you recorded: a price, a close, a rent, a transaction you have seen.' },
   quoted:       { word: 'Quoted',       note: 'Quoted by a seller, a developer or their agent, or a quotation you were given and entered — a solicitor’s, a lender’s, an insurer’s — and not checked against a transaction.' },
   illustrative: { word: 'Illustrative', note: 'A synthetic or sample figure that describes no real company or property: an illustrative company, or the tool’s starting deal.' },

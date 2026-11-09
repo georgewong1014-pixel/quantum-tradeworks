@@ -413,7 +413,7 @@ const PRODUCTS = [
      the dashboard's label for the same act, so the homepage and /app name
      it alike; it promises no watch either. */
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
-    task: 'Create a scanner setup', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
+    task: 'Create a scanner setup', blurb: 'Your own rules, checked against each daily close in your price history.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
