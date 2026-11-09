@@ -4796,7 +4796,7 @@ const HOME_PAGE = read(HOME);
     if (/whoever is responsible/i.test(contact)) p.push('/contact still says "whoever is responsible"');
     if (!/How to reach the site’s owner, who handles support and corrections — and what does not exist yet\./.test(contact)) p.push('/contact\'s lede does not name the site owner who handles support and corrections');
     if (/\b(within|hours?|business days?|reply|respond)\b/i.test(contact)) p.push(`/contact carries a response-time word ("${/\b(within|hours?|business days?|reply|respond)\b/i.exec(contact)[0]}"): no response time is approved`);
-    if (!/Its last step gives you the report to copy and send to that address from your own email program; the case stays recorded here, not confirmed received, and is listed under Corrections ?\./.test(contact)) p.push('/contact does not say the report is handed over to send, recorded here and not confirmed received');
+    if (!/Its last step shows you the report: submit it from here, and a receipt reference appears once the site’s store has accepted it; or copy it and send it to that address from your own email program\. Every case stays listed under Corrections ?\./.test(contact)) p.push('/contact does not say the report can be submitted from here (receipt only after the store accepted it) or copied and sent from the visitor’s own email program');
     if (!/Do not include confidential or sensitive information\./.test(contact)) p.push('/contact no longer says not to include confidential or sensitive information');
     if (/Customer support is not available yet|because nobody has received it/.test(contact)) p.push('/contact still serves the no-address copy beside the address');
     if (contact.split(SUPPORT).length - 1 !== 1) p.push(`/contact says ${SUPPORT} ${contact.split(SUPPORT).length - 1} times, not once`);
@@ -4805,7 +4805,7 @@ const HOME_PAGE = read(HOME);
     if (!new RegExp(`If you write to ${at} ?, your email address, your message and anything you attach reach that mailbox`).test(priv)) p.push('/privacy does not say what writing to the address hands over');
     said.push(`the support address ${SUPPORT} on /contact, once, its only mailto:`);
   } else {
-    if (!/Customer support is not available yet\. Report a data error records a case in this browser and gives you its text to copy; it sends nothing\. Every case is listed under Corrections ?\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');
+    if (!/Customer support is not available yet\. Report a data error records a case in this browser and gives you its text to copy or to submit from here; it sends nothing by itself\. Every case is listed under Corrections ?\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');
     if (/<strong>Customer support is not available yet\.<\/strong>/.test(html('/contact')) === false) p.push('/contact does not bold "Customer support is not available yet."');
   }
   if (/What works today|One route does work/.test(contact)) p.push('/contact still calls the report form a route that works');

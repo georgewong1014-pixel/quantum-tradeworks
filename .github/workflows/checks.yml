@@ -145,6 +145,16 @@ jobs:
       - name: the journeys' commit rule, result shape and table
         run: node journeys.mjs --self-test
 
+      # The report form's one submission address (api/report.mjs), offline:
+      # only a reviewed report's five fields are kept (a page's query, where
+      # the calculator keeps a deal, is dropped), a receipt is issued only
+      # after the store has the record, and no store means 503, never a
+      # receipt. The journeys job submits one from the page and reads the
+      # record back (the submission journey).
+      - name: the report address keeps only the reviewed report and issues a receipt only after the store has it
+        if: ${{ !cancelled() }}
+        run: node report-api-test.mjs
+
       # The record of what CI found (health/checks.json, checks-record.mjs):
       # each suite's counts read from what it printed, a suite that did not
       # run for the commit served "Not run for <commit>" and never PASS, the

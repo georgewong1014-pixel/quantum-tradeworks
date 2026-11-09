@@ -12,6 +12,8 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { readFileSync, statSync, realpathSync } from 'node:fs';
 import { join, extname, resolve, normalize, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { tmpdir } from 'node:os';
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -25,6 +27,27 @@ const PORT = Number(arg('port', process.env.PORT || 8123));
 /* The root as the file system spells it, so that a file's real name can be
    compared with the address asked for (fileAt, below). */
 const ROOT = realpathSync.native(resolve(arg('root', '.')));
+
+/* VERCEL FUNCTIONS, SERVED AS VERCEL SERVES THEM. api/<name>.mjs answers
+   /api/<name> (api/report.mjs: the report form's one submission address).
+   Vercel runs it in its own process with the project's environment; here it
+   is imported and called with the same request. The report store is named by
+   the environment (QT_REPORTS_GITHUB_TOKEN + QT_REPORTS_REPO, or
+   QT_REPORTS_DIR): a local server with neither gets a temporary directory,
+   named at start-up, so that a submission from a local page is accepted and
+   can be read back — never GitHub by default. */
+const API_DIR = join(ROOT, 'api');
+if (!process.env.QT_REPORTS_GITHUB_TOKEN && !process.env.QT_REPORTS_DIR) process.env.QT_REPORTS_DIR = join(tmpdir(), `qt-reports-${PORT}`);
+async function apiFunction(pathname) {
+  const m = /^\/api\/([a-z][a-z0-9-]*)$/.exec(pathname);
+  if (!m) return null;
+  const file = join(API_DIR, `${m[1]}.mjs`);
+  let mtime;
+  try { mtime = statSync(file).mtimeMs; } catch { return null; }
+  /* Re-imported when the file changes, as vercel.json is re-read. */
+  const mod = await import(`${pathToFileURL(file).href}?v=${mtime}`);
+  return typeof mod.default === 'function' ? mod.default : null;
+}
 
 /* The production configuration, applied locally. Without this the Content-
    Security-Policy only ever ran in production — and a CSP that blocks the
@@ -274,6 +297,11 @@ async function handle(req, res) {
     return;
   }
 
+  /* A function before any file or rewrite: Vercel routes /api/<name> to
+     api/<name>.mjs ahead of the static output. */
+  const fn = await apiFunction(path);
+  if (fn) { await fn(req, res); return; }
+
   /* Files first, as Vercel does; then the rewrites, in order, the first whose
      source matches deciding (the query plays no part in either); then the 404
      page, with its status. Headers are chosen by the address that was asked
@@ -351,5 +379,7 @@ server.listen(PORT, () => {
   const c = config();
   console.log(`serving ${ROOT}`);
   console.log(`http://localhost:${PORT}`);
+  if (process.env.QT_REPORTS_GITHUB_TOKEN) console.log(`report store: GitHub issues in ${process.env.QT_REPORTS_REPO || '(QT_REPORTS_REPO not set — submissions will be refused)'}`);
+  else console.log(`report store: files in ${process.env.QT_REPORTS_DIR}`);
   console.log(`applying ${c.headers.length} header rule(s), ${c.redirects.length} redirect(s) and ${c.rewrites.length} rewrite(s) from vercel.json${c.trailingSlash === false ? ', trailing slashes redirected' : ''}, re-read on change`);
 });

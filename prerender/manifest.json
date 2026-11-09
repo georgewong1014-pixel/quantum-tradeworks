@@ -4084,7 +4084,7 @@
         "appnav": []
       },
       "inert": {
-        "buttons": 1,
+        "buttons": 2,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -4095,8 +4095,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c2a48262400ffc05",
-      "changed": "2026-10-29"
+      "digest": "e41709d9cc199cd9",
+      "changed": "2026-11-09"
     },
     "pages/corrections.html": {
       "path": "/corrections",
@@ -4124,8 +4124,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "dc627434cafefb6b",
-      "changed": "2026-10-31"
+      "digest": "4918060c554bfc6d",
+      "changed": "2026-11-09"
     },
     "pages/data-sources.html": {
       "path": "/data-sources",
@@ -4872,8 +4872,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "71b20044fa00f7f7",
-      "changed": "2026-10-24"
+      "digest": "4139e1cba6c355b0",
+      "changed": "2026-11-09"
     },
     "pages/property-investing.html": {
       "path": "/property-investing",

@@ -429,6 +429,14 @@ function restoreBackup(text) {
                      the waitlist on (waitlistReady reads the endpoint alone):
                      a mailbox for support is not a list a visitor is added to.
 
+   reportEndpoint    The path of the submission function, api/report.mjs,
+                     which stores a report only where the deployment's
+                     environment names a store (QT_REPORTS_GITHUB_TOKEN +
+                     QT_REPORTS_REPO, or QT_REPORTS_DIR) and answers with a
+                     receipt only after the store accepted it. The case is
+                     still saved in the browser first; Submit is the reader's
+                     act. docs/report-submission.md.
+
    ANALYTICS: none. The Vercel Web Analytics tag was removed from the page
    (src/index.template.html) because analytics was never switched on and the
    tag only ever logged a 404. It comes back with a consent notice when
@@ -436,6 +444,11 @@ function restoreBackup(text) {
 const LAUNCH = {
   waitlistEndpoint: '',
   contactEmail: 'georgewong1014@gmail.com',
+  /* The site's own address that accepts a data-error report or feedback
+     from the page (api/report.mjs). The page asks it once whether the
+     deployment has configured a store; until then it offers copy and email
+     only. Empty means no submission control is ever drawn. */
+  reportEndpoint: '/api/report',
 };
 const waitlistReady = () => !!LAUNCH.waitlistEndpoint;
 /* The support address, or '' while none is published. Every surface that

@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property-phone, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, research-case, corrections, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property-phone, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, research-case, corrections, submission, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -4088,6 +4088,85 @@ const JOURNEYS = [
         const away = sent.filter(s => new URL(s.url).origin !== site);
         if (away.length) throw new StepError(`the page asked ${away.length} address(es) off the site: ${away[0].url.slice(0, 100)}`);
         if (await tab.where() !== '/corrections') throw new StepError(`the journey ended on ${await tab.where()}, not /corrections — a mail program or another page was opened`);
+      });
+    },
+  },
+  {
+    /* SUBMISSION FROM THE PAGE (the owner's brief, 9 Nov 2026), verified
+       twice, as the owner asked on the same day: once as the CUSTOMER sees
+       it — the report submitted from the page, a receipt shown, no other
+       program opened — and once as STAFF see it — the record found by that
+       receipt, with the text the visitor reviewed and nothing else. A
+       working button is not completion; a receipt without a record is not
+       completion. Against a local server (serve.mjs, whose store is a
+       directory it names) both halves run. Against any other address the
+       journey does not submit — a synthetic report filed into the owner's
+       tracker on every run is not a test — and says so: DEGRADED with the
+       reason, whether the store is configured or not. The owner's live
+       check is written in docs/report-submission.md. */
+    id: 'submission', name: 'Report submission: a data error submitted from the page, a receipt only after the store accepted it, and the record found by that receipt',
+    outcomes: ['Customer completion: submitted from the page, receipt shown, no other program opened', 'Operational completion: the record is found by its receipt with the text reviewed', 'Only the reviewed report went: one request, five fields, nothing from saved work'],
+    async run(j, tab) {
+      const MARK = `synthetic submission ${new Date().toISOString().slice(0, 16)}`;
+      const local = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(new URL(BASE).origin);
+      let id = null, text = null, receipt = null, from = 0;
+      await step(j, tab, 'Open Apple’s company page and report a data error', BUDGET.load + BUDGET.action, async () => {
+        await tab.goto('/company/aapl-apple-inc');
+        await tab.click(visible('[data-action="report-error"]'), '“Report a data error”');
+        await tab.expect(`document.getElementById('drawerTitle')?.textContent.trim() === 'Report a data error' && !!document.getElementById('err-description')`, '“Report a data error” opened no form');
+        await tab.fill(`document.getElementById('err-shownValue')`, '1,234', 'What the page shows');
+        await tab.fill(`document.getElementById('err-description')`, MARK, 'What looks wrong?');
+        await tab.click(byText('#drawer button', '/^Save this case here$/'), '“Save this case here”');
+        await tab.expect(`/^Case \\S+ saved here, not sent$/.test(document.getElementById('drawerTitle')?.textContent.trim() || '')`, 'saving did not confirm the draft');
+        const r = await tab.eval(`({ id: State.corrections[0]?.id || null, text: document.querySelector('#drawer textarea')?.value || '' })`);
+        if (!r.id || !r.text.includes(MARK)) throw new StepError(`the draft lacks its id or text: ${JSON.stringify(r).slice(0, 160)}`);
+        id = r.id; text = r.text;
+      });
+      const probe = await fetch(new URL('/api/report', BASE + '/').href, { cache: 'no-store' }).then(r => (r.ok ? r.json() : { configured: false, status: r.status })).catch(e => ({ configured: false, error: e.message }));
+      if (!local) {
+        j.degrade(probe.configured
+          ? 'not exercised against this deployment: a submission here would file a synthetic report into the owner’s store on every run. The store answers as configured; the owner’s live check is in docs/report-submission.md'
+          : `submission is not switched on for this deployment (/api/report says ${probe.status ? `${probe.status}` : 'no store is configured'}): a visitor can only copy or email the report. docs/report-submission.md names the two settings`, '/company/aapl-apple-inc');
+        return;
+      }
+      if (!probe.configured || probe.store !== 'file' || !probe.dir) throw new StepError(`the local server names no file store (/api/report answered ${JSON.stringify(probe).slice(0, 160)}) — serve.mjs sets QT_REPORTS_DIR itself`);
+      await step(j, tab, 'Customer completion: submitted from the page, receipt shown, no other program opened', BUDGET.action * 2, async () => {
+        await tab.expect(`!!document.querySelector('#drawer [data-submit-report]')`, async () => `no Submit control appeared: the drawer says “${await tab.eval(`document.querySelector('#drawer [data-case-submit]')?.textContent || ''`)}”`, 6000);
+        from = tab.sent.length;
+        await tab.click(`document.querySelector('#drawer [data-submit-report]')`, '“Submit this report”');
+        await tab.expect(`/^Case \\S+ submitted — receipt QTR-\\d+$/.test(document.getElementById('drawerTitle')?.textContent.trim() || '')`,
+          async () => `submitting left the drawer titled “${await tab.eval(`document.getElementById('drawerTitle')?.textContent.trim() || ''`)}” saying “${await tab.eval(`document.querySelector('#drawer [data-submit-status]')?.textContent || document.querySelector('#drawer [data-case-submit]')?.textContent || ''`)}”`, 8000);
+        const r = await tab.eval(`({ title: document.getElementById('drawerTitle')?.textContent.trim(), status: State.corrections[0]?.status, sub: State.corrections[0]?.submitted || null,
+          stored: (JSON.parse(localStorage.getItem('vl.corrections') || 'null') || [])[0]?.submitted?.receipt || null, where: location.pathname })`);
+        receipt = r.sub?.receipt || null;
+        if (!receipt || r.stored !== receipt || r.status !== `submitted — receipt ${receipt}`) throw new StepError(`the case is not kept as submitted under its receipt: ${JSON.stringify(r).slice(0, 200)}`);
+        if (r.where !== '/company/aapl-apple-inc') throw new StepError(`the page moved to ${r.where}: another page or program was opened`);
+        await tab.goto('/corrections');
+        await tab.expect(`[...document.querySelectorAll('#my-cases tr')].some(r => r.querySelector('td')?.textContent.trim() === ${JSON.stringify(id)} && /submitted — receipt ${receipt}/.test(r.textContent))`,
+          async () => `after a fresh load /corrections does not list ${id} as submitted with ${receipt}: “${(await tab.eval(`document.getElementById('my-cases')?.innerText || ''`)).replace(/\\s+/g, ' ').slice(0, 200)}”`);
+      });
+      await step(j, tab, 'Operational completion: the record is found by its receipt with the text reviewed', BUDGET.action, async () => {
+        const { readFile } = await import('node:fs/promises');
+        const { join } = await import('node:path');
+        let rec;
+        try { rec = JSON.parse(await readFile(join(probe.dir, `${receipt}.json`), 'utf8')); }
+        catch (e) { throw new StepError(`staff would not find ${receipt} in the store (${probe.dir}): ${e.message}`); }
+        if (rec.receipt !== receipt || rec.id !== id || rec.kind !== 'data-error') throw new StepError(`the record found is not this case: ${JSON.stringify(rec).slice(0, 160)}`);
+        if (rec.report !== text) throw new StepError(`the record's text differs from the text the visitor reviewed: ${JSON.stringify(rec.report.slice(0, 120))}`);
+        if (rec.page !== '/company/aapl-apple-inc' || /[?#]/.test(rec.page)) throw new StepError(`the record's page is ${rec.page}`);
+        if (!/^\d{4}-\d{2}-\d{2}T/.test(rec.acceptedAt || '')) throw new StepError('the record carries no acceptance time');
+      });
+      await step(j, tab, 'Only the reviewed report went: one request, five fields, nothing from saved work', BUDGET.action, async () => {
+        const sent = tab.sent.slice(from).filter(s => /^https?:/.test(s.url));
+        const posts = sent.filter(s => s.method === 'POST');
+        if (posts.length !== 1 || new URL(posts[0].url).pathname !== '/api/report') throw new StepError(`${posts.length} POST request(s) were made: ${posts.map(s => `${s.method} ${s.url}`).join(', ').slice(0, 200)}`);
+        let body;
+        try { body = JSON.parse(posts[0].body); } catch { throw new StepError('the submission was not JSON'); }
+        const keys = Object.keys(body).sort().join(',');
+        if (!['build,id,kind,page,report', 'id,kind,page,report'].includes(keys)) throw new StepError(`the submission carried fields beyond the report: ${keys}`);
+        if (body.report !== text || body.id !== id || /[?#]/.test(body.page)) throw new StepError('the submission is not the reviewed text, or its page carries a query');
+        const away = sent.filter(s => new URL(s.url).origin !== new URL(BASE).origin);
+        if (away.length) throw new StepError(`the page asked ${away.length} address(es) off the site: ${away[0].url.slice(0, 100)}`);
       });
     },
   },

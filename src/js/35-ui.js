@@ -2210,6 +2210,7 @@ const NAV_MARKUP = {
        only — not in the header's Resources menu, which it would crowd. */
     el('li', {}, shellLink('/property-investing', {}, 'Property investing in Sarawak')),
     el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')),
+    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'feedback' }, 'Send feedback')),
   ],
 };
 
@@ -4022,6 +4023,8 @@ document.addEventListener('click', e => {
   if (nav) { e.preventDefault(); go(nav.dataset.nav); }
   const act = e.target.closest('[data-action="report-error"]');
   if (act) { e.preventDefault(); openReportError(); }
+  const fb = e.target.closest('[data-action="feedback"]');
+  if (fb) { e.preventDefault(); openFeedback(); }
 });
 
 /* KEYBOARD NAVIGATION FOR A DENSE TABLE.

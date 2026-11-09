@@ -2018,7 +2018,7 @@ function supplied(k) {
    does on every other page. Privacy and Terms are drafts for counsel and
    keep their markers. */
 const supportUnavailable = () => [el('strong', {}, 'Customer support is not available yet.'),
-  ' ', el('strong', {}, 'Report a data error'), ' records a case in this browser and gives you its text to copy; it sends nothing. Every case is listed under ', tlink('Corrections', '/corrections'), '. Do not include confidential or sensitive information.'];
+  ' ', el('strong', {}, 'Report a data error'), ' records a case in this browser and gives you its text to copy or to submit from here; it sends nothing by itself. Every case is listed under ', tlink('Corrections', '/corrections'), '. Do not include confidential or sensitive information.'];
 /* The supplied details of the operator, as the words that give them: the
    entity and the address when either is supplied, else null. */
 function operatorLine() {
@@ -2138,11 +2138,12 @@ VIEWS.contact = () => trustPage('Contact',
         const v = supportEmail();
         return v
           ? [tp('Write to ', supplied('email'), ', the site owner’s support address. It opens your own email program; this site does not send the message or confirm that it arrived.'),
-             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step gives you the report to copy and send to that address from your own email program; the case stays recorded here, not confirmed received, and is listed under ', tlink('Corrections', '/corrections'), '.')]
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: submit it from here, and a receipt reference appears once the site’s store has accepted it; or copy it and send it to that address from your own email program. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
           : [tp(...supportUnavailable())];
       })(),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
+         el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'feedback' }, 'Send feedback'),
        ])]],
     /* Nothing supplied, nothing to list: the card appears with the first
        postal detail the owner supplies, and lists only the details there
@@ -2162,7 +2163,7 @@ VIEWS.contact = () => trustPage('Contact',
 
 VIEWS.privacy = () => {
   const tagged = analyticsTagged();
-  const nos = ['no accounts', 'no cookies', tagged ? null : 'no analytics', waitlistReady() ? null : 'no form that sends anything'].filter(Boolean);
+  const nos = ['no accounts', 'no cookies', tagged ? null : 'no analytics', waitlistReady() ? null : 'no form that sends anything by itself'].filter(Boolean);
   /* "In short" is built from the same flags as the sentences below it, so
      the summary cannot say more than the page does. The one thing that does
      travel — a page's own address, which the property calculator fills with
@@ -2208,10 +2209,11 @@ VIEWS.privacy = () => {
            has to be remembered separately is one that will be wrong. */
         waitlistReady()
           ? tp('If you enter an email address in the waitlist, that address is sent to the form service configured for this deployment and used for one message about launch. Nothing else on this page is sent with it.')
-          : tp('There is no form on this site that sends anything anywhere. No email address is requested and none can be submitted.'),
+          : null,
+        tp(el('strong', {}, 'One form sends something, and only when you press Submit.'), ' A data-error report or feedback is saved in this browser first; if you then press Submit, the text you reviewed, the page’s name and the build go to this site’s own address, /api/report, and to the store the operator has configured for it — nothing else from this browser, and no address of yours. The site answers with a receipt reference only once that store has accepted it. No email address is requested and none can be submitted.'),
         supportEmail()
-          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing itself. Its last step hands you the case as text to copy and send to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
-          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing — there is no contact address yet. Its last step hands you the case as text to copy; copying uses your clipboard only when you press the button.'),
+          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing until you press Submit, as above. Or copy the case and send it to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
+          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing until you press Submit, as above — there is no contact address yet. Or copy the case as text; copying uses your clipboard only when you press the button.'),
         tp('Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.'),
         tp('Links to outside sources — SEC EDGAR, NAPIC, Bursa Malaysia and others — take you to those sites only when you follow one. That visit is between you and that site; the policy this site is served with lets your browser tell it at most this site’s name, never the page you were on.'),
       ]],

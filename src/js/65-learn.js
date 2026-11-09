@@ -640,7 +640,7 @@ function learnTrust() {
   const mine = State.corrections || [];
   const mineCard = el('div', { class: 'card', id: 'my-cases', style: 'margin-bottom:var(--md)' });
   mineCard.append(cardHead(`Cases you have recorded — ${mine.length}`,
-    `Held in this browser only. Nothing has been sent, because there is no server and ${supportEmail() ? 'a case is sent only when you send it from your own email program' : 'no contact address yet'}.`));
+    `Held in this browser. A case is sent only when you submit it from here${supportEmail() ? ' or send it from your own email program' : ''}; its status says which, and a submitted case shows its receipt.`));
   if (!mine.length) {
     mineCard.append(el('p', { class: 'metaline' },
       'None yet. Any figure on this site can be reported — the report button in the footer records a case with the page, the model version and the data date attached.'));
@@ -654,7 +654,7 @@ function learnTrust() {
       el('td', { class: 'caption', style: 'text-align:left' }, c.createdAt),
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
         `${c.item}${c.subject ? ` · ${c.subject}` : ''}`),
-      el('td', { style: 'text-align:left' }, el('span', { class: 'chip chip-bronze' }, c.status)),
+      el('td', { style: 'text-align:left' }, el('span', { class: c.submitted ? 'chip chip-ok' : 'chip chip-bronze' }, c.status)),
       el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm', id: `case-open-${row}`,
         onclick: () => openDrawer(`Case ${c.id}`, (() => {
           const w = el('div');
@@ -683,6 +683,7 @@ function learnTrust() {
               toast(`${c.id} deleted`);
             } }, 'Delete this case'),
           ]));
+          w.append(submitBlock(c, pre));
           return w;
         })()) }, 'Open')),
     ])));
@@ -775,8 +776,8 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', supportEmail()
-    ? 'Each report names the exact item and is saved in this browser; you send it from your own email program.'
-    : 'Each report names the exact item and is saved in this browser; nothing is sent until a contact address is published.'));
+    ? 'Each report names the exact item and is saved in this browser first. You then submit it from here, copy it, or send it from your own email program.'
+    : 'Each report names the exact item and is saved in this browser first. You then submit it from here or copy it.'));
   rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the error form'));
   wrap.append(rep);
   /* The reader's own cases and the log come first (Day-10 pre-audit CL-25, NAV-14): the page is reached to check a case or the log, and the
@@ -823,6 +824,88 @@ function learnTrust() {
    made the old version worse than no button at all. */
 State.corrections = store.read('corrections', []);
 const saveCorrections = () => store.write('corrections', State.corrections);
+
+/* SUBMISSION FROM THE PAGE (the owner's brief, 9 Nov 2026).
+   ---------------------------------------------------------------------------
+   A case is still saved here first, as a draft; nothing leaves this browser
+   until the visitor presses Submit on the text they have just read. Then the
+   reviewed text, the page's path (never its query, where the calculator keeps
+   a deal) and the build go to LAUNCH.reportEndpoint (api/report.mjs), and
+   the case becomes SUBMITTED with the receipt the store issued — only when
+   the store answered that it holds the record. A visitor with no email
+   program can report an error; one who prefers copy or email still can.
+   The endpoint is asked once per page load whether a store is configured;
+   until the deployment names one, the page offers copy and email only and
+   says so. */
+let reportProbe = null;
+function reportSubmission() {
+  if (!LAUNCH.reportEndpoint || typeof fetch !== 'function') return Promise.resolve({ configured: false });
+  if (!reportProbe) reportProbe = fetch(LAUNCH.reportEndpoint, { method: 'GET', cache: 'no-store' })
+    .then(r => (r.ok ? r.json() : { configured: false }))
+    .then(j => ({ configured: !!j.configured }))
+    .catch(() => ({ configured: false }));
+  return reportProbe;
+}
+async function submitReport(c, text) {
+  const res = await fetch(LAUNCH.reportEndpoint, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: c.kind === 'feedback' ? 'feedback' : 'data-error', id: c.id, report: text,
+      page: String(c.route || '/').split(/[?#]/)[0], ...(c.build ? { build: c.build } : {}) }) });
+  let j = null;
+  try { j = await res.json(); } catch { j = null; }
+  if (res.ok && j?.ok && /^QTR-\d+$/.test(j.receipt || '')) return { ok: true, receipt: j.receipt, acceptedAt: j.acceptedAt };
+  return { ok: false, status: res.status, reason: j?.reason || String(res.status) };
+}
+/* The submit control under a case's text: the draft's, or the receipt of a
+   case already submitted. pre is the textarea whose value is what goes. */
+function submitBlock(c, pre) {
+  const box = el('div', { class: 'sunk', 'data-case-submit': '', style: 'margin-top:var(--md)' });
+  const note = el('p', { class: 'metaline' });
+  box.append(note);
+  if (c.submitted) {
+    note.textContent = `Submitted ${c.submitted.at} — receipt ${c.submitted.receipt}. The owner finds it by that receipt.`;
+    pre.readOnly = true;
+    return box;
+  }
+  const noun = c.kind === 'feedback' ? 'feedback' : 'report';
+  note.textContent = 'Checking whether this page can submit it…';
+  reportSubmission().then(({ configured }) => {
+    if (!configured) {
+      note.textContent = `Submitting from this page is not switched on yet. Nothing has been sent; copy the ${noun}${supportEmail() ? ' or use your email program' : ''}.`;
+      return;
+    }
+    note.textContent = `Or submit it from here. Submitting sends the text above, with the page’s name and the build, to this site’s report store — nothing else from this browser, and no address of yours. A receipt reference is shown only once the store has accepted it.`;
+    const status = el('p', { class: 'metaline', role: 'status', 'data-submit-status': '', style: 'margin-top:8px' });
+    /* With Submit drawn, the copy button beside it is an alternative. */
+    const copy = box.parentElement?.querySelector('[data-copy-case]');
+    if (copy) { copy.classList.remove('btn-primary'); copy.classList.add('btn-ghost'); }
+    const btn = el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:8px', 'data-submit-report': '', onclick: async () => {
+      btn.disabled = true; status.textContent = 'Submitting…';
+      const r = await submitReport(c, pre.value).catch(() => ({ ok: false, reason: 'network' }));
+      if (!r.ok) {
+        btn.disabled = false;
+        status.textContent = r.reason === 'not-configured'
+          ? `Submitting from this page is not switched on. Nothing has been sent; copy the ${noun}${supportEmail() ? ' or use your email program' : ''}.`
+          : `That did not go through — the site has recorded nothing. Try again, or copy the ${noun}${supportEmail() ? ' or use your email program' : ''}.`;
+        return;
+      }
+      c.submitted = { receipt: r.receipt, at: caseRaisedAt(new Date()), text: pre.value };
+      c.status = `submitted — receipt ${r.receipt}`;
+      saveCorrections();
+      pre.readOnly = true;
+      btn.remove(); status.remove();
+      note.textContent = `Submitted — receipt ${r.receipt}. This site’s report store accepted the text above at ${c.submitted.at}; the owner finds it by that receipt, and the case stays listed here as submitted.`;
+      const title = document.getElementById('drawerTitle');
+      if (title) title.textContent = `Case ${c.id} submitted — receipt ${r.receipt}`;
+      const lead = document.querySelector('#drawer p.body');
+      if (lead) lead.textContent = `Submitted. Receipt ${r.receipt}. The text above went to this site’s report store and nothing else from this browser did.`;
+      /* The list behind the drawer shows the new status; the drawer stays. */
+      if (State.view === 'corrections' || location.pathname === '/corrections') render();
+      toast(`Submitted — receipt ${r.receipt}`);
+    } }, c.kind === 'feedback' ? 'Submit this feedback' : 'Submit this report');
+    box.append(btn, status);
+  });
+  return box;
+}
 
 /* QT-YYYYMMDD-NNN-xxxx. The sequence comes from the cases already stored on that
    date, so two cases raised in the same millisecond cannot collide the way a
@@ -925,9 +1008,10 @@ function correctionPayload(c) {
   /* A case recorded before the audit has no kind: it keeps the equities lines
      it was recorded with. A kind other than equities carries its own. */
   const tail = c.kind === 'property' ? [`Fee rulebook ${c.feeRulebook}`]
-    : (c.kind === 'scanner' || c.kind === 'general') ? []
+    : (c.kind === 'scanner' || c.kind === 'general' || c.kind === 'feedback') ? []
     : [`Model version: ${c.modelVersion}`, `Data as of: ${c.asOf}`, `Universe at the time: ${c.coverage}`];
   if (c.kind) tail.push(c.build ? `Build ${c.build}` : 'Build not recorded (the app was loaded inline, not as a hashed file)');
+  if (c.kind === 'feedback') return [`Feedback ${c.id}`, `Raised: ${c.createdAt}`, `Page: ${c.route}`, ``, c.description || '(nothing written)', ``, ...tail].join('\n');
   return [
     `Correction case ${c.id}`,
     `Raised: ${c.createdAt}`,
@@ -1108,8 +1192,8 @@ function openReportError() {
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
     supportEmail()
-      ? 'This records a case in this browser and gives it an identifier. It does not send anything — there is no server — so the last step gives you the report to send yourself, from your own email program.'
-      : 'This records a case in this browser and gives it an identifier. It does not send anything — there is no server and no contact address yet — so the last step hands you the case to send yourself.'));
+      ? 'This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and you choose to submit it from here, copy it, or send it from your own email program.'
+      : 'This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and you choose to submit it from here or copy it.'));
 
   const origin = reportOrigin();
   const state = { item: origin.groups[0].items[0] || '', subject: origin.subject, shownValue: '', expectedValue: '', sourceRef: '', description: '' };
@@ -1182,39 +1266,83 @@ function openReportError() {
     render();
     const back = opener?.isConnected ? opener : opener?.id ? document.getElementById(opener.id) : null;
     if (back && back !== document.body) back.focus({ preventScroll: true });
-    openDrawer(`Case ${c.id} saved here, not sent`, (() => {
-      const w = el('div');
-      const addr = supportEmail();
-      /* With a support address (LAUNCH.contactEmail), the report is the visitor's
-         to send: the address is shown as text, the mailto is a convenience, and
-         the case stays recorded here, not confirmed received.
-         QT-D17-01 (the owner's wording, 1 Nov 2026): it opens with what happened
-         and what did not — saved in this browser, nothing sent — and what the
-         reader can do: copy it, or export it (Export everything, on Your data,
-         carries every case and a restore brings them back). It said "Recorded
-         here as ID, not confirmed received", which says less about the sending
-         than about the receipt. */
-      w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, addr
-        ? ['Correction case saved in this browser. Nothing has been sent. Copy or export the case if you want to report it: copy the report and send it to ', el('strong', { 'data-support-address': '' }, addr), `, from your own email program. It is recorded here as ${c.id}, not confirmed received.`]
-        : `Correction case saved in this browser. Nothing has been sent. Copy or export the case if you want to report it — no contact address is published yet, so keep it until there is somewhere to send it to. It is recorded here as ${c.id}.`));
-      const pre = el('textarea', { class: 'input', 'aria-label': `Case ${c.id}, as text to copy`, style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px' });
-      pre.value = correctionPayload(c);
-      w.append(pre);
-      w.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
-        el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
-          pre.select();
-          (navigator.clipboard ? navigator.clipboard.writeText(pre.value) : Promise.reject())
-            .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
-        } }, addr ? 'Copy the report' : 'Copy the case'),
-        addr ? el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '',
-          href: `mailto:${addr}?subject=${encodeURIComponent(`Data error report ${c.id}`)}&body=${encodeURIComponent(correctionPayload(c))}` }, 'Open in my email program') : null,
-        el('a', { class: 'btn btn-ghost btn-sm', href: href('/corrections'),
-          onclick: e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); closeDrawer(); navigate('/corrections'); } },
-          'See my recorded cases'),
-      ]));
-      return w;
-    })());
+    confirmCaseSaved(c);
   } }, 'Save this case here'));
   openDrawer('Report a data error', body);
+}
+
+/* THE CONFIRMATION, FOR A CASE JUST SAVED. It opens with what happened and
+   what did not — saved in this browser, nothing sent — and what the reader
+   can do: submit it from here (submitBlock), copy it, open it in their own
+   email program, or export it with everything (QT-D17-01, the owner's
+   wording, 1 Nov 2026). With a support address (LAUNCH.contactEmail) the
+   address is shown as text and the mailto is a convenience; the case stays
+   recorded here, not confirmed received, until the store's receipt says
+   otherwise. */
+function confirmCaseSaved(c) {
+  const noun = c.kind === 'feedback' ? 'Feedback' : 'Correction case';
+  const thing = c.kind === 'feedback' ? 'feedback' : 'report';
+  openDrawer(`Case ${c.id} saved here, not sent`, (() => {
+    const w = el('div');
+    const addr = supportEmail();
+    w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, addr
+      ? [`${noun} saved in this browser. Nothing has been sent. Copy or export the case if you want to report it: copy the ${thing} and send it to `, el('strong', { 'data-support-address': '' }, addr), `, from your own email program. It is recorded here as ${c.id}, not confirmed received.`]
+      : `${noun} saved in this browser. Nothing has been sent. Copy or export the case if you want to report it — no contact address is published yet, so keep it until there is somewhere to send it to. It is recorded here as ${c.id}.`));
+    const pre = el('textarea', { class: 'input', 'aria-label': `Case ${c.id}, as text to copy`, style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px' });
+    pre.value = correctionPayload(c);
+    w.append(pre);
+    /* The submission first — it is the completion; copy and email follow as
+       the alternatives they are. Until a store is configured the copy button
+       stays the primary one (submitBlock demotes it only when Submit is drawn). */
+    w.append(submitBlock(c, pre));
+    w.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+      el('button', { class: 'btn btn-primary btn-sm', 'data-copy-case': '', onclick: () => {
+        pre.select();
+        (navigator.clipboard ? navigator.clipboard.writeText(pre.value) : Promise.reject())
+          .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
+      } }, addr ? `Copy the ${thing}` : 'Copy the case'),
+      addr ? el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '',
+        href: `mailto:${addr}?subject=${encodeURIComponent(`${c.kind === 'feedback' ? 'Feedback' : 'Data error report'} ${c.id}`)}&body=${encodeURIComponent(correctionPayload(c))}` }, 'Open in my email program') : null,
+      el('a', { class: 'btn btn-ghost btn-sm', href: href('/corrections'),
+        onclick: e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); closeDrawer(); navigate('/corrections'); } },
+        'See my recorded cases'),
+    ]));
+    return w;
+  })());
+}
+
+/* FEEDBACK (the owner's brief, 9 Nov 2026): what worked, what did not, what
+   was expected — the same path as a data-error case: saved here first with
+   an identifier, then submitted from here, copied or emailed. It records the
+   page and the build; nothing from the reader's saved work and no address. */
+function openFeedback() {
+  const opener = document.activeElement;
+  const body = el('div');
+  body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
+    'Tell the site’s owner what worked, what did not, or what you expected. This saves your feedback in this browser first and gives it an identifier; it does not send anything by itself. The last step lets you submit it from here' + (supportEmail() ? ', copy it, or send it from your own email program.' : ' or copy it.')));
+  const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
+  f.append(el('label', { for: 'fb-text' }, 'Your feedback'));
+  const ta = el('textarea', { class: 'input', id: 'fb-text', placeholder: 'What happened, what you expected, or what you would change.' });
+  f.append(ta); body.append(f);
+  body.append(el('div', { class: 'sunk', style: 'margin-bottom:var(--md)' },
+    el('dl', { class: 'kv' }, [
+      el('dt', {}, 'Recorded with it'),
+      el('dd', { style: 'text-align:left' }, 'The page you were on and the build. Nothing from your saved work, and no address of yours.'),
+    ])));
+  body.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    const text = ta.value.trim();
+    if (!text) { toast('Write something before saving the feedback'); return; }
+    const now = new Date();
+    const c = { id: nextCaseId(now), createdAt: caseRaisedAt(now), route: location.pathname, kind: 'feedback', build: reportBuild(),
+      item: 'Feedback', subject: matchRoute(location.pathname)?.title || '',
+      status: supportEmail() ? 'recorded here, not confirmed received' : 'recorded — not sent', description: text };
+    State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
+    saveCorrections();
+    render();
+    const back = opener?.isConnected ? opener : opener?.id ? document.getElementById(opener.id) : null;
+    if (back && back !== document.body) back.focus({ preventScroll: true });
+    confirmCaseSaved(c);
+  } }, 'Save this feedback here'));
+  openDrawer('Send feedback', body);
 }
 
