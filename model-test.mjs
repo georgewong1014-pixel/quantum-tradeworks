@@ -217,6 +217,38 @@ try {
     else ok(`breakEvenRent is a true zero of the monthly position — RM${r.rent.toFixed(2)}`, r);
   }
 
+  /* 3b — INDEPENDENT KNOWN ANSWERS (the launch certification audit, 9 Nov
+         2026). A negative control that multiplied the repayment by 1.001
+         failed only 2 of 324 invariants here, because nearly every check
+         compares the model with itself. These constants were worked outside
+         the app — the annuity formula and the fee rulebook's stated scales
+         by hand (quantum-tradeworks-handoff/results/launch-audit-2026-11-09/
+         known-answer-check.mjs, known-answer-cases.mjs) — and are pinned, so
+         a drift in the repayment, the transfer duty, the purchase legal fee,
+         the loan stamp duty, the net yield, the cash required or the
+         break-even rent is caught whatever the rest of the model says. A
+         rulebook change that moves one of these on purpose must move the
+         constant with it, with its derivation. */
+  {
+    const KNOWN = [
+      { deal: { price: 572000, bankValuation: 0, renovation: 25000, downPct: 10, ratePct: 4.30, tenureYears: 35, reserveMonths: 3, rent: 1850, rentGrowthPct: 2.5, vacancyPct: 9, maintenance: 294, sinkingFund: 0, assessment: 800, quitRent: 300, insurance: 450, mgmtPct: 0, selfManaged: true, repairReservePct: 5, holdYears: 10, apprecPct: 3, sellMonths: 6, agentPct: 2, exitLegalPct: 0.5, equityReturnPct: 7, disposerCategory: 'citizen', marginalTaxPct: null },
+        want: { instalment: 2372.96, duty: 11160, legal: 4604, loanDuty: 2575, netYield: 2.4675, safeCashRequired: 118959.70, breakEvenRent: 3234.38 }, name: 'the served sample (RM572,000, 10% down, 4.30% × 35y)' },
+      { deal: { price: 350000, bankValuation: 0, renovation: 10000, downPct: 20, ratePct: 3.9, tenureYears: 30, reserveMonths: 3, rent: 1400, rentGrowthPct: 2.5, vacancyPct: 8, maintenance: 180, sinkingFund: 0, assessment: 600, quitRent: 150, insurance: 300, mgmtPct: 0, selfManaged: true, repairReservePct: 5, holdYears: 5, apprecPct: 3, sellMonths: 6, agentPct: 2, exitLegalPct: 0.5, equityReturnPct: 7, disposerCategory: 'citizen', marginalTaxPct: null },
+        want: { instalment: 1320.67, duty: 6000, legal: 3050, loanDuty: 1400, netYield: 3.2781, safeCashRequired: 102398, breakEvenRent: 1817.13, rpgt: 2482.84 }, name: 'a RM350,000 deal, 20% down, 3.9% × 30y, sold in year 5 (RPGT 15%)' },
+      { deal: { price: 500000, bankValuation: 0, renovation: 0, downPct: 10, ratePct: 0, tenureYears: 35, reserveMonths: 3, rent: 1800, rentGrowthPct: 2.5, vacancyPct: 9, maintenance: 250, sinkingFund: 0, assessment: 800, quitRent: 300, insurance: 450, mgmtPct: 0, selfManaged: true, repairReservePct: 5, holdYears: 10, apprecPct: 3, sellMonths: 6, agentPct: 2, exitLegalPct: 0.5, equityReturnPct: 7, disposerCategory: 'citizen', marginalTaxPct: null },
+        want: { instalment: 1071.43, duty: 9000, legal: 4100, loanDuty: 2250, safeCashRequired: 78926.50 }, name: 'a 0% rate boundary (RM500,000, 10% down, 35y: repayment = principal ÷ 420)' },
+    ];
+    const r = await evaluate(`(() => ${JSON.stringify(KNOWN)}.map(k => { const m = dealModel({ ...PROPERTY_DEFAULT_DEAL, ...k.deal }); const got = {}; for (const f of Object.keys(k.want)) got[f] = m[f]; return got; }))()`);
+    const bad = [];
+    KNOWN.forEach((k, i) => Object.entries(k.want).forEach(([f, want]) => {
+      const got = r[i]?.[f];
+      const tol = f === 'netYield' ? 0.00005 : 0.005;
+      if (typeof got !== 'number' || !Number.isFinite(got) || Math.abs(got - want) > tol) bad.push(`${k.name}: ${f} is ${got}, independently ${want}`);
+    }));
+    if (bad.length) fail(`${bad.length} figure(s) differ from the independently worked known answers`, bad);
+    else ok(`known answers: ${KNOWN.reduce((n, k) => n + Object.keys(k.want).length, 0)} figures over ${KNOWN.length} deals match values worked outside the app (repayment, transfer duty, legal fee, loan duty, net yield, cash required, break-even rent, RPGT), to the sen`, r);
+  }
+
   /* 3b — THE BREAK-EVENS ON A MANAGED DEAL (the 20 Oct 2026 sweep:
           managed-1, stress-1, lab-refurb-1, managed-3, stress-2, taxed-3).
           Check 3 holds the break-even rent on the sample, which is self-

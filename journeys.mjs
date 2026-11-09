@@ -4124,9 +4124,27 @@ const JOURNEYS = [
       });
       const probe = await fetch(new URL('/api/report', BASE + '/').href, { cache: 'no-store' }).then(r => (r.ok ? r.json() : { configured: false, status: r.status })).catch(e => ({ configured: false, error: e.message }));
       if (!local) {
-        j.degrade(probe.configured
-          ? 'not exercised against this deployment: a submission here would file a synthetic report into the owner’s store on every run. The store answers as configured; the owner’s live check is in docs/report-submission.md'
-          : `submission is not switched on for this deployment (/api/report says ${probe.status ? `${probe.status}` : 'no store is configured'}): a visitor can only copy or email the report. docs/report-submission.md names the two settings`, '/company/aapl-apple-inc');
+        /* Not a local server: the outcome steps are taken as GATED steps — each
+           checks the honest refusal the page shows and records why the live
+           store is not exercised — and the journey is DEGRADED, never PASS,
+           so the health page shows no green for a submission nobody made. A
+           journey that declared these outcomes and skipped them would be
+           failed by the runner (below, "never took it"), rightly. */
+        const why = probe.configured
+          ? 'not exercised against this deployment: a submission here would file a synthetic report into the owner’s store on every run; the owner’s live check is in docs/report-submission.md'
+          : `submission is not switched on for this deployment (/api/report answered ${probe.status || (probe.error ? 'nothing' : 'configured: false')}): a visitor can only copy or email the report; docs/report-submission.md names the two settings`;
+        await step(j, tab, 'Customer completion: submitted from the page, receipt shown, no other program opened', BUDGET.action, async () => {
+          const r = await tab.eval(`({ block: document.querySelector('#drawer [data-case-submit]')?.textContent.replace(/\\s+/g, ' ').trim() || null, control: !!document.querySelector('#drawer [data-submit-report]') })`);
+          /* An older build has no submit block at all; a build with one must say the truth. */
+          if (r.block !== null && !probe.configured && !/not switched on/.test(r.block)) throw new StepError(`with no store configured the drawer says “${r.block.slice(0, 160)}”, not that submitting is not switched on`);
+          if (r.block !== null && probe.configured && !r.control) throw new StepError(`the store is configured but the drawer offers no Submit control: “${r.block.slice(0, 160)}”`);
+        }, { gated: why });
+        await step(j, tab, 'Operational completion: the record is found by its receipt with the text reviewed', BUDGET.action, async () => {}, { gated: 'the owner’s by-hand check (ops/REPORT-SUBMISSION-CHECK.md): find the issue by its receipt, confirm the text, own it' });
+        await step(j, tab, 'Only the reviewed report went: one request, five fields, nothing from saved work', BUDGET.action, async () => {
+          const posts = tab.sent.filter(s => s.method === 'POST');
+          if (posts.length) throw new StepError(`${posts.length} POST request(s) were made without anyone pressing Submit: ${posts[0].url.slice(0, 100)}`);
+        }, { gated: 'no submission was made, so no request to inspect; proven on the local server in CI' });
+        j.degrade(why, '/company/aapl-apple-inc');
         return;
       }
       if (!probe.configured || probe.store !== 'file' || !probe.dir) throw new StepError(`the local server names no file store (/api/report answered ${JSON.stringify(probe).slice(0, 160)}) — serve.mjs sets QT_REPORTS_DIR itself`);

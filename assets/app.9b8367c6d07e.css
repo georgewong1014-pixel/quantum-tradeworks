@@ -4843,7 +4843,7 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   #views table.dt.screener-table { display: table; }
   #views [data-now]:empty::before { content: none; }
   #menuProductsBtn, #menuHelpBtn, #pubMenuBtn, #navOpen, #navClose, [data-open-search], [data-theme-toggle],
-  #footResources li:has(> [data-action="report-error"]) { display: none !important; }
+  #footResources li:has(> [data-action="report-error"]), #footResources li:has(> [data-action="feedback"]) { display: none !important; }
   :root:not([data-chrome]) .disclosure, :root:not([data-chrome]) .footer { display: block; }
   :root[data-chrome="app"] .footer-grid > :nth-child(2) { display: block; }
 }
