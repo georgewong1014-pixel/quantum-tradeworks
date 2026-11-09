@@ -94,12 +94,63 @@ Record both halves (customer: receipt shown, no other app; operational:
 issue found, assigned) in the handoff's ops checklist. Until that is done
 the live submission is **Unverified**, whatever CI says.
 
+## Abuse control (the owner's condition, 9 Nov 2026)
+
+Two limits, in the function itself — no new service, nothing stored about
+anyone:
+
+| Limit | Value | How it holds | What the visitor sees |
+|---|---|---|---|
+| Per sender | 5 submissions in 10 minutes | Counted in the function instance's memory from the request's address; checked **before the body is read**, so a flood of anything is turned away cheaply. The address is kept in memory with its times only; never written, logged or answered. Each warm instance counts its own senders, so this bounds a burst, not the day. | 429, "The site is not taking more submissions right now (too many from here in a short time). Nothing has been sent; copy the report or use your email program." |
+| Per day, per store | 50 records in 24 hours (`QT_REPORTS_DAILY_CAP` to change) | Before creating a record the function asks the store how many it took in the last 24 hours — for GitHub, one search of the repository's issues by creation date — and refuses at the cap. This holds across every instance: **the tracker gains at most 50 issues a day however many requests arrive.** If the count cannot be had, the cap fails closed (no record, no receipt). | 429, "… (its daily limit is reached) …" with the same alternatives |
+
+Also: a 16 KB body limit, an 8,000-character report limit, strict field
+validation with every unexpected field dropped, JSON-only (a form on another
+site cannot post here), a honeypot field, and the query string removed on
+the server as well as on the client. The token is read from the environment
+only; it is in no page, no answer and no log line (report-api-test.mjs
+checks the log and the answers for it).
+
+**To verify the limits on the live site without creating issues:** send six
+POSTs with an invalid body (for example `{` with `content-type:
+application/json`) from one machine within a minute; the first five answer
+400, the sixth 429 `rate-limited`. No record is created by any of them.
+
+**To verify the fallback without creating issues:** remove the two store
+variables and redeploy; `GET /api/report` answers `configured:false`, the
+drawer says submission is not switched on and offers copy and email, and a
+POST answers 503 with no receipt.
+
+## Privacy review items (for counsel, with the draft Privacy page)
+
+- **What is stored:** the five fields (kind, case id, the text the visitor
+  reviewed, the page path, the build) and the acceptance time. No address,
+  no agent string, no identifier of the visitor. Free text may contain
+  whatever the visitor typed.
+- **Where and by whom:** GitHub, Inc. holds the records as issues in a
+  private repository of the owner's account — GitHub is the processor and
+  the storage destination; its terms govern retention of deleted issues.
+- **Retention and access:** the owner decides (close, delete); access is
+  the repository's collaborators only.
+- **The sentence added to /privacy** ("One form sends something, and only
+  when you press Submit …") states the above in the page's words; counsel
+  to confirm it with the rest of the draft.
+
+## Staff owner
+
+Reports arrive as issues in the owner's own GitHub account, which emails
+on each new issue. The owner is the support and corrections owner named on
+23 Oct 2026 for the support address, so the proposed owner for incoming
+reports is the same person; no backup is assigned. Operational readiness
+is **not** claimed until the owner confirms this and the live check below
+has been done once.
+
 ## Limits, stated
 
-- No rate limit beyond Vercel's. A flood of submissions would be a flood
-  of issues; the honeypot field refuses the dumbest bots and the JSON-only
-  rule refuses a form posted from another site. If it is abused, remove the
-  two variables: the page falls back to copy and email at once.
+- The per-sender limit is per warm instance, so it bounds a burst rather
+  than a determined attacker; the daily cap is what bounds the day. If the
+  store is abused, remove the two variables: the page falls back to copy
+  and email at once, and nothing is lost but the submit button.
 - No reply route and no visitor contact field: the report carries no
   address unless the visitor types one into the text, and the privacy page
   says so. A reply, if wanted, is by the support address and the case id.

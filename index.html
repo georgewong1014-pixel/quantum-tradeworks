@@ -41108,9 +41108,12 @@ function submitBlock(c, pre) {
       const r = await submitReport(c, pre.value).catch(() => ({ ok: false, reason: 'network' }));
       if (!r.ok) {
         btn.disabled = false;
+        const alt = `copy the ${noun}${supportEmail() ? ' or use your email program' : ''}`;
         status.textContent = r.reason === 'not-configured'
-          ? `Submitting from this page is not switched on. Nothing has been sent; copy the ${noun}${supportEmail() ? ' or use your email program' : ''}.`
-          : `That did not go through — the site has recorded nothing. Try again, or copy the ${noun}${supportEmail() ? ' or use your email program' : ''}.`;
+          ? `Submitting from this page is not switched on. Nothing has been sent; ${alt}.`
+          : (r.reason === 'rate-limited' || r.reason === 'capped')
+            ? `The site is not taking more submissions right now (${r.reason === 'capped' ? 'its daily limit is reached' : 'too many from here in a short time'}). Nothing has been sent; ${alt}.`
+            : `That did not go through — the site has recorded nothing. Try again, or ${alt}.`;
         return;
       }
       c.submitted = { receipt: r.receipt, at: caseRaisedAt(new Date()), text: pre.value };
