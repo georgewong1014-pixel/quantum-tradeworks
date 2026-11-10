@@ -86,5 +86,5 @@ Only these (the certification audit's D-list, trimmed to this audit's scope): pu
 
 ## Commit / PR / deployment state
 
-- Commit: the "audit(internal-tools)" commit on local `main`, **not pushed**. No PR (the repository works on `main`).
-- Deployment: **none performed**; production unchanged at `678cee12d`'s build. Push command for the owner: `git push origin <that commit's sha>:main` after merging any new bot commit.
+- Commit: `7fb941f86` ("audit(internal-tools) …"), merged with the bot's `1deeb1ba6` as `864ffd797` and **pushed on the owner's word "push" (10 Nov 2026)**. No PR (the repository works on `main`).
+- Deployment: Vercel promoted `864ffd797` on the push (Deployment Checks are off, so before CI finished — the known R-01 condition). Production now serves `assets/app.d63a1dfa08f6.js`; `/api/report` is live and answers `configured:false`; a POST is refused 503 with no receipt. CI for `864ffd797` (`checks`, `journeys`) was in progress at the time of writing; the follow log is `quantum-tradeworks-handoff/results/release-checks/2026-11-10-864ffd797-audits-push/`.

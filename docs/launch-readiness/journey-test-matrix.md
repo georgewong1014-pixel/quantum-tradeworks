@@ -18,8 +18,13 @@ Internal-tools audit (Addendum E), 10 November 2026. Environment for every PASS 
 - Rebuilt working tree: `quick`, `corrections`, `submission`, `property`, `property-phone`, `backup`, `return`, `replay` all PASS.
 - Production record (`360cd291d`): 27/27 (the 28th, `submission`, is not yet deployed).
 
+## Production verification done after the push (10 Nov 2026, owner's word "push"; deployed commit `864ffd797`)
+
+- Production serves the new build (`assets/app.d63a1dfa08f6.js`); `/api/report` answers `{"ok":true,"accepts":"POST","configured":false,"store":null,"limits":{…}}` with `cache-control: no-store`.
+- **Failure path verified live:** a POST with the store off answers 503 `{"ok":false,"reason":"not-configured"}` and no receipt; the drawer's probe therefore shows "Submitting from this page is not switched on yet" and offers copy and email.
+- Live journeys (read-only): `corrections` PASS; `submission` DEGRADED with the reason "submission is not switched on for this deployment" — the intended state until the store is configured.
+
 ## Production verification still required
 
-- T1 and T2 on the live site, once the owner pushes and configures the store: one controlled synthetic submission by the owner, recorded as customer completion and operational completion in `ops/REPORT-SUBMISSION-CHECK.md`; the six-invalid-POST limit check.
-- The failure path on the live site: a POST with the store off answers 503 and the drawer offers copy and email (the live site is in exactly this state today, so this will be observable on first deploy).
+- T1 and T2 on the live site, once the owner configures the store: one controlled synthetic submission by the owner, recorded as customer completion and operational completion in `ops/REPORT-SUBMISSION-CHECK.md`; the six-invalid-POST limit check (creates nothing).
 - Physical-device behaviour (none available; emulation reported as emulation).
