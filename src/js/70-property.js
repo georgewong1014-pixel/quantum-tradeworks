@@ -1372,6 +1372,11 @@ function applyDealParam(d, str) {
     else if (typeof def === 'boolean') v = raw === 'true';
     else if (SHARE_STR.test(raw)) v = raw;
     else continue;
+    /* A disposer category the RPGT schedule does not hold is skipped, as its
+       select would refuse it (the independent challenge, 10 Nov 2026): a
+       hand-edited link carried one into the deal, where the model quietly
+       taxed it as a citizen. */
+    if (k === 'disposerCategory' && !RPGT_CATEGORY_IDS.includes(v)) continue;
     if (k === 'holdYears') v = normHoldYears(v);
     /* A link that sets a box to a figure the box would refuse — a negative
        price, a 150% deposit — is skipped for that part, as the box refuses it. */

@@ -240,12 +240,21 @@ try {
         want: { instalment: 1320.67, duty: 6000, legal: 3050, loanDuty: 1400, netYield: 3.2781, safeCashRequired: 102398, breakEvenRent: 1817.13, rpgt: 2482.84 }, name: 'a RM350,000 deal, 20% down, 3.9% × 30y, sold in year 5 (RPGT 15%)' },
       { deal: { price: 500000, bankValuation: 0, renovation: 0, downPct: 10, ratePct: 0, tenureYears: 35, reserveMonths: 3, rent: 1800, rentGrowthPct: 2.5, vacancyPct: 9, maintenance: 250, sinkingFund: 0, assessment: 800, quitRent: 300, insurance: 450, mgmtPct: 0, selfManaged: true, repairReservePct: 5, holdYears: 10, apprecPct: 3, sellMonths: 6, agentPct: 2, exitLegalPct: 0.5, equityReturnPct: 7, disposerCategory: 'citizen', marginalTaxPct: null },
         want: { instalment: 1071.43, duty: 9000, legal: 4100, loanDuty: 2250, safeCashRequired: 78926.50 }, name: 'a 0% rate boundary (RM500,000, 10% down, 35y: repayment = principal ÷ 420)' },
+      /* Round two (10 Nov 2026, challenge-cases.mjs): a valuation below the
+         price, a managed letting with its placement fee, and tax on the rent
+         — each on the served sample's other figures. */
+      { deal: { bankValuation: 520000 },
+        want: { loan: 468000, valuationGapCash: 52000, instalment: 2157.23, transactionCash: 130082.12, safeCashRequired: 164323.12, irrPct: 3.4783 }, name: 'the sample with a RM520,000 bank valuation (the gap is cash on completion; the valuation fee is on the valuation)' },
+      { deal: { selfManaged: false, mgmtPct: 8 },
+        want: { mgmtY: 1616.16, opex: 8629.26, noi: 11572.74, reserve: 8620, breakEvenRent: 3728.00, irrPct: 1.7495 }, name: 'the sample let through an agent at 8% (a month\'s rent per 24-month tenancy as placement)' },
+      { deal: { rent: 3600, marginalTaxPct: 24 },
+        want: { noi: 32268.40, cashflowMonthly: 316.08, cumTax: 37818.17, irrPct: 12.0173 }, name: 'the sample at RM3,600 rent taxed at 24% (rent less running costs and loan interest)' },
     ];
     const r = await evaluate(`(() => ${JSON.stringify(KNOWN)}.map(k => { const m = dealModel({ ...PROPERTY_DEFAULT_DEAL, ...k.deal }); const got = {}; for (const f of Object.keys(k.want)) got[f] = m[f]; return got; }))()`);
     const bad = [];
     KNOWN.forEach((k, i) => Object.entries(k.want).forEach(([f, want]) => {
       const got = r[i]?.[f];
-      const tol = f === 'netYield' ? 0.00005 : 0.005;
+      const tol = (f === 'netYield' || f === 'irrPct') ? 0.00005 : 0.005;
       if (typeof got !== 'number' || !Number.isFinite(got) || Math.abs(got - want) > tol) bad.push(`${k.name}: ${f} is ${got}, independently ${want}`);
     }));
     if (bad.length) fail(`${bad.length} figure(s) differ from the independently worked known answers`, bad);
