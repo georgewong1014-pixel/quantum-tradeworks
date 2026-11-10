@@ -1,12 +1,12 @@
 {
   "kind": "quantum-tradeworks-checks",
   "schema": 1,
-  "commit": "488ea8bcb366a3a97dc2c4bdaba6878acb8b687c",
-  "recordedAt": "2026-11-10T18:21:28.729Z",
-  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/42849516300",
-  "ranAt": "2026-11-10T18:21:04Z",
-  "event": "push",
-  "conclusion": "failure",
+  "commit": "f3329bfd9c0ab2fb94b505417da486a34553f2ef",
+  "recordedAt": "2026-11-10T21:21:08.806Z",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/42874422400",
+  "ranAt": "2026-11-10T19:45:50Z",
+  "event": "workflow_dispatch",
+  "conclusion": "success",
   "app": "app.e83f8b1264c8.js",
   "note": null,
   "suites": [
@@ -15,11 +15,11 @@
       "name": "model-test",
       "kind": "numbers",
       "job": "runtime",
-      "status": "FAIL",
-      "passed": 324,
-      "failed": 1,
-      "said": "1 failed, 324 passed. A figure that fails one of these is mislabelled, not merely imprecise.",
-      "exit": 1
+      "status": "PASS",
+      "passed": 325,
+      "failed": 0,
+      "said": "all 325 model invariants hold",
+      "exit": 0
     },
     {
       "id": "equity-test",
@@ -147,11 +147,11 @@
       "name": "sweep",
       "kind": "layout",
       "job": "runtime",
-      "status": "FAIL",
-      "passed": 107,
-      "failed": 1,
-      "said": "107/108 routes clean",
-      "exit": 1
+      "status": "PASS",
+      "passed": 108,
+      "failed": 0,
+      "said": "108/108 routes clean",
+      "exit": 0
     },
     {
       "id": "coverage-frames",
@@ -169,11 +169,11 @@
       "name": "mobile",
       "kind": "layout",
       "job": "runtime",
-      "status": "FAIL",
+      "status": "PASS",
       "passed": 47,
-      "failed": 5,
-      "said": "5 genuine issues (overflow or hidden focus) (47 ok, 5 FAIL)",
-      "exit": 1
+      "failed": 0,
+      "said": "no horizontal overflow at any width, and no focus stop hidden (47 ok, 0 FAIL)",
+      "exit": 0
     }
   ]
 }
