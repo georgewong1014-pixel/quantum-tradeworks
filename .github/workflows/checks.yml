@@ -223,14 +223,17 @@ jobs:
       # shaped verbs, a modelled figure worded as an expectation, and two
       # pages that disagree — less the sentences reviewed and kept in
       # claims-reviewed.json. Most categorical sentences here are true and
-      # deliberate, so it informs and does not block: it exits 0 whatever it
-      # finds, and this step may not fail the job even if the review itself
-      # cannot run (exit 2: an input missing). Its fixture self-test first.
-      - name: claims to review (informational)
-        continue-on-error: true
+      # deliberate, so Tier 2 and 3 inform and do not block. A Tier 1 phrase
+      # used as a claim — a guarantee, a return promise, a testimonial, a
+      # user count — fails the job (--strict): the internal-tools audit of
+      # 10 Nov 2026 planted "Guaranteed returns every year." on a page and
+      # this step, informational then, let it through. Its fixture self-test
+      # first; a review that cannot run (exit 2) fails the job too, so a
+      # missing input is seen.
+      - name: claims to review (Tier 1 blocks)
         run: |
           node claims-review.mjs --self-test
-          node claims-review.mjs
+          node claims-review.mjs --strict
 
       # The extraction must still reconcile to the published Sarawak totals.
       - name: NAPIC extract reconciles

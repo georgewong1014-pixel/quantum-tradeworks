@@ -54,7 +54,10 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
-const BASE = (args.find(a => a.startsWith('http')) || 'https://quantum-tradeworks.vercel.app').replace(/\/$/, '');
+/* localhost by default (the internal-tools audit, 10 Nov 2026): a bare run used
+   to test the live site and read as a test of the commit. Name the live site on
+   purpose. */
+const BASE = (args.find(a => a.startsWith('http')) || 'http://localhost:8123').replace(/\/$/, '');
 const VERBOSE = args.includes('--verbose');
 const ROOT = dirname(fileURLToPath(import.meta.url));
 

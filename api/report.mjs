@@ -41,7 +41,7 @@
  *       servers and CI (serve.mjs sets a temporary one when nothing is set).
  *   neither → 503 not-configured; the page then offers copy and email only.
  */
-import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export const KINDS = Object.freeze(['data-error', 'feedback']);
@@ -159,10 +159,40 @@ export function issueFor(r, acceptedAt) {
   };
 }
 
+/* The record the store already holds for this case id, or null. One case,
+   one record: a retry after a slow answer, a second tab, or a double press
+   that got past the button must not file the report twice (the internal-tools
+   audit, 10 Nov 2026, T2). GitHub: a search of the repository's issues for
+   the id in the title. File store: the files' own `id` field. A lookup that
+   cannot be made is an error, so a failure here never creates a duplicate. */
+export async function existing(store, id, { fetchImpl = globalThis.fetch } = {}) {
+  if (store.kind === 'github') {
+    const q = encodeURIComponent(`repo:${store.repo} is:issue in:title "${id}"`);
+    const res = await fetchImpl(`https://api.github.com/search/issues?q=${q}&per_page=5`, {
+      headers: { authorization: `Bearer ${store.token}`, accept: 'application/vnd.github+json', 'user-agent': 'quantum-tradeworks-report-form', 'x-github-api-version': '2022-11-28' },
+    });
+    if (res.status !== 200) throw new Error(`GitHub search answered ${res.status}`);
+    const j = await res.json();
+    const hit = (j?.items || []).find(it => typeof it.title === 'string' && it.title.includes(` ${id} `) || (it.title || '').includes(`${id} —`));
+    return hit && Number.isInteger(hit.number) ? { receipt: `QTR-${hit.number}`, acceptedAt: hit.created_at || null } : null;
+  }
+  if (store.kind === 'file') {
+    await mkdir(store.dir, { recursive: true });
+    for (const f of (await readdir(store.dir)).filter(f => /^QTR-\d+\.json$/.test(f))) {
+      try { const rec = JSON.parse(await readFile(join(store.dir, f), 'utf8')); if (rec.id === id) return { receipt: rec.receipt, acceptedAt: rec.acceptedAt }; } catch { /* a half-written file is not this case */ }
+    }
+    return null;
+  }
+  throw new Error(`unknown store ${store.kind}`);
+}
+
 /* Store the report; the receipt comes back only when the store has it.
-   Throws when it does not. */
+   Throws when it does not. A case the store already holds comes back with
+   its existing receipt and `duplicate: true`, and nothing is created. */
 export async function accept(store, r, { fetchImpl = globalThis.fetch, now = new Date(), cap = DEFAULT_DAILY_CAP } = {}) {
   const acceptedAt = now.toISOString();
+  const had = await existing(store, r.id, { fetchImpl });
+  if (had) return { ...had, duplicate: true };
   /* The day's cap, asked of the store itself, before anything is created. */
   if (await takenToday(store, { fetchImpl, now }) >= cap) throw Object.assign(new Error(`the store took ${cap} records in the last 24 hours`), { code: 'capped' });
   if (store.kind === 'github') {
@@ -229,8 +259,8 @@ export default async function handler(req, res, { env = process.env, fetchImpl =
   if (!v.ok) return send(res, 400, { ok: false, reason: v.reason });
   if (!store) return send(res, 503, { ok: false, reason: 'not-configured' });
   try {
-    const { receipt, acceptedAt } = await accept(store, v.report, { fetchImpl, now: new Date(now()), cap: dailyCap(env) });
-    return send(res, 200, { ok: true, receipt, acceptedAt });
+    const { receipt, acceptedAt, duplicate } = await accept(store, v.report, { fetchImpl, now: new Date(now()), cap: dailyCap(env) });
+    return send(res, 200, { ok: true, receipt, acceptedAt, ...(duplicate ? { duplicate: true } : {}) });
   } catch (err) {
     if (err.code === 'capped') { log(`report store (${store.kind}) at its daily cap; ${v.report.id} refused`); return send(res, 429, { ok: false, reason: 'capped' }); }
     log(`report store (${store.kind}) refused ${v.report.id}: ${err.message}`);

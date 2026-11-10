@@ -22,8 +22,10 @@ import handler, { validate, storeFromEnv, accept, issueFor, rateLimited, takenTo
 
 /* A GitHub that answers the day's search with `taken` issues and issue
    creation with `create` — the two calls accept() makes, told apart by URL. */
-const github = ({ taken = 0, create = { status: 201, number: 42 } } = {}, calls = []) => async (url, init = {}) => {
+const github = ({ taken = 0, create = { status: 201, number: 42 }, held = [] } = {}, calls = []) => async (url, init = {}) => {
   calls.push({ url, init });
+  /* Two searches: the duplicate lookup (in:title "<id>") answers with the issues held; the day's count answers total_count. */
+  if (url.includes('/search/issues') && url.includes('in%3Atitle')) return { status: 200, json: async () => ({ total_count: held.length, items: held }) };
   if (url.includes('/search/issues')) return { status: 200, json: async () => ({ total_count: taken }) };
   return { status: create.status, json: async () => (create.number ? { number: create.number, html_url: `https://github.com/o/r/issues/${create.number}` } : {}) };
 };
@@ -74,6 +76,10 @@ try {
   t(rec.receipt === 'QTR-1' && rec.acceptedAt === '2026-11-09T10:00:00.000Z' && rec.id === r.id && rec.report === r.report && rec.page === r.page && rec.kind === 'data-error' && Object.keys(rec).sort().join() === 'acceptedAt,build,id,kind,page,receipt,report',
     'the record holds the receipt, the acceptance time and the five fields — no address, no agent, nothing else', JSON.stringify(rec).slice(0, 200));
   t((await readdir(dir)).sort().join() === 'QTR-1.json,QTR-2.json', 'one file per record');
+  /* T2 (the internal-tools audit, 10 Nov 2026): the same case again — a retry
+     after a slow answer, a second tab — is the same record, not a second one. */
+  const again = await accept({ kind: 'file', dir }, r);
+  t(again.receipt === 'QTR-1' && again.duplicate === true && (await readdir(dir)).length === 2, 'the same case submitted again gets its existing receipt and creates nothing');
 } finally { await rm(dir, { recursive: true, force: true }); }
 
 /* the GitHub store, against a fake fetch */
@@ -82,14 +88,19 @@ try {
   const calls = [];
   const a = await accept({ kind: 'github', repo: 'o/r', token: 'tok' }, r, { fetchImpl: github({ taken: 3 }, calls), now: new Date('2026-11-09T10:00:00Z') });
   const create = calls.find(c => !c.url.includes('/search/'));
-  const search = calls.find(c => c.url.includes('/search/'));
+  const search = calls.find(c => c.url.includes('/search/') && decodeURIComponent(c.url).includes('created:'));
+  const lookup = calls.find(c => c.url.includes('/search/') && decodeURIComponent(c.url).includes('in:title'));
   const sent = JSON.parse(create.init.body);
   t(a.receipt === 'QTR-42' && create.url === 'https://api.github.com/repos/o/r/issues' && create.init.headers.authorization === 'Bearer tok', 'a 201 from GitHub gives the issue number as the receipt');
-  t(calls.indexOf(search) < calls.indexOf(create) && decodeURIComponent(search.url).includes('repo:o/r is:issue created:>=2026-11-08T10:00:00Z'), 'the day\'s count is asked of the repository (issues created in the last 24 hours) before anything is created');
+  t(search && calls.indexOf(search) < calls.indexOf(create) && decodeURIComponent(search.url).includes('repo:o/r is:issue created:>=2026-11-08T10:00:00Z'), 'the day\'s count is asked of the repository (issues created in the last 24 hours) before anything is created');
+  t(lookup && calls.indexOf(lookup) < calls.indexOf(create) && decodeURIComponent(lookup.url).includes(`in:title "${r.id}"`), 'the repository is asked first whether it already holds this case');
   const capped = [];
   let cap = null;
   try { await accept({ kind: 'github', repo: 'o/r', token: 'tok' }, r, { fetchImpl: github({ taken: DEFAULT_DAILY_CAP }, capped), cap: DEFAULT_DAILY_CAP }); } catch (e) { cap = e; }
   t(cap?.code === 'capped' && capped.every(c => c.url.includes('/search/')), `at ${DEFAULT_DAILY_CAP} issues in a day the submission is refused as capped and no issue is created`);
+  const dupCalls = [];
+  const dup = await accept({ kind: 'github', repo: 'o/r', token: 'tok' }, r, { fetchImpl: github({ held: [{ number: 7, title: `Data error ${r.id} — /company/aapl-apple-inc`, created_at: '2026-11-09T10:00:00Z' }] }, dupCalls) });
+  t(dup.receipt === 'QTR-7' && dup.duplicate === true && dupCalls.every(c => c.url.includes('/search/')), 'a case GitHub already holds comes back with its issue number as the receipt, and no second issue is created');
   let searchDown = null;
   try { await accept({ kind: 'github', repo: 'o/r', token: 'tok' }, r, { fetchImpl: async (url) => (url.includes('/search/') ? { status: 403, json: async () => ({}) } : { status: 201, json: async () => ({ number: 1 }) }) }); } catch (e) { searchDown = e; }
   t(searchDown && !searchDown.code && /search answered 403/.test(searchDown.message), 'when the day\'s count cannot be had the cap fails closed: an error, no issue, no receipt');
@@ -119,11 +130,11 @@ try {
   const d = await mkdtemp(join(tmpdir(), 'qt-report-test-'));
   try {
     const r = validate(good).report;
-    await accept({ kind: 'file', dir: d }, r, { cap: 2 });
-    await accept({ kind: 'file', dir: d }, r, { cap: 2 });
+    await accept({ kind: 'file', dir: d }, { ...r, id: 'QT-20261110-001-aaaa' }, { cap: 2 });
+    await accept({ kind: 'file', dir: d }, { ...r, id: 'QT-20261110-002-bbbb' }, { cap: 2 });
     t(await takenToday({ kind: 'file', dir: d }) === 2, 'the file store counts the records written in the last 24 hours');
     let c = null;
-    try { await accept({ kind: 'file', dir: d }, r, { cap: 2 }); } catch (e) { c = e; }
+    try { await accept({ kind: 'file', dir: d }, { ...r, id: 'QT-20261110-003-cccc' }, { cap: 2 }); } catch (e) { c = e; }
     t(c?.code === 'capped' && (await readdir(d)).length === 2, 'the file store refuses the record over the cap and writes nothing');
   } finally { await rm(d, { recursive: true, force: true }); }
 }
@@ -167,8 +178,12 @@ try {
   env = {};
   const none = await post(good);
   t(none.status === 503 && none.json.reason === 'not-configured' && (await call()).json.configured === false, 'with no store configured, POST is 503 not-configured and GET says configured: false');
+  /* T2: the same case posted again (a retry, a second tab) is the same record. */
+  env = { QT_REPORTS_DIR: dir2 };
+  const twice = await post(good);
+  t(twice.status === 200 && twice.json.receipt === 'QTR-1' && twice.json.duplicate === true && (await readdir(dir2)).join() === 'QTR-1.json', 'the same case posted again answers 200 with the existing receipt, marked duplicate, and writes nothing');
   env = { QT_REPORTS_DIR: dir2, QT_REPORTS_DAILY_CAP: '1' };
-  const over = await post(good);
+  const over = await post({ ...good, id: 'QT-20261110-009-zzzz' });
   t(over.status === 429 && over.json.reason === 'capped' && (await readdir(dir2)).join() === 'QTR-1.json', 'at the day\'s cap (QT_REPORTS_DAILY_CAP) POST is 429 capped and nothing is written');
   env = { QT_REPORTS_GITHUB_TOKEN: 'tok', QT_REPORTS_REPO: 'o/r' };
   fetchImpl = github({ create: { status: 502 } });
