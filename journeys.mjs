@@ -4141,8 +4141,12 @@ const JOURNEYS = [
         }, { gated: why });
         await step(j, tab, 'Operational completion: the record is found by its receipt with the text reviewed', BUDGET.action, async () => {}, { gated: 'the owner’s by-hand check (ops/REPORT-SUBMISSION-CHECK.md): find the issue by its receipt, confirm the text, own it' });
         await step(j, tab, 'Only the reviewed report went: one request, five fields, nothing from saved work', BUDGET.action, async () => {
-          const posts = tab.sent.filter(s => s.method === 'POST');
-          if (posts.length) throw new StepError(`${posts.length} POST request(s) were made without anyone pressing Submit: ${posts[0].url.slice(0, 100)}`);
+          /* Only the report address counts: the host may inject its own
+             bot-protection script, which posts to obfuscated same-origin
+             paths (seen on production from 10 Nov 2026) — not this page's
+             doing, and nothing of the case. */
+          const posts = tab.sent.filter(s => s.method === 'POST' && new URL(s.url).pathname === '/api/report');
+          if (posts.length) throw new StepError(`${posts.length} POST request(s) to /api/report were made without anyone pressing Submit: ${posts.slice(0, 3).map(s => `(body ${s.body.length} chars: ${JSON.stringify(s.body.slice(0, 160))})`).join(' | ')}`);
         }, { gated: 'no submission was made, so no request to inspect; proven on the local server in CI' });
         j.degrade(why, '/company/aapl-apple-inc');
         return;
