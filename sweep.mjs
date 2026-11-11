@@ -342,10 +342,16 @@ for (const route of ROUTES) {
   if (ownMachine) {
     seen = [];
     await send('Page.navigate', { url: BASE + '/property/calculator?view=full' }, sessionId);
-    await sleep(2600);
     const want = ['prices.json', 'price-history.json', 'scan-setups.json', 'scan-alerts.json', 'price-adjustments.json',
       'scan-runs.json', 'scan-control.json', 'scan-deliveries.json', 'ingest-runs.json', 'sarawak-income.json'];
-    const missing = want.filter(f => !seen.some(x => new URL(x).pathname.endsWith('/data/' + f)));
+    /* Until every file has been asked for, or 20 s: a fixed 2.6 s read as
+       "no longer asks" on a slow CI runner (488ea8bcb, 10 Nov 2026), when
+       the page had asked for two of the ten and was still starting. A file
+       the page never asks for is still missing at the bound. */
+    const lacking = () => want.filter(f => !seen.some(x => new URL(x).pathname.endsWith('/data/' + f)));
+    await sleep(2600);
+    for (let t = 0; t < 58 && lacking().length; t++) await sleep(300);
+    const missing = lacking();
     if (missing.length) { aqBad.push('owner lane'); console.log(`FAIL the owner's machine no longer asks for ${missing.join(', ')}`); }
     else console.log(`ok   the owner's machine (${u.hostname}) still asks for all ${want.length} personal-lane files`);
   }

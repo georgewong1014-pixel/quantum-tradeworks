@@ -49,20 +49,32 @@ jobs:
         with:
           node-version: '22'
 
+      # A RE-RUN THAT PASSES REPLACES A FAILED RECORD (the public audit of
+      # 11 Nov 2026). On 488ea8b a slow runner failed three timing checks; the
+      # same code passed on the next two runs, but those were on the record's
+      # own commits, so /status went on saying three suites failed on the served
+      # commit and the issue stayed open, with no way to clear either short of
+      # another code push. Now: "Re-run failed jobs" on the push's run. When
+      # that run ends in success on the recorded commit, its suites are
+      # collected again (the API serves a run's latest attempt). A re-run that
+      # fails changes nothing, and a record that is all PASS is never rewritten.
       - name: is it the recorded commit, still without its checks
         id: which
         env:
           SHA: ${{ github.event.workflow_run.head_sha }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         run: |
-          node - "$SHA" >> "$GITHUB_OUTPUT" <<'EOF'
-          const fs = require('fs'), sha = process.argv[2];
+          node - "$SHA" "$CONCLUSION" >> "$GITHUB_OUTPUT" <<'EOF'
+          const fs = require('fs'), sha = process.argv[2], conclusion = process.argv[3];
           const read = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
           const j = read('health/journeys.json'), c = read('health/checks.json');
           const recorded = j?.commit || '';
           const done = !!c && c.commit === sha && (c.suites || []).length > 0 && (c.suites || []).every(s => s.status !== 'NOT RUN');
-          const go = !!sha && recorded === sha && !done;
+          const rerunPassed = done && conclusion === 'success' && (c.suites || []).some(s => s.status === 'FAIL');
+          const go = !!sha && recorded === sha && (!done || rerunPassed);
           console.log(`go=${go}`);
-          console.error(go ? `checks.yml finished on ${sha.slice(0, 7)}, the recorded commit, whose checks record is missing or not run: collecting it`
+          console.error(rerunPassed && go ? `checks.yml finished in success on ${sha.slice(0, 7)}, the recorded commit, whose record holds a failed suite: a re-run passed, collecting it`
+            : go ? `checks.yml finished on ${sha.slice(0, 7)}, the recorded commit, whose checks record is missing or not run: collecting it`
             : recorded !== sha ? `checks.yml finished on ${sha.slice(0, 7)}; the record is of ${recorded.slice(0, 7) || 'nothing'}: nothing to write`
             : `the checks record already holds ${sha.slice(0, 7)}'s results: nothing to write`);
           EOF

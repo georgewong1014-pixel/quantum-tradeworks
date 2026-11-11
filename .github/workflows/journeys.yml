@@ -319,6 +319,42 @@ jobs:
           echo "could not push the result after 5 attempts"
           exit 1
 
+      # THE CHECKS ISSUE FOLLOWS THE RECORD THIS RUN WROTE (the public audit of
+      # 11 Nov 2026). checks-record.yml opens, updates and closes the issue
+      # "CI checks failing on the served commit" when checks.yml ends, but
+      # GitHub starts that workflow only for a run a push began: a run this
+      # workflow or checks-record.yml started (gh workflow run, the workflow's
+      # token) ends without it. So when this job recorded passing checks for
+      # the served commit on 10 Nov (21:21 UTC), issue #6 stayed open beside a
+      # record that was all PASS, and a failed record written here would have
+      # opened nothing. The same step, on the record as this run left it; it
+      # runs only when this run recorded, and never fails the run.
+      - name: open, update or close the checks issue
+        if: always() && steps.decide.outputs.commit == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title='CI checks failing on the served commit'
+          action=0
+          node checks-record.mjs issue-body > "$RUNNER_TEMP/checks-issue.md" || action=$?
+          num=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" \
+                  --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n1)
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "$action" = 0 ]; then
+            if [ -n "$num" ]; then
+              gh issue edit "$num" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/checks-issue.md"
+              echo "updated #$num"
+            else
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$RUNNER_TEMP/checks-issue.md"
+            fi
+          elif [ "$action" = 1 ] && [ -s "$RUNNER_TEMP/checks-issue.md" ] && [ -n "$num" ]; then
+            gh issue close "$num" --repo "$GITHUB_REPOSITORY" \
+              --comment "$(cat "$RUNNER_TEMP/checks-issue.md") $run_url"
+          else
+            echo "no issue to open or close (decision=$action, open issue: ${num:-none})"
+          fi
+
       - name: fail the run when a journey failed
         if: always()
         run: |

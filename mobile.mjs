@@ -293,6 +293,7 @@ for (const w of [375, 1440]) {
         const n = document.activeElement;
         if (!n || n === document.body) return { end: true };
         if (!n.dataset.fw) n.dataset.fw = String(Math.random()).slice(2);
+        const measure = () => {
         const b = n.getBoundingClientRect();
         let op = 1; for (let p = n; p && p.nodeType === 1; p = p.parentElement) op *= parseFloat(getComputedStyle(p).opacity);
         const x = Math.min(innerWidth - 2, Math.max(1, b.left + Math.min(b.width, 40) / 2));
@@ -309,6 +310,15 @@ for (const w of [375, 1440]) {
         const why = b.height > innerHeight - 40 ? '' : op < 0.1 || b.height < 2 ? 'invisible'
           : covered.every(Boolean) && !(n instanceof SVGElement) ? covered.join(' / ') : '';
         return { id: n.dataset.fw, why, who: n.tagName.toLowerCase() + ' “' + (n.getAttribute('aria-label') || n.textContent || '').trim().slice(0, 28) + '”' };
+        };
+        /* A stop that reads as hidden is measured again for up to a second
+           while it keeps the focus: on a slow CI runner (488ea8bcb, 10 Nov
+           2026) two frames were not enough for the skip link's transition,
+           and it read as off-screen on five routes. A stop that is really
+           hidden is still hidden at the end of the second. */
+        let v = measure();
+        for (let k = 0; k < 10 && v.why && document.activeElement === n; k++) { await new Promise(r => setTimeout(r, 100)); v = measure(); }
+        return v;
       })()` }, sessionId);
       const v = r.result?.result?.value;
       if (!v || v.end) break;
