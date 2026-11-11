@@ -91,7 +91,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "18362446186fdefc",
+      "digest": "be3218b82fa58736",
       "changed": "2026-11-11"
     },
     "pages/admin/scanner/data.html": {
@@ -120,7 +120,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "24ede374c1cfe618",
+      "digest": "4e857248a14b53bf",
       "changed": "2026-11-11"
     },
     "pages/admin/scanner/delivery.html": {
@@ -149,7 +149,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ed23f4ba61ca1e44",
+      "digest": "2c1f634e2ca39766",
       "changed": "2026-11-11"
     },
     "pages/admin/scanner/jobs.html": {
@@ -178,7 +178,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4581aadc6f04fb8b",
+      "digest": "ef76d8e47a7d45b3",
       "changed": "2026-11-11"
     },
     "pages/app.html": {
@@ -323,7 +323,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ff5e564a00536513",
+      "digest": "05602edf376b9268",
       "changed": "2026-11-11"
     },
     "pages/app/scanner/alerts.html": {
@@ -352,7 +352,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ea6b2e4c29551720",
+      "digest": "55f8fdd96fa614f4",
       "changed": "2026-11-11"
     },
     "pages/app/scanner/backtest.html": {
@@ -381,7 +381,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a473531496de5abb",
+      "digest": "de94bdc12ab221ac",
       "changed": "2026-11-11"
     },
     "pages/app/scanner/market.html": {
@@ -410,7 +410,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "1fe6cec17254b5c8",
+      "digest": "5bfe20e53885640a",
       "changed": "2026-11-11"
     },
     "pages/app/scanner/settings.html": {
@@ -439,7 +439,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "406dd1cca66a6a73",
+      "digest": "ab55daadb44344f6",
       "changed": "2026-11-11"
     },
     "pages/app/scanner/setups.html": {
@@ -468,7 +468,7 @@
         "cellStops": 0,
         "emptyDetails": 1
       },
-      "digest": "1390952bfbb27767",
+      "digest": "400f8c750fad395d",
       "changed": "2026-11-11"
     },
     "pages/app/scanner/setups/new.html": {
@@ -497,7 +497,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e9be8851785dc342",
+      "digest": "57b6d52bd3def39e",
       "changed": "2026-11-11"
     },
     "pages/app/scanner/watchlists.html": {
@@ -526,7 +526,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "cb7e35c62f1ea2de",
+      "digest": "6574f43b9bac72ae",
       "changed": "2026-11-11"
     },
     "pages/company/aapl-apple-inc.html": {
@@ -4327,7 +4327,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "84ce72228a9fb579",
+      "digest": "8416b44d29bb6f95",
       "changed": "2026-11-11"
     },
     "pages/learn.html": {
@@ -4443,7 +4443,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2775c62c4243152e",
+      "digest": "321445c15b63973c",
       "changed": "2026-11-11"
     },
     "pages/methodology.html": {
@@ -4671,7 +4671,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ff5e564a00536513",
+      "digest": "05602edf376b9268",
       "changed": "2026-11-11"
     },
     "pages/my/theses.html": {
@@ -4818,8 +4818,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2421fdad7b6824c1",
-      "changed": "2026-11-01"
+      "digest": "3761632173a62530",
+      "changed": "2026-11-11"
     },
     "pages/pricing.html": {
       "path": "/pricing",
@@ -4845,7 +4845,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "54c97235906afc87",
+      "digest": "ce8364cb2d0e605a",
       "changed": "2026-11-11"
     },
     "pages/privacy.html": {
@@ -4928,7 +4928,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0168eb1e9e112ad7",
+      "digest": "36d2a81dbe58db40",
       "changed": "2026-11-11"
     },
     "pages/property/areas.html": {
@@ -4957,7 +4957,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "a298e14a07d0f358",
+      "digest": "848580462bd28be1",
       "changed": "2026-11-11"
     },
     "pages/property/areas/map.html": {
@@ -4986,7 +4986,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c196c0a180a9372f",
+      "digest": "7d2ac5e3fed686d2",
       "changed": "2026-11-11"
     },
     "pages/property/calculator.html": {
@@ -5015,7 +5015,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ea765d2ac9d1b7fb",
+      "digest": "a8355b415fbfdc7d",
       "changed": "2026-11-11"
     },
     "pages/property/comparables.html": {
@@ -5044,7 +5044,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4744ff744443ce0c",
+      "digest": "34a8105b80f7ffa2",
       "changed": "2026-11-11"
     },
     "pages/property/lab.html": {
@@ -5073,7 +5073,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0168eb1e9e112ad7",
+      "digest": "36d2a81dbe58db40",
       "changed": "2026-11-11"
     },
     "pages/property/market.html": {
@@ -5102,7 +5102,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b13c8cd46397ba3d",
+      "digest": "cfbc125e29717999",
       "changed": "2026-11-11"
     },
     "pages/property/models.html": {
@@ -5131,7 +5131,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d79aa864c7222580",
+      "digest": "c19f8e2192fcef8c",
       "changed": "2026-11-11"
     },
     "pages/property/opportunities.html": {
@@ -5160,7 +5160,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "dc1c4baff3b2cc3d",
+      "digest": "0a01204664174fa9",
       "changed": "2026-11-11"
     },
     "pages/research.html": {
@@ -5247,7 +5247,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2775c62c4243152e",
+      "digest": "321445c15b63973c",
       "changed": "2026-11-11"
     },
     "pages/start.html": {
@@ -5303,7 +5303,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "705361979cd26232",
+      "digest": "18c6614235e828c4",
       "changed": "2026-11-11"
     },
     "pages/terms.html": {
