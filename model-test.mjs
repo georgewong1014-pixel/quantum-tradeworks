@@ -5432,6 +5432,21 @@ try {
           return { n: xs.length, median: q(0.5), p95: q(0.95), max: xs.at(-1) };
         })()`);
         await lDeal({});
+        /* THE LIMITS ARE FOR A MACHINE OF A KNOWN SPEED (the public audit, 11 Nov
+           2026). On 488ea8b a CI runner drew the same paints six times slower
+           than the runs before and after it on the same code (median 18.90 ms
+           against 3.10 and 3.20), and a fixed 8 ms read that as a defect in the
+           Lab; best-of-three cannot help when the whole machine is slow. A
+           fixed arithmetic loop is timed first, unthrottled, and the limits are
+           stretched by how much slower than the reference this machine runs it
+           — never shrunk. The reference, 25 ms, is the loop on the machine the
+           limits were set on, which is slower than a normal CI runner, so a
+           normal runner is held to the limits as written and a paint that
+           becomes slower there still fails. */
+        const BENCH_REF_MS = 25;
+        const bench = Number(await evaluate(`(() => { let best = Infinity; for (let k = 0; k < 7; k++) { const t = performance.now(); let s = 0; for (let i = 0; i < 2e7; i++) s += Math.sqrt(i % 1000) * 1.0001; best = Math.min(best, performance.now() - t); } return best; })()`));
+        const scale = Number.isFinite(bench) && bench > 0 ? Math.max(1, bench / BENCH_REF_MS) : 1;
+        const LIM = { median: 8 * scale, p95: 16 * scale, thirty: 33 * scale };
         await send('Emulation.setCPUThrottlingRate', { rate: 4 }, sessionId);
         /* Best of up to three measurements (the internal-tools audit, 10 Nov
            2026): one sample on a shared runner failed this check twice in a day
@@ -5441,17 +5456,17 @@ try {
         const best = async (fits) => { let b = null; for (let i = 0; i < 3; i++) { const m = await measure(); if (!b || m.p95 < b.p95) b = m; if (fits(b)) break; } return b; };
         let ten, thirty;
         try {
-          ten = await best(m => m.n >= 150 && m.median <= 8 && m.p95 <= 16);
+          ten = await best(m => m.n >= 150 && m.median <= LIM.median && m.p95 <= LIM.p95);
           await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId);
           await lDeal({ holdYears: 30 });
           await send('Emulation.setCPUThrottlingRate', { rate: 4 }, sessionId);
-          thirty = await best(m => m.p95 <= 33);
+          thirty = await best(m => m.p95 <= LIM.thirty);
         } finally { await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId); }
         const p = [];
         if (!(ten.n >= 150)) p.push(`only ${ten.n} paints were measured at a 10-year hold`);
-        if (!(ten.median <= 8) || !(ten.p95 <= 16)) p.push(`10-year hold, 4× slower: median ${ten.median?.toFixed(2)}ms, 95th percentile ${ten.p95?.toFixed(2)}ms`);
-        if (!(thirty.p95 <= 33)) p.push(`30-year hold, 4× slower: 95th percentile ${thirty.p95?.toFixed(2)}ms`);
-        const said = `lab-paint at 4× CPU — 10-year hold: median ${ten.median?.toFixed(2)}ms, p95 ${ten.p95?.toFixed(2)}ms, max ${ten.max?.toFixed(2)}ms (${ten.n} paints); 30-year hold: median ${thirty.median?.toFixed(2)}ms, p95 ${thirty.p95?.toFixed(2)}ms, max ${thirty.max?.toFixed(2)}ms (${thirty.n} paints)`;
+        if (!(ten.median <= LIM.median) || !(ten.p95 <= LIM.p95)) p.push(`10-year hold, 4× slower: median ${ten.median?.toFixed(2)}ms, 95th percentile ${ten.p95?.toFixed(2)}ms`);
+        if (!(thirty.p95 <= LIM.thirty)) p.push(`30-year hold, 4× slower: 95th percentile ${thirty.p95?.toFixed(2)}ms`);
+        const said = `lab-paint at 4× CPU — 10-year hold: median ${ten.median?.toFixed(2)}ms, p95 ${ten.p95?.toFixed(2)}ms, max ${ten.max?.toFixed(2)}ms (${ten.n} paints); 30-year hold: median ${thirty.median?.toFixed(2)}ms, p95 ${thirty.p95?.toFixed(2)}ms, max ${thirty.max?.toFixed(2)}ms (${thirty.n} paints); this machine ran the reference loop in ${bench.toFixed(1)}ms against ${BENCH_REF_MS}ms, so the limits are ${scale === 1 ? 'as written (8, 16 and 33 ms)' : `stretched ×${scale.toFixed(2)} (${LIM.median.toFixed(1)}, ${LIM.p95.toFixed(1)} and ${LIM.thirty.toFixed(1)} ms)`}`;
         console.log(`      ${said}`);
         if (p.length) fail('scenario-lab L13: a paint fits a frame on a 4× slower processor', p);
         else ok(`scenario-lab L13: ${said}`);
