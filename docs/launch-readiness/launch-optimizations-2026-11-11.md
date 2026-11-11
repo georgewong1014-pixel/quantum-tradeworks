@@ -73,7 +73,7 @@ First runs and reruns are listed separately.
 | Release check | `10f727f40` | cut off by a session restart during the mobile suite; before that, prerender 183/184 on the first pass ("the app never drew the page", one company page) and 184/184 on the second |
 | Release check | `1048bcf5e` (items 1–4) | every suite exit 0; first journeys run 26 pass, **2 degraded** (`quick` 12.4 s against an 8 s budget, `backup` 27.2 s against 12 s, while screenshots were being captured on the same machine); the CI-mode run 28 pass |
 | Release check, first combined run | `f6a59a687` (items 1–10) | **6 failures**: served-check 2 (Free card 21 words; dashboard card not to /property), model-test 1 (Property tab order), equity-test 2 (dashboard card; Scanner tab order), sweep 1 (Property tab order). journeys 28/28, mobile pass, coverage-frames pass, prerender 184/184, register pass. Every failure was my own change against a held expectation; see section 4 |
-| Release check, final | see section 8 | — |
+| Release check, final | `06cc272f6` (items 1–10, corrected) | every suite exit 0; journeys 28/28 on both runs, no degraded |
 
 Not covered by any run: a physical phone; a second physical device for restore; a live report submission; a rollback in Vercel.
 
@@ -103,4 +103,18 @@ No area is certified for an official launch from code tests alone.
 
 ## 8. Final regression and release
 
-Filled in after the final run and the push the owner asked for ("once everything is fixed, start merge and push to live", 11 Nov).
+**Final release check, `06cc272f6` (all ten items, 11 Nov 15:34 UTC start): every suite exit 0.**
+
+| Suite | Result |
+|---|---|
+| Offline (syntax, build-check, served-check, ingest, history store, data, and the rest) | 12 of 12 |
+| journeys | 28 pass, 0 degraded, 0 fail; again as CI: 28 pass |
+| model-test | all 325 invariants hold |
+| equity-test | 302 passed, 0 failed |
+| prerender --check, and in Verdana | 184 of 184 pages, twice |
+| coverage-frames, mobile, register-test | pass |
+| sweep | 108 of 108 routes clean |
+
+The six failures of the first combined run did not recur. Logs are kept outside the repository, with the handoff notes.
+
+**Release.** Merged to `main` (fast-forward) and pushed on the owner's own instruction of 11 Nov: "once everything is fixed, start merge and push to live". Deployment Checks are off, so Vercel promotes the push before CI finishes; the CI run and the production checks for this push are recorded on `/status` and in the handoff notes, not here. Until those are read, items marked "Implemented-awaiting verification" stay so for production.
