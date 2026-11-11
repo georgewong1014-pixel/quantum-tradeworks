@@ -2138,7 +2138,7 @@ VIEWS.contact = () => trustPage('Contact',
         const v = supportEmail();
         return v
           ? [tp('Write to ', supplied('email'), ', the site owner’s support address. It opens your own email program; this site does not send the message or confirm that it arrived.'),
-             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: submit it from here, and a receipt reference appears once the site’s store has accepted it; or copy it and send it to that address from your own email program. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it and send it to that address from your own email program; or, where submitting from the page is switched on, submit it there, and a receipt reference appears once the site’s store has accepted it. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
           : [tp(...supportUnavailable())];
       })(),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [

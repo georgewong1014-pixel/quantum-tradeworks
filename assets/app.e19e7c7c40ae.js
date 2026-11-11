@@ -30158,7 +30158,7 @@ VIEWS.contact = () => trustPage('Contact',
         const v = supportEmail();
         return v
           ? [tp('Write to ', supplied('email'), ', the site owner’s support address. It opens your own email program; this site does not send the message or confirm that it arrived.'),
-             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: submit it from here, and a receipt reference appears once the site’s store has accepted it; or copy it and send it to that address from your own email program. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it and send it to that address from your own email program; or, where submitting from the page is switched on, submit it there, and a receipt reference appears once the site’s store has accepted it. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
           : [tp(...supportUnavailable())];
       })(),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
@@ -33200,8 +33200,8 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', supportEmail()
-    ? 'Each report names the exact item and is saved in this browser first. You then submit it from here, copy it, or send it from your own email program.'
-    : 'Each report names the exact item and is saved in this browser first. You then submit it from here or copy it.'));
+    ? 'Each report names the exact item and is saved in this browser first. You then copy it, send it from your own email program, or submit it from here where that is switched on.'
+    : 'Each report names the exact item and is saved in this browser first. You then copy it, or submit it from here where that is switched on.'));
   rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the error form'));
   wrap.append(rep);
   /* The reader's own cases and the log come first (Day-10 pre-audit CL-25, NAV-14): the page is reached to check a case or the log, and the
@@ -33619,8 +33619,8 @@ function openReportError() {
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
     supportEmail()
-      ? 'This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and you choose to submit it from here, copy it, or send it from your own email program.'
-      : 'This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and you choose to submit it from here or copy it.'));
+      ? 'This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and you choose to copy it, send it from your own email program, or submit it from here where that is switched on.'
+      : 'This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and you choose to copy it, or submit it from here where that is switched on.'));
 
   const origin = reportOrigin();
   const state = { item: origin.groups[0].items[0] || '', subject: origin.subject, shownValue: '', expectedValue: '', sourceRef: '', description: '' };
@@ -33746,7 +33746,7 @@ function openFeedback() {
   const opener = document.activeElement;
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
-    'Tell the site’s owner what worked, what did not, or what you expected. This saves your feedback in this browser first and gives it an identifier; it does not send anything by itself. The last step lets you submit it from here' + (supportEmail() ? ', copy it, or send it from your own email program.' : ' or copy it.')));
+    'Tell the site’s owner what worked, what did not, or what you expected. This saves your feedback in this browser first and gives it an identifier; it does not send anything by itself. The last step lets you copy it' + (supportEmail() ? ', send it from your own email program, or submit it from here where that is switched on.' : ', or submit it from here where that is switched on.')));
   const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   f.append(el('label', { for: 'fb-text' }, 'Your feedback'));
   const ta = el('textarea', { class: 'input', id: 'fb-text', placeholder: 'What happened, what you expected, or what you would change.' });

@@ -73,7 +73,7 @@ No migrations (there is no database). No product behaviour changed.
 | `node claims-review.mjs --strict` | exit 0 (Tier 1: 0) |
 | `node model-test.mjs http://localhost:8140` (with L13 best-of-3) | all 325 model invariants hold (L13: 10-year hold median 5.70 ms, p95 7.40 ms; 30-year p95 12.40 ms) |
 | `node --check` on every edited .mjs | pass |
-| Full release check on a clean archive of the audit commit | RELEASE_CHECK_RESULT |
+| Full release check on a clean archive of the audit commit | cut off by the end of the session on `7fb941f86`; run in full on `488ea8bcb` (10 Nov 2026) before its push: every suite exit 0 — offline 12/12, journeys 28/28, model-test 325, sweep 108/108 |
 
 ## Cross-repository receiving-side requirements
 
