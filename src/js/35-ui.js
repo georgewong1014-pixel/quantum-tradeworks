@@ -581,6 +581,10 @@ const TOOLS = [
   /* Property Intelligence. "My properties" is the store of saved property
      models; its route arrives with that work, and until then it is listed
      nowhere (toolPresent). */
+  { id: 'models', product: 'property', label: 'My properties', path: '/property/models', tab: true,
+    status: 'live', statusNote: 'The properties you have saved in this browser, each with its scenarios; open one to edit it in the calculator.',
+    proof: { journey: 'property', step: 'It is listed with the saved properties' },
+    action: { label: 'Open my properties', path: '/property/models' } },
   { id: 'calculator', product: 'property', label: 'Calculator', path: '/property/calculator', views: ['property'], tab: true,
     status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' },
@@ -588,13 +592,6 @@ const TOOLS = [
   { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
     status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
     action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
-  /* After the two tools (the owner's list of 11 Nov 2026, item 7): the
-     Calculator's quick model is where a first visit starts; the saved
-     properties are where a returning one does. */
-  { id: 'models', product: 'property', label: 'My properties', path: '/property/models', tab: true,
-    status: 'live', statusNote: 'The properties you have saved in this browser, each with its scenarios; open one to edit it in the calculator.',
-    proof: { journey: 'property', step: 'It is listed with the saved properties' },
-    action: { label: 'Open my properties', path: '/property/models' } },
   { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas', 'areaMap'], tab: true,
     status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
     proof: { journey: 'registers', step: 'Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow' },
@@ -630,15 +627,11 @@ const TOOLS = [
     status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
     proof: { journey: 'settings', step: 'Change three scanner settings: each holds after a reload' },
     action: { label: 'Open scanner settings', path: '/app/scanner/settings' } },
-  { id: 'trading', product: 'scanner', label: 'Trading Index', path: '/research/trading-index', views: ['tradingIndex'], tab: true,
-    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
-    proof: { journey: 'records', step: 'Record a stronger daily price structure: the trend regime rises and the change is logged' },
-    action: { label: 'Assess a trend', path: '/research/trading-index' } },
-  /* The workspace — the reader's own, in this browser. */
-  /* LAST, the three that read files of the reader's own (the owner's list of
-     11 Nov 2026, item 5): on this site each wears "Unavailable", and they
-     stood second, fifth and sixth in the row — before Setups, the one thing
-     a first visit can do. What works comes first. */
+  /* AFTER THE WORKING TOOLS, the three that read files of the reader's own
+     (the owner's list of 11 Nov 2026, item 5): on this site each wears
+     "Unavailable", and they stood second, fifth and sixth in the row —
+     before Setups, the one thing a first visit can do. The Trading Index
+     stays last (Release A). */
   { id: 'market', product: 'scanner', label: 'Market (your series)', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'], tab: true,
     status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
     action: { label: 'Screen your series', path: '/app/scanner/market' } },
@@ -648,6 +641,11 @@ const TOOLS = [
   { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'], tab: true,
     status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
     action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
+  { id: 'trading', product: 'scanner', label: 'Trading Index', path: '/research/trading-index', views: ['tradingIndex'], tab: true,
+    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
+    proof: { journey: 'records', step: 'Record a stronger daily price structure: the trend regime rises and the change is logged' },
+    action: { label: 'Assess a trend', path: '/research/trading-index' } },
+  /* The workspace — the reader's own, in this browser. */
   { id: 'dashboard', product: null, label: 'My Dashboard', path: '/app', views: ['home'],
     status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.',
     proof: { journey: 'return', step: 'Saved properties tile reads 1' },

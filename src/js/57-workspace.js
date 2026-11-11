@@ -196,7 +196,7 @@ VIEWS.workspace = () => {
     extra: all.length ? [el('details', { class: 'explain', 'data-version-flags': '' }, [
       el('summary', {}, 'What “Model moved”, “Fee rulebook moved” and “Data moved” mean'),
       el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--xs);max-width:72ch' },
-        `“Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Fee rulebook moved” means a saved property was saved under another version of the duties and fees it is priced with (now ${FEE_TABLE.version}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}).`),
+        `“Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Fee rulebook moved” means a saved property was saved under another version of the duties and fees it is priced with (now ${FEE_TABLE.version}); “Data moved” means the statements under it are not the ones it was built on (now: ${currentDataText()}). An item marked this way still holds what you saved; to keep it as it was, export a backup under Your data & settings before you save it again.`),
     ])] : [] });
   wrap.append(lim);
 

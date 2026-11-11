@@ -1527,7 +1527,7 @@ function scopeCard() {
 let plansCompareOpen = false;
 const PLAN_CARDS = [
   { id: 'free', name: () => PLANS.free.name, mark: 'Free now',
-    line: 'Research every company here, compare two, keep one list and one portfolio, and model a property by hand.' },
+    line: 'Research every company, compare two, keep one list and one portfolio, and model a property by hand.' },
   { id: 'pro', name: () => PLANS.pro.name, mark: 'Not on sale',
     line: 'Editable valuation assumptions, every screener field, wider comparison, more lists and portfolios, alerts and exports.' },
   { id: 'report', name: () => 'Property reports', mark: 'Not on sale',

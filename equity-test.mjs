@@ -8332,7 +8332,7 @@ try {
     const f = r.first;
     if (f.view !== 'home' || !f.start || f.tiles !== 0) p.push(`first time: view ${f.view}, three-product card ${f.start}, ${f.tiles} tiles`);
     /* (QT-D15-01, 28 Oct 2026) three product cards, one action each, at equal weight and none primary; the watchlist and the other entries in one quiet section below; with the seeded samples present it is still the first visit (sample data does not count). */
-    const WANT_CARDS = [['Equities Research', 'Research a company', '/research'], ['Quantum Scanner', 'Create a scanner setup', '/app/scanner/setups/new'], ['Property Intelligence', 'Model a property', '/property']];
+    const WANT_CARDS = [['Equities Research', 'Research a company', '/research'], ['Quantum Scanner', 'Create a scanner setup', '/app/scanner/setups/new'], ['Property Intelligence', 'Model a property', '/property/calculator']];   /* the quick model (the owner's list of 11 Nov 2026, item 7); it was /property, the Scenario Lab */
     if (JSON.stringify(f.cards.map(c => [c.h, c.go, c.path])) !== JSON.stringify(WANT_CARDS)) p.push(`first time: the product cards read ${JSON.stringify(f.cards.map(c => [c.h, c.go, c.path]))}`);
     if (f.cards.some(c => c.cls !== f.cards[0].cls || /btn-primary/.test(c.cls))) p.push(`first time: the three cards' buttons are not equal and non-primary: ${JSON.stringify(f.cards.map(c => c.cls))}`);
     if (f.wlIn.join() !== 'more' || f.moreHeading !== 'More in your workspace') p.push(`first time: "Create a watchlist" sits in ${JSON.stringify(f.wlIn)} (want only the supporting section "More in your workspace", heading "${f.moreHeading}")`);

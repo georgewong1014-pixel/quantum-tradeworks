@@ -3190,10 +3190,13 @@ const HOME_PAGE = read(HOME);
       if (wlLinks.length !== 1 || steps.some(li => all(li).includes(wlLinks[0]))) p.push(`/app: "Create a watchlist" is served ${wlLinks.length} time(s), or inside a product card`);
       if (!/More in your workspace/.test(sight(views))) p.push('/app: the section "More in your workspace" is not served');
       said.pics = steps.filter(li => all(li).some(n => n.tag === 'svg')).length;
-      const prop = all(views).filter(n => n.tag === 'a' && attr(n, 'href') === '/property');
-      if (!prop.length) p.push('/app: no link to /property (the property card opens the Scenario Lab)');
+      /* The property card opens the calculator's quick model (the owner's list
+         of 11 Nov 2026, item 7); it opened the Scenario Lab at /property. */
+      const prop = all(views).filter(n => n.tag === 'a' && attr(n, 'href') === '/property/calculator');
+      if (!prop.length) p.push('/app: no link to /property/calculator (the property card opens the quick model)');
       const propStep = steps.find(li => attr(li, 'data-step') === 'property');
-      if (propStep && !all(propStep).some(n => n.tag === 'a' && attr(n, 'href') === '/property')) p.push('/app: the property card does not open /property');
+      if (propStep && !all(propStep).some(n => n.tag === 'a' && attr(n, 'href') === '/property/calculator')) p.push('/app: the property card does not open /property/calculator');
+      if (propStep && all(propStep).some(n => n.tag === 'a' && attr(n, 'href') === '/property')) p.push('/app: the property card still opens /property, the Scenario Lab');
       const WANT = { recent: 'Recently opened', properties: 'Saved properties', watchlists: 'Watchlists', setups: 'Scanner setups', alerts: 'Your alerts' };
       for (const [k, name] of Object.entries(WANT)) {
         const li = all(views).find(n => n.tag === 'li' && attr(n, 'data-sec') === k);
