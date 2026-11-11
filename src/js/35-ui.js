@@ -581,10 +581,6 @@ const TOOLS = [
   /* Property Intelligence. "My properties" is the store of saved property
      models; its route arrives with that work, and until then it is listed
      nowhere (toolPresent). */
-  { id: 'models', product: 'property', label: 'My properties', path: '/property/models', tab: true,
-    status: 'live', statusNote: 'The properties you have saved in this browser, each with its scenarios; open one to edit it in the calculator.',
-    proof: { journey: 'property', step: 'It is listed with the saved properties' },
-    action: { label: 'Open my properties', path: '/property/models' } },
   { id: 'calculator', product: 'property', label: 'Calculator', path: '/property/calculator', views: ['property'], tab: true,
     status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' },
@@ -592,6 +588,13 @@ const TOOLS = [
   { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
     status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
     action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
+  /* After the two tools (the owner's list of 11 Nov 2026, item 7): the
+     Calculator's quick model is where a first visit starts; the saved
+     properties are where a returning one does. */
+  { id: 'models', product: 'property', label: 'My properties', path: '/property/models', tab: true,
+    status: 'live', statusNote: 'The properties you have saved in this browser, each with its scenarios; open one to edit it in the calculator.',
+    proof: { journey: 'property', step: 'It is listed with the saved properties' },
+    action: { label: 'Open my properties', path: '/property/models' } },
   { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas', 'areaMap'], tab: true,
     status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
     proof: { journey: 'registers', step: 'Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow' },
@@ -617,21 +620,12 @@ const TOOLS = [
   { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'], tab: true,
     status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from files you open here; the worker that writes them is not distributed yet.',
     action: { label: 'Open the scanner', path: '/app/scanner' } },
-  { id: 'market', product: 'scanner', label: 'Market (your series)', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'], tab: true,
-    status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
-    action: { label: 'Screen your series', path: '/app/scanner/market' } },
   { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'], tab: true,
     status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; evaluating one here needs your price history.',
     action: { label: 'Create a setup', path: '/app/scanner/setups/new' } },
   { id: 'scanWatchlists', product: 'scanner', label: 'Watchlist scanner', path: '/app/scanner/watchlists', views: ['scannerWatchlists'], tab: true,
     status: 'beta', statusNote: 'Your watchlists as the universe a setup checks, exported to the file the worker reads.',
     action: { label: 'Scan a watchlist', path: '/app/scanner/watchlists' } },
-  { id: 'scanAlerts', product: 'scanner', label: 'Alerts', path: '/app/scanner/alerts', views: ['scannerAlerts', 'scannerAlert'], needs: ['alerts'], ages: ['history'], tab: true,
-    status: 'beta', statusNote: 'The worker’s record of the bars on which your setups held, read here; nothing is sent.',
-    action: { label: 'Review your matches', path: '/app/scanner/alerts' } },
-  { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'], tab: true,
-    status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
-    action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
   { id: 'scanSettings', product: 'scanner', label: 'Settings', path: '/app/scanner/settings', views: ['scannerSettings'], tab: true,
     status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
     proof: { journey: 'settings', step: 'Change three scanner settings: each holds after a reload' },
@@ -641,6 +635,19 @@ const TOOLS = [
     proof: { journey: 'records', step: 'Record a stronger daily price structure: the trend regime rises and the change is logged' },
     action: { label: 'Assess a trend', path: '/research/trading-index' } },
   /* The workspace — the reader's own, in this browser. */
+  /* LAST, the three that read files of the reader's own (the owner's list of
+     11 Nov 2026, item 5): on this site each wears "Unavailable", and they
+     stood second, fifth and sixth in the row — before Setups, the one thing
+     a first visit can do. What works comes first. */
+  { id: 'market', product: 'scanner', label: 'Market (your series)', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'], tab: true,
+    status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
+    action: { label: 'Screen your series', path: '/app/scanner/market' } },
+  { id: 'scanAlerts', product: 'scanner', label: 'Alerts', path: '/app/scanner/alerts', views: ['scannerAlerts', 'scannerAlert'], needs: ['alerts'], ages: ['history'], tab: true,
+    status: 'beta', statusNote: 'The worker’s record of the bars on which your setups held, read here; nothing is sent.',
+    action: { label: 'Review your matches', path: '/app/scanner/alerts' } },
+  { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'], tab: true,
+    status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
+    action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
   { id: 'dashboard', product: null, label: 'My Dashboard', path: '/app', views: ['home'],
     status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.',
     proof: { journey: 'return', step: 'Saved properties tile reads 1' },

@@ -4958,7 +4958,7 @@ for (const w of [360, 390]) {
      - every control in the page — the two calls to action, each card's,
        the price knob, the link to the rulebook's sources — is a 44px
        target on both axes, the badges being words, not links;
-     - the primary call to action, "Open the Scenario Lab", is on the first
+     - the primary call to action, "Start with the quick model", is on the first
        screen, and the disclosure is beside it, in sight. */
 {
   const fails = [], said = { pages: 0, targets: 0 };
@@ -5012,7 +5012,7 @@ for (const w of [360, 390]) {
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
       if (r.wide.length) fails.push(`${at}: wider than the window: ${r.wide.join(', ')}`);
       if (script && r.small.length) fails.push(`${at}: ${r.small.length} of ${r.n} controls under 44px: ${r.small.slice(0, 5).join('; ')}`);
-      if (!r.cta || r.ctaText !== 'Open the Scenario Lab') fails.push(`${at}: the primary call to action ${r.ctaText ? `"${r.ctaText}" is not on the first screen` : 'is missing'}`);
+      if (!r.cta || r.ctaText !== 'Start with the quick model') fails.push(`${at}: the primary call to action ${r.ctaText ? `"${r.ctaText}" is not on the first screen` : 'is missing'}`);
       if (!r.disc) fails.push(`${at}: the disclosure beside the call to action is not in sight`);
     }
   } catch (e) { fails.push(`the checks threw: ${e.message}`); }

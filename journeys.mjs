@@ -4295,9 +4295,9 @@ const JOURNEYS = [
       }
 
       /* THE PROPERTY LANDING (/property-investing): its one primary call to
-         action, into the Scenario Lab. */
+         action, into the calculator's quick model. */
       await load('/property-investing').catch(() => {});
-      await press('/property-investing', visible('#views a.pi-cta-primary'), 'Open the Scenario Lab', '/property-investing: “Open the Scenario Lab”');
+      await press('/property-investing', visible('#views a.pi-cta-primary'), 'Start with the quick model', '/property-investing: “Start with the quick model”');
 
       /* THE HOMEPAGE'S PROPERTY CARD (plan item 3.8): the compact Scenario
          Lab on the sample deal. Its price, moved to the far end of its

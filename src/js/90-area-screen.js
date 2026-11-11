@@ -1470,7 +1470,7 @@ function scopeCard() {
   const il = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   ['Normalised financial history and derived metrics, each with its formula, period and source',
    'Scores that decompose to weighted inputs, anchor ranges and peer percentiles',
-   'Model-appropriate valuation with the assumptions exposed and editable',
+   'Model-appropriate valuation with the assumptions exposed; editing them belongs to a proposed plan that is not on sale',
    'Bear, base and bull ranges with sensitivity — never a single number',
    'Published screen rules you can run, change and save',
    'Alerts that state a changed fact and its source',
@@ -1527,9 +1527,9 @@ function scopeCard() {
 let plansCompareOpen = false;
 const PLAN_CARDS = [
   { id: 'free', name: () => PLANS.free.name, mark: 'Free now',
-    line: 'Research a few companies, keep one list and one portfolio, and model a property by hand.' },
+    line: 'Research every company here, compare two, keep one list and one portfolio, and model a property by hand.' },
   { id: 'pro', name: () => PLANS.pro.name, mark: 'Not on sale',
-    line: 'Every company here, editable valuation assumptions, the full screener, comparison, alerts and exports.' },
+    line: 'Editable valuation assumptions, every screener field, wider comparison, more lists and portfolios, alerts and exports.' },
   { id: 'report', name: () => 'Property reports', mark: 'Not on sale',
     line: 'A fee per report, not a subscription: from a saved analysis to a full investor report.' },
 ];

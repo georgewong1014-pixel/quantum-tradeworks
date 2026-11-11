@@ -1734,8 +1734,8 @@ const HOME_PAGE = read(HOME);
     if ((views.match(/<h1\b/g) || []).length !== 1 || said.h1 !== 'Work out a Sarawak property before you buy') p.push(`${PATH}: #views serves ${(views.match(/<h1\b/g) || []).length} h1, "${said.h1}" — not its own one`);
     const primary = [...views.matchAll(/<a\b[^>]*class="[^"]*\bbtn-primary\b[^"]*"[^>]*>/g)].map(m => /href="([^"]*)"/.exec(m[0])?.[1]);
     said.primary = primary;
-    if (primary.length !== 1 || primary[0] !== '/property') p.push(`${PATH}: ${primary.length} primary call(s) to action (${primary.join(', ') || 'none'}), not one to /property`);
-    if (!/<a\b[^>]*href="\/property\/calculator"[^>]*>Or start in the calculator/.test(views)) p.push(`${PATH}: no secondary call to action to /property/calculator`);
+    if (primary.length !== 1 || primary[0] !== '/property/calculator') p.push(`${PATH}: ${primary.length} primary call(s) to action (${primary.join(', ') || 'none'}), not one to /property/calculator`);
+    if (!/<a\b[^>]*href="\/property"[^>]*>Or compare scenarios in the Lab/.test(views)) p.push(`${PATH}: no secondary call to action to /property`);
     if (/<(form|input type="(email|text|tel)")\b/.test(views)) p.push(`${PATH}: #views serves a form or a text field — this page collects nothing`);
     for (const [re, what] of [[/not advice/, '"not advice"'], [/not an official property valuation/, '"not an official property valuation"'], [/registered valuer/, 'that a registered valuer values a property'],
       [/No licensed transactions or listings ship here/, 'that no licensed transactions or listings ship'], [/the sample projects are synthetic/, 'that the sample projects are synthetic'],
@@ -3179,7 +3179,7 @@ const HOME_PAGE = read(HOME);
         if (!svg.length) p.push(`/app: card ${i + 1} ("${sight(li).slice(0, 40)}") carries no <svg> picture`);
         if (all(li).some(n => n.tag === 'text')) p.push(`/app: card ${i + 1}'s picture has words in it`);
       });
-      const WANT_CARDS = [['Research a company', '/research'], ['Create a scanner setup', '/app/scanner/setups/new'], ['Model a property', '/property']];
+      const WANT_CARDS = [['Research a company', '/research'], ['Create a scanner setup', '/app/scanner/setups/new'], ['Model a property', '/property/calculator']];
       WANT_CARDS.forEach(([label, to], i) => {
         const goes = steps[i] ? all(steps[i]).filter(n => n.tag === 'a' && has(n, 'dash-tool-go')) : [];
         if (goes.length !== 1 || sight(goes[0]) !== label || attr(goes[0], 'href') !== to) p.push(`/app: card ${i + 1}'s one action reads ${JSON.stringify(goes.map(g => [sight(g), attr(g, 'href')]))}, not "${label}" to ${to}`);

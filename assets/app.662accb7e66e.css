@@ -3363,7 +3363,14 @@ a.kind-badge { transition: border-color 160ms ease, color 160ms ease; }
 a.kind-badge:hover { border-color: var(--line-2); color: var(--ink); }
 a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .kind-shape { width: 8px; height: 8px; flex: none; background: currentColor; }
-.kind-filed { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); background: color-mix(in srgb, var(--brand-wash) 70%, var(--surface-2)); }
+/* FILED IS NOT THE ACCENT (the owner's list of 11 Nov 2026, item 6). It wore
+   the brand blue, with Beta badges, links and primary buttons; a reader told
+   Filed from Illustrative by shape and word, and from a Beta badge hardly at
+   all. It takes the green the "SEC-filed statements" chip already wears, so
+   the three classes are three colours and three shapes: Filed a green
+   square, Illustrative a bronze ring, Unavailable a grey cross in a dashed
+   box. The words stay; colour is never the only signal. */
+.kind-filed { color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 34%, var(--line)); background: color-mix(in srgb, var(--ok) 9%, var(--surface-2)); }
 .kind-filed .kind-shape { border-radius: 1px; }
 .kind-derived .kind-shape { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .kind-modelled .kind-shape { transform: rotate(45deg) scale(.82); }
@@ -3372,7 +3379,7 @@ a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2p
 .kind-illustrative { color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 30%, var(--line)); background: color-mix(in srgb, var(--bronze-wash) 70%, var(--surface-2)); }
 .kind-illustrative .kind-shape { background: none; border: 1.5px solid currentColor; border-radius: 50%; }
 .kind-placeholder .kind-shape { background: none; border: 1.5px dashed currentColor; border-radius: 1px; }
-.kind-unavailable { color: var(--ink-2); background: var(--surface-sunk); }
+.kind-unavailable { color: var(--ink-2); background: var(--surface-sunk); border-style: dashed; border-color: var(--line-2); }
 .kind-unavailable .kind-shape { background: linear-gradient(45deg, transparent 42%, currentColor 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, currentColor 42% 58%, transparent 58%); }
 @media (pointer: coarse), (max-width: 768px) {
   a.kind-badge::after { content: ""; position: absolute; inset: -12px -2px; }

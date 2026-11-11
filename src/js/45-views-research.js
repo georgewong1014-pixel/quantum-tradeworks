@@ -1784,7 +1784,7 @@ function tabSnapshot(r) {
   /* valuation range */
   const vr = el('div', { class: 'card' });
   vr.append(cardHead('Valuation range', `${val.pack.name}. ${val.pack.why}`,
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Adjust assumptions'), { kind: kindFor(c, 'modelled'), fine: 'The model estimate' }));
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, lim('valuationEditable') ? 'Adjust assumptions' : 'See the assumptions'), { kind: kindFor(c, 'modelled'), fine: 'The model estimate' }));
   if (val.err) vr.append(el('div', { class: 'guardrail', html: `${icon('alert')}<span>${esc(val.err)}</span>` }));
   else {
     /* A bear or bull case its published shift took out of bounds; the base stands. */

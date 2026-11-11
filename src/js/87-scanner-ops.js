@@ -805,6 +805,10 @@ VIEWS.scannerDashboard = () => {
      locally" as step 3 names it (QT-D15-03, 28 Oct 2026). The example
      follows it, last. */
   const files = el('section', { class: 'scan-run-part' }, [cardHead('Your files', 'Open the worker’s files from your own disk to read them on these pages.'), scanOpsOpenFiles()]);
+  /* The example before the fold, not after it (the owner's list of 11 Nov
+     2026, item 5): how a rule is checked is the thing this page can show,
+     and it stood last, under the worker's commands. */
+  wrap.append(el('div', { class: 'scan-first-ex' }, scanExampleFigure({ id: 'scan-ex' })));
   wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
     /* The 30 Oct 2026 audit: worker commands belong in an advanced section.
        QT-D18-02 (31 Oct) words the summary "Advanced: run locally". The
@@ -815,7 +819,6 @@ VIEWS.scannerDashboard = () => {
       run, files, mon,
     ]),
   ]));
-  wrap.append(el('div', { class: 'scan-first-ex' }, scanExampleFigure({ id: 'scan-ex' })));
   return wrap;
 };
 

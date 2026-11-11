@@ -583,7 +583,10 @@ function myDashSteps(o) {
       note: (o.dealStarted || o.propertySnaps
         ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '. '
         : '') + 'The Scenario Lab is beta.',
-      action: 'Model a property', path: '/property' },
+      /* To the calculator's quick model, the product's own first action (the
+         owner's list of 11 Nov 2026, item 7): the tile opened the Scenario
+         Lab, which is beta and asks more of a first visit. */
+      action: 'Model a property', path: productById('property')?.actionPath || '/property/calculator' },
     { k: 'watchlist', tool: false, product: null, title: 'Create a watchlist', done: o.createdLists.length > 0,
       note: o.createdLists.length ? `${inList}.` : inSample || 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
       action: toolById('watchlists')?.action.label || 'Create a watchlist', path: '/my/watchlists' },
@@ -3070,7 +3073,7 @@ function saveScreen() {
   State.savedScreens = [...was, {
     name, def, snapshot, alertOnMatch: true, asOf: snapshot.asOf, model: snapshot.model }];
   if (!store.write('savedScreens', State.savedScreens)) { State.savedScreens = was; toast(STORE_REFUSED); render(); return; }
-  toast(`Saved "${name}" — ${snapshot.matches.length} matches frozen with their scores`);
+  toast(`Saved "${name}" — ${snapshot.matches.length} matches frozen with their scores.${backupToast()}`);
   render();
 }
 

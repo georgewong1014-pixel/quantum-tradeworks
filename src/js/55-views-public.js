@@ -1159,6 +1159,21 @@ function backupLine({ compact = false } = {}) {
   if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Back up everything'));
   return p;
 }
+/* A BACKUP PROMPT AT THE MOMENT OF SAVING (the owner's list of 11 Nov 2026,
+   item 8). Export and restore work, and the line above says how far behind
+   the backup is — on the dashboard and on Your data & settings, which is not
+   where a property, a valuation run or a screen is saved. What is not in a
+   backup yet, in words, or null when everything of the reader's is. */
+function backupPrompt() {
+  const h = backupHealth();
+  if (!h.own || (h.at && !h.since)) return null;
+  const n = h.at ? h.since : h.own;
+  return h.at
+    ? `${n} change${n === 1 ? '' : 's'} since your last backup (${backupDay(h.at)})`
+    : `${n} item${n === 1 ? '' : 's'} of yours ${n === 1 ? 'is' : 'are'} only in this browser, with no backup yet`;
+}
+/* What a save's confirmation adds: nothing once a backup holds everything. */
+const backupToast = () => (backupPrompt() ? ' It is only in this browser: back it up under Your data & settings.' : '');
 /* Export everything, handed over as a file, and recorded. False, said,
    when there is nothing to put in it. */
 function downloadEverything() {
@@ -2265,7 +2280,7 @@ VIEWS.terms = () => trustPage('Terms',
       [tp(supplied('entity'), ', ', supplied('address'), ', at ', supplied('domain'), '.'),
        'No operating entity has been registered yet. Until one is, these terms are published so you can see what this build is and is not, and on what footing it is offered.']],
     ['What the service is',
-      'A research tool and a property calculator, in beta. It shows the figures companies reported, derives measures from them and models a range of values under assumptions you can see and change; the calculator models a property purchase from figures you enter. It is free to use, needs no account, and is offered as it stands.'],
+      'A research tool and a property calculator, in beta. It shows the figures companies reported, derives measures from them and models a range of values under assumptions you can see; the calculator models a property purchase from figures you enter. It is free to use, needs no account, and is offered as it stands.'],
     /* THE FULL DISCLOSURE, where the footer's "Full terms and data limits"
        lands (#full-disclosure; the strip's <details> already holds
        #disclosure). It is the footer paragraph of 4 Oct 2026, word for word —
