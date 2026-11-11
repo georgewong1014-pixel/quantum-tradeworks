@@ -128,8 +128,10 @@ VIEWS.propertyInvesting = () => {
     el('h1', { class: 'pi-h1', id: 'pi-h1' }, 'Work out a Sarawak property before you buy'),
     el('p', { class: 'pi-lede' }, 'The cash it needs, what each month leaves after the loan, and up to three scenarios side by side — from the figures you enter.'),
     el('div', { class: 'pi-ctas' }, [
-      pubLink('/property', { class: 'btn btn-primary pub-btn pi-cta-primary' }, 'Open the Scenario Lab', pubArrow()),
-      pubLink('/property/calculator', { class: 'pub-textlink pi-cta-second' }, 'Or start in the calculator', pubArrow()),
+      /* The quick model first (the owner's list of 11 Nov 2026, item 7): four
+         figures and an answer, before scenarios, comparables and fee lines. */
+      pubLink('/property/calculator', { class: 'btn btn-primary pub-btn pi-cta-primary' }, 'Start with the quick model', pubArrow()),
+      pubLink('/property', { class: 'pub-textlink pi-cta-second' }, 'Or compare scenarios in the Lab', pubArrow()),
     ]),
     el('div', { class: 'ls-disclosure pi-disclosure' }, el('p', {}, 'Arithmetic on your figures — not advice, and not an official property valuation.')),
   ]));

@@ -423,7 +423,7 @@ function saveActiveProperty({ name = null } = {}) {
     if (!persistWork([rec, ...list]) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
     d.modelId = rec.id; d.scenarioId = null;
     saveDeal();
-    toast(`Saved “${rec.name}” — it is listed in My properties`);
+    toast(`Saved “${rec.name}” — it is listed in My properties.${backupToast()}`);
     return rec;
   }
   if (st.sc) {
@@ -705,6 +705,11 @@ function propertyModelBar(d = State.deal) {
   } else if (st.kind === 'unsaved') status.append(el('span', { class: 'pm-unsaved' }, 'Unsaved changes'), ' — not saved as a property yet');
   else status.append(el('strong', {}, shoplotOf(d) ? shoplotChip(d.shoplot) : 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
   bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
+  /* With a saved property open: what is not in a backup yet, and the way to
+     make one (backupPrompt, 55-views-public.js). Nothing on a first visit. */
+  const notBacked = st.kind === 'model' ? backupPrompt() : null;
+  /* The way to make one is the bar's own "Back up everything" link, below. */
+  if (notBacked) bar.append(el('p', { class: 'caption pm-backup', id: 'pm-backup' }, [el('strong', {}, 'Backup: '), `${notBacked}.`]));
   /* Which shoplot starting scenario, and its one limit (94-shoplot-scenarios.js). */
   if (st.kind === 'sample' && shoplotOf(d)) bar.append(shoplotCalcNote(d));
 

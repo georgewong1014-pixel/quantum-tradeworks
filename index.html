@@ -3396,7 +3396,14 @@ a.kind-badge { transition: border-color 160ms ease, color 160ms ease; }
 a.kind-badge:hover { border-color: var(--line-2); color: var(--ink); }
 a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .kind-shape { width: 8px; height: 8px; flex: none; background: currentColor; }
-.kind-filed { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); background: color-mix(in srgb, var(--brand-wash) 70%, var(--surface-2)); }
+/* FILED IS NOT THE ACCENT (the owner's list of 11 Nov 2026, item 6). It wore
+   the brand blue, with Beta badges, links and primary buttons; a reader told
+   Filed from Illustrative by shape and word, and from a Beta badge hardly at
+   all. It takes the green the "SEC-filed statements" chip already wears, so
+   the three classes are three colours and three shapes: Filed a green
+   square, Illustrative a bronze ring, Unavailable a grey cross in a dashed
+   box. The words stay; colour is never the only signal. */
+.kind-filed { color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 34%, var(--line)); background: color-mix(in srgb, var(--ok) 9%, var(--surface-2)); }
 .kind-filed .kind-shape { border-radius: 1px; }
 .kind-derived .kind-shape { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .kind-modelled .kind-shape { transform: rotate(45deg) scale(.82); }
@@ -3405,7 +3412,7 @@ a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2p
 .kind-illustrative { color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 30%, var(--line)); background: color-mix(in srgb, var(--bronze-wash) 70%, var(--surface-2)); }
 .kind-illustrative .kind-shape { background: none; border: 1.5px solid currentColor; border-radius: 50%; }
 .kind-placeholder .kind-shape { background: none; border: 1.5px dashed currentColor; border-radius: 1px; }
-.kind-unavailable { color: var(--ink-2); background: var(--surface-sunk); }
+.kind-unavailable { color: var(--ink-2); background: var(--surface-sunk); border-style: dashed; border-color: var(--line-2); }
 .kind-unavailable .kind-shape { background: linear-gradient(45deg, transparent 42%, currentColor 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, currentColor 42% 58%, transparent 58%); }
 @media (pointer: coarse), (max-width: 768px) {
   a.kind-badge::after { content: ""; position: absolute; inset: -12px -2px; }
@@ -20711,10 +20718,6 @@ const TOOLS = [
   /* Property Intelligence. "My properties" is the store of saved property
      models; its route arrives with that work, and until then it is listed
      nowhere (toolPresent). */
-  { id: 'models', product: 'property', label: 'My properties', path: '/property/models', tab: true,
-    status: 'live', statusNote: 'The properties you have saved in this browser, each with its scenarios; open one to edit it in the calculator.',
-    proof: { journey: 'property', step: 'It is listed with the saved properties' },
-    action: { label: 'Open my properties', path: '/property/models' } },
   { id: 'calculator', product: 'property', label: 'Calculator', path: '/property/calculator', views: ['property'], tab: true,
     status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' },
@@ -20722,6 +20725,13 @@ const TOOLS = [
   { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
     status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
     action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
+  /* After the two tools (the owner's list of 11 Nov 2026, item 7): the
+     Calculator's quick model is where a first visit starts; the saved
+     properties are where a returning one does. */
+  { id: 'models', product: 'property', label: 'My properties', path: '/property/models', tab: true,
+    status: 'live', statusNote: 'The properties you have saved in this browser, each with its scenarios; open one to edit it in the calculator.',
+    proof: { journey: 'property', step: 'It is listed with the saved properties' },
+    action: { label: 'Open my properties', path: '/property/models' } },
   { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas', 'areaMap'], tab: true,
     status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
     proof: { journey: 'registers', step: 'Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow' },
@@ -20747,21 +20757,12 @@ const TOOLS = [
   { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'], tab: true,
     status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from files you open here; the worker that writes them is not distributed yet.',
     action: { label: 'Open the scanner', path: '/app/scanner' } },
-  { id: 'market', product: 'scanner', label: 'Market (your series)', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'], tab: true,
-    status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
-    action: { label: 'Screen your series', path: '/app/scanner/market' } },
   { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'], tab: true,
     status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; evaluating one here needs your price history.',
     action: { label: 'Create a setup', path: '/app/scanner/setups/new' } },
   { id: 'scanWatchlists', product: 'scanner', label: 'Watchlist scanner', path: '/app/scanner/watchlists', views: ['scannerWatchlists'], tab: true,
     status: 'beta', statusNote: 'Your watchlists as the universe a setup checks, exported to the file the worker reads.',
     action: { label: 'Scan a watchlist', path: '/app/scanner/watchlists' } },
-  { id: 'scanAlerts', product: 'scanner', label: 'Alerts', path: '/app/scanner/alerts', views: ['scannerAlerts', 'scannerAlert'], needs: ['alerts'], ages: ['history'], tab: true,
-    status: 'beta', statusNote: 'The worker’s record of the bars on which your setups held, read here; nothing is sent.',
-    action: { label: 'Review your matches', path: '/app/scanner/alerts' } },
-  { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'], tab: true,
-    status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
-    action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
   { id: 'scanSettings', product: 'scanner', label: 'Settings', path: '/app/scanner/settings', views: ['scannerSettings'], tab: true,
     status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
     proof: { journey: 'settings', step: 'Change three scanner settings: each holds after a reload' },
@@ -20771,6 +20772,19 @@ const TOOLS = [
     proof: { journey: 'records', step: 'Record a stronger daily price structure: the trend regime rises and the change is logged' },
     action: { label: 'Assess a trend', path: '/research/trading-index' } },
   /* The workspace — the reader's own, in this browser. */
+  /* LAST, the three that read files of the reader's own (the owner's list of
+     11 Nov 2026, item 5): on this site each wears "Unavailable", and they
+     stood second, fifth and sixth in the row — before Setups, the one thing
+     a first visit can do. What works comes first. */
+  { id: 'market', product: 'scanner', label: 'Market (your series)', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'], tab: true,
+    status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
+    action: { label: 'Screen your series', path: '/app/scanner/market' } },
+  { id: 'scanAlerts', product: 'scanner', label: 'Alerts', path: '/app/scanner/alerts', views: ['scannerAlerts', 'scannerAlert'], needs: ['alerts'], ages: ['history'], tab: true,
+    status: 'beta', statusNote: 'The worker’s record of the bars on which your setups held, read here; nothing is sent.',
+    action: { label: 'Review your matches', path: '/app/scanner/alerts' } },
+  { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'], tab: true,
+    status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
+    action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
   { id: 'dashboard', product: null, label: 'My Dashboard', path: '/app', views: ['home'],
     status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.',
     proof: { journey: 'return', step: 'Saved properties tile reads 1' },
@@ -25417,7 +25431,10 @@ function myDashSteps(o) {
       note: (o.dealStarted || o.propertySnaps
         ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '. '
         : '') + 'The Scenario Lab is beta.',
-      action: 'Model a property', path: '/property' },
+      /* To the calculator's quick model, the product's own first action (the
+         owner's list of 11 Nov 2026, item 7): the tile opened the Scenario
+         Lab, which is beta and asks more of a first visit. */
+      action: 'Model a property', path: productById('property')?.actionPath || '/property/calculator' },
     { k: 'watchlist', tool: false, product: null, title: 'Create a watchlist', done: o.createdLists.length > 0,
       note: o.createdLists.length ? `${inList}.` : inSample || 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
       action: toolById('watchlists')?.action.label || 'Create a watchlist', path: '/my/watchlists' },
@@ -27904,7 +27921,7 @@ function saveScreen() {
   State.savedScreens = [...was, {
     name, def, snapshot, alertOnMatch: true, asOf: snapshot.asOf, model: snapshot.model }];
   if (!store.write('savedScreens', State.savedScreens)) { State.savedScreens = was; toast(STORE_REFUSED); render(); return; }
-  toast(`Saved "${name}" — ${snapshot.matches.length} matches frozen with their scores`);
+  toast(`Saved "${name}" — ${snapshot.matches.length} matches frozen with their scores.${backupToast()}`);
   render();
 }
 
@@ -30592,7 +30609,7 @@ function tabSnapshot(r) {
   /* valuation range */
   const vr = el('div', { class: 'card' });
   vr.append(cardHead('Valuation range', `${val.pack.name}. ${val.pack.why}`,
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Adjust assumptions'), { kind: kindFor(c, 'modelled'), fine: 'The model estimate' }));
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, lim('valuationEditable') ? 'Adjust assumptions' : 'See the assumptions'), { kind: kindFor(c, 'modelled'), fine: 'The model estimate' }));
   if (val.err) vr.append(el('div', { class: 'guardrail', html: `${icon('alert')}<span>${esc(val.err)}</span>` }));
   else {
     /* A bear or bull case its published shift took out of bounds; the base stands. */
@@ -33082,9 +33099,9 @@ function saveValuationRun(r, inputs) {
   if (t) {
     t.runRef = run.runId;
     saveTheses();
-    toast(`Saved and attached to your ${r.c.tk} investment case — reproducible from these inputs`);
+    toast(`Saved and attached to your ${r.c.tk} investment case — reproducible from these inputs.${backupToast()}`);
   } else {
-    toast(`Saved — ${r.c.tk} valuation run, reproducible from these inputs`);
+    toast(`Saved — ${r.c.tk} valuation run, reproducible from these inputs.${backupToast()}`);
   }
   render();
 }
@@ -34326,7 +34343,7 @@ function saveComparison(name) {
     created: new Date().toISOString(), stamp: buildStamp(rows.map(r => r.c)), snapshot: snapshotNow(),
   };
   saveComparisons([rec, ...loadComparisons()]);
-  toast(`Saved "${rec.name}" — every cell kept as it reads now`);
+  toast(`Saved "${rec.name}" — every cell kept as it reads now.${backupToast()}`);
   render();
   return rec;
 }
@@ -36980,6 +36997,21 @@ function backupLine({ compact = false } = {}) {
   if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Back up everything'));
   return p;
 }
+/* A BACKUP PROMPT AT THE MOMENT OF SAVING (the owner's list of 11 Nov 2026,
+   item 8). Export and restore work, and the line above says how far behind
+   the backup is — on the dashboard and on Your data & settings, which is not
+   where a property, a valuation run or a screen is saved. What is not in a
+   backup yet, in words, or null when everything of the reader's is. */
+function backupPrompt() {
+  const h = backupHealth();
+  if (!h.own || (h.at && !h.since)) return null;
+  const n = h.at ? h.since : h.own;
+  return h.at
+    ? `${n} change${n === 1 ? '' : 's'} since your last backup (${backupDay(h.at)})`
+    : `${n} item${n === 1 ? '' : 's'} of yours ${n === 1 ? 'is' : 'are'} only in this browser, with no backup yet`;
+}
+/* What a save's confirmation adds: nothing once a backup holds everything. */
+const backupToast = () => (backupPrompt() ? ' It is only in this browser: back it up under Your data & settings.' : '');
 /* Export everything, handed over as a file, and recorded. False, said,
    when there is nothing to put in it. */
 function downloadEverything() {
@@ -38086,7 +38118,7 @@ VIEWS.terms = () => trustPage('Terms',
       [tp(supplied('entity'), ', ', supplied('address'), ', at ', supplied('domain'), '.'),
        'No operating entity has been registered yet. Until one is, these terms are published so you can see what this build is and is not, and on what footing it is offered.']],
     ['What the service is',
-      'A research tool and a property calculator, in beta. It shows the figures companies reported, derives measures from them and models a range of values under assumptions you can see and change; the calculator models a property purchase from figures you enter. It is free to use, needs no account, and is offered as it stands.'],
+      'A research tool and a property calculator, in beta. It shows the figures companies reported, derives measures from them and models a range of values under assumptions you can see; the calculator models a property purchase from figures you enter. It is free to use, needs no account, and is offered as it stands.'],
     /* THE FULL DISCLOSURE, where the footer's "Full terms and data limits"
        lands (#full-disclosure; the strip's <details> already holds
        #disclosure). It is the footer paragraph of 4 Oct 2026, word for word —
@@ -38278,8 +38310,10 @@ VIEWS.propertyInvesting = () => {
     el('h1', { class: 'pi-h1', id: 'pi-h1' }, 'Work out a Sarawak property before you buy'),
     el('p', { class: 'pi-lede' }, 'The cash it needs, what each month leaves after the loan, and up to three scenarios side by side — from the figures you enter.'),
     el('div', { class: 'pi-ctas' }, [
-      pubLink('/property', { class: 'btn btn-primary pub-btn pi-cta-primary' }, 'Open the Scenario Lab', pubArrow()),
-      pubLink('/property/calculator', { class: 'pub-textlink pi-cta-second' }, 'Or start in the calculator', pubArrow()),
+      /* The quick model first (the owner's list of 11 Nov 2026, item 7): four
+         figures and an answer, before scenarios, comparables and fee lines. */
+      pubLink('/property/calculator', { class: 'btn btn-primary pub-btn pi-cta-primary' }, 'Start with the quick model', pubArrow()),
+      pubLink('/property', { class: 'pub-textlink pi-cta-second' }, 'Or compare scenarios in the Lab', pubArrow()),
     ]),
     el('div', { class: 'ls-disclosure pi-disclosure' }, el('p', {}, 'Arithmetic on your figures — not advice, and not an official property valuation.')),
   ]));
@@ -46831,7 +46865,7 @@ function saveActiveProperty({ name = null } = {}) {
     if (!persistWork([rec, ...list]) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
     d.modelId = rec.id; d.scenarioId = null;
     saveDeal();
-    toast(`Saved “${rec.name}” — it is listed in My properties`);
+    toast(`Saved “${rec.name}” — it is listed in My properties.${backupToast()}`);
     return rec;
   }
   if (st.sc) {
@@ -47113,6 +47147,11 @@ function propertyModelBar(d = State.deal) {
   } else if (st.kind === 'unsaved') status.append(el('span', { class: 'pm-unsaved' }, 'Unsaved changes'), ' — not saved as a property yet');
   else status.append(el('strong', {}, shoplotOf(d) ? shoplotChip(d.shoplot) : 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
   bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
+  /* With a saved property open: what is not in a backup yet, and the way to
+     make one (backupPrompt, 55-views-public.js). Nothing on a first visit. */
+  const notBacked = st.kind === 'model' ? backupPrompt() : null;
+  /* The way to make one is the bar's own "Back up everything" link, below. */
+  if (notBacked) bar.append(el('p', { class: 'caption pm-backup', id: 'pm-backup' }, [el('strong', {}, 'Backup: '), `${notBacked}.`]));
   /* Which shoplot starting scenario, and its one limit (94-shoplot-scenarios.js). */
   if (st.kind === 'sample' && shoplotOf(d)) bar.append(shoplotCalcNote(d));
 
@@ -70647,6 +70686,10 @@ VIEWS.scannerDashboard = () => {
      locally" as step 3 names it (QT-D15-03, 28 Oct 2026). The example
      follows it, last. */
   const files = el('section', { class: 'scan-run-part' }, [cardHead('Your files', 'Open the worker’s files from your own disk to read them on these pages.'), scanOpsOpenFiles()]);
+  /* The example before the fold, not after it (the owner's list of 11 Nov
+     2026, item 5): how a rule is checked is the thing this page can show,
+     and it stood last, under the worker's commands. */
+  wrap.append(el('div', { class: 'scan-first-ex' }, scanExampleFigure({ id: 'scan-ex' })));
   wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
     /* The 30 Oct 2026 audit: worker commands belong in an advanced section.
        QT-D18-02 (31 Oct) words the summary "Advanced: run locally". The
@@ -70657,7 +70700,6 @@ VIEWS.scannerDashboard = () => {
       run, files, mon,
     ]),
   ]));
-  wrap.append(el('div', { class: 'scan-first-ex' }, scanExampleFigure({ id: 'scan-ex' })));
   return wrap;
 };
 
@@ -73589,7 +73631,7 @@ function scopeCard() {
   const il = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   ['Normalised financial history and derived metrics, each with its formula, period and source',
    'Scores that decompose to weighted inputs, anchor ranges and peer percentiles',
-   'Model-appropriate valuation with the assumptions exposed and editable',
+   'Model-appropriate valuation with the assumptions exposed; editing them belongs to a proposed plan that is not on sale',
    'Bear, base and bull ranges with sensitivity — never a single number',
    'Published screen rules you can run, change and save',
    'Alerts that state a changed fact and its source',
@@ -73646,9 +73688,9 @@ function scopeCard() {
 let plansCompareOpen = false;
 const PLAN_CARDS = [
   { id: 'free', name: () => PLANS.free.name, mark: 'Free now',
-    line: 'Research a few companies, keep one list and one portfolio, and model a property by hand.' },
+    line: 'Research every company here, compare two, keep one list and one portfolio, and model a property by hand.' },
   { id: 'pro', name: () => PLANS.pro.name, mark: 'Not on sale',
-    line: 'Every company here, editable valuation assumptions, the full screener, comparison, alerts and exports.' },
+    line: 'Editable valuation assumptions, every screener field, wider comparison, more lists and portfolios, alerts and exports.' },
   { id: 'report', name: () => 'Property reports', mark: 'Not on sale',
     line: 'A fee per report, not a subscription: from a saved analysis to a full investor report.' },
 ];

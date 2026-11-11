@@ -955,9 +955,9 @@ function saveValuationRun(r, inputs) {
   if (t) {
     t.runRef = run.runId;
     saveTheses();
-    toast(`Saved and attached to your ${r.c.tk} investment case — reproducible from these inputs`);
+    toast(`Saved and attached to your ${r.c.tk} investment case — reproducible from these inputs.${backupToast()}`);
   } else {
-    toast(`Saved — ${r.c.tk} valuation run, reproducible from these inputs`);
+    toast(`Saved — ${r.c.tk} valuation run, reproducible from these inputs.${backupToast()}`);
   }
   render();
 }
@@ -2199,7 +2199,7 @@ function saveComparison(name) {
     created: new Date().toISOString(), stamp: buildStamp(rows.map(r => r.c)), snapshot: snapshotNow(),
   };
   saveComparisons([rec, ...loadComparisons()]);
-  toast(`Saved "${rec.name}" — every cell kept as it reads now`);
+  toast(`Saved "${rec.name}" — every cell kept as it reads now.${backupToast()}`);
   render();
   return rec;
 }
