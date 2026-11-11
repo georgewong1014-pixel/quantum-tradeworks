@@ -1,8 +1,22 @@
 
 /* ==========================================================================
    Quantum Tradeworks design system
-   Palette: deep green / ivory / bronze. Chart slots validated against the
-   dataviz six checks in both modes (adjacent + all-pairs for scatter).
+   Palette: Graphite / Cloud White / Electric Cobalt (the owner's approved
+   direction, 11 Nov 2026), about 70% neutral surfaces, 25% graphite and
+   supporting colours, 5% cobalt:
+     Graphite        #1E2633  primary ink; the navigation and the home hero
+     Cloud White     #F6F8FC  the page
+     Pure White      #FFFFFF  cards
+     Cool Grey       #DEE5F0  borders
+     Slate Blue      #627086  secondary text
+     Electric Cobalt #356DF3  the accent: primary actions, focus rings,
+                              active indicators, selected filters
+     Soft Cobalt     #80A4FF  the accent on graphite and in the dark theme
+   Profit, loss, risk and data reliability keep their own colours and their
+   text labels (teal and rust, the status set, bronze for "illustrative /
+   not verified"): none of them is cobalt. Chart slots validated against the
+   dataviz six checks in both modes (adjacent + all-pairs for scatter); they
+   were not changed with the palette.
    ========================================================================== */
 
 :root {
@@ -43,15 +57,26 @@
   --weight-bold:     700;
 
   /* --- surfaces ------------------------------------------------------- */
-  --plane:        #f4f1ea;
-  --surface:      #faf8f4;
+  /* The approved colours by name, for the few rules that need one of them
+     whatever the theme (the graphite scope, the primary button on graphite). */
+  --graphite:     #1E2633;
+  --cobalt:       #356DF3;
+  --cobalt-deep:  #2A5CDB;
+  --cobalt-soft:  #80A4FF;
+
+  --plane:        #F6F8FC;
+  --surface:      #ffffff;
   --surface-2:    #ffffff;
-  --surface-sunk: #efebe2;
-  --surface-inv:  #141a18;
+  /* Slate Blue (--ink-3) measures 4.55:1 here; a darker sunk surface takes it
+     under 4.5. */
+  --surface-sunk: #F0F4FA;
+  --surface-inv:  #1E2633;
 
   /* --- ink ------------------------------------------------------------ */
-  --ink:          #16191a;
-  --ink-2:        #55574f;
+  --ink:          #1E2633;
+  /* A step of Slate Blue toward Graphite, for running secondary copy: 6.2:1
+     on the sunk surface. Slate Blue itself is --ink-3. */
+  --ink-2:        #4E5B70;
   /* Was #85857c, which measures 3.5:1 on white and 4.23:1 as rendered — under
      the 4.5:1 normal text requires, on every caption, metaline, stat label and
      eyebrow in the product. That is most of the explanatory copy: the sentences
@@ -64,14 +89,16 @@
      three failures of the 4.5 floor, on the token that paints every metaline,
      caption, eyebrow, axis label and footer line in the product. It passed
      only against pure white, which is where it had been checked. */
-  --ink-3:        #6a6a61;
-  --ink-inv:      #f4f1ea;
+  /* Slate Blue as approved: 5.02:1 on white, 4.71:1 on Cloud White, 4.55:1
+     on the sunk surface, 4.51:1 on --brand-wash. */
+  --ink-3:        #627086;
+  --ink-inv:      #F6F8FC;
 
   /* --- lines ---------------------------------------------------------- */
-  --line:         #e2ddd2;
-  --line-2:       #d3ccbe;
-  --grid:         #e6e1d7;
-  --ring:         rgba(20, 25, 22, 0.10);
+  --line:         #DEE5F0;
+  --line-2:       #CBD5E3;
+  --grid:         #E6ECF4;
+  --ring:         rgba(30, 38, 51, 0.10);
 
   /* --- logo -----------------------------------------------------------
      Taken from the Quantum Tradeworks mark: navy ring, teal chart and tail,
@@ -88,15 +115,23 @@
   --logo-word:      var(--logo-navy);
 
   /* --- brand ---------------------------------------------------------- */
-  --brand:        #1B4FCC;
-  --brand-hi:     #2E68E4;
-  --brand-wash:   #E7EEFD;
+  /* ELECTRIC COBALT IS A FILL; AS TEXT IT NEEDS A STEP. #356DF3 carries white
+     text at 4.53:1, so it is the primary button, the focus ring and every
+     indicator (--brand-hi). As link text on Cloud White it measures 4.25:1,
+     under the 4.5 floor, so text and the button's lower edge take a deeper
+     step of the same hue (--brand, #2A5CDB): 5.6:1 on white, 5.3:1 on Cloud
+     White, 5.0:1 on --brand-wash. */
+  --brand:        #2A5CDB;
+  --brand-hi:     #356DF3;
+  --brand-wash:   #EEF3FE;
   /* 4.63:1 on --bronze-wash, where #9a6f22 measured 3.83:1. The bronze chip is
      the product's "this is a placeholder / not verified" marker, so it is worn
      by exactly the text a reader must not skim past. Dark mode uses #d3a44e
      and already measures 5.99:1, so only the light value moves. */
   --bronze:       #89631e;
-  --bronze-wash:  #f4ecdb;
+  /* Lightened with the palette (was #f4ecdb): Slate Blue captions inside a
+     bronze note measured 4.27:1 there; 4.54:1 here, and bronze itself 4.9:1. */
+  --bronze-wash:  #F9F3E8;
 
   /* --- categorical chart slots (validated) ---------------------------- */
   --s1: #00806a;  /* teal    */
@@ -117,7 +152,7 @@
 
   /* --- diverging: up (cool/teal) <-> down (warm/rust) ------------------ */
   --up-5: #0b6a55; --up-4: #1f8e74; --up-3: #63b39d; --up-2: #a8d3c6; --up-1: #d9ebe4;
-  --mid:  #e8e4dc;
+  --mid:  #E6EBF2;
   --dn-1: #f6e0d6; --dn-2: #e8b6a4; --dn-3: #d4846a; --dn-4: #bc5537; --dn-5: #8f3a22;
 
   /* --- sequential (single hue, magnitude) ----------------------------- */
@@ -150,10 +185,10 @@
   --critical-text: #b3261e;
 
   /* --- depth ---------------------------------------------------------- */
-  --lift-1: 0 1px 2px rgba(20, 25, 22, .05), 0 0 0 1px var(--ring);
-  --lift-2: 0 10px 30px -12px rgba(20, 25, 22, .16), 0 2px 6px rgba(20, 25, 22, .05), 0 0 0 1px var(--ring);
-  --lift-3: 0 28px 70px -24px rgba(20, 25, 22, .26), 0 6px 16px rgba(20, 25, 22, .07), 0 0 0 1px var(--ring);
-  --lift-4: 0 44px 110px -30px rgba(10, 14, 12, .40), 0 10px 26px rgba(10, 14, 12, .12), 0 0 0 1px var(--ring);
+  --lift-1: 0 1px 2px rgba(30, 38, 51, .05), 0 0 0 1px var(--ring);
+  --lift-2: 0 10px 30px -12px rgba(30, 38, 51, .14), 0 2px 6px rgba(30, 38, 51, .05), 0 0 0 1px var(--ring);
+  --lift-3: 0 28px 70px -24px rgba(30, 38, 51, .24), 0 6px 16px rgba(30, 38, 51, .07), 0 0 0 1px var(--ring);
+  --lift-4: 0 44px 110px -30px rgba(15, 20, 30, .40), 0 10px 26px rgba(15, 20, 30, .12), 0 0 0 1px var(--ring);
 
   /* --- space ---------------------------------------------------------- */
   --xs: 8px; --sm: 12px; --md: 16px; --lg: 24px; --xl: 32px;
@@ -175,13 +210,13 @@
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --plane: #0b0d0c; --surface: #111413; --surface-2: #171b19; --surface-sunk: #0d100f; --surface-inv: #f4f1ea;
-    --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #94968c; --ink-inv: #141a18;
-    --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
-    --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
+    --plane: #131924; --surface: #1E2633; --surface-2: #263041; --surface-sunk: #0F141D; --surface-inv: #F6F8FC;
+    --ink: #F2F5FA; --ink-2: #B4BFD0; --ink-3: #96A3B8; --ink-inv: #1E2633;
+    --line: #2D3748; --line-2: #3B475C; --grid: #2A3445; --ring: rgba(255,255,255,.10);
+    --brand: #80A4FF; --brand-hi: #A3BDFF; --brand-wash: #1D2C4D; --bronze: #d3a44e; --bronze-wash: #241d0f;
     --s1:#1f9c81; --s2:#bb8a2e; --s2-text:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
     --up-5:#5fd3b5; --up-4:#31ab8d; --up-3:#1f8770; --up-2:#155d4d; --up-1:#10382f;
-    --mid: #2a2e2c;
+    --mid: #2B3443;
     --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
     --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
     --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a; --pol-pos:#4f86d4; --pol-neg:#cf6f4e;
@@ -195,13 +230,13 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --plane: #0b0d0c; --surface: #111413; --surface-2: #171b19; --surface-sunk: #0d100f; --surface-inv: #f4f1ea;
-  --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #94968c; --ink-inv: #141a18;
-  --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
-  --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
+  --plane: #131924; --surface: #1E2633; --surface-2: #263041; --surface-sunk: #0F141D; --surface-inv: #F6F8FC;
+  --ink: #F2F5FA; --ink-2: #B4BFD0; --ink-3: #96A3B8; --ink-inv: #1E2633;
+  --line: #2D3748; --line-2: #3B475C; --grid: #2A3445; --ring: rgba(255,255,255,.10);
+  --brand: #80A4FF; --brand-hi: #A3BDFF; --brand-wash: #1D2C4D; --bronze: #d3a44e; --bronze-wash: #241d0f;
   --s1:#1f9c81; --s2:#bb8a2e; --s2-text:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
   --up-5:#5fd3b5; --up-4:#31ab8d; --up-3:#1f8770; --up-2:#155d4d; --up-1:#10382f;
-  --mid: #2a2e2c;
+  --mid: #2B3443;
   --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
   --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
   --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a; --pol-pos:#4f86d4; --pol-neg:#cf6f4e;
@@ -228,8 +263,8 @@ body {
   color: var(--ink);
   background: var(--plane);
   background-image:
-    radial-gradient(1100px 520px at 88% -8%, rgba(154, 111, 34, .10), transparent 60%),
-    radial-gradient(900px 480px at -4% 0%, rgba(0, 84, 74, .09), transparent 58%);
+    radial-gradient(1100px 520px at 88% -8%, rgba(53, 109, 243, .06), transparent 60%),
+    radial-gradient(900px 480px at -4% 0%, rgba(98, 112, 134, .07), transparent 58%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -565,7 +600,7 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
   transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
-.tile-btn:hover { border-color: var(--line-2); box-shadow: 0 12px 32px -18px rgba(20, 25, 22, 0.28), 0 1px 3px rgba(20, 25, 22, 0.06); transform: translateY(-1px); }
+.tile-btn:hover { border-color: var(--line-2); box-shadow: 0 12px 32px -18px rgba(30, 38, 51, 0.26), 0 1px 3px rgba(30, 38, 51, 0.06); transform: translateY(-1px); }
 .tile-btn:active { transform: translateY(0); }
 .tile-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .tile-static { padding: var(--sm) var(--md); border: 1px dashed var(--line); border-radius: var(--r-md); }
@@ -732,9 +767,9 @@ table.dt thead th.chg { color: var(--ink-3); }
 .btn svg { width: 15px; height: 15px; flex: none; }
 .btn-primary {
   background: linear-gradient(180deg, var(--brand-hi), var(--brand));
-  color: #fff; box-shadow: 0 1px 2px rgba(27,79,204,.30), 0 6px 18px -8px rgba(27,79,204,.5);
+  color: #fff; box-shadow: 0 1px 2px rgba(53,109,243,.30), 0 6px 18px -8px rgba(53,109,243,.5);
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(27,79,204,.32), 0 14px 28px -10px rgba(27,79,204,.55); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(53,109,243,.32), 0 14px 28px -10px rgba(53,109,243,.55); }
 .btn-primary:active { transform: translateY(0); }
 /* Dark only: an explicit dark theme, or no theme chosen and the OS dark — the
    .chip-my rule's form. The first selector list also carried
@@ -1850,7 +1885,7 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
     --plane: #ffffff; --surface: #ffffff; --surface-2: #ffffff; --surface-sunk: #ffffff; --surface-inv: #141a18;
     --ink: #16160f; --ink-2: #3a3a32; --ink-3: #55554c; --ink-inv: #f4f1ea;
     --line: #c9c7bd; --line-2: #b9b5a8; --grid: #ddd9cf; --ring: rgba(20, 25, 22, 0.10);
-    --brand: #1B4FCC; --brand-hi: #2E68E4; --brand-wash: #E7EEFD; --bronze: #89631e; --bronze-wash: #f4ecdb;
+    --brand: #2A5CDB; --brand-hi: #356DF3; --brand-wash: #EEF3FE; --bronze: #89631e; --bronze-wash: #f4ecdb;
     --s1: #00806a; --s2: #b8862b; --s2-text: #916a22; --s3: #4a5fa5; --s4: #c0562e; --s5: #7d4f8a; --s6: #6b7a2f; --s7: #4a3aa7; --s8: #c23b47;
     --up-5: #0b6a55; --up-4: #1f8e74; --up-3: #63b39d; --up-2: #a8d3c6; --up-1: #d9ebe4;
     --mid: #e8e4dc;
@@ -2728,7 +2763,7 @@ a.pp-row:active { transform: translateY(1px); }
 .sb-link:focus-visible { outline-offset: -2px; }
 .sb-link[aria-current="page"] {
   color: var(--ink); font-weight: var(--weight-semibold); background: var(--surface-2);
-  box-shadow: 0 1px 2px rgba(20, 25, 22, .06), 0 6px 16px -10px rgba(20, 25, 22, .22), 0 0 0 1px var(--ring);
+  box-shadow: 0 1px 2px rgba(30, 38, 51, .06), 0 6px 16px -10px rgba(30, 38, 51, .22), 0 0 0 1px var(--ring);
 }
 .sb-ico { display: inline-grid; place-items: center; width: 20px; flex: none; color: var(--ink-3); }
 .sb-link:hover .sb-ico { color: var(--ink-2); }
@@ -7496,3 +7531,70 @@ input.au-in[type="text"] { text-align: left; }
 .lab-ready { margin: 0; }
 .co-ready { margin: 0 0 var(--md); }
 /* ---- end completion lines ---- */
+
+
+/* ==========================================================================
+   GRAPHITE (the approved direction, 11 Nov 2026)
+   The navigation — the header, the app's slim bar and its sidebar — and the
+   home page's hero stand on Graphite in both themes, with white typography,
+   Soft Cobalt for what is current and the Electric Cobalt button. One scope
+   does it: inside these boxes every token takes its dark-theme value, so each
+   control there (links, menus, the search button, status badges, the theme
+   switch) is drawn by the rule it already has and no colour is restated. The
+   values below are the dark block's, copied by the same hand that writes it
+   (keep the two alike).
+   ========================================================================== */
+.topbar, .sidebar, .pub-home .pub-hero {
+  color-scheme: dark;
+  --plane: #131924; --surface: #1E2633; --surface-2: #263041; --surface-sunk: #0F141D; --surface-inv: #F6F8FC;
+  --ink: #F2F5FA; --ink-2: #B4BFD0; --ink-3: #96A3B8; --ink-inv: #1E2633;
+  --line: #2D3748; --line-2: #3B475C; --grid: #2A3445; --ring: rgba(255,255,255,.10);
+  --brand: #80A4FF; --brand-hi: #A3BDFF; --brand-wash: #1D2C4D; --bronze: #d3a44e; --bronze-wash: #241d0f;
+  --s1:#1f9c81; --s2:#bb8a2e; --s2-text:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
+  --up-5:#5fd3b5; --up-4:#31ab8d; --up-3:#1f8770; --up-2:#155d4d; --up-1:#10382f;
+  --mid: #2B3443;
+  --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
+  --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
+  --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a; --pol-pos:#4f86d4; --pol-neg:#cf6f4e;
+  --logo-navy: #E7EDF3; --logo-teal-text: #35D6B6; --logo-word: var(--ink);
+  --lift-1: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
+  --lift-2: 0 10px 30px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3), 0 0 0 1px var(--ring);
+  --lift-3: 0 28px 70px -24px rgba(0,0,0,.7), 0 6px 16px rgba(0,0,0,.35), 0 0 0 1px var(--ring);
+  --lift-4: 0 44px 110px -30px rgba(0,0,0,.8), 0 10px 26px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
+  color: var(--ink);
+}
+/* The header was the page's own colour seen through a blur; it is Graphite. */
+.topbar { background: var(--graphite); backdrop-filter: none; border-bottom-color: color-mix(in srgb, #fff 8%, transparent); }
+.sidebar { background: var(--graphite); box-shadow: none; }
+/* What is current: a Soft Cobalt bar at the row's edge, with the raised row. */
+.sb-link[aria-current="page"] { box-shadow: inset 3px 0 0 var(--cobalt-soft), 0 0 0 1px var(--ring); }
+.publink[aria-current="page"], .publink[data-current] { box-shadow: inset 0 -2px 0 var(--cobalt-soft); }
+/* The primary action on Graphite is Electric Cobalt with white text (4.53:1),
+   in both themes — the dark theme's own primary button, Soft Cobalt with dark
+   text, stays for the page. */
+:root .topbar .btn-primary, :root .sidebar .btn-primary, :root .pub-home .pub-hero .btn-primary {
+  background: linear-gradient(180deg, var(--cobalt), var(--cobalt-deep)); color: #fff;
+}
+
+/* THE HOME HERO: a Graphite field the width of the window, joined to the
+   header above it. The box itself stays inside the page's column, so it can
+   never widen the page; the field is its shadow, clipped to the box's own
+   height. */
+.pub-home .pub-hero {
+  background: var(--graphite);
+  padding: var(--xxl) var(--md) var(--xxxl);
+  box-shadow: 0 0 0 100vmax var(--graphite);
+  clip-path: inset(0 -100vmax);
+  /* Up to the header and its notice: the page's own top padding (.view). */
+  margin-top: calc(var(--xl) * -1);
+}
+.pub-home .pub-hero::before {
+  inset: 0;
+  background:
+    radial-gradient(46% 70% at 50% 0%, color-mix(in srgb, var(--cobalt) 26%, transparent), transparent 72%),
+    radial-gradient(28% 46% at 68% 100%, color-mix(in srgb, var(--cobalt-soft) 8%, transparent), transparent 70%);
+}
+.pub-home .pub-h1 { color: #fff; }
+.pub-home .pub-lede { color: var(--ink-2); }
+@media (max-width: 760px) { .pub-home .pub-hero { padding: var(--xl) var(--xs) var(--xxl); } }
+@media (max-width: 640px) { .pub-home .pub-hero { margin-top: calc(var(--lg) * -1); } }

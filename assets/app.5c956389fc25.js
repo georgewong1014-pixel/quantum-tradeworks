@@ -67582,8 +67582,8 @@ async function kmStyle(theme) {
   return style;
 }
 const kmColours = (theme) => (theme === 'dark'
-  ? { mark: '#6D9BF6', fill: 'rgba(109,155,246,0.16)', sel: 'rgba(109,155,246,0.32)', text: '#f2f0ea', halo: '#111413', raised: '#4a534e' }
-  : { mark: '#1B4FCC', fill: 'rgba(27,79,204,0.10)', sel: 'rgba(27,79,204,0.24)', text: '#16191a', halo: '#f1ede4', raised: '#cbbfa8' });
+  ? { mark: '#80A4FF', fill: 'rgba(128,164,255,0.16)', sel: 'rgba(128,164,255,0.32)', text: '#F2F5FA', halo: '#1E2633', raised: '#4A566B' }
+  : { mark: '#356DF3', fill: 'rgba(53,109,243,0.10)', sel: 'rgba(53,109,243,0.24)', text: '#1E2633', halo: '#F6F8FC', raised: '#CBD5E3' });
 /* The page's own layers over the basemap: the raised buildings (tilted
    only), the schemes' neighbourhoods, their outlines (dashed where lanes
    place them) and their names. */
