@@ -755,6 +755,11 @@ function propertyModelBar(d = State.deal) {
      stood before the first figure. The backup once there is something
      saved to back up. */
   bar.append(acts);
+  /* The name form for Save / Save as a scenario here, or for the phone dock's Save this. */
+  pmNameInto(bar, 'bar-save', 'bar-scenario');
+  /* Under the name form, not between it and the buttons (the release check of
+     12 Nov 2026): on a phone in a wide font a tap meant for the name form's
+     Save landed on this link, and the journey ended on Your data & settings. */
   /* BACKUP GUIDANCE BESIDE SAVING (the owner, 12 Nov 2026): the bar says "This
      browser only" and its prominent action is Save. The sentence is the
      owner's; its link is the export on Your data & settings, which was the
@@ -765,8 +770,6 @@ function propertyModelBar(d = State.deal) {
   bar.append(el('p', { class: 'caption pm-backup', id: 'pm-backup' }, [
     'Saved on this browser — ', link('/my/data', 'export a backup', 'wb-property-backup'), ' to move or protect your work.',
     notBacked ? ` ${notBacked.charAt(0).toUpperCase()}${notBacked.slice(1)}.` : null]));
-  /* The name form for Save / Save as a scenario here, or for the phone dock's Save this. */
-  pmNameInto(bar, 'bar-save', 'bar-scenario');
   return bar;
 }
 
