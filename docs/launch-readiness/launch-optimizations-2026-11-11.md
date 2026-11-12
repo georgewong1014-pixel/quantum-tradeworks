@@ -120,3 +120,23 @@ The six failures of the first combined run did not recur. Logs are kept outside 
 **Release.** Merged to `main` (fast-forward) and pushed on the owner's own instruction of 11 Nov: "once everything is fixed, start merge and push to live". Deployment Checks are off, so Vercel promotes the push before CI finishes; the CI run and the production checks for this push are recorded on `/status` and in the handoff notes, not here. Until those are read, items marked "Implemented-awaiting verification" stay so for production.
 
 **After the push (read 12 Nov 00:55 UTC).** CI on `eb105b780`: `checks` success (run 43066994285), the journeys on its deployment success, the checks record success; the issue "CI checks failing on the served commit" closed itself. The production record then read all 15 suites PASS (model-test 325, sweep 108, mobile 47 with none failed, equity-test 302) and journeys 27 pass, 1 degraded (report submission, store not configured), 0 fail. `deploy-check` MATCH; `served-check --url` 68 of 68. Items 4 to 10 were each probed on production (the contact sentence; `configured: false`; the Scanner tab order and the example above the fold; the green Filed chip; the quick-model entry on /property-investing and /app; the save confirmation and the backup line on an edited, saved property; the pricing, Terms and boundaries wording; the palette in light and dark), and a price typed in the quick model was still there in the full model. On that evidence the items marked "Implemented-awaiting verification" in section 3 are **Verified on production**, except the Terms sentence, which waits for counsel. The share card (`og.png`) was redrawn in the new palette with the home page's own headline after this reading.
+
+## 9. Two further rows, 12 November
+
+| Row | Before | Change | Status |
+|---|---|---|---|
+| The usable journey first; creating and testing rules apart from monitoring and recorded matches; one availability wording | The home page's research path and the journey on /how-it-works each had an unavailable step ("A match", "A rule-match alert"). Five different sentences said a worker "is not distributed" | Both paths are the five steps a visitor can walk: company, watchlist, setup, the worked example, back to the company. Under each: "Not available yet: monitoring and recorded matches." The Scanner's start-here line, product notes, advanced fold and alerts page say the same in a sentence. On the dashboard, steps 3 and 4 wear "Not available yet" under a dashed rule. The product boundary no longer says the worker runs on the reader's computer | Implemented-awaiting verification (production) |
+| Backup guidance beside saving | The calculator's bar said "This browser only" and offered Save; "Back up everything" appeared only once something was saved | The bar says in every state: "Saved on this browser — export a backup to move or protect your work.", linked to the export on Your data & settings. With a saved property open it adds what is not in a backup yet. Nothing in it says a server holds the work | Implemented-awaiting verification (production) |
+
+Left as they were: the dashboard's head note "The local worker is not available to download yet." (the owner's wording of 31 October, held by two suites) and the "Unavailable" badge as the status word on the Market, Alerts and Historical tabs.
+
+Runs, first runs and reruns apart:
+
+| Run | Commit | Result |
+|---|---|---|
+| Release check, first | `096fb36fe` | **2 failures.** equity-test: the alerts page with no file no longer said the record "cannot be seen from here". journeys as CI, `property-phone`: a tap meant for the name form's Save landed on the new backup link, which stood between the bar's buttons and the form. journeys (first pass) 28/28, model 325, mobile pass, sweep 108/108, register pass |
+| Fix | `5d4de2b1e` | the phrase restored after the new sentence; the backup sentence moved under the name form. `property-phone`, `property` and `quick` rerun three times in the failing mode (UTC, en-US, Verdana): 3 pass each time |
+| Release check on the fix | `5d4de2b1e` | cut off by a session restart during the mobile suite. Before that: offline 12 of 12, journeys 28/28, model 325, equity-test 302, prerender 184 of 184 twice, coverage-frames pass |
+| The four suites that had not run, on a fresh copy of the same commit | `5d4de2b1e` | recorded with the handoff notes |
+
+No expectation in any suite was changed for these two rows except the product boundary sentence in served-check, which the first row rewrites.
