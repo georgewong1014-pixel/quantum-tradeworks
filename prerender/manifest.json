@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "679ef7b3a5d88bd1",
-      "changed": "2026-11-09"
+      "digest": "876c836f1cf69d7d",
+      "changed": "2026-11-12"
     },
     "pages/about.html": {
       "path": "/about",
@@ -91,8 +91,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "be3218b82fa58736",
-      "changed": "2026-11-11"
+      "digest": "5f9cb43097df890d",
+      "changed": "2026-11-12"
     },
     "pages/admin/scanner/data.html": {
       "path": "/admin/scanner/data",
@@ -120,8 +120,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4e857248a14b53bf",
-      "changed": "2026-11-11"
+      "digest": "c49e6ea1e1751d32",
+      "changed": "2026-11-12"
     },
     "pages/admin/scanner/delivery.html": {
       "path": "/admin/scanner/delivery",
@@ -149,8 +149,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2c1f634e2ca39766",
-      "changed": "2026-11-11"
+      "digest": "7e62870fea2d8c70",
+      "changed": "2026-11-12"
     },
     "pages/admin/scanner/jobs.html": {
       "path": "/admin/scanner/jobs",
@@ -178,8 +178,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ef76d8e47a7d45b3",
-      "changed": "2026-11-11"
+      "digest": "2f0f2fe59507ba23",
+      "changed": "2026-11-12"
     },
     "pages/app.html": {
       "path": "/app",
@@ -323,8 +323,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "05602edf376b9268",
-      "changed": "2026-11-11"
+      "digest": "9b607aa2164bd1fc",
+      "changed": "2026-11-12"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -352,8 +352,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "55f8fdd96fa614f4",
-      "changed": "2026-11-11"
+      "digest": "e7d97683d4a1b3d2",
+      "changed": "2026-11-12"
     },
     "pages/app/scanner/backtest.html": {
       "path": "/app/scanner/backtest",
@@ -381,8 +381,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "de94bdc12ab221ac",
-      "changed": "2026-11-11"
+      "digest": "517dd512c7429331",
+      "changed": "2026-11-12"
     },
     "pages/app/scanner/market.html": {
       "path": "/app/scanner/market",
@@ -410,8 +410,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5bfe20e53885640a",
-      "changed": "2026-11-11"
+      "digest": "17867af659ac20ef",
+      "changed": "2026-11-12"
     },
     "pages/app/scanner/settings.html": {
       "path": "/app/scanner/settings",
@@ -439,8 +439,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ab55daadb44344f6",
-      "changed": "2026-11-11"
+      "digest": "3bb0e6523261d246",
+      "changed": "2026-11-12"
     },
     "pages/app/scanner/setups.html": {
       "path": "/app/scanner/setups",
@@ -468,8 +468,8 @@
         "cellStops": 0,
         "emptyDetails": 1
       },
-      "digest": "400f8c750fad395d",
-      "changed": "2026-11-11"
+      "digest": "1e7e947e958c94be",
+      "changed": "2026-11-12"
     },
     "pages/app/scanner/setups/new.html": {
       "path": "/app/scanner/setups/new",
@@ -497,8 +497,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "57b6d52bd3def39e",
-      "changed": "2026-11-11"
+      "digest": "9b0989ce7c40d9b7",
+      "changed": "2026-11-12"
     },
     "pages/app/scanner/watchlists.html": {
       "path": "/app/scanner/watchlists",
@@ -526,8 +526,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6574f43b9bac72ae",
-      "changed": "2026-11-11"
+      "digest": "5c319a485b1742bb",
+      "changed": "2026-11-12"
     },
     "pages/company/aapl-apple-inc.html": {
       "path": "/company/aapl-apple-inc",
@@ -4322,13 +4322,13 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 1,
+        "notShown": 0,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8416b44d29bb6f95",
-      "changed": "2026-11-11"
+      "digest": "d2e1d89af74310ea",
+      "changed": "2026-11-12"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -4443,8 +4443,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "321445c15b63973c",
-      "changed": "2026-11-11"
+      "digest": "bfa74573d10a3e0a",
+      "changed": "2026-11-12"
     },
     "pages/methodology.html": {
       "path": "/methodology",
@@ -4671,8 +4671,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "05602edf376b9268",
-      "changed": "2026-11-11"
+      "digest": "9b607aa2164bd1fc",
+      "changed": "2026-11-12"
     },
     "pages/my/theses.html": {
       "path": "/my/theses",
@@ -5015,8 +5015,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a8355b415fbfdc7d",
-      "changed": "2026-11-11"
+      "digest": "54cf30c3eefef42e",
+      "changed": "2026-11-12"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -5247,8 +5247,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "321445c15b63973c",
-      "changed": "2026-11-11"
+      "digest": "bfa74573d10a3e0a",
+      "changed": "2026-11-12"
     },
     "pages/start.html": {
       "path": "/start",
@@ -5303,8 +5303,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "18c6614235e828c4",
-      "changed": "2026-11-11"
+      "digest": "363df32fad4282a2",
+      "changed": "2026-11-12"
     },
     "pages/terms.html": {
       "path": "/terms",

@@ -7604,3 +7604,15 @@ input.au-in[type="text"] { text-align: left; }
 .pub-home .pub-lede { color: var(--ink-2); }
 @media (max-width: 760px) { .pub-home .pub-hero { padding: var(--xl) var(--xs) var(--xxl); } }
 @media (max-width: 640px) { .pub-home .pub-hero { margin-top: calc(var(--lg) * -1); } }
+
+/* What a route or a list cannot yet do, said apart from what it can (the owner,
+   12 Nov 2026): the home page's example path, /how-it-works' journey, and
+   the Scanner's steps 3 and 4. */
+.pub-route-note, .hiw-journey-note { margin: var(--sm) 0 0; font-size: var(--ls-meta); line-height: 1.45; color: var(--ink-2); }
+.hiw-journey-note { margin-top: var(--md); }
+.scan-steps > .scan-step-later { opacity: 1; }
+.scan-steps > .scan-step-later .scan-step-n { background: none; border: 1px dashed var(--line-2); color: var(--ink-3); }
+.scan-steps > .scan-step-later .scan-step-t strong { color: var(--ink-2); }
+.scan-steps > .scan-step:not(.scan-step-later) + .scan-step-later { border-top: 1px dashed var(--line-2); margin-top: var(--xs); padding-top: var(--md); }
+/* The save bar's backup sentence: its link is a control of the bar's own size. */
+.pm-backup { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }

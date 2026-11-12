@@ -633,7 +633,7 @@ VIEWS.scannerDashboard = () => {
   const browserSetups = typeof scanBrowserSetups === 'function' ? scanBrowserSetups() : [];
   const hist = scanOpsHistoryMeta(scanOpsHistory());
   const lastRun = st.lastSuccess, lastTry = st.lastAttempt;
-  const step = (n, title, tag, state, act, note = null) => el('li', { class: 'scan-step' }, [
+  const step = (n, title, tag, state, act, note = null, later = false) => el('li', { class: later ? 'scan-step scan-step-later' : 'scan-step' }, [
     el('span', { class: 'scan-step-n', 'aria-hidden': 'true' }, String(n)),
     el('div', { class: 'scan-step-t' }, [el('strong', {}, title), el('span', { class: 'scan-step-tag' }, tag)]),
     el('div', { class: 'scan-step-s' }, [el('p', { class: 'scan-step-v' }, state), note ? el('p', { class: 'metaline' }, note) : null]),
@@ -669,11 +669,15 @@ VIEWS.scannerDashboard = () => {
            : 'None supplied — this site ships no prices',
       null,
       hist ? null : 'The worker reads your price history on your own computer: for each symbol, a close for each date, and optionally open, high, low and volume.'),
-    step(3, 'Run locally', 'Needs the worker on your computer', 'Not available to download yet', runLink),
-    step(4, 'Review recorded results', 'Recorded by the worker',
+    /* Steps 3 and 4 are the part that is not available yet, and say so in the
+       same words as the home page and the alerts page (the owner, 12 Nov
+       2026); a rule above them sets them apart from the two that work
+       (.scan-step-later). */
+    step(3, 'Run locally', 'Not available yet', 'Not available to download yet', runLink, null, true),
+    step(4, 'Review recorded results', 'Not available yet',
       lastRun ? `Last scan ${scanOpsDay(lastRun.finishedAt || lastRun.startedAt)}` : lastTry ? `No scan has succeeded; latest attempt ${scanOpsDay(lastTry.startedAt)}` : 'No scan recorded',
       scanOpsLink('/app/scanner/alerts', 'Alert history', { class: 'scan-step-link' }),
-      first ? 'The worker’s run log and record of matches stay on the computer that runs it, so on this site there is nothing to read — by design, not by fault.' : null),
+      first ? 'The worker’s run log and record of matches stay on the computer that runs it, so on this site there is nothing to read — by design, not by fault.' : null, true),
   ])]));
 
   /* ---- the band: the state, and every reason for it ---- */
@@ -815,7 +819,7 @@ VIEWS.scannerDashboard = () => {
        body says there is nothing to download yet, as the head and step 3 do. */
     el('summary', { class: 'scan-run-sum' }, 'Advanced: run locally'),
     el('div', { class: 'scan-run-body' }, [
-      el('p', { class: 'body' }, 'The worker is not distributed yet; setups can be tested here on prices you supply. If you hold its files, open them below.'),
+      el('p', { class: 'body' }, 'Monitoring and recorded matches are not available yet; setups can be tested here on prices you supply. If you hold the worker’s files, open them below.'),
       run, files, mon,
     ]),
   ]));

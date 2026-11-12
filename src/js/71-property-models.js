@@ -705,11 +705,6 @@ function propertyModelBar(d = State.deal) {
   } else if (st.kind === 'unsaved') status.append(el('span', { class: 'pm-unsaved' }, 'Unsaved changes'), ' — not saved as a property yet');
   else status.append(el('strong', {}, shoplotOf(d) ? shoplotChip(d.shoplot) : 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
   bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
-  /* With a saved property open: what is not in a backup yet, and the way to
-     make one (backupPrompt, 55-views-public.js). Nothing on a first visit. */
-  const notBacked = st.kind === 'model' ? backupPrompt() : null;
-  /* The way to make one is the bar's own "Back up everything" link, below. */
-  if (notBacked) bar.append(el('p', { class: 'caption pm-backup', id: 'pm-backup' }, [el('strong', {}, 'Backup: '), `${notBacked}.`]));
   /* Which shoplot starting scenario, and its one limit (94-shoplot-scenarios.js). */
   if (st.kind === 'sample' && shoplotOf(d)) bar.append(shoplotCalcNote(d));
 
@@ -759,8 +754,17 @@ function propertyModelBar(d = State.deal) {
      holds both (the Day-10 pre-audit, CL-22, NAV-05) — seven controls
      stood before the first figure. The backup once there is something
      saved to back up. */
-  if (pmAll().length) acts.append(el('span', { class: 'pm-links' }, [link('/my/data', 'Back up everything', 'wb-property-backup')]));
   bar.append(acts);
+  /* BACKUP GUIDANCE BESIDE SAVING (the owner, 12 Nov 2026): the bar says "This
+     browser only" and its prominent action is Save. The sentence is the
+     owner's; its link is the export on Your data & settings, which was the
+     bar's "Back up everything" once something had been saved. Saving here is
+     local: nothing in the sentence says a server holds it. With a saved
+     property open it adds what is not in a backup yet (backupPrompt). */
+  const notBacked = st.kind === 'model' ? backupPrompt() : null;
+  bar.append(el('p', { class: 'caption pm-backup', id: 'pm-backup' }, [
+    'Saved on this browser — ', link('/my/data', 'export a backup', 'wb-property-backup'), ' to move or protect your work.',
+    notBacked ? ` ${notBacked.charAt(0).toUpperCase()}${notBacked.slice(1)}.` : null]));
   /* The name form for Save / Save as a scenario here, or for the phone dock's Save this. */
   pmNameInto(bar, 'bar-save', 'bar-scenario');
   return bar;

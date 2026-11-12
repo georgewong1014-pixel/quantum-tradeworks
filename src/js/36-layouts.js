@@ -86,7 +86,7 @@ const START_HERE = {
   scanner: {
     /* The owner's Day 20 wording (QT-D20-01, 2 Nov 2026), kept true: the rules are checked here, in the browser, on a price file the reader opens; only recording matches needs the worker. */
     does: 'Create your own technical rules and see each bar on which they held.',
-    gets: 'Scanning needs your own price history; this site ships none and nothing is sent. Recording matches needs a local worker that is not distributed yet.',
+    gets: 'Scanning needs your own price history; this site ships none and nothing is sent. Monitoring and recorded matches are not available yet.',
   },
   property: {
     does: 'Models what buying and letting a property does to your cash.',

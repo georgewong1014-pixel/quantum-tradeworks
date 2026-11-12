@@ -12747,8 +12747,8 @@ const PRODUCTS = [
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
     limit: 'Hosted monitoring is not available.',
-    boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
-    statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.' },
+    boundary: 'No hosted monitoring or recorded matches yet: rules are checked here, on price history you supply.',
+    statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Monitoring and recorded matches are not available yet.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Model a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
@@ -12944,7 +12944,7 @@ const TOOLS = [
      says, as the strip did, that it screens the reader's own series, not the
      market. */
   { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'], tab: true,
-    status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from files you open here; the worker that writes them is not distributed yet.',
+    status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from files you open here. Monitoring and recorded matches are not available yet.',
     action: { label: 'Open the scanner', path: '/app/scanner' } },
   { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'], tab: true,
     status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; evaluating one here needs your price history.',
@@ -16536,7 +16536,7 @@ const START_HERE = {
   scanner: {
     /* The owner's Day 20 wording (QT-D20-01, 2 Nov 2026), kept true: the rules are checked here, in the browser, on a price file the reader opens; only recording matches needs the worker. */
     does: 'Create your own technical rules and see each bar on which they held.',
-    gets: 'Scanning needs your own price history; this site ships none and nothing is sent. Recording matches needs a local worker that is not distributed yet.',
+    gets: 'Scanning needs your own price history; this site ships none and nothing is sent. Monitoring and recorded matches are not available yet.',
   },
   property: {
     does: 'Models what buying and letting a property does to your cash.',
@@ -28344,7 +28344,7 @@ VIEWS.marketing = () => {
     el('p', { class: 'pub-tag' }, 'Example path'),
     el('h2', { class: 'pub-h2', id: 'pub-path-h' }, 'Your research, connected.'),
   ]));
-  const steps = (label, rows) => el('div', { class: 'pub-route' }, [
+  const steps = (label, rows, after = null) => el('div', { class: 'pub-route' }, [
     el('h3', { class: 'pub-route-t', id: `pub-route-${label.toLowerCase()}` }, label),
     el('ol', { class: 'pub-steps', 'aria-labelledby': `pub-route-${label.toLowerCase()}` }, rows.map(([t, to, glyph, note]) => el('li', { class: 'pub-step', 'data-step-state': note ? 'unavailable' : null },
       pubLink(to, { class: 'pub-step-a' }, [el('span', { class: 'pub-step-node', 'aria-hidden': 'true', html: pubSvg(glyph, 16) }), el('span', { class: 'pub-step-txt' }, [el('span', { class: 'pub-step-t' }, t),
@@ -28353,10 +28353,15 @@ VIEWS.marketing = () => {
            the worker" while /how-it-works and the scanner's own pages say that
            worker is not distributed. The note is the step's own, read with it. */
         note ? el('span', { class: 'pub-step-note' }, note) : null])])))),
+    /* What the route cannot yet do stands under it, apart from its steps
+       (the owner, 12 Nov 2026): the fourth step was "A match", which the
+       site cannot record, in the middle of a path a visitor can walk. */
+    after ? el('p', { class: 'pub-route-note' }, after) : null,
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A match', '/app/scanner', 'bell', 'Not available yet: the worker that records matches is not distributed'], ['Back to the company', '/research', 'loop']]),
+      ['A worked example', '/app/scanner', 'browser'], ['Back to the company', '/research', 'loop']],
+      'Not available yet: monitoring and recorded matches.'),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
@@ -28402,8 +28407,8 @@ const HIW_FLOW = {
     ['Input', 'Your own rules — conditions on the price history you supply — and what to check: a watchlist, a market or named instruments.'],
     ['Analysis', 'Each rule is checked on every completed daily bar, by one engine, here on the price history you supply.'],
     ['Result', 'A record of which conditions held on which bar, with their values. A record, not a signal: nothing is ranked and nothing is sent.'],
-    ['Save', 'Setups are kept in this browser with every version of each. The worker that would record matches is not distributed yet.'],
-    ['Next', 'Open a match, read the values behind it, and go on to the company page where the instrument is a company, or to Tracked where it is followed by price only.'],
+    ['Save', 'Setups are kept in this browser with every version of each. Monitoring and recorded matches are not available yet.'],
+    ['Next', 'Read the values behind each bar the rule held on. Opening a recorded match, and going on from it to the company page, is not available yet.'],
   ],
   property: [
     ['Input', 'The purchase: price, financing, rent and costs. The calculator starts on illustrative defaults and marks each one until you replace it.'],
@@ -28717,11 +28722,15 @@ const HIW_JOURNEY = [
   ['Research a company', 'Open its page: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
   ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'],
-  ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere. Not available yet: the worker that records matches is not distributed.', '/app/scanner/alerts', 'Scanner alerts'],
+  /* The usable journey, whole (the owner, 12 Nov 2026): the fourth step was "A
+     rule-match alert", which the site cannot record, and the fifth went back
+     to the company from that match. What is not available yet is said once,
+     under the steps. */
+  ['See the rule checked', 'The Scanner shows a worked example, bar by bar, on a generated series; with price history you supply, the same check runs on your own setup.', '/app/scanner', 'The worked example'],
   /* A match links to a company page only where its instrument is a company
      (scanSymbolLink, 86-scanner.js); a price-only instrument such as XAUUSD
      links to Tracked. The step said every match led to a company. */
-  ['Back to the company', 'Each match names its instrument. Where that is a company, it links to the company page and the research picks up again; a price-only instrument links to Tracked.', null, null],
+  ['Back to the company', 'A setup names the instruments it checks. Where one is a company, open its page and the research picks up again.', null, null],
 ];
 function hiwJourney() {
   const s = el('section', { class: 'hiw-journey', id: 'hiw-journey', 'aria-labelledby': 'hiw-journey-h' });
@@ -28737,6 +28746,7 @@ function hiwJourney() {
     path ? pubLink(path, { class: 'pub-textlink' }, label, pubArrow()) : null,
   ])));
   s.append(ol);
+  s.append(el('p', { class: 'pub-body hiw-journey-note' }, 'Not available yet: monitoring and recorded matches.'));
   return s;
 }
 
@@ -39337,11 +39347,6 @@ function propertyModelBar(d = State.deal) {
   } else if (st.kind === 'unsaved') status.append(el('span', { class: 'pm-unsaved' }, 'Unsaved changes'), ' — not saved as a property yet');
   else status.append(el('strong', {}, shoplotOf(d) ? shoplotChip(d.shoplot) : 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
   bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
-  /* With a saved property open: what is not in a backup yet, and the way to
-     make one (backupPrompt, 55-views-public.js). Nothing on a first visit. */
-  const notBacked = st.kind === 'model' ? backupPrompt() : null;
-  /* The way to make one is the bar's own "Back up everything" link, below. */
-  if (notBacked) bar.append(el('p', { class: 'caption pm-backup', id: 'pm-backup' }, [el('strong', {}, 'Backup: '), `${notBacked}.`]));
   /* Which shoplot starting scenario, and its one limit (94-shoplot-scenarios.js). */
   if (st.kind === 'sample' && shoplotOf(d)) bar.append(shoplotCalcNote(d));
 
@@ -39391,8 +39396,17 @@ function propertyModelBar(d = State.deal) {
      holds both (the Day-10 pre-audit, CL-22, NAV-05) — seven controls
      stood before the first figure. The backup once there is something
      saved to back up. */
-  if (pmAll().length) acts.append(el('span', { class: 'pm-links' }, [link('/my/data', 'Back up everything', 'wb-property-backup')]));
   bar.append(acts);
+  /* BACKUP GUIDANCE BESIDE SAVING (the owner, 12 Nov 2026): the bar says "This
+     browser only" and its prominent action is Save. The sentence is the
+     owner's; its link is the export on Your data & settings, which was the
+     bar's "Back up everything" once something had been saved. Saving here is
+     local: nothing in the sentence says a server holds it. With a saved
+     property open it adds what is not in a backup yet (backupPrompt). */
+  const notBacked = st.kind === 'model' ? backupPrompt() : null;
+  bar.append(el('p', { class: 'caption pm-backup', id: 'pm-backup' }, [
+    'Saved on this browser — ', link('/my/data', 'export a backup', 'wb-property-backup'), ' to move or protect your work.',
+    notBacked ? ` ${notBacked.charAt(0).toUpperCase()}${notBacked.slice(1)}.` : null]));
   /* The name form for Save / Save as a scenario here, or for the phone dock's Save this. */
   pmNameInto(bar, 'bar-save', 'bar-scenario');
   return bar;
@@ -61398,7 +61412,7 @@ VIEWS.scannerAlerts = () => {
   wrap.append(scanPageHead('Alerts', 'Every match the worker recorded, newest bar first.',
     'A record in date order, never a ranking. Whether you have read one is kept in this browser; the record file is never edited.'));
   if (!scanAlertsFile) {
-    wrap.append(scanNotInRecord('The alerts file cannot be seen from here', 'The worker’s record of matches lives on the computer it runs on, so on this site there is nothing to show — and no unread count, rather than a count of nought.', ['/app/scanner/setups', 'Your setups']));
+    wrap.append(scanNotInRecord('Recorded matches are not available yet', 'Monitoring and recorded matches are not available yet. On this site there is nothing to show — and no unread count, rather than a count of nought.', ['/app/scanner/setups', 'Your setups']));
     return wrap;
   }
   const all = scanAlertsInOrder();
@@ -62704,7 +62718,7 @@ VIEWS.scannerDashboard = () => {
   const browserSetups = typeof scanBrowserSetups === 'function' ? scanBrowserSetups() : [];
   const hist = scanOpsHistoryMeta(scanOpsHistory());
   const lastRun = st.lastSuccess, lastTry = st.lastAttempt;
-  const step = (n, title, tag, state, act, note = null) => el('li', { class: 'scan-step' }, [
+  const step = (n, title, tag, state, act, note = null, later = false) => el('li', { class: later ? 'scan-step scan-step-later' : 'scan-step' }, [
     el('span', { class: 'scan-step-n', 'aria-hidden': 'true' }, String(n)),
     el('div', { class: 'scan-step-t' }, [el('strong', {}, title), el('span', { class: 'scan-step-tag' }, tag)]),
     el('div', { class: 'scan-step-s' }, [el('p', { class: 'scan-step-v' }, state), note ? el('p', { class: 'metaline' }, note) : null]),
@@ -62740,11 +62754,15 @@ VIEWS.scannerDashboard = () => {
            : 'None supplied — this site ships no prices',
       null,
       hist ? null : 'The worker reads your price history on your own computer: for each symbol, a close for each date, and optionally open, high, low and volume.'),
-    step(3, 'Run locally', 'Needs the worker on your computer', 'Not available to download yet', runLink),
-    step(4, 'Review recorded results', 'Recorded by the worker',
+    /* Steps 3 and 4 are the part that is not available yet, and say so in the
+       same words as the home page and the alerts page (the owner, 12 Nov
+       2026); a rule above them sets them apart from the two that work
+       (.scan-step-later). */
+    step(3, 'Run locally', 'Not available yet', 'Not available to download yet', runLink, null, true),
+    step(4, 'Review recorded results', 'Not available yet',
       lastRun ? `Last scan ${scanOpsDay(lastRun.finishedAt || lastRun.startedAt)}` : lastTry ? `No scan has succeeded; latest attempt ${scanOpsDay(lastTry.startedAt)}` : 'No scan recorded',
       scanOpsLink('/app/scanner/alerts', 'Alert history', { class: 'scan-step-link' }),
-      first ? 'The worker’s run log and record of matches stay on the computer that runs it, so on this site there is nothing to read — by design, not by fault.' : null),
+      first ? 'The worker’s run log and record of matches stay on the computer that runs it, so on this site there is nothing to read — by design, not by fault.' : null, true),
   ])]));
 
   /* ---- the band: the state, and every reason for it ---- */
@@ -62886,7 +62904,7 @@ VIEWS.scannerDashboard = () => {
        body says there is nothing to download yet, as the head and step 3 do. */
     el('summary', { class: 'scan-run-sum' }, 'Advanced: run locally'),
     el('div', { class: 'scan-run-body' }, [
-      el('p', { class: 'body' }, 'The worker is not distributed yet; setups can be tested here on prices you supply. If you hold its files, open them below.'),
+      el('p', { class: 'body' }, 'Monitoring and recorded matches are not available yet; setups can be tested here on prices you supply. If you hold the worker’s files, open them below.'),
       run, files, mon,
     ]),
   ]));

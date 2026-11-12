@@ -2662,7 +2662,7 @@ VIEWS.scannerAlerts = () => {
   wrap.append(scanPageHead('Alerts', 'Every match the worker recorded, newest bar first.',
     'A record in date order, never a ranking. Whether you have read one is kept in this browser; the record file is never edited.'));
   if (!scanAlertsFile) {
-    wrap.append(scanNotInRecord('The alerts file cannot be seen from here', 'The worker’s record of matches lives on the computer it runs on, so on this site there is nothing to show — and no unread count, rather than a count of nought.', ['/app/scanner/setups', 'Your setups']));
+    wrap.append(scanNotInRecord('Recorded matches are not available yet', 'Monitoring and recorded matches are not available yet. On this site there is nothing to show — and no unread count, rather than a count of nought.', ['/app/scanner/setups', 'Your setups']));
     return wrap;
   }
   const all = scanAlertsInOrder();

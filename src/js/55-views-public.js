@@ -316,7 +316,7 @@ VIEWS.marketing = () => {
     el('p', { class: 'pub-tag' }, 'Example path'),
     el('h2', { class: 'pub-h2', id: 'pub-path-h' }, 'Your research, connected.'),
   ]));
-  const steps = (label, rows) => el('div', { class: 'pub-route' }, [
+  const steps = (label, rows, after = null) => el('div', { class: 'pub-route' }, [
     el('h3', { class: 'pub-route-t', id: `pub-route-${label.toLowerCase()}` }, label),
     el('ol', { class: 'pub-steps', 'aria-labelledby': `pub-route-${label.toLowerCase()}` }, rows.map(([t, to, glyph, note]) => el('li', { class: 'pub-step', 'data-step-state': note ? 'unavailable' : null },
       pubLink(to, { class: 'pub-step-a' }, [el('span', { class: 'pub-step-node', 'aria-hidden': 'true', html: pubSvg(glyph, 16) }), el('span', { class: 'pub-step-txt' }, [el('span', { class: 'pub-step-t' }, t),
@@ -325,10 +325,15 @@ VIEWS.marketing = () => {
            the worker" while /how-it-works and the scanner's own pages say that
            worker is not distributed. The note is the step's own, read with it. */
         note ? el('span', { class: 'pub-step-note' }, note) : null])])))),
+    /* What the route cannot yet do stands under it, apart from its steps
+       (the owner, 12 Nov 2026): the fourth step was "A match", which the
+       site cannot record, in the middle of a path a visitor can walk. */
+    after ? el('p', { class: 'pub-route-note' }, after) : null,
   ]);
   path.append(el('div', { class: 'pub-routes' }, [
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A match', '/app/scanner', 'bell', 'Not available yet: the worker that records matches is not distributed'], ['Back to the company', '/research', 'loop']]),
+      ['A worked example', '/app/scanner', 'browser'], ['Back to the company', '/research', 'loop']],
+      'Not available yet: monitoring and recorded matches.'),
     steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
       ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
@@ -374,8 +379,8 @@ const HIW_FLOW = {
     ['Input', 'Your own rules — conditions on the price history you supply — and what to check: a watchlist, a market or named instruments.'],
     ['Analysis', 'Each rule is checked on every completed daily bar, by one engine, here on the price history you supply.'],
     ['Result', 'A record of which conditions held on which bar, with their values. A record, not a signal: nothing is ranked and nothing is sent.'],
-    ['Save', 'Setups are kept in this browser with every version of each. The worker that would record matches is not distributed yet.'],
-    ['Next', 'Open a match, read the values behind it, and go on to the company page where the instrument is a company, or to Tracked where it is followed by price only.'],
+    ['Save', 'Setups are kept in this browser with every version of each. Monitoring and recorded matches are not available yet.'],
+    ['Next', 'Read the values behind each bar the rule held on. Opening a recorded match, and going on from it to the company page, is not available yet.'],
   ],
   property: [
     ['Input', 'The purchase: price, financing, rent and costs. The calculator starts on illustrative defaults and marks each one until you replace it.'],
@@ -689,11 +694,15 @@ const HIW_JOURNEY = [
   ['Research a company', 'Open its page: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
   ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'],
-  ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere. Not available yet: the worker that records matches is not distributed.', '/app/scanner/alerts', 'Scanner alerts'],
+  /* The usable journey, whole (the owner, 12 Nov 2026): the fourth step was "A
+     rule-match alert", which the site cannot record, and the fifth went back
+     to the company from that match. What is not available yet is said once,
+     under the steps. */
+  ['See the rule checked', 'The Scanner shows a worked example, bar by bar, on a generated series; with price history you supply, the same check runs on your own setup.', '/app/scanner', 'The worked example'],
   /* A match links to a company page only where its instrument is a company
      (scanSymbolLink, 86-scanner.js); a price-only instrument such as XAUUSD
      links to Tracked. The step said every match led to a company. */
-  ['Back to the company', 'Each match names its instrument. Where that is a company, it links to the company page and the research picks up again; a price-only instrument links to Tracked.', null, null],
+  ['Back to the company', 'A setup names the instruments it checks. Where one is a company, open its page and the research picks up again.', null, null],
 ];
 function hiwJourney() {
   const s = el('section', { class: 'hiw-journey', id: 'hiw-journey', 'aria-labelledby': 'hiw-journey-h' });
@@ -709,6 +718,7 @@ function hiwJourney() {
     path ? pubLink(path, { class: 'pub-textlink' }, label, pubArrow()) : null,
   ])));
   s.append(ol);
+  s.append(el('p', { class: 'pub-body hiw-journey-note' }, 'Not available yet: monitoring and recorded matches.'));
   return s;
 }
 

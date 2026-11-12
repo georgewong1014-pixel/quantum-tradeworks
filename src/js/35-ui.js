@@ -418,8 +418,8 @@ const PRODUCTS = [
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
     limit: 'Hosted monitoring is not available.',
-    boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
-    statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. The worker that records matches is not distributed yet.' },
+    boundary: 'No hosted monitoring or recorded matches yet: rules are checked here, on price history you supply.',
+    statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Monitoring and recorded matches are not available yet.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Model a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
@@ -615,7 +615,7 @@ const TOOLS = [
      says, as the strip did, that it screens the reader's own series, not the
      market. */
   { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'], tab: true,
-    status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from files you open here; the worker that writes them is not distributed yet.',
+    status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from files you open here. Monitoring and recorded matches are not available yet.',
     action: { label: 'Open the scanner', path: '/app/scanner' } },
   { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'], tab: true,
     status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; evaluating one here needs your price history.',
