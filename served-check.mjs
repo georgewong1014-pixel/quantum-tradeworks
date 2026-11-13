@@ -147,6 +147,18 @@ function get(path) {
   }
   return cache.get(path);
 }
+/* /HOW-IT-WORKS FOLDS EACH PRODUCT'S TOOL LIST AND WORKED EXAMPLES (the
+   streamlining list of 13 Nov 2026, row 2): closed at every width, a press
+   away. A check of what an example says reads it as a reader does who has
+   opened the fold: this opens those folds in a parsed page and reports any
+   that was served open. What is in sight elsewhere on the page is untouched. */
+function hiwOpened(B, tree, p) {
+  for (const d of B.allOf(tree).filter(n => n.tag === 'details' && (B.hasClass(n, 'hiw-examples') || B.hasClass(n, 'hiw-tools')))) {
+    if (B.attrOf(d, 'open') !== null) p.push('/how-it-works serves a product’s worked examples or tool list open, not folded');
+    else d.raw = d.raw.replace(/\s*\/?>\s*$/, ' open="">');
+  }
+  return tree;
+}
 /* Several at a time, not all at once: each page is 3MB. */
 async function getAll(paths, limit = 6) {
   const out = [];
@@ -2999,7 +3011,7 @@ const HOME_PAGE = read(HOME);
   /* /how-it-works#hiw-scanner. */
   const hw = got.get('/how-it-works');
   if (hw?.status === 200) {
-    const sec = all(B.htmlTree(hw.body)).find(n => attr(n, 'id') === 'hiw-scanner');
+    const sec = all(hiwOpened(B, B.htmlTree(hw.body), p)).find(n => attr(n, 'id') === 'hiw-scanner');
     if (!sec) p.push('/how-it-works: no #hiw-scanner');
     else figureProblems('/how-it-works#hiw-scanner', sec);
     if (/No example match is shown here/.test(hw.body)) p.push('/how-it-works: still says "No example match is shown here"');
@@ -3962,7 +3974,7 @@ const HOME_PAGE = read(HOME);
   const hiw = got.get('/how-it-works');
   if (!hiw || hiw.status !== 200) p.push(`/how-it-works: ${hiw?.status || 'no answer'}, not 200`);
   else {
-    const tree = B.htmlTree(hiw.body);
+    const tree = hiwOpened(B, B.htmlTree(hiw.body), p);
     const box = all(tree).find(n => has(n, 'hiw-example') && all(n).some(h => h.tag === 'h4' && sight(h) === 'A Sarawak property deal check'));
     if (!box) p.push('/how-it-works serves no "A Sarawak property deal check" example');
     else {
@@ -4294,7 +4306,7 @@ const HOME_PAGE = read(HOME);
   if (manifest.pages?.['pages/how-it-works.html']?.state !== 'filings in') p.push(`/how-it-works's render is its ${manifest.pages?.['pages/how-it-works.html']?.state || 'missing'} state — drawn before the filed statements it opens on could land`);
   if (!hiw || hiw.status !== 200) p.push(`/how-it-works: ${hiw?.status || 'no answer'}, not 200`);
   else {
-    const tree = B.htmlTree(hiw.body);
+    const tree = hiwOpened(B, B.htmlTree(hiw.body), p);
     const seg = all(tree).find(n => has(n, 'hiw-seg'));
     const picks = seg ? all(seg).filter(n => attr(n, 'data-inert') === 'button' || n.tag === 'button').map(n => ({ label: sight(n), on: attr(n, 'data-on') !== null || attr(n, 'aria-pressed') === 'true' })) : [];
     said.picks = picks.map(x => `${x.label}${x.on ? ' (open)' : ''}`).join(', ');
