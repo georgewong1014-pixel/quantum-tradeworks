@@ -25,8 +25,14 @@ two halves of the journey are verified.
 4. **Copy** and **Open in my email program** stay as alternatives on every
    case, draft or submitted.
 
-Without a store, the drawer says "Submitting from this page is not switched
-on yet. Nothing has been sent; copy the report or use your email program."
+Without a store, copy and email are the supported way to report and the
+last step presents them first (13 Nov 2026): the Copy button and the email
+link stand directly under the report, and under them the drawer says "Copying
+the report and sending it from your own email program is how it reaches the
+site’s owner today. Submitting from this page is not switched on yet, so
+nothing has been sent from here." The forms' opening lines name copy and
+email only. Once the store is configured the same pages offer Submit first,
+with no change to the code.
 
 ## What the deployment needs (the owner's steps)
 

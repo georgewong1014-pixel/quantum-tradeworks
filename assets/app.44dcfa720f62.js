@@ -30191,7 +30191,7 @@ VIEWS.contact = () => trustPage('Contact',
         const v = supportEmail();
         return v
           ? [tp('Write to ', supplied('email'), ', the site owner’s support address. It opens your own email program; this site does not send the message or confirm that it arrived.'),
-             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it and send it to that address from your own email program; or, where submitting from the page is switched on, submit it there, and a receipt reference appears once the site’s store has accepted it. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it and send it to that address from your own email program. The same step says whether this page can also submit it; where it can, a receipt reference appears once the site’s store has accepted it. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
           : [tp(...supportUnavailable())];
       })(),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
@@ -33235,8 +33235,8 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', supportEmail()
-    ? 'Each report names the exact item and is saved in this browser first. You then copy it, send it from your own email program, or submit it from here where that is switched on.'
-    : 'Each report names the exact item and is saved in this browser first. You then copy it, or submit it from here where that is switched on.'));
+    ? 'Each report names the exact item and is saved in this browser first. You then copy it and send it from your own email program; the last step says whether this page can also submit it.'
+    : 'Each report names the exact item and is saved in this browser first. You then copy it; the last step says whether this page can also submit it.'));
   rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the error form'));
   wrap.append(rep);
   /* The reader's own cases and the log come first (Day-10 pre-audit CL-25, NAV-14): the page is reached to check a case or the log, and the
@@ -33296,6 +33296,21 @@ const saveCorrections = () => store.write('corrections', State.corrections);
    The endpoint is asked once per page load whether a store is configured;
    until the deployment names one, the page offers copy and email only and
    says so. */
+/* THE WAYS A REPORT LEAVES THIS BROWSER, SAID AS THEY ARE ON THIS DEPLOYMENT
+   (the audit note of 13 Nov 2026). The forms' lead listed three — "copy it,
+   send it from your own email program, or submit it from here where that is
+   switched on" — on a site where the third is not switched on, so the two
+   that work read as alternatives to one that does not. Until the store
+   answers that it is configured, the lead names the supported route only:
+   copy, and the visitor's own email program. */
+const reportRoutes = (configured) => supportEmail()
+  ? (configured ? 'you choose to submit it from here, copy it, or send it from your own email program.' : 'you copy it and send it from your own email program.')
+  : (configured ? 'you choose to submit it from here or copy it.' : 'you copy it.');
+function reportLead(before) {
+  const p = el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, before + reportRoutes(false));
+  reportSubmission().then(({ configured }) => { if (configured) p.textContent = before + reportRoutes(true); });
+  return p;
+}
 let reportProbe = null;
 function reportSubmission() {
   if (!LAUNCH.reportEndpoint || typeof fetch !== 'function') return Promise.resolve({ configured: false });
@@ -33329,14 +33344,21 @@ function submitBlock(c, pre) {
   note.textContent = 'Checking whether this page can submit it…';
   reportSubmission().then(({ configured }) => {
     if (!configured) {
-      note.textContent = `Submitting from this page is not switched on yet. Nothing has been sent; copy the ${noun}${supportEmail() ? ' or use your email program' : ''}.`;
+      /* Under the buttons that work, and after saying that they are the way
+         (the audit note of 13 Nov 2026): this sentence stood first, above
+         Copy and the email link, so the last step opened on what the page
+         cannot do. */
+      note.textContent = supportEmail()
+        ? `Copying the ${noun} and sending it from your own email program is how it reaches the site’s owner today. Submitting from this page is not switched on yet, so nothing has been sent from here.`
+        : `Submitting from this page is not switched on yet. Nothing has been sent; copy the ${noun}.`;
       return;
     }
     note.textContent = `Or submit it from here. Submitting sends the text above, with the page’s name and the build, to this site’s report store — nothing else from this browser, and no address of yours. A receipt reference is shown only once the store has accepted it.`;
     const status = el('p', { class: 'metaline', role: 'status', 'data-submit-status': '', style: 'margin-top:8px' });
-    /* With Submit drawn, the copy button beside it is an alternative. */
+    /* With Submit drawn, the copy button beside it is an alternative, and
+       the submission stands above it: it is the completion. */
     const copy = box.parentElement?.querySelector('[data-copy-case]');
-    if (copy) { copy.classList.remove('btn-primary'); copy.classList.add('btn-ghost'); }
+    if (copy) { copy.classList.remove('btn-primary'); copy.classList.add('btn-ghost'); copy.parentElement.before(box); }
     const btn = el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:8px', 'data-submit-report': '', onclick: async () => {
       btn.disabled = true; status.textContent = 'Submitting…';
       const r = await submitReport(c, pre.value).catch(() => ({ ok: false, reason: 'network' }));
@@ -33652,10 +33674,7 @@ function openReportError() {
   /* What opened the form, for the redraw below to find again. */
   const opener = document.activeElement;
   const body = el('div');
-  body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
-    supportEmail()
-      ? 'This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and you choose to copy it, send it from your own email program, or submit it from here where that is switched on.'
-      : 'This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and you choose to copy it, or submit it from here where that is switched on.'));
+  body.append(reportLead('This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and '));
 
   const origin = reportOrigin();
   const state = { item: origin.groups[0].items[0] || '', subject: origin.subject, shownValue: '', expectedValue: '', sourceRef: '', description: '' };
@@ -33753,10 +33772,12 @@ function confirmCaseSaved(c) {
     const pre = el('textarea', { class: 'input', 'aria-label': `Case ${c.id}, as text to copy`, style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px' });
     pre.value = correctionPayload(c);
     w.append(pre);
-    /* The submission first — it is the completion; copy and email follow as
-       the alternatives they are. Until a store is configured the copy button
-       stays the primary one (submitBlock demotes it only when Submit is drawn). */
-    w.append(submitBlock(c, pre));
+    /* Copy and email first: until a store is configured they are the
+       supported way to report, and the copy button is the primary one. The
+       submit block follows them and says so; once the store answers that it
+       is configured, submitBlock draws Submit, demotes Copy and moves itself
+       above this row — the submission is then the completion (13 Nov 2026). */
+    const sub = submitBlock(c, pre);
     w.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
       el('button', { class: 'btn btn-primary btn-sm', 'data-copy-case': '', onclick: () => {
         pre.select();
@@ -33769,6 +33790,7 @@ function confirmCaseSaved(c) {
         onclick: e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); closeDrawer(); navigate('/corrections'); } },
         'See my recorded cases'),
     ]));
+    w.append(sub);
     return w;
   })());
 }
@@ -33780,8 +33802,7 @@ function confirmCaseSaved(c) {
 function openFeedback() {
   const opener = document.activeElement;
   const body = el('div');
-  body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
-    'Tell the site’s owner what worked, what did not, or what you expected. This saves your feedback in this browser first and gives it an identifier; it does not send anything by itself. The last step lets you copy it' + (supportEmail() ? ', send it from your own email program, or submit it from here where that is switched on.' : ', or submit it from here where that is switched on.')));
+  body.append(reportLead('Tell the site’s owner what worked, what did not, or what you expected. This saves your feedback in this browser first and gives it an identifier; it does not send anything by itself. At the last step '));
   const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   f.append(el('label', { for: 'fb-text' }, 'Your feedback'));
   const ta = el('textarea', { class: 'input', id: 'fb-text', placeholder: 'What happened, what you expected, or what you would change.' });

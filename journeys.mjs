@@ -4132,7 +4132,7 @@ const JOURNEYS = [
            failed by the runner (below, "never took it"), rightly. */
         const why = probe.configured
           ? 'not exercised against this deployment: a submission here would file a synthetic report into the owner’s store on every run; the owner’s live check is in docs/report-submission.md'
-          : `submission is not switched on for this deployment (/api/report answered ${probe.status || (probe.error ? 'nothing' : 'configured: false')}): a visitor can only copy or email the report; docs/report-submission.md names the two settings`;
+          : `submitting from the page is not switched on for this deployment (/api/report answered ${probe.status || (probe.error ? 'nothing' : 'configured: false')}): the supported way to report is to copy the report and email it, which the correction-case journey checks; docs/report-submission.md names the two settings`;
         await step(j, tab, 'Customer completion: submitted from the page, receipt shown, no other program opened', BUDGET.action, async () => {
           const r = await tab.eval(`({ block: document.querySelector('#drawer [data-case-submit]')?.textContent.replace(/\\s+/g, ' ').trim() || null, control: !!document.querySelector('#drawer [data-submit-report]') })`);
           /* An older build has no submit block at all; a build with one must say the truth. */
