@@ -1036,7 +1036,7 @@ function correctionPayload(c) {
     : (c.kind === 'scanner' || c.kind === 'general' || c.kind === 'feedback') ? []
     : [`Model version: ${c.modelVersion}`, `Data as of: ${c.asOf}`, `Universe at the time: ${c.coverage}`];
   if (c.kind) tail.push(c.build ? `Build ${c.build}` : 'Build not recorded (the app was loaded inline, not as a hashed file)');
-  if (c.kind === 'feedback') return [`Feedback ${c.id}`, `Raised: ${c.createdAt}`, `Page: ${c.route}`, ``, c.description || '(nothing written)', ``, ...tail].join('\n');
+  if (c.kind === 'feedback') return [`Feedback ${c.id}`, `Raised: ${c.createdAt}`, `Page: ${c.route}`, ...(c.asked ? [`Asked: ${c.asked}`] : []), ``, c.description || '(nothing written)', ``, ...tail].join('\n');
   return [
     `Correction case ${c.id}`,
     `Raised: ${c.createdAt}`,
@@ -1340,14 +1340,24 @@ function confirmCaseSaved(c) {
    was expected — the same path as a data-error case: saved here first with
    an identifier, then submitted from here, copied or emailed. It records the
    page and the build; nothing from the reader's saved work and no address. */
+const FEEDBACK_PROPERTY_ASK = 'Which part of modelling a property is still difficult?';
 function openFeedback() {
   const opener = document.activeElement;
   const body = el('div');
   body.append(reportLead('Tell the site’s owner what worked, what did not, or what you expected. This saves your feedback in this browser first and gives it an identifier; it does not send anything by itself. At the last step '));
+  /* ON PROPERTY, ONE QUESTION (the sprint brief of 13 Nov 2026, item 5): which
+     modelling task is still difficult. The form is the one that exists; the
+     question is its label, so an answer names a task rather than a mood, and
+     the text the reader reviews carries the question it answers (c.asked).
+     It asks for the task and says to leave the finances out. */
+  const asked = (productOf(State.view) === 'property' || /^\/property(\/|-investing|$)/.test(location.pathname)) ? FEEDBACK_PROPERTY_ASK : null;
   const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-  f.append(el('label', { for: 'fb-text' }, 'Your feedback'));
-  const ta = el('textarea', { class: 'input', id: 'fb-text', placeholder: 'What happened, what you expected, or what you would change.' });
-  f.append(ta); body.append(f);
+  f.append(el('label', { for: 'fb-text' }, asked || 'Your feedback'));
+  const ta = el('textarea', { class: 'input', id: 'fb-text', 'aria-describedby': asked ? 'fb-ask-note' : null,
+    placeholder: asked ? 'For example: entering the costs, comparing two scenarios, saving or reopening — and what you expected instead.' : 'What happened, what you expected, or what you would change.' });
+  f.append(ta);
+  if (asked) f.append(el('p', { class: 'metaline', id: 'fb-ask-note', style: 'margin-top:6px' }, 'Name the task, not your finances: leave out your income, your loan and anything else private. Other feedback is welcome here too.'));
+  body.append(f);
   body.append(el('div', { class: 'sunk', style: 'margin-bottom:var(--md)' },
     el('dl', { class: 'kv' }, [
       el('dt', {}, 'Recorded with it'),
@@ -1358,7 +1368,7 @@ function openFeedback() {
     if (!text) { toast('Write something before saving the feedback'); return; }
     const now = new Date();
     const c = { id: nextCaseId(now), createdAt: caseRaisedAt(now), route: location.pathname, kind: 'feedback', build: reportBuild(),
-      item: 'Feedback', subject: matchRoute(location.pathname)?.title || '',
+      item: 'Feedback', subject: matchRoute(location.pathname)?.title || '', ...(asked ? { asked } : {}),
       status: supportEmail() ? 'recorded here, not confirmed received' : 'recorded — not sent', description: text };
     State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
     saveCorrections();

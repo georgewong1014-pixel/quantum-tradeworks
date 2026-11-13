@@ -1374,5 +1374,13 @@ VIEWS.propertyModels = () => {
   ]));
   lc.append(ul);
   wrap.append(lc);
+  /* The one question, where a returning visitor lands (the sprint brief of
+     13 Nov 2026, item 5). It opens the feedback form that exists — saved in
+     this browser first, then copied or emailed — and nothing is sent by
+     pressing it. Only once something has been saved: a first visit has not
+     modelled anything to find difficult. */
+  if (props.length) wrap.append(el('p', { class: 'caption pm-ask', id: 'pm-ask' }, [
+    'Is part of modelling a property still difficult? ',
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pm-ask-open', 'data-action': 'feedback' }, 'Tell the site’s owner which task')]));
   return wrap;
 };

@@ -7615,4 +7615,5 @@ input.au-in[type="text"] { text-align: left; }
 .scan-steps > .scan-step-later .scan-step-t strong { color: var(--ink-2); }
 .scan-steps > .scan-step:not(.scan-step-later) + .scan-step-later { border-top: 1px dashed var(--line-2); margin-top: var(--xs); padding-top: var(--md); }
 /* The save bar's backup sentence: its link is a control of the bar's own size. */
-.pm-backup { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.pm-backup, .pm-ask { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.pm-ask { gap: var(--xs) var(--sm); }
