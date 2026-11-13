@@ -1893,8 +1893,17 @@ const HOME_PAGE = read(HOME);
      with no basemap, and its row says so. */
 {
   const p = [];
-  const got = await getAll(['/property/lab', '/property/calculator', '/status']);
-  const lab = got.get('/property/lab').body || '';
+  const got = await getAll(['/property', '/property/calculator', '/status']);
+  const lab = got.get('/property').body || '';
+  /* ONE ADDRESS FOR THE SCENARIO LAB (the streamlining list of 13 Nov 2026,
+     row 1): /property/lab is answered with a redirect to /property, its query
+     kept, and serves no page of its own. */
+  for (const q of ['', '?by=risk']) {
+    const r = await get('/property/lab' + q);
+    const to = r.headers.get('location') || '';
+    let at = to; try { const u = new URL(to, BASE); at = u.pathname + u.search; } catch {}
+    if (![307, 308].includes(r.status) || at !== '/property' + q) p.push(`/property/lab${q} answers ${r.status}${to ? ` to ${to}` : ''}, not a redirect to /property${q}`);
+  }
   const hd = /<div class="page-hd-title">\s*<h1>([^<]*)<\/h1>\s*<span class="status-badge status-beta"[^>]*>([^<]*)<\/span>\s*<\/div>/.exec(lab);
   if (!hd) p.push('/property/lab: no status badge beside its h1 — its only visible state is the product\'s');
   else if (hd[1].trim() !== 'Scenario Lab' || hd[2].trim() !== 'Beta') p.push(`/property/lab: the heading reads "${hd[1]}" beside "${hd[2]}", not "Scenario Lab" beside "Beta"`);
@@ -1949,7 +1958,7 @@ const HOME_PAGE = read(HOME);
 {
   const p = [];
   const WORDS = 'Need design or renovation planning? Copy a brief for ELS';
-  const PATHS = ['/property/calculator', '/property/lab', '/property'];
+  const PATHS = ['/property/calculator', '/property'];
   const got = await getAll([...PATHS, '/', '/app/scanner', '/research']);
   const anchors = (html) => [...html.matchAll(/<a\b([^>]*)>([^<]*)<\/a>/g)].filter(m => m[2].trim() === WORDS).map(m => m[1]);
   for (const path of PATHS) {
@@ -2401,7 +2410,6 @@ const HOME_PAGE = read(HOME);
        inputs; the full model's fee lines (Placeholder, Derived) and total
        are held where it is drawn (model-test, qt-quick-full). */
     ['/property/calculator', ['illustrative'], 'the Quick model’s results'],
-    ['/property/lab', ['illustrative'], 'the Lab’s tiles'],
     ['/', ['filed', 'unavailable', 'illustrative'], 'the homepage’s three product pictures'],
     ['/research', ['filed', 'illustrative'], 'Research’s filed examples and illustrative lenses'],
     ['/app/scanner', ['illustrative'], 'the Scanner’s generated-series example'],
@@ -2777,7 +2785,7 @@ const HOME_PAGE = read(HOME);
   /* N2a (D17) */
   const PROPERTY_NOTE = 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.';
   said.qual = [];
-  for (const path of ['/', '/property', '/property/calculator', '/property/lab', '/how-it-works', '/about', '/status']) {
+  for (const path of ['/', '/property', '/property/calculator', '/how-it-works', '/about', '/status']) {
     const body = got.get(path)?.body || (await get(path)).body || '';
     const nodes = all(T(body));
     const badges = nodes.filter(n => has(n, 'status-live') && attr(n, 'title') === PROPERTY_NOTE && B.inSight(n));
@@ -3526,8 +3534,8 @@ const HOME_PAGE = read(HOME);
   const B = await import('./build.mjs');
   const all = B.allOf, attr = B.attrOf, sight = B.sightText;
   const p = [], said = {};
-  const got = await getAll(['/property', '/property/lab', '/data-sources']);
-  for (const path of ['/property', '/property/lab']) {
+  const got = await getAll(['/property', '/data-sources']);
+  for (const path of ['/property']) {
     const r = got.get(path);
     if (!r || r.status !== 200) { p.push(`${path}: ${r ? described(r) : 'not fetched'}`); continue; }
     const views = all(B.htmlTree(r.body)).find(n => attr(n, 'id') === 'views');
@@ -3559,7 +3567,7 @@ const HOME_PAGE = read(HOME);
     if (!book || !all(book).some(n => n.tag === 'a' && /L\.N\.%20348/.test(attr(n, 'href') || '') && /Advocates’ Remuneration \(Amendment\) Rules, 2022/.test(sight(n)))) p.push('/data-sources: the route readings do not name the gazette they were read in');
     if (!/Purchase legal fees on a purchase at auction/.test(text) || !/Purchase legal fees on a purchase from a developer/.test(text)) p.push('/data-sources: what could not be verified does not name the auction\'s and the developer\'s purchase legal fees');
   }
-  judge(p, `the property accuracy batch as served: /property and /property/lab each serve ${said['/property'] ?? 0} and ${said['/property/lab'] ?? 0} chain rows with their Illustrative badge; /data-sources serves rulebook 1.5.0, the valuation fee on the valuer's figure, with ${said.routes ?? 0} purchase-route readings, the auction and the new development "not decided by the Rules", the gazette named`,
+  judge(p, `the property accuracy batch as served: /property serves ${said['/property'] ?? 0} chain rows with their Illustrative badge; /data-sources serves rulebook 1.5.0, the valuation fee on the valuer's figure, with ${said.routes ?? 0} purchase-route readings, the auction and the new development "not decided by the Rules", the gazette named`,
     'the chain rows or the rulebook\'s route readings are not served');
 }
 /* ---- end property-accuracy-served ---- */
@@ -3579,8 +3587,8 @@ const HOME_PAGE = read(HOME);
   const B = await import('./build.mjs');
   const all = B.allOf, attr = B.attrOf, sight = B.sightText;
   const p = [], said = {};
-  const got = await getAll(['/property/lab']);
-  const r = got.get('/property/lab');
+  const got = await getAll(['/property']);
+  const r = got.get('/property');
   if (!r || r.status !== 200) p.push(`/property/lab: ${r ? described(r) : 'not fetched'}`);
   else {
     const tree = all(B.htmlTree(r.body));
@@ -3664,8 +3672,8 @@ const HOME_PAGE = read(HOME);
   const B = await import('./build.mjs');
   const all = B.allOf, attr = B.attrOf, sight = B.sightText;
   const p = [], said = {};
-  const got = await getAll(['/property/lab']);
-  const r = got.get('/property/lab');
+  const got = await getAll(['/property']);
+  const r = got.get('/property');
   if (!r || r.status !== 200) p.push(`/property/lab: ${r ? described(r) : 'not fetched'}`);
   else {
     const tree = all(B.htmlTree(r.body));
@@ -4690,7 +4698,7 @@ const HOME_PAGE = read(HOME);
 {
   const B = await import('./build.mjs');
   const all = B.allOf, attr = B.attrOf, sight = B.sightText;
-  const WANT = { '/property': ['analyse', 'lab'], '/property/lab': ['analyse', 'lab'], '/property/calculator': ['evidence', 'calc'], '/property/models': ['save', 'calc'],
+  const WANT = { '/property': ['analyse', 'lab'], '/property/calculator': ['evidence', 'calc'], '/property/models': ['save', 'calc'],
     '/property/opportunities': ['explore', 'calc'], '/property/comparables': ['explore', 'calc'], '/property/areas': ['explore', 'calc'], '/property/areas/map': ['explore', 'calc'] };
   const STEPS = 'Explore Analyse Evidence Compare Save';
   const p = [], said = [];
@@ -4777,7 +4785,7 @@ const HOME_PAGE = read(HOME);
      /property or /app stands beside Property Intelligence's name. */
 {
   const p = [], said = [];
-  const got = await getAll(['/contact', '/about', '/privacy', '/terms', '/property', '/property/lab', '/app']);
+  const got = await getAll(['/contact', '/about', '/privacy', '/terms', '/property', '/app']);
   const html = (path) => got.get(path)?.body || '';
   const SUPPORT = /\bcontactEmail:\s*'([^']*)'/.exec(read('src/js/15-derivation.js'))?.[1] ?? '';
   for (const path of ['/contact', '/about']) {
@@ -4824,7 +4832,7 @@ const HOME_PAGE = read(HOME);
      for the reader, then the one-sentence beta line the N2b decision keeps. */
   /* Day 18 (QT-D18-01, 31 Oct 2026): the owner's introduction; the Beta badge beside the heading says beta. */
   const LINE = 'Model your property’s cash requirement, monthly position and rental yield using figures you enter.';
-  for (const path of ['/property', '/property/lab']) {
+  for (const path of ['/property']) {
     const h = html(path), t = pageText(h);
     const n = t.split(LINE).length - 1;
     if (n !== 1) p.push(`${path} serves the Available/Beta line ${n} times, not once`);

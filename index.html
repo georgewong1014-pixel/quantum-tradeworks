@@ -22067,13 +22067,20 @@ function applyRoute() {
      still opens what it opened, and Back does not return to an address that
      only redirects. The host answers the same address with a redirect; this
      is for one reached inside the app, or served by a host that does not. */
+  /* A link written to /property/lab is the Lab's whatever it carries: a
+     price in ?d= opens the Lab on that deal (nav-07), where the same query on
+     a link written to /property before the Lab took it is the calculator's
+     (calculatorLegacy). So that rule is not applied to an address that
+     arrived as /property/lab. */
+  let fromLab = false;
   if (location.pathname.replace(/[/]$/, '').endsWith('/property/lab')) {
     const was = location.pathname;
     history.replaceState(history.state, '', href('/property') + location.search + location.hash);
     if (lastPath === was) lastPath = location.pathname;
+    fromLab = true;
   }
   let route = matchRoute(location.pathname);
-  if (route?.path === '/property' && calculatorLegacy()) route = matchRoute(location.pathname);
+  if (route?.path === '/property' && !fromLab && calculatorLegacy()) route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
   /* A route whose view is defined in a module this build does not carry —
      How it works and the research queue arrive with their own branches — is

@@ -3840,6 +3840,11 @@ const JOURNEYS = [
         const HIW = 'main figure#hiw-scan-ex';
         await tab.goto('/how-it-works');
         await tab.expect(`!!document.querySelector(${JSON.stringify(`${HIW} input[type=range]`)})`, '/how-it-works shows no example with a replay bar');
+        /* The worked examples fold closed at every width (the streamlining list of
+           13 Nov 2026, row 2): the reader opens the Scanner’s, by its summary. */
+        if (await tab.eval(`(() => { const d = document.querySelector(${JSON.stringify(HIW)})?.closest('details'); return !!d && !d.open; })()`))
+          await tab.click(`document.querySelector(${JSON.stringify(HIW)}).closest('details').querySelector('summary')`, 'The Scanner’s “Worked examples”');
+        await tab.expect(`(document.querySelector(${JSON.stringify(HIW)})?.closest('details')?.open ?? true) === true`, 'the Scanner’s worked examples did not open', 2000);
         await holds(HIW, 66);
         await tab.click(slider(HIW), 'The replay bar');
         await tab.eval(`${slider(HIW)}.focus()`);

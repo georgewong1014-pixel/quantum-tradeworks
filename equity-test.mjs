@@ -8109,6 +8109,8 @@ try {
         dead: dead(m),
       };
       navigate('/how-it-works'); await w(150);
+      /* The tool lists and the worked examples fold closed at every width (the streamlining list of 13 Nov 2026, row 2): opened, as a reader opens them. */
+      document.querySelectorAll('main details.hiw-examples, main details.hiw-tools').forEach(d => { d.open = true; }); await w(50);
       const h = main();
       out.hiw = {
         view: State.view,
@@ -10057,6 +10059,8 @@ try {
       {
         const r = await evaluate(`(async () => { ${W}
           navigate('/how-it-works'); await w(200);
+          /* The worked examples fold closed at every width (13 Nov 2026, row 2): opened, as a reader opens them. */
+          document.querySelectorAll('main details.hiw-examples, main details.hiw-tools').forEach(d => { d.open = true; }); await w(50);
           const card = [...document.querySelectorAll('.proof-card')].find(c => /Cash Wheel/.test(c.textContent));
           const out = { tag: txt(card?.querySelector('.proof-hd .proof-src')), card: txt(card), pages: {} };
           for (const path of ['/learn/product-boundaries', '/about', '/methodology/ips', '/corrections']) {

@@ -2770,7 +2770,9 @@ for (const route of ROUTES) {
   const CASES = [
     ['/property', 'propertyLab', '/property'],
     ['/property?by=risk', 'propertyLab', '/property', { metric: 'risk' }],
-    ['/property/lab', 'propertyLab', '/property/lab'],
+    /* The Lab's one address (the streamlining list of 13 Nov 2026, row 1): /property/lab lands on /property, its query kept. */
+    ['/property/lab', 'propertyLab', '/property'],
+    ['/property/lab?by=risk', 'propertyLab', '/property', { metric: 'risk' }],
     ['/property/calculator', 'property', '/property/calculator'],
     ['/property?city=sibu&d=price:600000', 'property', '/property/calculator', { city: 'sibu', price: 600000 }],
     ['/property#scenarios', 'property', '/property/calculator', { hash: '' }],

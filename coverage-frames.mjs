@@ -759,7 +759,8 @@ try {
         const footer = document.querySelector('body > .footer');
         return { buttons, controls, emptyDetails, hrefs: [...hrefs], footer: !!footer && shown(footer), pubbar: !!document.querySelector('.pubbar') && shown(document.querySelector('.pubbar')), scripted: typeof State !== 'undefined' };
       })()`;
-      const NEED = ['/research', '/app/scanner', '/property', '/pricing', '/methodology', '/data-sources', '/learn/glossary', '/status', '/about', '/contact'];
+      /* Property's own link opens the start, the calculator (the streamlining list of 13 Nov 2026, row 1). */
+      const NEED = ['/research', '/app/scanner', '/property/calculator', '/pricing', '/methodology', '/data-sources', '/learn/glossary', '/status', '/about', '/contact'];
       for (const [w, h, mobile] of [[1280, 900, false], [390, 844, true]]) {
         await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, nsid);
         await send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 }, nsid);
