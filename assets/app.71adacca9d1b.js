@@ -12749,7 +12749,11 @@ const PRODUCTS = [
     limit: 'Hosted monitoring is not available.',
     boundary: 'No hosted monitoring or recorded matches yet: rules are checked here, on price history you supply.',
     statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Monitoring and recorded matches are not available yet.' },
-  { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
+  /* `home`: where the product's own links open (the Products menu, the
+     sidebar, the footer) — the start, the calculator's quick model (the
+     streamlining list of 13 Nov 2026, row 1). `path` stays the product's
+     address, which is the Scenario Lab's one address. */
+  { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property', home: '/property/calculator',
     task: 'Model a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
     status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
@@ -12918,9 +12922,9 @@ const TOOLS = [
     status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' },
     action: { label: 'Analyse a property', path: '/property/calculator' } },
-  { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
+  { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property', views: ['propertyLab'], tab: true,
     status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
-    action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
+    action: { label: 'Open the Scenario Lab', path: '/property' } },
   { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas', 'areaMap'], tab: true,
     status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
     proof: { journey: 'registers', step: 'Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow' },
@@ -13642,9 +13646,12 @@ const ROUTES = [
   /* The area screen's second view: Kuching on a map of this site's own
      files, the NAPIC schemes OpenStreetMap places on it (92-kuching-map.js). */
   { path: '/property/areas/map',  view: 'areaMap',     title: 'Kuching scheme map' },
-  /* The Scenario Lab (82-property-lab.js). Its ?model=, ?cols= and ?by= are
-     read by the view itself, on arrival; no row of their own. */
-  { path: '/property/lab',        view: 'propertyLab', title: 'Scenario Lab' },
+  /* The Scenario Lab (82-property-lab.js) is /property, above. Its ?model=,
+     ?cols= and ?by= are read by the view itself, on arrival; no row of their
+     own. /property/lab was a second address for the same page: it has no row
+     now — the host redirects it to /property (src/vercel.template.json) and
+     applyRoute does the same for an address reached inside the app (the
+     streamlining list of 13 Nov 2026, row 1). */
   { path: '/us-options/wheel',    view: 'wheel',     title: 'US Options Cash Wheel' },
   /* The paths a reader actually types. All five rendered the not-found card
      while the workspace sat behind a URL nobody would guess, and the workspace
@@ -14108,6 +14115,18 @@ function applyRoute() {
     const at = location.pathname.slice(BASE.length).replace(/\/index\.html$/, '') || '/';
     history.replaceState(history.state, '', href(at) + location.search + location.hash);
   }
+  /* ONE ADDRESS FOR THE SCENARIO LAB (the streamlining list of 13 Nov 2026,
+     row 1). /property and /property/lab both drew it. /property is the one
+     it is canonical at and listed under, so /property/lab becomes it in
+     place, with its query and its hash: a link written to /property/lab
+     still opens what it opened, and Back does not return to an address that
+     only redirects. The host answers the same address with a redirect; this
+     is for one reached inside the app, or served by a host that does not. */
+  if (location.pathname.replace(/[/]$/, '').endsWith('/property/lab')) {
+    const was = location.pathname;
+    history.replaceState(history.state, '', href('/property') + location.search + location.hash);
+    if (lastPath === was) lastPath = location.pathname;
+  }
   let route = matchRoute(location.pathname);
   if (route?.path === '/property' && calculatorLegacy()) route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
@@ -14433,7 +14452,7 @@ function productRows() {
       ]),
     ];
     return el('li', {}, p.path
-      ? shellLink(p.path, { class: `pp-row pub-acc-${p.id}`, 'data-product': p.id, 'aria-description': productNote(p.id) }, kids)
+      ? shellLink((p.home || p.path), { class: `pp-row pub-acc-${p.id}`, 'data-product': p.id, 'aria-description': productNote(p.id) }, kids)
       : el('div', { class: 'pp-row pp-row-off', 'data-product': p.id }, kids));
   });
 }
@@ -14524,7 +14543,7 @@ const NAV_MARKUP = {
     el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-ws' }, APP_NAV_WORKSPACE.map(n => sidebarItem(n))),
     el('p', { class: 'sb-label', id: 'sb-products' }, 'Products'),
     el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-products' },
-      PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => sidebarItem({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path, note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
+      PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => sidebarItem({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: (p.home || p.path), note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
     el('ul', { class: 'sb-list sb-list-foot' }, APP_NAV_FOOT.map(n => sidebarItem(n))),
   ],
   /* The footer's Products and Resources, from the same tables. Unchanged by
@@ -14536,7 +14555,7 @@ const NAV_MARKUP = {
      the live products; the footer's one line, "Business planning: planned,
      not yet scheduled.", says what is not built. */
   footProducts: () => PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => el('li', {}, p.path
-    ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
+    ? shellLink((p.home || p.path), { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))),
   footResources: () => [
     ...RESOURCES.filter(r => r.group === 'method' || r.path === '/status').map(r => el('li', {}, shellLink(r.path, {}, r.label))),
@@ -17960,7 +17979,7 @@ function myDashContinue(o) {
   const card = el('section', { class: 'card ls-section dash-cont-card', 'aria-labelledby': 'dash-cont-hd' });
   card.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
     el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue your work'),
-    el('p', { class: 'caption', style: 'margin-top:2px' }, 'Your most recent work in this browser, newest first.'),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, 'An overview: your most recent work in this browser, newest first. The full list is Saved work.'),
   ])));
   const t = (v) => { const n = Date.parse(String(v || '').replace(' ', 'T') + (/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(String(v || '')) ? 'Z' : '')); return Number.isFinite(n) ? n : -Infinity; };
   const kindOne = typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE : {};
@@ -28362,8 +28381,8 @@ VIEWS.marketing = () => {
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
       ['A worked example', '/app/scanner', 'browser'], ['Back to the company', '/research', 'loop']],
       'Not available yet: monitoring and recorded matches.'),
-    steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
-      ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
+    steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property', 'layout'],
+      ['A, B and C compared', '/property', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
   path.append(el('div', { class: 'pub-path-ft' }, [
     el('p', { class: 'pub-saved' }, 'Saved in this browser — no account.'),
@@ -28440,8 +28459,12 @@ function hiwFlow(id) {
 function hiwTools(p) {
   const tools = typeof TOOLS !== 'undefined' ? TOOLS.filter(t => t.product === p.id && toolPresent(t)) : [];
   if (!tools.length) return null;
-  const box = el('div', { class: 'hiw-tools' });
-  box.append(el('h3', { class: 'hiw-tools-h', id: `hiw-${p.id}-tools` }, 'Its tools, and their state here'));
+  /* Folded, at every width (the streamlining list of 13 Nov 2026, row 2): the
+     page's job is the steps; the list of every tool with its state is a
+     press away, and /status holds the same list for the whole site. */
+  const box = el('details', { class: 'hiw-tools hiw-fold' });
+  box.append(el('summary', { class: 'hiw-examples-sum' }, [el('h3', { class: 'hiw-tools-h', id: `hiw-${p.id}-tools` }, 'Its tools, and their state here'),
+    el('span', { class: 'hiw-examples-n caption' }, `${tools.length} tool${tools.length === 1 ? '' : 's'}`)]));
   box.append(el('ul', { class: 'hiw-tools-list', 'aria-labelledby': `hiw-${p.id}-tools` }, tools.map(t => {
     const s = toolState(t);
     return el('li', { class: `hiw-tool${s.actionable ? '' : ' hiw-tool-off'}`, data: { tool: t.id, state: s.status } }, [
@@ -28703,8 +28726,10 @@ function hiwProduct(p) {
   /* An aside is a note about the examples, not one of them. */
   const exN = ex ? ex.filter(n => !n.classList?.contains('hiw-aside')).length : 0;
   if (ex && ex.length) {
-    const folded = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
-    s.append(el('details', { class: 'hiw-examples', open: folded ? null : '' }, [
+    /* Closed at every width now (the streamlining list of 13 Nov 2026, row
+       2): open above 760px, they stood between each product's steps and the
+       next product's, and the page read as a catalogue. */
+    s.append(el('details', { class: 'hiw-examples' }, [
       el('summary', { class: 'hiw-examples-sum' }, [el('h3', { class: 'hiw-examples-h' }, 'Worked examples'),
         el('span', { class: 'hiw-examples-n caption' }, `${exN === 1 ? 'One example' : `${exN} examples`}, computed by the product’s own model`)]),
       el('div', { class: 'hiw-examples-body' }, ex),
@@ -28813,7 +28838,7 @@ VIEWS.howItWorks = () => {
   hd.append(el('h1', { class: 'pub-h1 hiw-h1' }, 'From your question to a saved answer'));
   hd.append(el('p', { class: 'pub-lede' },
     'Each product starts from something you choose or enter, shows its working, and keeps what you save in this browser. '
-    + 'Here is each one step by step, how they connect, and worked examples computed by the products’ own models.'));
+    + 'Here is each one step by step, and how they connect. Each product’s tools and its worked examples, computed by the products’ own models, fold under its steps.'));
   hd.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
   /* A jump link for each product that is built.
      The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the first view is
@@ -28829,7 +28854,6 @@ VIEWS.howItWorks = () => {
   wrap.append(hd);
 
   wrap.append(hiwRely());
-  wrap.append(hiwStatus(built));
   const list = el('div', { class: 'hiw-products' });
   built.forEach(p => list.append(hiwProduct(p)));
   wrap.append(list);
@@ -28838,6 +28862,10 @@ VIEWS.howItWorks = () => {
     /* One text node after the label: two adjacent strings are two nodes when drawn and one in the served HTML (coverage-frames). */
     el('strong', {}, 'Not built yet: '), `${unbuilt.map(p => `${p.name} (${String(p.blurb || '').replace(/\.$/, '').toLowerCase()})`).join(', ')}. There is nothing to open.`]));
   wrap.append(hiwJourney());
+  /* The legend of labels is reference, so it follows the instructions (the
+     streamlining list of 13 Nov 2026, row 2). Its address, #hiw-status, is
+     where the beta strip's "What the labels mean" lands, and is unchanged. */
+  wrap.append(hiwStatus(built));
 
   wrap.append(el('section', { class: 'hiw-end', 'aria-labelledby': 'hiw-end-h' }, [
     el('h2', { class: 'pub-h2', id: 'hiw-end-h' }, 'All of it, in one workspace'),
@@ -30373,7 +30401,7 @@ VIEWS.notfound = () => {
   const go = (p) => (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); State.notFoundWhat = null; navigate(p); };
   const row = el('div', { class: 'row', style: 'gap:8px;justify-content:center;flex-wrap:wrap;margin-top:var(--lg)' });
   row.append(el('a', { class: 'btn btn-primary', href: href('/app'), onclick: go('/app') }, 'Open your workspace'));
-  PRODUCTS.filter(p => p.path).forEach(p => row.append(el('a', { class: 'btn btn-ghost', href: href(p.path), onclick: go(p.path) }, p.name)));
+  PRODUCTS.filter(p => p.path).forEach(p => row.append(el('a', { class: 'btn btn-ghost', href: href((p.home || p.path)), onclick: go((p.home || p.path)) }, p.name)));
   row.append(el('a', { class: 'btn btn-ghost', href: href('/'), onclick: go('/') }, 'Home'));
   card.append(row);
   wrap.append(card);
@@ -30723,8 +30751,8 @@ VIEWS.workspace = () => {
 
   /* The one head (pageHead, 36-layouts.js): under My workspace's header,
      which is drawn by the shell. */
-  wrap.append(pageHead({ title: 'Everything you have saved', lede: 'Everything saved in this browser, each with the version it was saved against.',
-    note: 'Valuation runs, comparisons, screens, investment cases, properties and tool snapshots — and whether the model or the data under each has moved since.' }));
+  wrap.append(pageHead({ title: 'Everything you have saved', lede: 'The archive: everything saved in this browser, each with the version it was saved against.',
+    note: ['Valuation runs, comparisons, screens, investment cases, properties and tool snapshots — and whether the model or the data under each has moved since. To work on a property, with its scenarios, use ', shellLink('/property/models', {}, 'My properties'), '.'] }));
   /* The seeded investment cases are listed here, each with its "sample"
      chip, and the page said nothing more: under "Everything you have saved"
      a first visit read "2 saved items" as its own. The banner every other
@@ -39887,7 +39915,7 @@ function propertyScenariosPanel(d = State.deal) {
      on a line of its own, not a word in a sentence, so on a phone it is a
      44px target as the row's own "Scenario Lab" is (btn-sm; it measured
      16px tall as a bare link — the verification of 4 Oct 2026). */
-  const labPath = `/property/lab?model=${encodeURIComponent(rec.id)}&cols=${shown.map(c => encodeURIComponent(c.id)).join(',')}`;
+  const labPath = `/property?model=${encodeURIComponent(rec.id)}&cols=${shown.map(c => encodeURIComponent(c.id)).join(',')}`;
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, el('a', { href: href(labPath), id: 'pm-sc-lab', class: 'btn btn-ghost btn-sm',
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } },
     'Open these in the Scenario Lab')));
@@ -39913,7 +39941,7 @@ VIEWS.propertyModels = () => {
   /* The one head (pageHead, 36-layouts.js; Release B, B5), the page's one
      primary action at its end — it sat inside the storage note below. */
   wrap.append(pageHead({ title: 'My properties', lede: 'The properties you have saved, each with its inputs and its scenarios.',
-    note: 'Open one and the calculator edits it — the financing, the returns, the sensitivity, the tests, the grade and the report all read the same figures, so nothing is typed twice.',
+    note: ['Open one and the calculator edits it — the financing, the returns, the sensitivity, the tests, the grade and the report all read the same figures, so nothing is typed twice. Everything else you have saved is in ', shellLink('/my/workspace', {}, 'Saved work'), '.'],
     action: el('button', { class: 'btn btn-primary', id: 'pm-new', onclick: () => newPropertyDeal() }, 'New property') }));
 
   const props = pmAll().sort((a, b) => String(pmUpdated(b) || '').localeCompare(String(pmUpdated(a) || '')));
@@ -40006,7 +40034,7 @@ VIEWS.propertyModels = () => {
         toast(store.failed !== refused ? STORE_UNDELETED : 'Deleted');
       } }, 'Delete'));
     /* Its scenarios moved live, after the row's own actions. */
-    const labPath = `/property/lab?model=${encodeURIComponent(rec.id)}`;
+    const labPath = `/property?model=${encodeURIComponent(rec.id)}`;
     acts.append(el('a', { class: 'btn btn-quiet btn-sm', id: `pm-lab-${rec.id}`, href: href(labPath), 'aria-label': `Scenario Lab — ${rec.name}`,
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } }, 'Scenario Lab'));
     ul.append(el('li', { class: `pm-row${onCalc ? ' is-open' : ''}` }, [
@@ -49528,7 +49556,7 @@ const CAPABILITY_REGISTER = [
     now:'Title, valuation gap, tenure, condition and marketability, scored separately from the borrower.' },
   { name:'Property underwriting grade', status:'active-core', path:'/property/calculator',
     now:'A/B/C/D/U with hard gates and evidence caps.' },
-  { name:'Scenario Lab', status:'beta', path:'/property/lab',
+  { name:'Scenario Lab', status:'beta', path:'/property',
     now:'Nine inputs moved live; eight results from the calculator’s model; up to three scenarios compared six ways.',
     gate:'Moves are kept in this tab until saved as a scenario. Appreciation is your assumption; no price history is held.' },
   { name:'Property opportunity register', status:'active-core', path:'/property/opportunities',
@@ -51632,7 +51660,7 @@ function labAddOpportunity(oppId, { go = true } = {}) {
   lab.naming = null;
   labSubject = lab.key;
   State.labResume = lab.key;
-  if (go) navigate('/property/lab?');
+  if (go) navigate('/property?');
   return { ok: true, key: lab.key, col: col.key };
 }
 /* Told after each paint, with what the lab holds. A listener whose node has
@@ -54673,8 +54701,8 @@ function labComparisonsBlock(P, lab) {
     box.append(el('ul', { class: 'lab-cmps-list' }, saved.map((s, i) => el('li', { class: 'lab-cmps-row', 'data-cmp': s.id }, [
       el('span', { class: 'lab-cmps-name' }, [el('strong', {}, s.name), el('span', { class: 'metaline' }, ` ${s.cols.map((r, j) => `${LAB_LETTERS[j]} ${labRefName(r)}`).join(' · ')} · ${(LAB_LENS_BY_ID[s.lens] || LAB_LENS_BY_ID[LAB_LENS_DEFAULT]).label} lens`)]),
       el('span', { class: 'lab-col-acts' }, [
-        el('a', { class: 'btn btn-ghost btn-sm', id: labId(P, `cmp-open-${i}`), href: href(`/property/lab?compare=${encodeURIComponent(s.id)}`), onclick: (e) => {
-          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(`/property/lab?compare=${encodeURIComponent(s.id)}`);
+        el('a', { class: 'btn btn-ghost btn-sm', id: labId(P, `cmp-open-${i}`), href: href(`/property?compare=${encodeURIComponent(s.id)}`), onclick: (e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(`/property?compare=${encodeURIComponent(s.id)}`);
         } }, ['Open', el('span', { class: 'sr-only' }, ` the comparison ${s.name}`)]),
         el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, `cmp-del-${i}`), onclick: () => {
           if (!store.write('labComparisons', labComparisons().filter(x => x.id !== s.id))) { toast(STORE_REFUSED); return; }
@@ -55075,13 +55103,21 @@ const LAB_ENTER_WORDS = 'Model a property';
 const LAB_ENTER_PATH = '/property/calculator#d-price';
 const LAB_ACTS = [['lab-act-saved', '/property/models', 'Reopen saved work'], ['lab-act-backup', '/my/data', 'Export or restore']];
 const LAB_COMPARE_PATH = '/property#lab-cmp-h';
+const LAB_SAVE_PATH = '/property#lab-commit-h';
 function labEnterLink() {
   const plain = (e) => !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button);
   const go = (path) => (e) => { if (!plain(e)) return; e.preventDefault(); navigate(path); };
   return [el('div', { class: 'lab-acts' }, [
-    el('a', { class: 'btn btn-primary lab-enter', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go(LAB_ENTER_PATH) }, LAB_ENTER_WORDS),
-    el('a', { class: 'btn btn-ghost lab-act', id: 'lab-act-compare', href: href(LAB_COMPARE_PATH), onclick: (e) => { if (plain(e) && labGoTo('compare')) e.preventDefault(); } }, 'Compare scenarios'),
-    ...LAB_ACTS.map(([id, path, words]) => el('a', { class: 'btn btn-ghost lab-act', id, href: href(path), onclick: go(path) }, words))]),
+    /* MODEL → COMPARE → SAVE (the streamlining list of 13 Nov 2026, row 5):
+       the three stages of the basic journey, in order and numbered (the
+       numbers are drawn, .lab-stage; the words are the links' own). Save is
+       a link to "Keep …" on this page, followed as a jump to the Save
+       control with script, as Compare is. Reopening and backup follow the
+       stages, quieter: they are where saved work goes, not a stage. */
+    el('a', { class: 'btn btn-primary lab-enter lab-stage', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go(LAB_ENTER_PATH) }, LAB_ENTER_WORDS),
+    el('a', { class: 'btn btn-ghost lab-act lab-stage', id: 'lab-act-compare', href: href(LAB_COMPARE_PATH), onclick: (e) => { if (plain(e) && labGoTo('compare')) e.preventDefault(); } }, 'Compare scenarios'),
+    el('a', { class: 'btn btn-ghost lab-act lab-stage', id: 'lab-act-save', href: href(LAB_SAVE_PATH), onclick: (e) => { if (plain(e) && labGoTo('save')) e.preventDefault(); } }, 'Save'),
+    ...LAB_ACTS.map(([id, path, words]) => el('a', { class: 'btn btn-quiet lab-act lab-act-after', id, href: href(path), onclick: go(path) }, words))]),
     el('span', { class: 'sr-only', id: 'lab-enter-why' }, 'Opens the calculator')];
 }
 /* THE EXPLANATIONS, BEHIND TWO NAMES (the same list, item 1): "How calculated"
@@ -64184,7 +64220,7 @@ function pfContext() {
   const name = rec ? `“${rec.name}”` : propertyStatus(State.deal).kind === 'sample' ? 'the sample deal' : 'the deal on the calculator';
   const act = lab.cols.find(c => c.key === lab.active);
   const q = labQueryOf(lab);
-  return { lab, name, other: act?.prop ? `${act.key} — ${act.name}` : null, moves: labUnsavedOf(lab), path: `/property/lab${q ? `?${q}` : '?'}` };
+  return { lab, name, other: act?.prop ? `${act.key} — ${act.name}` : null, moves: labUnsavedOf(lab), path: `/property${q ? `?${q}` : '?'}` };
 }
 /* Where the work's property is: the column the sliders move. */
 function pfPlace() {
@@ -64197,7 +64233,7 @@ function pfPlace() {
 function pfToLab(ctx, goTo = null) {
   if (ctx) State.labResume = ctx.lab.key;
   State.labGoTo = goTo;
-  navigate(ctx ? ctx.path : '/property/lab?');
+  navigate(ctx ? ctx.path : '/property?');
 }
 /* "Use it in the Scenario Lab" and the like from another Property page: the
    work the Lab holds, where it holds one; else /property, as before. */
@@ -65953,15 +65989,11 @@ VIEWS.plans = () => {
     el('p', { class: 'body-lg plan-lede', style: 'margin-top:8px' },
       'Everything you can use here is free during the beta. Paid plans are not on sale and have no prices yet; a plan will show its price when it can be bought.'),
   ])));
-  wrap.append(el('div', { class: 'plan-nopay' }, [
-    el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
-    el('p', { class: 'body' }, 'No payment is taken anywhere in this build.'),
-  ]));
 
   /* The three concepts. Equity research is proposed as a subscription, used
      every week; property research is episodic, so it is proposed per report.
      The plan previewed in this browser says so on its card. */
-  wrap.append(el('div', { class: 'plan-concepts', role: 'list' }, PLAN_CARDS.map(pc => {
+  const planCard = (pc) => {
     const on = pc.id !== 'report' && State.plan === pc.id;
     return el('article', { class: `card plan-card plan-concept plan-${pc.id}`, role: 'listitem', 'aria-labelledby': `plan-${pc.id}-h` }, [
       el('div', { class: 'plan-concept-hd' }, [
@@ -65971,7 +66003,26 @@ VIEWS.plans = () => {
       el('p', { class: 'plan-concept-line' }, pc.line),
       on ? el('p', { class: 'plan-concept-on' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 14) }), pc.id === 'free' ? 'Current' : 'Previewing']) : null,
     ]);
-  })));
+  };
+  /* FREE LEADS; THE PROPOSED PLANS ARE SECOND (the streamlining list of 13 Nov
+     2026, row 3). The three cards stood in one row as equals, so what works
+     now and what cannot be bought read as one offer. Free stands first under
+     its own heading; the two proposed plans follow in a quieter section with
+     "Not on sale" at its head, and the comparison and the preview inside it.
+     The cards, their words and the registry are unchanged. */
+  wrap.append(el('section', { class: 'plan-sec plan-sec-free', 'aria-labelledby': 'plan-free-h' }, [
+    el('h2', { class: 'plan-sec-h', id: 'plan-free-h' }, 'What you can use now'),
+    el('div', { class: 'plan-concepts plan-concepts-free', role: 'list' }, [planCard(PLAN_CARDS[0])]),
+  ]));
+  const proposed = el('section', { class: 'plan-sec plan-sec-paid', 'aria-labelledby': 'plan-paid-h' }, [
+    el('h2', { class: 'plan-sec-h', id: 'plan-paid-h' }, 'Proposed paid plans'),
+    el('div', { class: 'plan-nopay' }, [
+      el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
+      el('p', { class: 'body' }, 'No payment is taken anywhere in this build.'),
+    ]),
+    el('div', { class: 'plan-concepts plan-concepts-paid', role: 'list' }, PLAN_CARDS.slice(1).map(planCard)),
+  ]);
+  wrap.append(proposed);
 
   /* Compare details: closed, and kept as the reader left it across a
      redraw (a preview redraws the page). */
@@ -66048,7 +66099,7 @@ VIEWS.plans = () => {
           paid ? `Preview ${pl.name} in this browser — nothing is charged` : `Return to ${pl.name} in this browser — nothing is charged`);
   })));
   det.append(body);
-  wrap.append(det);
+  proposed.append(det);
 
   /* What is deliberately not monetised, and why: one link. */
   wrap.append(el('p', { class: 'plan-boundary' }, [
@@ -67494,7 +67545,7 @@ function kmLabButton(s, id) {
 function kmOpenLab(s) {
   State.labPlace = { city: 'kuching', district: s.nearest.name, scheme: s.scheme };
   const ctx = pfContext();
-  if (ctx) pfToLab(ctx); else navigate('/property/lab?');
+  if (ctx) pfToLab(ctx); else navigate('/property?');
 }
 
 /* -------------------------------------------------------------- the list */
@@ -69057,7 +69108,7 @@ function shoplotStart(townId) {
   delete LAB.deal;
   if (labSubject === 'deal') labSubject = null;
   labUrlSeen = null;
-  navigate(`/property/lab?cols=tpl:${town.id}/B,tpl:${town.id}/C`);
+  navigate(`/property?cols=tpl:${town.id}/B,tpl:${town.id}/C`);
   toast(`${shoplotChip(town.id)}: A, B and C are open in the Lab to edit and compare — nothing is saved.${pmKeptNote(kept)}`);
   return true;
 }
@@ -69139,8 +69190,8 @@ function shoplotCalcNote(d) {
   const r = shoplotOf(d);
   if (!r) return null;
   return el('p', { class: 'metaline sl-calc', id: 'pm-sl' }, [`${r.sc.key}: ${r.sc.title}. ${SHOPLOT_STATEMENT} `,
-    el('a', { href: href(`/property/lab?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`), onclick: (e) => {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(`/property/lab?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`);
+    el('a', { href: href(`/property?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`), onclick: (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(`/property?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`);
     } }, 'Its parts and notes, beside B and C in the Lab')]);
 }
 /* ==========================================================================

@@ -1542,15 +1542,11 @@ VIEWS.plans = () => {
     el('p', { class: 'body-lg plan-lede', style: 'margin-top:8px' },
       'Everything you can use here is free during the beta. Paid plans are not on sale and have no prices yet; a plan will show its price when it can be bought.'),
   ])));
-  wrap.append(el('div', { class: 'plan-nopay' }, [
-    el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
-    el('p', { class: 'body' }, 'No payment is taken anywhere in this build.'),
-  ]));
 
   /* The three concepts. Equity research is proposed as a subscription, used
      every week; property research is episodic, so it is proposed per report.
      The plan previewed in this browser says so on its card. */
-  wrap.append(el('div', { class: 'plan-concepts', role: 'list' }, PLAN_CARDS.map(pc => {
+  const planCard = (pc) => {
     const on = pc.id !== 'report' && State.plan === pc.id;
     return el('article', { class: `card plan-card plan-concept plan-${pc.id}`, role: 'listitem', 'aria-labelledby': `plan-${pc.id}-h` }, [
       el('div', { class: 'plan-concept-hd' }, [
@@ -1560,7 +1556,26 @@ VIEWS.plans = () => {
       el('p', { class: 'plan-concept-line' }, pc.line),
       on ? el('p', { class: 'plan-concept-on' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 14) }), pc.id === 'free' ? 'Current' : 'Previewing']) : null,
     ]);
-  })));
+  };
+  /* FREE LEADS; THE PROPOSED PLANS ARE SECOND (the streamlining list of 13 Nov
+     2026, row 3). The three cards stood in one row as equals, so what works
+     now and what cannot be bought read as one offer. Free stands first under
+     its own heading; the two proposed plans follow in a quieter section with
+     "Not on sale" at its head, and the comparison and the preview inside it.
+     The cards, their words and the registry are unchanged. */
+  wrap.append(el('section', { class: 'plan-sec plan-sec-free', 'aria-labelledby': 'plan-free-h' }, [
+    el('h2', { class: 'plan-sec-h', id: 'plan-free-h' }, 'What you can use now'),
+    el('div', { class: 'plan-concepts plan-concepts-free', role: 'list' }, [planCard(PLAN_CARDS[0])]),
+  ]));
+  const proposed = el('section', { class: 'plan-sec plan-sec-paid', 'aria-labelledby': 'plan-paid-h' }, [
+    el('h2', { class: 'plan-sec-h', id: 'plan-paid-h' }, 'Proposed paid plans'),
+    el('div', { class: 'plan-nopay' }, [
+      el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
+      el('p', { class: 'body' }, 'No payment is taken anywhere in this build.'),
+    ]),
+    el('div', { class: 'plan-concepts plan-concepts-paid', role: 'list' }, PLAN_CARDS.slice(1).map(planCard)),
+  ]);
+  wrap.append(proposed);
 
   /* Compare details: closed, and kept as the reader left it across a
      redraw (a preview redraws the page). */
@@ -1637,7 +1652,7 @@ VIEWS.plans = () => {
           paid ? `Preview ${pl.name} in this browser — nothing is charged` : `Return to ${pl.name} in this browser — nothing is charged`);
   })));
   det.append(body);
-  wrap.append(det);
+  proposed.append(det);
 
   /* What is deliberately not monetised, and why: one link. */
   wrap.append(el('p', { class: 'plan-boundary' }, [

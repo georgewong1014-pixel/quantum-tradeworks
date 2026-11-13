@@ -6669,6 +6669,8 @@ try {
       if (r.enter.tag !== 'A' || r.enter.href !== '/property/calculator#d-price' || r.enter.why !== 'Opens the calculator') p.push(`"Model a property" is ${JSON.stringify(r.enter)}, not a link to /property/calculator#d-price described by "Opens the calculator"`);
       {
         const want = [['lab-enter', 'A', 'Model a property', '/property/calculator#d-price', true], ['lab-act-compare', 'A', 'Compare scenarios', '/property#lab-cmp-h', false],
+          /* The third stage, Save (the streamlining list of 13 Nov 2026, row 5): Model, Compare, Save, then the two that follow. */
+          ['lab-act-save', 'A', 'Save', '/property#lab-commit-h', false],
           ['lab-act-saved', 'A', 'Reopen saved work', '/property/models', false], ['lab-act-backup', 'A', 'Export or restore', '/my/data', false]];
         const got = r.acts.map(a => [a.id, a.tag, a.words, a.href, a.primary]);
         if (JSON.stringify(got) !== JSON.stringify(want) || r.acts.some(a => a.tall < 43.5)) p.push(`the first screen's four actions are ${JSON.stringify(r.acts)}`);

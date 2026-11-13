@@ -173,8 +173,8 @@ VIEWS.workspace = () => {
 
   /* The one head (pageHead, 36-layouts.js): under My workspace's header,
      which is drawn by the shell. */
-  wrap.append(pageHead({ title: 'Everything you have saved', lede: 'Everything saved in this browser, each with the version it was saved against.',
-    note: 'Valuation runs, comparisons, screens, investment cases, properties and tool snapshots — and whether the model or the data under each has moved since.' }));
+  wrap.append(pageHead({ title: 'Everything you have saved', lede: 'The archive: everything saved in this browser, each with the version it was saved against.',
+    note: ['Valuation runs, comparisons, screens, investment cases, properties and tool snapshots — and whether the model or the data under each has moved since. To work on a property, with its scenarios, use ', shellLink('/property/models', {}, 'My properties'), '.'] }));
   /* The seeded investment cases are listed here, each with its "sample"
      chip, and the page said nothing more: under "Everything you have saved"
      a first visit read "2 saved items" as its own. The banner every other

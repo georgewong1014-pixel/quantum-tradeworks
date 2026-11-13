@@ -952,7 +952,8 @@ const HOME_PAGE = read(HOME);
   if (appSample.pubnav !== '') p.push('/app, an app page, serves the public header\x27s list');
   const pub = links(sample.pubnav), foot = links(sample.footProducts), res = links(sample.footResources), side = links(appSample.appnav);
   for (const [where, list, wantText] of [['#pubnav', pub, true], ['#footProducts', foot, true], ['#appnav', side, true]]) {
-    for (const [name, href] of [['Equities Research', '/research'], ['Quantum Scanner', '/app/scanner'], ['Property Intelligence', '/property']]) {
+    /* Property's own links open the start, the calculator's quick model (the streamlining list of 13 Nov 2026, row 1); /property is the Scenario Lab's one address. */
+    for (const [name, href] of [['Equities Research', '/research'], ['Quantum Scanner', '/app/scanner'], ['Property Intelligence', '/property/calculator']]) {
       if (!list.some(l => l.href === href && (!wantText || l.text.startsWith(name)))) p.push(`${where} has no link to ${name} (${href})`);
     }
     if (list.some(l => /Business Intelligence/.test(l.text))) p.push(`${where} links Business Intelligence, which is not built`);
@@ -3696,7 +3697,7 @@ const HOME_PAGE = read(HOME);
     /* The first screen's four actions and the two closed explanations (the owner's list of 7 Nov 2026): served, so they are there before the script. */
     {
       const byId = (id) => inside.find(n => attr(n, 'id') === id);
-      const acts = [['lab-act-compare', 'a', 'Compare scenarios', '/property#lab-cmp-h'], ['lab-act-saved', 'a', 'Reopen saved work', '/property/models'], ['lab-act-backup', 'a', 'Export or restore', '/my/data']];
+      const acts = [['lab-act-compare', 'a', 'Compare scenarios', '/property#lab-cmp-h'], ['lab-act-save', 'a', 'Save', '/property#lab-commit-h'], ['lab-act-saved', 'a', 'Reopen saved work', '/property/models'], ['lab-act-backup', 'a', 'Export or restore', '/my/data']];
       for (const [id, tag, words, to] of acts) {
         const n = byId(id);
         if (!n || n.tag !== tag || rawText(n) !== words || (to && attr(n, 'href') !== to) || B.hasClass(n, 'btn-primary')) p.push(`/property/lab: "${words}" is ${n ? `${n.tag} "${rawText(n)}" to ${attr(n, 'href')}` : 'not served'}, not a secondary ${tag}${to ? ` to ${to}` : ''}`);

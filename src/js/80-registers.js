@@ -101,7 +101,7 @@ const CAPABILITY_REGISTER = [
     now:'Title, valuation gap, tenure, condition and marketability, scored separately from the borrower.' },
   { name:'Property underwriting grade', status:'active-core', path:'/property/calculator',
     now:'A/B/C/D/U with hard gates and evidence caps.' },
-  { name:'Scenario Lab', status:'beta', path:'/property/lab',
+  { name:'Scenario Lab', status:'beta', path:'/property',
     now:'Nine inputs moved live; eight results from the calculator’s model; up to three scenarios compared six ways.',
     gate:'Moves are kept in this tab until saved as a scenario. Appreciation is your assumption; no price history is held.' },
   { name:'Property opportunity register', status:'active-core', path:'/property/opportunities',

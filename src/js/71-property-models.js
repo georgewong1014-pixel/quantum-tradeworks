@@ -1214,7 +1214,7 @@ function propertyScenariosPanel(d = State.deal) {
      on a line of its own, not a word in a sentence, so on a phone it is a
      44px target as the row's own "Scenario Lab" is (btn-sm; it measured
      16px tall as a bare link — the verification of 4 Oct 2026). */
-  const labPath = `/property/lab?model=${encodeURIComponent(rec.id)}&cols=${shown.map(c => encodeURIComponent(c.id)).join(',')}`;
+  const labPath = `/property?model=${encodeURIComponent(rec.id)}&cols=${shown.map(c => encodeURIComponent(c.id)).join(',')}`;
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, el('a', { href: href(labPath), id: 'pm-sc-lab', class: 'btn btn-ghost btn-sm',
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } },
     'Open these in the Scenario Lab')));
@@ -1240,7 +1240,7 @@ VIEWS.propertyModels = () => {
   /* The one head (pageHead, 36-layouts.js; Release B, B5), the page's one
      primary action at its end — it sat inside the storage note below. */
   wrap.append(pageHead({ title: 'My properties', lede: 'The properties you have saved, each with its inputs and its scenarios.',
-    note: 'Open one and the calculator edits it — the financing, the returns, the sensitivity, the tests, the grade and the report all read the same figures, so nothing is typed twice.',
+    note: ['Open one and the calculator edits it — the financing, the returns, the sensitivity, the tests, the grade and the report all read the same figures, so nothing is typed twice. Everything else you have saved is in ', shellLink('/my/workspace', {}, 'Saved work'), '.'],
     action: el('button', { class: 'btn btn-primary', id: 'pm-new', onclick: () => newPropertyDeal() }, 'New property') }));
 
   const props = pmAll().sort((a, b) => String(pmUpdated(b) || '').localeCompare(String(pmUpdated(a) || '')));
@@ -1333,7 +1333,7 @@ VIEWS.propertyModels = () => {
         toast(store.failed !== refused ? STORE_UNDELETED : 'Deleted');
       } }, 'Delete'));
     /* Its scenarios moved live, after the row's own actions. */
-    const labPath = `/property/lab?model=${encodeURIComponent(rec.id)}`;
+    const labPath = `/property?model=${encodeURIComponent(rec.id)}`;
     acts.append(el('a', { class: 'btn btn-quiet btn-sm', id: `pm-lab-${rec.id}`, href: href(labPath), 'aria-label': `Scenario Lab — ${rec.name}`,
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } }, 'Scenario Lab'));
     ul.append(el('li', { class: `pm-row${onCalc ? ' is-open' : ''}` }, [

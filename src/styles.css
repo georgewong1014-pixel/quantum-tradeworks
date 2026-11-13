@@ -7617,3 +7617,25 @@ input.au-in[type="text"] { text-align: left; }
 /* The save bar's backup sentence: its link is a control of the bar's own size. */
 .pm-backup, .pm-ask { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .pm-ask { gap: var(--xs) var(--sm); }
+
+/* /pricing: Free first, the proposed plans second and quieter (13 Nov 2026). */
+.plan-sec { display: flex; flex-direction: column; gap: var(--md); }
+.plan-sec-h { margin: 0; font-size: 1.125rem; font-weight: var(--weight-semibold, 600); letter-spacing: -.01em; color: var(--ink); }
+.plan-sec-paid { padding-top: var(--lg); border-top: 1px solid var(--line); }
+.plan-sec-paid .plan-sec-h { font-size: 1rem; color: var(--ink-2); }
+.plan-concepts.plan-concepts-free { grid-template-columns: minmax(0, 1fr); }
+.plan-concepts-free .plan-concept { border-color: color-mix(in srgb, var(--brand-hi) 34%, var(--line)); }
+.plan-concepts-free .plan-concept-line { max-width: 64ch; font-size: 15px; color: var(--ink); }
+@media (min-width: 760px) { .plan-concepts.plan-concepts-paid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.plan-concepts-paid .plan-concept { background: var(--surface-sunk); box-shadow: none; }
+
+/* /how-it-works: a product's tool list folds like its examples (13 Nov 2026):
+   the same summary (.hiw-examples-sum), so the two folds read as a pair. */
+.hiw-fold[open] > .hiw-examples-sum::before { content: '−'; }
+.hiw-fold > .hiw-examples-sum .hiw-tools-h { grid-column: 2; margin: 0; }
+.hiw-fold > .hiw-tools-list { margin-top: var(--lg); }
+/* The Scenario Lab's three stages, numbered; what follows them is quieter. */
+.lab-acts { counter-reset: lab-stage; }
+.lab-acts .lab-stage::before { counter-increment: lab-stage; content: counter(lab-stage); display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 8px; border-radius: 50%; font-size: var(--ls-meta); font-weight: var(--weight-semibold); background: color-mix(in srgb, currentColor 16%, transparent); }
+.lab-acts .lab-act-after { color: var(--ink-2); }
+@media (max-width: 760px) { .lab-acts #lab-act-save { display: none; } }

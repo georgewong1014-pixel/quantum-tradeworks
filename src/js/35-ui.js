@@ -420,7 +420,11 @@ const PRODUCTS = [
     limit: 'Hosted monitoring is not available.',
     boundary: 'No hosted monitoring or recorded matches yet: rules are checked here, on price history you supply.',
     statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Monitoring and recorded matches are not available yet.' },
-  { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
+  /* `home`: where the product's own links open (the Products menu, the
+     sidebar, the footer) — the start, the calculator's quick model (the
+     streamlining list of 13 Nov 2026, row 1). `path` stays the product's
+     address, which is the Scenario Lab's one address. */
+  { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property', home: '/property/calculator',
     task: 'Model a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
     status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
@@ -589,9 +593,9 @@ const TOOLS = [
     status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' },
     action: { label: 'Analyse a property', path: '/property/calculator' } },
-  { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
+  { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property', views: ['propertyLab'], tab: true,
     status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
-    action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
+    action: { label: 'Open the Scenario Lab', path: '/property' } },
   { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas', 'areaMap'], tab: true,
     status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
     proof: { journey: 'registers', step: 'Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow' },
@@ -1313,9 +1317,12 @@ const ROUTES = [
   /* The area screen's second view: Kuching on a map of this site's own
      files, the NAPIC schemes OpenStreetMap places on it (92-kuching-map.js). */
   { path: '/property/areas/map',  view: 'areaMap',     title: 'Kuching scheme map' },
-  /* The Scenario Lab (82-property-lab.js). Its ?model=, ?cols= and ?by= are
-     read by the view itself, on arrival; no row of their own. */
-  { path: '/property/lab',        view: 'propertyLab', title: 'Scenario Lab' },
+  /* The Scenario Lab (82-property-lab.js) is /property, above. Its ?model=,
+     ?cols= and ?by= are read by the view itself, on arrival; no row of their
+     own. /property/lab was a second address for the same page: it has no row
+     now — the host redirects it to /property (src/vercel.template.json) and
+     applyRoute does the same for an address reached inside the app (the
+     streamlining list of 13 Nov 2026, row 1). */
   { path: '/us-options/wheel',    view: 'wheel',     title: 'US Options Cash Wheel' },
   /* The paths a reader actually types. All five rendered the not-found card
      while the workspace sat behind a URL nobody would guess, and the workspace
@@ -1779,6 +1786,18 @@ function applyRoute() {
     const at = location.pathname.slice(BASE.length).replace(/\/index\.html$/, '') || '/';
     history.replaceState(history.state, '', href(at) + location.search + location.hash);
   }
+  /* ONE ADDRESS FOR THE SCENARIO LAB (the streamlining list of 13 Nov 2026,
+     row 1). /property and /property/lab both drew it. /property is the one
+     it is canonical at and listed under, so /property/lab becomes it in
+     place, with its query and its hash: a link written to /property/lab
+     still opens what it opened, and Back does not return to an address that
+     only redirects. The host answers the same address with a redirect; this
+     is for one reached inside the app, or served by a host that does not. */
+  if (location.pathname.replace(/[/]$/, '').endsWith('/property/lab')) {
+    const was = location.pathname;
+    history.replaceState(history.state, '', href('/property') + location.search + location.hash);
+    if (lastPath === was) lastPath = location.pathname;
+  }
   let route = matchRoute(location.pathname);
   if (route?.path === '/property' && calculatorLegacy()) route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
@@ -2104,7 +2123,7 @@ function productRows() {
       ]),
     ];
     return el('li', {}, p.path
-      ? shellLink(p.path, { class: `pp-row pub-acc-${p.id}`, 'data-product': p.id, 'aria-description': productNote(p.id) }, kids)
+      ? shellLink((p.home || p.path), { class: `pp-row pub-acc-${p.id}`, 'data-product': p.id, 'aria-description': productNote(p.id) }, kids)
       : el('div', { class: 'pp-row pp-row-off', 'data-product': p.id }, kids));
   });
 }
@@ -2195,7 +2214,7 @@ const NAV_MARKUP = {
     el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-ws' }, APP_NAV_WORKSPACE.map(n => sidebarItem(n))),
     el('p', { class: 'sb-label', id: 'sb-products' }, 'Products'),
     el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-products' },
-      PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => sidebarItem({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path, note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
+      PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => sidebarItem({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: (p.home || p.path), note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
     el('ul', { class: 'sb-list sb-list-foot' }, APP_NAV_FOOT.map(n => sidebarItem(n))),
   ],
   /* The footer's Products and Resources, from the same tables. Unchanged by
@@ -2207,7 +2226,7 @@ const NAV_MARKUP = {
      the live products; the footer's one line, "Business planning: planned,
      not yet scheduled.", says what is not built. */
   footProducts: () => PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => el('li', {}, p.path
-    ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
+    ? shellLink((p.home || p.path), { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))),
   footResources: () => [
     ...RESOURCES.filter(r => r.group === 'method' || r.path === '/status').map(r => el('li', {}, shellLink(r.path, {}, r.label))),

@@ -120,7 +120,7 @@ function pfContext() {
   const name = rec ? `“${rec.name}”` : propertyStatus(State.deal).kind === 'sample' ? 'the sample deal' : 'the deal on the calculator';
   const act = lab.cols.find(c => c.key === lab.active);
   const q = labQueryOf(lab);
-  return { lab, name, other: act?.prop ? `${act.key} — ${act.name}` : null, moves: labUnsavedOf(lab), path: `/property/lab${q ? `?${q}` : '?'}` };
+  return { lab, name, other: act?.prop ? `${act.key} — ${act.name}` : null, moves: labUnsavedOf(lab), path: `/property${q ? `?${q}` : '?'}` };
 }
 /* Where the work's property is: the column the sliders move. */
 function pfPlace() {
@@ -133,7 +133,7 @@ function pfPlace() {
 function pfToLab(ctx, goTo = null) {
   if (ctx) State.labResume = ctx.lab.key;
   State.labGoTo = goTo;
-  navigate(ctx ? ctx.path : '/property/lab?');
+  navigate(ctx ? ctx.path : '/property?');
 }
 /* "Use it in the Scenario Lab" and the like from another Property page: the
    work the Lab holds, where it holds one; else /property, as before. */

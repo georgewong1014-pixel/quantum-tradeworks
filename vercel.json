@@ -193,10 +193,6 @@
       "destination": "/pages/property/areas/map.html"
     },
     {
-      "source": "/property/lab",
-      "destination": "/pages/property/lab.html"
-    },
-    {
       "source": "/us-options/wheel",
       "destination": "/pages/us-options/wheel.html"
     },
@@ -894,6 +890,11 @@
       "permanent": true
     },
     {
+      "source": "/property/lab",
+      "destination": "/property",
+      "permanent": false
+    },
+    {
       "source": "/company/([Aa][Aa][Pp][Ll]-[Ss][Ee][Cc])",
       "destination": "/company/aapl-apple-inc",
       "permanent": true
@@ -1518,7 +1519,7 @@
       ]
     },
     {
-      "source": "/assets/app.c9e525f5f724.js",
+      "source": "/assets/app.71adacca9d1b.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1535,7 +1536,7 @@
       ]
     },
     {
-      "source": "/assets/app.e35d13d03bc1.css",
+      "source": "/assets/app.609da9acc66d.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1560,7 +1561,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-yeUl9fckhdR4wcaULJ9PxekhsuKQyPlQgcw8Z+WW5NY=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-ca2syp0b2dF/7dTDEyoDlf5uIw5lWGgW0kQeDQcAHrk=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
@@ -1569,7 +1570,7 @@
       ]
     },
     {
-      "source": "/((?!data/|vendor/|assets/app\\.c9e525f5f724\\.js$|assets/app\\.e35d13d03bc1\\.css$).*)",
+      "source": "/((?!data/|vendor/|assets/app\\.71adacca9d1b\\.js$|assets/app\\.609da9acc66d\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1577,7 +1578,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-yeUl9fckhdR4wcaULJ9PxekhsuKQyPlQgcw8Z+WW5NY=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-ca2syp0b2dF/7dTDEyoDlf5uIw5lWGgW0kQeDQcAHrk=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",

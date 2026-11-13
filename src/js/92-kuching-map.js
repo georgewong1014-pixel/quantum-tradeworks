@@ -259,7 +259,7 @@ function kmLabButton(s, id) {
 function kmOpenLab(s) {
   State.labPlace = { city: 'kuching', district: s.nearest.name, scheme: s.scheme };
   const ctx = pfContext();
-  if (ctx) pfToLab(ctx); else navigate('/property/lab?');
+  if (ctx) pfToLab(ctx); else navigate('/property?');
 }
 
 /* -------------------------------------------------------------- the list */

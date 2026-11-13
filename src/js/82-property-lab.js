@@ -654,7 +654,7 @@ function labAddOpportunity(oppId, { go = true } = {}) {
   lab.naming = null;
   labSubject = lab.key;
   State.labResume = lab.key;
-  if (go) navigate('/property/lab?');
+  if (go) navigate('/property?');
   return { ok: true, key: lab.key, col: col.key };
 }
 /* Told after each paint, with what the lab holds. A listener whose node has
@@ -3695,8 +3695,8 @@ function labComparisonsBlock(P, lab) {
     box.append(el('ul', { class: 'lab-cmps-list' }, saved.map((s, i) => el('li', { class: 'lab-cmps-row', 'data-cmp': s.id }, [
       el('span', { class: 'lab-cmps-name' }, [el('strong', {}, s.name), el('span', { class: 'metaline' }, ` ${s.cols.map((r, j) => `${LAB_LETTERS[j]} ${labRefName(r)}`).join(' · ')} · ${(LAB_LENS_BY_ID[s.lens] || LAB_LENS_BY_ID[LAB_LENS_DEFAULT]).label} lens`)]),
       el('span', { class: 'lab-col-acts' }, [
-        el('a', { class: 'btn btn-ghost btn-sm', id: labId(P, `cmp-open-${i}`), href: href(`/property/lab?compare=${encodeURIComponent(s.id)}`), onclick: (e) => {
-          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(`/property/lab?compare=${encodeURIComponent(s.id)}`);
+        el('a', { class: 'btn btn-ghost btn-sm', id: labId(P, `cmp-open-${i}`), href: href(`/property?compare=${encodeURIComponent(s.id)}`), onclick: (e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(`/property?compare=${encodeURIComponent(s.id)}`);
         } }, ['Open', el('span', { class: 'sr-only' }, ` the comparison ${s.name}`)]),
         el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, `cmp-del-${i}`), onclick: () => {
           if (!store.write('labComparisons', labComparisons().filter(x => x.id !== s.id))) { toast(STORE_REFUSED); return; }
@@ -4097,13 +4097,21 @@ const LAB_ENTER_WORDS = 'Model a property';
 const LAB_ENTER_PATH = '/property/calculator#d-price';
 const LAB_ACTS = [['lab-act-saved', '/property/models', 'Reopen saved work'], ['lab-act-backup', '/my/data', 'Export or restore']];
 const LAB_COMPARE_PATH = '/property#lab-cmp-h';
+const LAB_SAVE_PATH = '/property#lab-commit-h';
 function labEnterLink() {
   const plain = (e) => !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button);
   const go = (path) => (e) => { if (!plain(e)) return; e.preventDefault(); navigate(path); };
   return [el('div', { class: 'lab-acts' }, [
-    el('a', { class: 'btn btn-primary lab-enter', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go(LAB_ENTER_PATH) }, LAB_ENTER_WORDS),
-    el('a', { class: 'btn btn-ghost lab-act', id: 'lab-act-compare', href: href(LAB_COMPARE_PATH), onclick: (e) => { if (plain(e) && labGoTo('compare')) e.preventDefault(); } }, 'Compare scenarios'),
-    ...LAB_ACTS.map(([id, path, words]) => el('a', { class: 'btn btn-ghost lab-act', id, href: href(path), onclick: go(path) }, words))]),
+    /* MODEL → COMPARE → SAVE (the streamlining list of 13 Nov 2026, row 5):
+       the three stages of the basic journey, in order and numbered (the
+       numbers are drawn, .lab-stage; the words are the links' own). Save is
+       a link to "Keep …" on this page, followed as a jump to the Save
+       control with script, as Compare is. Reopening and backup follow the
+       stages, quieter: they are where saved work goes, not a stage. */
+    el('a', { class: 'btn btn-primary lab-enter lab-stage', id: 'lab-enter', href: href(LAB_ENTER_PATH), 'aria-describedby': 'lab-enter-why', onclick: go(LAB_ENTER_PATH) }, LAB_ENTER_WORDS),
+    el('a', { class: 'btn btn-ghost lab-act lab-stage', id: 'lab-act-compare', href: href(LAB_COMPARE_PATH), onclick: (e) => { if (plain(e) && labGoTo('compare')) e.preventDefault(); } }, 'Compare scenarios'),
+    el('a', { class: 'btn btn-ghost lab-act lab-stage', id: 'lab-act-save', href: href(LAB_SAVE_PATH), onclick: (e) => { if (plain(e) && labGoTo('save')) e.preventDefault(); } }, 'Save'),
+    ...LAB_ACTS.map(([id, path, words]) => el('a', { class: 'btn btn-quiet lab-act lab-act-after', id, href: href(path), onclick: go(path) }, words))]),
     el('span', { class: 'sr-only', id: 'lab-enter-why' }, 'Opens the calculator')];
 }
 /* THE EXPLANATIONS, BEHIND TWO NAMES (the same list, item 1): "How calculated"

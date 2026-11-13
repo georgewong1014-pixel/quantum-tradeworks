@@ -334,8 +334,8 @@ VIEWS.marketing = () => {
     steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
       ['A worked example', '/app/scanner', 'browser'], ['Back to the company', '/research', 'loop']],
       'Not available yet: monitoring and recorded matches.'),
-    steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
-      ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
+    steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property', 'layout'],
+      ['A, B and C compared', '/property', 'scale'], ['Saved', '/property/models', 'bookmark']]),
   ]));
   path.append(el('div', { class: 'pub-path-ft' }, [
     el('p', { class: 'pub-saved' }, 'Saved in this browser — no account.'),
@@ -412,8 +412,12 @@ function hiwFlow(id) {
 function hiwTools(p) {
   const tools = typeof TOOLS !== 'undefined' ? TOOLS.filter(t => t.product === p.id && toolPresent(t)) : [];
   if (!tools.length) return null;
-  const box = el('div', { class: 'hiw-tools' });
-  box.append(el('h3', { class: 'hiw-tools-h', id: `hiw-${p.id}-tools` }, 'Its tools, and their state here'));
+  /* Folded, at every width (the streamlining list of 13 Nov 2026, row 2): the
+     page's job is the steps; the list of every tool with its state is a
+     press away, and /status holds the same list for the whole site. */
+  const box = el('details', { class: 'hiw-tools hiw-fold' });
+  box.append(el('summary', { class: 'hiw-examples-sum' }, [el('h3', { class: 'hiw-tools-h', id: `hiw-${p.id}-tools` }, 'Its tools, and their state here'),
+    el('span', { class: 'hiw-examples-n caption' }, `${tools.length} tool${tools.length === 1 ? '' : 's'}`)]));
   box.append(el('ul', { class: 'hiw-tools-list', 'aria-labelledby': `hiw-${p.id}-tools` }, tools.map(t => {
     const s = toolState(t);
     return el('li', { class: `hiw-tool${s.actionable ? '' : ' hiw-tool-off'}`, data: { tool: t.id, state: s.status } }, [
@@ -675,8 +679,10 @@ function hiwProduct(p) {
   /* An aside is a note about the examples, not one of them. */
   const exN = ex ? ex.filter(n => !n.classList?.contains('hiw-aside')).length : 0;
   if (ex && ex.length) {
-    const folded = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
-    s.append(el('details', { class: 'hiw-examples', open: folded ? null : '' }, [
+    /* Closed at every width now (the streamlining list of 13 Nov 2026, row
+       2): open above 760px, they stood between each product's steps and the
+       next product's, and the page read as a catalogue. */
+    s.append(el('details', { class: 'hiw-examples' }, [
       el('summary', { class: 'hiw-examples-sum' }, [el('h3', { class: 'hiw-examples-h' }, 'Worked examples'),
         el('span', { class: 'hiw-examples-n caption' }, `${exN === 1 ? 'One example' : `${exN} examples`}, computed by the product’s own model`)]),
       el('div', { class: 'hiw-examples-body' }, ex),
@@ -785,7 +791,7 @@ VIEWS.howItWorks = () => {
   hd.append(el('h1', { class: 'pub-h1 hiw-h1' }, 'From your question to a saved answer'));
   hd.append(el('p', { class: 'pub-lede' },
     'Each product starts from something you choose or enter, shows its working, and keeps what you save in this browser. '
-    + 'Here is each one step by step, how they connect, and worked examples computed by the products’ own models.'));
+    + 'Here is each one step by step, and how they connect. Each product’s tools and its worked examples, computed by the products’ own models, fold under its steps.'));
   hd.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
   /* A jump link for each product that is built.
      The owner's scope direction, 1 Nov 2026 (QT-SCOPE-02): the first view is
@@ -801,7 +807,6 @@ VIEWS.howItWorks = () => {
   wrap.append(hd);
 
   wrap.append(hiwRely());
-  wrap.append(hiwStatus(built));
   const list = el('div', { class: 'hiw-products' });
   built.forEach(p => list.append(hiwProduct(p)));
   wrap.append(list);
@@ -810,6 +815,10 @@ VIEWS.howItWorks = () => {
     /* One text node after the label: two adjacent strings are two nodes when drawn and one in the served HTML (coverage-frames). */
     el('strong', {}, 'Not built yet: '), `${unbuilt.map(p => `${p.name} (${String(p.blurb || '').replace(/\.$/, '').toLowerCase()})`).join(', ')}. There is nothing to open.`]));
   wrap.append(hiwJourney());
+  /* The legend of labels is reference, so it follows the instructions (the
+     streamlining list of 13 Nov 2026, row 2). Its address, #hiw-status, is
+     where the beta strip's "What the labels mean" lands, and is unchanged. */
+  wrap.append(hiwStatus(built));
 
   wrap.append(el('section', { class: 'hiw-end', 'aria-labelledby': 'hiw-end-h' }, [
     el('h2', { class: 'pub-h2', id: 'hiw-end-h' }, 'All of it, in one workspace'),
@@ -2345,7 +2354,7 @@ VIEWS.notfound = () => {
   const go = (p) => (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); State.notFoundWhat = null; navigate(p); };
   const row = el('div', { class: 'row', style: 'gap:8px;justify-content:center;flex-wrap:wrap;margin-top:var(--lg)' });
   row.append(el('a', { class: 'btn btn-primary', href: href('/app'), onclick: go('/app') }, 'Open your workspace'));
-  PRODUCTS.filter(p => p.path).forEach(p => row.append(el('a', { class: 'btn btn-ghost', href: href(p.path), onclick: go(p.path) }, p.name)));
+  PRODUCTS.filter(p => p.path).forEach(p => row.append(el('a', { class: 'btn btn-ghost', href: href((p.home || p.path)), onclick: go((p.home || p.path)) }, p.name)));
   row.append(el('a', { class: 'btn btn-ghost', href: href('/'), onclick: go('/') }, 'Home'));
   card.append(row);
   wrap.append(card);

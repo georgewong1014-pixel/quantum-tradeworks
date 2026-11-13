@@ -360,7 +360,7 @@ function shoplotStart(townId) {
   delete LAB.deal;
   if (labSubject === 'deal') labSubject = null;
   labUrlSeen = null;
-  navigate(`/property/lab?cols=tpl:${town.id}/B,tpl:${town.id}/C`);
+  navigate(`/property?cols=tpl:${town.id}/B,tpl:${town.id}/C`);
   toast(`${shoplotChip(town.id)}: A, B and C are open in the Lab to edit and compare — nothing is saved.${pmKeptNote(kept)}`);
   return true;
 }
@@ -442,7 +442,7 @@ function shoplotCalcNote(d) {
   const r = shoplotOf(d);
   if (!r) return null;
   return el('p', { class: 'metaline sl-calc', id: 'pm-sl' }, [`${r.sc.key}: ${r.sc.title}. ${SHOPLOT_STATEMENT} `,
-    el('a', { href: href(`/property/lab?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`), onclick: (e) => {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(`/property/lab?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`);
+    el('a', { href: href(`/property?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`), onclick: (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(`/property?cols=tpl:${r.town.id}/B,tpl:${r.town.id}/C`);
     } }, 'Its parts and notes, beside B and C in the Lab')]);
 }

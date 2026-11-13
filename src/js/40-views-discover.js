@@ -922,7 +922,7 @@ function myDashContinue(o) {
   const card = el('section', { class: 'card ls-section dash-cont-card', 'aria-labelledby': 'dash-cont-hd' });
   card.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
     el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue your work'),
-    el('p', { class: 'caption', style: 'margin-top:2px' }, 'Your most recent work in this browser, newest first.'),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, 'An overview: your most recent work in this browser, newest first. The full list is Saved work.'),
   ])));
   const t = (v) => { const n = Date.parse(String(v || '').replace(' ', 'T') + (/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(String(v || '')) ? 'Z' : '')); return Number.isFinite(n) ? n : -Infinity; };
   const kindOne = typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE : {};
