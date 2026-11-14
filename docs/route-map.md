@@ -95,13 +95,13 @@ page of its own, with the company's own head (see Company pages, below).
 | `/my/workspace` | workspace | app | Saved Models (workspace) | canonical |
 | `/app/workspace` | workspace | app | Saved Models (workspace) | alias of `/my/workspace` |
 | `/discover/sarawak` | sarawak | app | Equities Research (product) | canonical |
-| `/property` | propertyLab | app | Property Intelligence (product) | canonical — the product's landing: the Scenario Lab on the calculator's deal (N3, the owner's decision D18, 7 Oct 2026); a calculator link written before it — `?city`, `?district`, `?type` or `?d=`, or a section's `#hash` — is replaced in place by `/property/calculator` with its query and hash |
+| `/property` | propertyLab | app | Property Intelligence (product) | canonical — the product's landing: the Scenario Lab on the calculator's deal (N3, the owner's decision D18, 7 Oct 2026); a calculator link written before it — `?city`, `?district`, `?type` or `?d=`, or a section's `#hash` — is replaced in place by `/property/calculator` with its query and hash. The product's own links (the Products menu, the sidebar, the footer) open `/property/calculator`, the start, since 13 Nov 2026 |
 | `/property/calculator` | property | app | Property Intelligence (product) | canonical — the full calculator (its own canonical since N3; it was an alias of `/property`); `#d-<input>` opens at that input |
 | `/property/models` | propertyModels | app | Property Intelligence (product) | canonical — My properties, the reader's saved properties (audit #1, 30 Sep 2026) |
 | `/property/opportunities` | opportunities | app | Property Intelligence (product) | canonical |
 | `/property/comparables` | comparables | app | Property Intelligence (product) | canonical |
 | `/property/areas` | areas | app | Property Intelligence (product) | canonical |
-| `/property/lab` | propertyLab | app | Property Intelligence (product) | alias of `/property` since N3 (7 Oct 2026) — the Scenario Lab (3 Oct 2026); reads `?model=`, `?cols=` and `?by=` on arrival, as `/property` does |
+| `/property/lab` | — (no route row) | redirect | Property Intelligence (product) | redirects to `/property`, the Scenario Lab's one address, with its query kept (13 Nov 2026): by the host (`src/vercel.template.json`) and, for an address reached inside the app, by the router. It was an alias of `/property` from N3 (7 Oct 2026). A link written to it still opens what it opened, including one carrying a price in `?d=` |
 | `/us-options/wheel` | wheel | app | Equities Research (product) | canonical |
 | `/wheel` | wheel | app | Equities Research (product) | alias of `/us-options/wheel` |
 | `/cash-wheel` | wheel | app | Equities Research (product) | alias of `/us-options/wheel` |
@@ -220,8 +220,8 @@ Left out on purpose: every alias above; `/my/*`, `/app/watchlists`,
 own counts and saved work — and `/app/scanner/*`, which `robots.txt` allows
 and vercel.json serves with `X-Robots-Tag: noindex` (plan item 1.1, 6 Oct
 2026), so a fetcher can read them and a search engine leaves them out; `/welcome` and `/start`, which are
-application shells rather than destinations; `/property/lab`, the Scenario
-Lab, whose canonical is `/property` since N3 (7 Oct 2026);
+application shells rather than destinations; `/property/lab`, which
+redirects to `/property`, the Scenario Lab (13 Nov 2026);
 parameterised pages.
 
 The filed companies' own pages (Company pages above) are listed, one `<url>`
@@ -318,7 +318,7 @@ badge and the page's one primary action (`pageHead`, 36-layouts.js):
   beneath it, and it stays one click away.
 - **Property Intelligence** — My properties (`/property/models`) · Calculator
   (`/property/calculator`) · Scenario Lab
-  (`/property/lab`, beta; current on `/property` too) · Area screen
+  (`/property`, beta) · Area screen
   (`/property/areas`) · Comparables (`/property/comparables`) · Opportunities
   (`/property/opportunities`). The calculator's five sections (Acquisition,
   Financing, Rental & expenses, Scenarios, Report) are anchors on its page,
