@@ -1,13 +1,13 @@
 {
   "kind": "quantum-tradeworks-checks",
   "schema": 1,
-  "commit": "ffcc5ebc58e97e627b8d39177f3ecdb7e89fea8e",
-  "recordedAt": "2026-11-14T10:27:46.978Z",
-  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/43511139592",
-  "ranAt": "2026-11-13T22:56:47Z",
-  "event": "workflow_dispatch",
+  "commit": "5b214c26b9987b29e33d9f447feeeba912badac7",
+  "recordedAt": "2026-11-14T20:35:07.259Z",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/43630588663",
+  "ranAt": "2026-11-14T20:34:22Z",
+  "event": "push",
   "conclusion": "success",
-  "app": "app.44dcfa720f62.js",
+  "app": "app.af2df886e6e5.js",
   "note": null,
   "suites": [
     {
@@ -126,9 +126,9 @@
       "kind": "layout",
       "job": "static",
       "status": "PASS",
-      "passed": 184,
+      "passed": 183,
       "failed": 0,
-      "said": "184 of them (184 in scope) carry their committed render of the page in #views exactly, under prerender/.",
+      "said": "183 of them (183 in scope) carry their committed render of the page in #views exactly, under prerender/.",
       "exit": 0
     },
     {
@@ -137,9 +137,9 @@
       "kind": "layout",
       "job": "runtime",
       "status": "PASS",
-      "passed": 184,
+      "passed": 183,
       "failed": 0,
-      "said": "184 of 184 pages are the app's own render as committed",
+      "said": "183 of 183 pages are the app's own render as committed",
       "exit": 0
     },
     {
@@ -159,9 +159,9 @@
       "kind": "layout",
       "job": "runtime",
       "status": "PASS",
-      "passed": 208,
+      "passed": 207,
       "failed": 0,
-      "said": "208 passed, 0 failed",
+      "said": "207 passed, 0 failed",
       "exit": 0
     },
     {
