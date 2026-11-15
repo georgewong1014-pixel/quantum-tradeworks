@@ -3072,6 +3072,7 @@ function pcDealField(d, k, { quick = false } = {}) {
        reader's. */
     if (typing && v === d[k] && isTouched(d, k)) return;
     if (quick && v !== d[k]) pcNoteChange(d, k, label, d[k], v);
+    if (v !== d[k]) chartInputAt = Date.now();
     d[k] = v;
     markTouched(d, k); saveDeal(); renderAfterTyping();
   };
@@ -3392,11 +3393,18 @@ function pcNoteChange(d, k, label, from, to) {
   const m = dealModel(d);
   pcLastChange = { d, k, label: String(label), from, to, was: pcAnswerSaid(d, m, propertyGrade(d, m)) };
 }
-/* The change the answer may speak of: this deal's, and still what its box holds. */
-function pcChangeFor(d) {
+/* The change the answer may speak of: this deal's, still what its box
+   holds, and still the whole of why the four figures read as they do. The
+   figures the change produced are kept at its first drawing (c.after); a
+   figure that has moved since — the reserve set in the full model, say,
+   and the reader back in Quick — was not this change's doing, and the
+   sentence would credit it with a move it did not make. It is dropped. */
+function pcChangeFor(d, now) {
   const c = pcLastChange;
   if (!c) return null;
   if (c.d !== d || d[c.k] !== c.to) { pcLastChange = null; return null; }
+  if (!c.after) { c.after = now; c.at = Date.now(); }
+  else if (Object.keys(now).some(key => c.after[key][1] !== now[key][1])) { pcLastChange = null; return null; }
   return c;
 }
 const pcPlain = (v) => isNum(v) ? String(v) : 'its default';
@@ -3564,14 +3572,21 @@ function pcQuickView(d, m, g, DK) {
   cards.append(pcQuickCard('grade', 2, 'Research grade', g.grade, g.verdict,
     kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
     PC_GRADE_TONE[g.grade]));
-  const change = pcChangeFor(d);
+  const saidNow = pcAnswerSaid(d, m, g);
+  const change = pcChangeFor(d, saidNow);
   if (change) {
-    const said = pcChangeLine(change, pcAnswerSaid(d, m, g));
+    const said = pcChangeLine(change, saidNow);
+    /* The mark is the card's state, not one of its words: the card reads,
+       word for word, as the full model's card does (model-test qt-day4),
+       and the stylesheet draws the mark from the attribute. The wash is for
+       the drawing that follows the change, not for every redraw after it. */
+    const fresh = Date.now() - change.at < 1200;
     said.moved.forEach(key => {
       const card = cards.querySelector(`[data-quick="${key}"]`);
       if (!card) return;
       card.classList.add('is-updated');
-      card.append(el('span', { class: 'pc-q-upd' }, 'Updated'));
+      if (fresh) card.classList.add('is-fresh');
+      card.dataset.upd = 'Updated';
     });
     ans.append(said.node);
     /* Heard too: the region that outlives the redraw (#liveStatus). */

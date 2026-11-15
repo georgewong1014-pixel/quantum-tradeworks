@@ -7674,12 +7674,21 @@ input.au-in[type="text"] { text-align: left; }
   .pc-page > .pm-bar > .pm-backup { font-size: var(--ls-meta); line-height: 20px; }
 }
 @media (min-width: 1200px) {
-  .pc-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: var(--lg); align-items: start; }
+  /* The fourth row is the slack: the save panel spans it, so what the panel
+     stands taller than the three rows beside it is that row's alone, and
+     the heading, the notes and "Why this is not a valuation" keep their own
+     heights whatever opens (shared among three auto rows, opening the
+     valuation note moved the heading 3px: coverage-frames). */
+  .pc-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); grid-template-rows: auto auto auto 1fr; column-gap: var(--lg); align-items: start; }
   .pc-page > * { grid-column: 1 / -1; min-width: 0; }
   .pc-page > .page-hd, .pc-page > .pc-more-page, .pc-page > .pc-claim { grid-column: 1; }
-  .pc-page > .pm-bar { grid-column: 2; grid-row: 1 / span 3; align-self: start; grid-template-columns: minmax(0, 1fr); gap: var(--ls-related); padding: var(--md); margin-bottom: var(--md); }
+  .pc-page > .pm-bar { grid-column: 2; grid-row: 1 / span 4; align-self: start; grid-template-columns: minmax(0, 1fr); gap: var(--ls-related); padding: var(--md); margin-bottom: var(--md); }
   .pc-page > .pm-bar > .pm-bar-hd, .pc-page > .pm-bar > .pm-acts { grid-column: 1; grid-row: auto; }
   .pc-page > .pm-bar > .pm-acts { justify-content: flex-start; }
+  /* In the narrow panel the backup sentence is one run of words with its
+     link in it: as three flex items it broke into three lines. */
+  .pc-page > .pm-bar > .pm-backup { display: block; }
+  .pc-page > .pm-bar > .pm-backup > * { display: inline; min-height: 0; padding: 0; }
 }
 
 /* ONE BADGE LANGUAGE FOR WHOSE A FIGURE IS (the owner, 16 Nov 2026). A
@@ -7700,8 +7709,15 @@ input.au-in[type="text"] { text-align: left; }
 .pc-q-change strong { color: var(--ink); font-weight: var(--weight-semibold); }
 .pc-q-cards > .panel.is-updated { position: relative; }
 /* The mark stands in the card's own flow, after its kind badge: over the
-   label it covered the label's last words on a phone. */
-.pc-q-upd { display: inline-block; margin: var(--ls-related) 0 0 var(--ls-related); padding: 0 8px; vertical-align: middle; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface-2);
+   label it covered the label's last words on a phone. It is drawn from the
+   card's data-upd, so the card's own words are the figure's alone. */
+.pc-q-cards > .panel.is-updated::after { content: attr(data-upd); display: block; width: max-content; align-self: flex-start; justify-self: start; margin: var(--ls-related) 0 0; padding: 0 8px; vertical-align: middle; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface-2);
   font-size: var(--ls-meta); font-weight: var(--weight-semibold); line-height: 18px; color: var(--ink-2); }
-.pc-q-cards > .panel.is-updated::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: var(--brand-wash); opacity: 0; animation: pc-upd 900ms ease-out 1; }
+.pc-q-cards > .panel.is-fresh::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: var(--brand-wash); opacity: 0; animation: pc-upd 900ms ease-out 1; }
 @keyframes pc-upd { from { opacity: .7; } to { opacity: 0; } }
+
+/* A CHART SETTLES AFTER A FIGURE IS TYPED (chartHost, 30-charts.js): its
+   marks fade in once, to whatever opacity each is drawn at; its text is
+   left alone, so no figure moves or dims while it is read. Opacity only. */
+.chart-settle svg :is(rect, path, line, circle, polyline, polygon) { animation: chart-settle 240ms ease-out 1; }
+@keyframes chart-settle { from { opacity: .3; } }

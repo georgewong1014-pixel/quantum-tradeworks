@@ -11032,6 +11032,17 @@ const RESIZERS = new WeakMap();
    the page is in place, so they are drawn before anything is laid out on
    screen. */
 const CHARTS_UNDRAWN = new Set();
+/* A CHART SETTLES AFTER A FIGURE IS TYPED (the owner, 16 Nov 2026: "use
+   brief chart transitions after deliberate input changes. Keep financial
+   figures, source labels and warnings stable while reading."). A chart is
+   drawn anew, whole, at every redraw, so a bar that had just moved looked
+   like one that had always stood there. The property calculator notes when
+   a figure is committed (chartInputAt, pcDealField); a chart drawn within a
+   moment of that takes .chart-settle, and the stylesheet fades its marks in
+   once. Its words — axis figures, labels — are not touched, and a chart
+   drawn for any other reason (a page opened, a window resized) is drawn as
+   it always was. */
+let chartInputAt = 0;
 function drawChartsInPlace() {
   for (const c of CHARTS_UNDRAWN) { if (c.isConnected && !c.__drawnW) c.__redraw(); }
   CHARTS_UNDRAWN.clear();
@@ -11041,6 +11052,7 @@ function chartHost(container, draw) {
     const w = container.clientWidth;
     if (!w) return;
     container.__drawnW = w;
+    container.classList.toggle('chart-settle', Date.now() - chartInputAt < 1500);
     container.replaceChildren(draw(w));
   };
   run();
@@ -45214,6 +45226,7 @@ function pcDealField(d, k, { quick = false } = {}) {
        reader's. */
     if (typing && v === d[k] && isTouched(d, k)) return;
     if (quick && v !== d[k]) pcNoteChange(d, k, label, d[k], v);
+    if (v !== d[k]) chartInputAt = Date.now();
     d[k] = v;
     markTouched(d, k); saveDeal(); renderAfterTyping();
   };
@@ -45534,11 +45547,18 @@ function pcNoteChange(d, k, label, from, to) {
   const m = dealModel(d);
   pcLastChange = { d, k, label: String(label), from, to, was: pcAnswerSaid(d, m, propertyGrade(d, m)) };
 }
-/* The change the answer may speak of: this deal's, and still what its box holds. */
-function pcChangeFor(d) {
+/* The change the answer may speak of: this deal's, still what its box
+   holds, and still the whole of why the four figures read as they do. The
+   figures the change produced are kept at its first drawing (c.after); a
+   figure that has moved since — the reserve set in the full model, say,
+   and the reader back in Quick — was not this change's doing, and the
+   sentence would credit it with a move it did not make. It is dropped. */
+function pcChangeFor(d, now) {
   const c = pcLastChange;
   if (!c) return null;
   if (c.d !== d || d[c.k] !== c.to) { pcLastChange = null; return null; }
+  if (!c.after) { c.after = now; c.at = Date.now(); }
+  else if (Object.keys(now).some(key => c.after[key][1] !== now[key][1])) { pcLastChange = null; return null; }
   return c;
 }
 const pcPlain = (v) => isNum(v) ? String(v) : 'its default';
@@ -45706,14 +45726,21 @@ function pcQuickView(d, m, g, DK) {
   cards.append(pcQuickCard('grade', 2, 'Research grade', g.grade, g.verdict,
     kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
     PC_GRADE_TONE[g.grade]));
-  const change = pcChangeFor(d);
+  const saidNow = pcAnswerSaid(d, m, g);
+  const change = pcChangeFor(d, saidNow);
   if (change) {
-    const said = pcChangeLine(change, pcAnswerSaid(d, m, g));
+    const said = pcChangeLine(change, saidNow);
+    /* The mark is the card's state, not one of its words: the card reads,
+       word for word, as the full model's card does (model-test qt-day4),
+       and the stylesheet draws the mark from the attribute. The wash is for
+       the drawing that follows the change, not for every redraw after it. */
+    const fresh = Date.now() - change.at < 1200;
     said.moved.forEach(key => {
       const card = cards.querySelector(`[data-quick="${key}"]`);
       if (!card) return;
       card.classList.add('is-updated');
-      card.append(el('span', { class: 'pc-q-upd' }, 'Updated'));
+      if (fresh) card.classList.add('is-fresh');
+      card.dataset.upd = 'Updated';
     });
     ans.append(said.node);
     /* Heard too: the region that outlives the redraw (#liveStatus). */

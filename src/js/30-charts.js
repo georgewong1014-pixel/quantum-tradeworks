@@ -77,6 +77,17 @@ const RESIZERS = new WeakMap();
    the page is in place, so they are drawn before anything is laid out on
    screen. */
 const CHARTS_UNDRAWN = new Set();
+/* A CHART SETTLES AFTER A FIGURE IS TYPED (the owner, 16 Nov 2026: "use
+   brief chart transitions after deliberate input changes. Keep financial
+   figures, source labels and warnings stable while reading."). A chart is
+   drawn anew, whole, at every redraw, so a bar that had just moved looked
+   like one that had always stood there. The property calculator notes when
+   a figure is committed (chartInputAt, pcDealField); a chart drawn within a
+   moment of that takes .chart-settle, and the stylesheet fades its marks in
+   once. Its words — axis figures, labels — are not touched, and a chart
+   drawn for any other reason (a page opened, a window resized) is drawn as
+   it always was. */
+let chartInputAt = 0;
 function drawChartsInPlace() {
   for (const c of CHARTS_UNDRAWN) { if (c.isConnected && !c.__drawnW) c.__redraw(); }
   CHARTS_UNDRAWN.clear();
@@ -86,6 +97,7 @@ function chartHost(container, draw) {
     const w = container.clientWidth;
     if (!w) return;
     container.__drawnW = w;
+    container.classList.toggle('chart-settle', Date.now() - chartInputAt < 1500);
     container.replaceChildren(draw(w));
   };
   run();
