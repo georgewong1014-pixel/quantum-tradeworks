@@ -10314,6 +10314,78 @@ try {
     if (p.length) fail('property name form: Save this property asks in the page, never with a native prompt', p);
     else ok('property name form: src/js/71-property-models.js calls no prompt(); Save this property opens the in-page form with the name focused, pre-filled and selected, keeps typed text across a redraw, cancels on Escape (focus back on the button) and saves under the typed name on Enter, with no native dialog');
   }
+  /* THE INVESTOR REPORT ASKS ONE QUESTION (the owner, 15 Nov 2026). The report
+     views and prints free in this browser; under it, in either state, one
+     line asks who would read it and what it lacks, and opens the feedback
+     form that exists. Held here: the line is there and names no price, plan
+     or order; its form asks the report's question and says it orders
+     nothing; the saved feedback is "saved here, not sent", carries the topic
+     in its first line and in the email's subject (so the answers can be
+     counted where they arrive); and feedback opened any other way on a
+     Property page still asks the modelling question, with no topic. */
+  {
+    const p = [];
+    const r = JSON.parse(await evaluate(`(async () => { const w = (ms) => new Promise(r => setTimeout(r, ms)); const out = {};
+      const keep = JSON.stringify(State.corrections || []);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render(); await w(600);
+      const line = document.getElementById('pr-ask'), btn = document.getElementById('pr-ask-open');
+      out.line = line ? line.textContent.trim() : null;
+      out.selling = line ? /RM\\s?\\d|\\bprice|\\bbuy\\b|\\border\\b|\\bplan\\b|\\bunlock/i.test(line.textContent) : null;
+      out.afterReport = !!(line && (document.getElementById('property-report-offer') || document.getElementById('property-report-full'))
+        && ((document.getElementById('property-report-offer') || document.getElementById('property-report-full')).compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING));
+      if (btn) { btn.click(); await w(300);
+        out.label = document.querySelector('label[for="fb-text"]')?.textContent || null;
+        out.note = document.getElementById('fb-ask-note')?.textContent || null;
+        const ta = document.getElementById('fb-text');
+        if (ta) { ta.value = 'Model-test: a co-buyer; the assumptions on one page.';
+          [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save this feedback here')?.click(); await w(400);
+          const c = (State.corrections || [])[0] || {};
+          out.saved = { kind: c.kind || null, topic: c.topic || null, asked: c.asked || null, status: c.status || null, id: c.id || null };
+          const mail = document.querySelector('[data-support-mailto]');
+          out.mail = !!mail;
+          out.subject = mail ? decodeURIComponent((mail.getAttribute('href').match(/subject=([^&]*)/) || [])[1] || '') : null;
+          const pre = document.querySelector('textarea[aria-label^="Case"]');
+          out.first = pre ? pre.value.split('\\n')[0] : null;
+          out.askedLine = pre ? pre.value.split('\\n').find(l => l.startsWith('Asked: ')) || null : null;
+          out.says = [...document.querySelectorAll('h2, h3')].map(h => h.textContent).find(t => /saved here, not sent/.test(t)) || null; } }
+      closeDrawer(); await w(150);
+      const plain = document.querySelector('[data-action="feedback"]:not([data-ask])');
+      if (plain) { plain.click(); await w(300);
+        out.plainLabel = document.querySelector('label[for="fb-text"]')?.textContent || null;
+        const ta = document.getElementById('fb-text');
+        if (ta) { ta.value = 'Model-test: plain feedback.';
+          [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save this feedback here')?.click(); await w(400);
+          const c = (State.corrections || [])[0] || {};
+          out.plain = { topic: c.topic || null, asked: c.asked || null };
+          const mail = document.querySelector('[data-support-mailto]');
+          out.plainSubject = mail ? decodeURIComponent((mail.getAttribute('href').match(/subject=([^&]*)/) || [])[1] || '') : null;
+          out.plainId = c.id || null; } }
+      closeDrawer(); State.corrections = JSON.parse(keep); saveCorrections(); render();
+      return JSON.stringify(out); })()`));
+    const ASK = 'Who would read this investor report, and what is it missing?';
+    if (!r.line) p.push('the Decide section has no line under the investor report (#pr-ask)');
+    else {
+      if (!/^Would you show this report to someone else/.test(r.line)) p.push(`the line reads “${r.line}”`);
+      if (r.selling) p.push(`the line names a price, a plan or an order: “${r.line}”`);
+      if (!r.afterReport) p.push('the line does not follow the report it asks about');
+      if (r.label !== ASK) p.push(`its form asks “${r.label}”, not the report’s question`);
+      if (!/This is not an order: no report is prepared or sent in reply\./.test(r.note || '')) p.push(`its form does not say that it orders nothing: “${r.note}”`);
+      if (!/leave out your income, your loan/.test(r.note || '')) p.push('its form does not say to leave the finances out');
+      if (!r.saved || r.saved.kind !== 'feedback' || r.saved.topic !== 'investor report' || r.saved.asked !== ASK) p.push(`the saved feedback does not carry the question and its topic: ${JSON.stringify(r.saved)}`);
+      else {
+        if (!/not confirmed received|not sent/.test(r.saved.status || '')) p.push(`the saved feedback’s status reads “${r.saved.status}”`);
+        if (!r.says) p.push('the step after saving does not say “saved here, not sent”');
+        if (r.first !== `Feedback ${r.saved.id} — investor report`) p.push(`the text to copy opens “${r.first}”`);
+        if (r.askedLine !== 'Asked: ' + ASK) p.push(`the text to copy carries “${r.askedLine}”`);
+        if (r.mail && r.subject !== `Feedback ${r.saved.id} — investor report`) p.push(`the email’s subject reads “${r.subject}”`);
+      }
+    }
+    if (r.plainLabel !== 'Which part of modelling a property is still difficult?') p.push(`feedback opened elsewhere on the page asks “${r.plainLabel}”`);
+    if (r.plain && (r.plain.topic || r.plain.asked !== 'Which part of modelling a property is still difficult?')) p.push(`feedback opened elsewhere carries ${JSON.stringify(r.plain)}`);
+    if (r.plainSubject && r.plainSubject !== `Feedback ${r.plainId}`) p.push(`plain feedback’s email subject reads “${r.plainSubject}”`);
+    if (p.length) fail('investor report question: one line under the report opens the feedback form with the report’s question, and orders nothing', p);
+    else ok('investor report question: under the report one line asks whether the reader would show it to someone else, with no price, plan or order; its form asks “Who would read this investor report, and what is it missing?”, says it orders nothing and to leave the finances out; the feedback is saved here, not sent, and its text and email subject carry “— investor report”; feedback opened elsewhere on the page still asks the modelling question, with no topic');
+  }
   /* AN INVESTMENT CASE KEEPS ITS WHOLE STATE (the 20 Oct Day-7 report,
      QT-D06-01, task 3: a saved case that reopens, or comes back from the
      backup file, with every field it held). A case is a record in the

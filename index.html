@@ -24329,7 +24329,7 @@ document.addEventListener('click', e => {
   const act = e.target.closest('[data-action="report-error"]');
   if (act) { e.preventDefault(); openReportError(); }
   const fb = e.target.closest('[data-action="feedback"]');
-  if (fb) { e.preventDefault(); openFeedback(); }
+  if (fb) { e.preventDefault(); openFeedback(fb.dataset.ask || null); }
 });
 
 /* KEYBOARD NAVIGATION FOR A DENSE TABLE.
@@ -41475,7 +41475,7 @@ function correctionPayload(c) {
     : (c.kind === 'scanner' || c.kind === 'general' || c.kind === 'feedback') ? []
     : [`Model version: ${c.modelVersion}`, `Data as of: ${c.asOf}`, `Universe at the time: ${c.coverage}`];
   if (c.kind) tail.push(c.build ? `Build ${c.build}` : 'Build not recorded (the app was loaded inline, not as a hashed file)');
-  if (c.kind === 'feedback') return [`Feedback ${c.id}`, `Raised: ${c.createdAt}`, `Page: ${c.route}`, ...(c.asked ? [`Asked: ${c.asked}`] : []), ``, c.description || '(nothing written)', ``, ...tail].join('\n');
+  if (c.kind === 'feedback') return [`Feedback ${c.id}${c.topic ? ` — ${c.topic}` : ''}`, `Raised: ${c.createdAt}`, `Page: ${c.route}`, ...(c.asked ? [`Asked: ${c.asked}`] : []), ``, c.description || '(nothing written)', ``, ...tail].join('\n');
   return [
     `Correction case ${c.id}`,
     `Raised: ${c.createdAt}`,
@@ -41765,7 +41765,7 @@ function confirmCaseSaved(c) {
           .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
       } }, addr ? `Copy the ${thing}` : 'Copy the case'),
       addr ? el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '',
-        href: `mailto:${addr}?subject=${encodeURIComponent(`${c.kind === 'feedback' ? 'Feedback' : 'Data error report'} ${c.id}`)}&body=${encodeURIComponent(correctionPayload(c))}` }, 'Open in my email program') : null,
+        href: `mailto:${addr}?subject=${encodeURIComponent(`${c.kind === 'feedback' ? 'Feedback' : 'Data error report'} ${c.id}${c.kind === 'feedback' && c.topic ? ` — ${c.topic}` : ''}`)}&body=${encodeURIComponent(correctionPayload(c))}` }, 'Open in my email program') : null,
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/corrections'),
         onclick: e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); closeDrawer(); navigate('/corrections'); } },
         'See my recorded cases'),
@@ -41780,7 +41780,15 @@ function confirmCaseSaved(c) {
    an identifier, then submitted from here, copied or emailed. It records the
    page and the build; nothing from the reader's saved work and no address. */
 const FEEDBACK_PROPERTY_ASK = 'Which part of modelling a property is still difficult?';
-function openFeedback() {
+/* THE INVESTOR REPORT'S ONE QUESTION (the owner, 15 Nov 2026): the report
+   views and prints free in this browser, so the question is not "do you want
+   it" but who would read it and what it lacks — an answer that takes writing,
+   which is what gets counted. It orders nothing and the form says so. Its
+   email carries the topic in the subject (FEEDBACK_TOPICS), so the answers can
+   be told from other feedback where they arrive. */
+const FEEDBACK_REPORT_ASK = 'Who would read this investor report, and what is it missing?';
+const FEEDBACK_TOPICS = { 'investor-report': 'investor report' };
+function openFeedback(ask) {
   const opener = document.activeElement;
   const body = el('div');
   body.append(reportLead('Tell the site’s owner what worked, what did not, or what you expected. This saves your feedback in this browser first and gives it an identifier; it does not send anything by itself. At the last step '));
@@ -41789,13 +41797,18 @@ function openFeedback() {
      question is its label, so an answer names a task rather than a mood, and
      the text the reader reviews carries the question it answers (c.asked).
      It asks for the task and says to leave the finances out. */
-  const asked = (productOf(State.view) === 'property' || /^\/property(\/|-investing|$)/.test(location.pathname)) ? FEEDBACK_PROPERTY_ASK : null;
+  const topic = Object.hasOwn(FEEDBACK_TOPICS, ask || '') ? FEEDBACK_TOPICS[ask] : null;
+  const asked = topic ? FEEDBACK_REPORT_ASK
+    : (productOf(State.view) === 'property' || /^\/property(\/|-investing|$)/.test(location.pathname)) ? FEEDBACK_PROPERTY_ASK : null;
   const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   f.append(el('label', { for: 'fb-text' }, asked || 'Your feedback'));
   const ta = el('textarea', { class: 'input', id: 'fb-text', 'aria-describedby': asked ? 'fb-ask-note' : null,
-    placeholder: asked ? 'For example: entering the costs, comparing two scenarios, saving or reopening — and what you expected instead.' : 'What happened, what you expected, or what you would change.' });
+    placeholder: topic ? 'For example: a co-buyer, or a banker — and what the report would need before you showed it to them.'
+      : asked ? 'For example: entering the costs, comparing two scenarios, saving or reopening — and what you expected instead.' : 'What happened, what you expected, or what you would change.' });
   f.append(ta);
-  if (asked) f.append(el('p', { class: 'metaline', id: 'fb-ask-note', style: 'margin-top:6px' }, 'Name the task, not your finances: leave out your income, your loan and anything else private. Other feedback is welcome here too.'));
+  if (asked) f.append(el('p', { class: 'metaline', id: 'fb-ask-note', style: 'margin-top:6px' }, topic
+    ? 'Name the reader and the gap, not your finances: leave out your income, your loan, the property’s address and anything else private. This is not an order: no report is prepared or sent in reply.'
+    : 'Name the task, not your finances: leave out your income, your loan and anything else private. Other feedback is welcome here too.'));
   body.append(f);
   body.append(el('div', { class: 'sunk', style: 'margin-bottom:var(--md)' },
     el('dl', { class: 'kv' }, [
@@ -41807,7 +41820,7 @@ function openFeedback() {
     if (!text) { toast('Write something before saving the feedback'); return; }
     const now = new Date();
     const c = { id: nextCaseId(now), createdAt: caseRaisedAt(now), route: location.pathname, kind: 'feedback', build: reportBuild(),
-      item: 'Feedback', subject: matchRoute(location.pathname)?.title || '', ...(asked ? { asked } : {}),
+      item: 'Feedback', subject: matchRoute(location.pathname)?.title || '', ...(asked ? { asked } : {}), ...(topic ? { topic } : {}),
       status: supportEmail() ? 'recorded here, not confirmed received' : 'recorded — not sent', description: text };
     State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
     saveCorrections();
@@ -55640,6 +55653,13 @@ VIEWS.property = () => {
     rf.append(fl);
     reportCards.push(rf);
   }
+  /* ONE QUESTION UNDER THE REPORT, IN EITHER STATE (the owner, 15 Nov 2026):
+     who would read it, and what it lacks. It opens the feedback form that
+     exists — saved in this browser first, then copied or emailed — and
+     nothing is sent, ordered or promised by pressing it. No plan, no price. */
+  reportCards.push(el('p', { class: 'caption pm-ask', id: 'pr-ask' }, [
+    'Would you show this report to someone else, such as a co-buyer or a banker? ',
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pr-ask-open', 'data-action': 'feedback', 'data-ask': 'investor-report' }, 'Tell the site’s owner what it lacks')]));
 
   /* ---------- the page, assembled ---------- */
   wrap.append(summaryCard);

@@ -4055,7 +4055,7 @@ document.addEventListener('click', e => {
   const act = e.target.closest('[data-action="report-error"]');
   if (act) { e.preventDefault(); openReportError(); }
   const fb = e.target.closest('[data-action="feedback"]');
-  if (fb) { e.preventDefault(); openFeedback(); }
+  if (fb) { e.preventDefault(); openFeedback(fb.dataset.ask || null); }
 });
 
 /* KEYBOARD NAVIGATION FOR A DENSE TABLE.

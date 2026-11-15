@@ -5581,6 +5581,13 @@ VIEWS.property = () => {
     rf.append(fl);
     reportCards.push(rf);
   }
+  /* ONE QUESTION UNDER THE REPORT, IN EITHER STATE (the owner, 15 Nov 2026):
+     who would read it, and what it lacks. It opens the feedback form that
+     exists — saved in this browser first, then copied or emailed — and
+     nothing is sent, ordered or promised by pressing it. No plan, no price. */
+  reportCards.push(el('p', { class: 'caption pm-ask', id: 'pr-ask' }, [
+    'Would you show this report to someone else, such as a co-buyer or a banker? ',
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pr-ask-open', 'data-action': 'feedback', 'data-ask': 'investor-report' }, 'Tell the site’s owner what it lacks')]));
 
   /* ---------- the page, assembled ---------- */
   wrap.append(summaryCard);
