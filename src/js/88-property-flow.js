@@ -91,7 +91,32 @@ const PF_STEPS = [
   { id: 'compare', label: 'Compare' },
   { id: 'save', label: 'Save' },
 ];
-const PF_STEP_OF = { areas: 'explore', areaMap: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'evidence', propertyModels: 'save' };
+const PF_STEP_OF = { areas: 'explore', areaMap: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'analyse', propertyModels: 'save' };
+/* THE STEP THE CALCULATOR MARKS (the owner, 16 Nov 2026: "ensure the
+   highlighted stage matches the activity being performed"). It marked
+   Evidence always, over a reader typing a price into the Quick model. It
+   marks Analyse, as the Lab does, and Evidence only where the reader asked
+   for the evidence: the Evidence step pressed, here or from another page,
+   which lands on the review of the figures still the sample's. Analyse
+   pressed here, or the page left, ends that. */
+let pfAtEvidence = false;
+function pfHereOf(view) {
+  if (view !== 'property') { pfAtEvidence = false; return PF_STEP_OF[view]; }
+  if (State.pfLand && State.pfLand.kind === 'calc') pfAtEvidence = true;
+  return pfAtEvidence ? 'evidence' : 'analyse';
+}
+/* The mark moved in place, where the step pressed is on the page it acts on
+   and nothing is redrawn. */
+function pfMark(id) {
+  const flow = document.querySelector('#views .pf-flow');
+  if (!flow) return;
+  flow.dataset.pfHere = id;
+  flow.querySelectorAll('.pf-step').forEach(n => {
+    const on = n.dataset.pfStep === id;
+    n.classList.toggle('is-here', on);
+    if (on) n.setAttribute('aria-current', 'step'); else n.removeAttribute('aria-current');
+  });
+}
 const PF_EXPLORE_PATH = { areas: '/property/areas', areaMap: '/property/areas/map', comparables: '/property/comparables', opportunities: '/property/opportunities' };
 /* The explore page last visited, this tab: where Explore goes back to.
    Before one is visited, the Area screen: the one explore page with
@@ -226,7 +251,10 @@ const PF_LAND_PATH = { calc: '/property/calculator', record: '/property/opportun
 function pfEvidenceGo(view) {
   const t = pfEvidenceTarget(view);
   State.pfLand = t;
-  if (view === { calc: 'property', record: 'opportunities', saved: 'propertyModels' }[t.kind]) { pfLand(); return; }
+  if (view === { calc: 'property', record: 'opportunities', saved: 'propertyModels' }[t.kind]) {
+    if (t.kind === 'calc') { pfAtEvidence = true; pfMark('evidence'); }
+    pfLand(); return;
+  }
   navigate(PF_LAND_PATH[t.kind]);
 }
 /* THE LANDING, once the page it goes to is drawn: the review of the sample
@@ -300,7 +328,7 @@ function pfLabWords(lab, ev) { return `${ev ? `${ev.words} · ` : ''}${pfLabMove
 /* THE LINE OF STEPS AND THE CONTEXT LINE, drawn above every Property page
    (drawPage, 35-ui.js). */
 function propertyFlowNode(view = State.view) {
-  const here = PF_STEP_OF[view];
+  const here = pfHereOf(view);
   if (!here) return null;
   if (here === 'explore') pfExplore = PF_EXPLORE_PATH[view];
   const ctx = pfContext();
@@ -319,6 +347,15 @@ function propertyFlowNode(view = State.view) {
     return el('li', { class: 'pf-li' }, el('button', { ...attrs, type: 'button',
       onclick: () => {
         if (s.id === 'evidence') { pfEvidenceGo(view); return; }
+        /* On the calculator, Analyse is the model on this page: back to its
+           first figure from the evidence, never away to the Lab (Compare
+           and the tab row go there). */
+        if (s.id === 'analyse' && view === 'property') {
+          pfAtEvidence = false; pfMark('analyse');
+          const t = document.getElementById('pc-quick') || document.querySelector('#views .pc-page');
+          if (t) lsGoTo(t);
+          return;
+        }
         if (toModels) { navigate('/property/models'); return; }
         /* On the Lab itself: the comparison, or its Save, where they are —
            and, with nothing to save there, the saved properties. */

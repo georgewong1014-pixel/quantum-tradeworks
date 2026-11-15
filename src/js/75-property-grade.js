@@ -3071,6 +3071,7 @@ function pcDealField(d, k, { quick = false } = {}) {
     /* Nothing new to draw: the figure already committed, and already the
        reader's. */
     if (typing && v === d[k] && isTouched(d, k)) return;
+    if (quick && v !== d[k]) pcNoteChange(d, k, label, d[k], v);
     d[k] = v;
     markTouched(d, k); saveDeal(); renderAfterTyping();
   };
@@ -3369,6 +3370,45 @@ let pcQuickOtherOpen = false;
    month, as the full model's one-page answer says them (pcAnswerFigs), the
    net yield as the Scenario Lab's tile does, and the grade — each with its
    badge (labTileKind: the weakest figure it rests on). */
+/* WHAT THE LAST FIGURE TYPED CHANGED (the owner, 16 Nov 2026: "clearly
+   indicate which results recalculated, provide a concise plain-English
+   explanation"). The Quick model redrew its four figures without a word: a
+   reader who changed the deposit had to remember the old cash required to
+   know it had moved. The four figures are read as they stood before the
+   figure is written (pcNoteChange, at the box's commit) and again when the
+   answer is drawn; each that differs is marked "Updated", and one sentence
+   names the figure typed and every result that moved, old and new.
+   It is words and a mark, in the answer's own ink: nothing here is toned as
+   good or bad, and nothing in it moves after it is drawn. It stands until
+   the next figure is typed or another deal is opened. No figure is worked
+   out here: these are the answer's own strings. */
+let pcLastChange = null;
+function pcAnswerSaid(d, m, g) {
+  const f = pcAnswerFigs(d, m), lets = m.letsToTenant !== false;
+  return { safe: ['Cash required', f.safe[1]], monthly: ['Monthly position', f.monthly[1]],
+    netYield: ['Net yield', lets && isNum(m.netYield) ? fmtPct(m.netYield, 2) : '—'], grade: ['Research grade', g.grade] };
+}
+function pcNoteChange(d, k, label, from, to) {
+  const m = dealModel(d);
+  pcLastChange = { d, k, label: String(label), from, to, was: pcAnswerSaid(d, m, propertyGrade(d, m)) };
+}
+/* The change the answer may speak of: this deal's, and still what its box holds. */
+function pcChangeFor(d) {
+  const c = pcLastChange;
+  if (!c) return null;
+  if (c.d !== d || d[c.k] !== c.to) { pcLastChange = null; return null; }
+  return c;
+}
+const pcPlain = (v) => isNum(v) ? String(v) : 'its default';
+function pcChangeLine(c, now) {
+  const moved = Object.keys(now).filter(key => c.was[key][1] !== now[key][1]);
+  const same = Object.keys(now).filter(key => !moved.includes(key)).map(key => now[key][0]);
+  const p = el('p', { class: 'metaline pc-q-change', id: 'pc-q-change' }, [
+    el('strong', {}, 'What changed. '), `You changed “${c.label}” from ${pcPlain(c.from)} to ${pcPlain(c.to)}. `,
+    moved.length ? `Recalculated: ${moved.map(key => `${now[key][0].toLowerCase()} ${c.was[key][1]} → ${now[key][1]}`).join('; ')}.` : 'None of the four figures below changed.',
+    moved.length && same.length ? ` ${feeList(same)} did not change.` : null]);
+  return { node: p, moved, words: p.textContent };
+}
 function pcQuickCard(key, level, label, value, sub, badge, tone = null) {
   const card = el('div', { class: `panel ls-card ls-l${level}`, 'data-card': 'metric', 'data-level': String(level), 'data-quick': key },
     statTile(label, value, { sub, tone }));
@@ -3524,6 +3564,20 @@ function pcQuickView(d, m, g, DK) {
   cards.append(pcQuickCard('grade', 2, 'Research grade', g.grade, g.verdict,
     kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
     PC_GRADE_TONE[g.grade]));
+  const change = pcChangeFor(d);
+  if (change) {
+    const said = pcChangeLine(change, pcAnswerSaid(d, m, g));
+    said.moved.forEach(key => {
+      const card = cards.querySelector(`[data-quick="${key}"]`);
+      if (!card) return;
+      card.classList.add('is-updated');
+      card.append(el('span', { class: 'pc-q-upd' }, 'Updated'));
+    });
+    ans.append(said.node);
+    /* Heard too: the region that outlives the redraw (#liveStatus). */
+    const live = document.getElementById('liveStatus');
+    if (live && change.heard !== said.words) { change.heard = said.words; live.textContent = said.words; }
+  }
   ans.append(cards);
   /* THE ANSWER'S ORDER (B3, fix 8): the four figures; what they rest on,
      once; the assumption they depend on most; the limit, once. The old
@@ -5480,9 +5534,9 @@ VIEWS.property = () => {
       { sub: !m.taxComputed ? 'Annual cash flow ÷ cash required including reserve'
         /* Year 1 is a full year of instalments, or it is not the figure (an auction whose balance falls due after its holding months). */
         : Math.abs(num0(m.path?.[0]?.debt) - num0(m.annualDebtService)) < 0.005 ? 'Year 1’s cash flow before tax ÷ cash required including reserve'
-        : 'A full year’s cash flow before tax, 12 instalments, ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+        : 'A full year’s cash flow before tax, 12 instalments, ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? null : '--dn-text' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
-      { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
+      { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? null : '--dn-text' })));
     inv.append(ig);
     const kv = el('dl', { class: 'kv' });
     [['Gross annual rent', fmtAmount(m.grossAnnualRent, 'MYR')],

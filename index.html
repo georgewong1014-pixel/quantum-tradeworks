@@ -5960,9 +5960,9 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 @media (min-width: 1024px) {
   :root { --ls-hero: 56px; --ls-title: 36px; --ls-section: 24px; --ls-metric: 30px; --ls-meta: 13px; --ls-concept: 40px; }
 }
-@media (min-width: 1440px) {
-  :root { --ls-hero: 64px; }
-}
+/* The hero's type stops at 56px (the owner, 16 Nov 2026): at 64px the
+   headline ran to three lines on a wide desk and pushed the three tools down
+   the first screen. */
 
 /* ---------------------------------------------- the page's type, on tokens */
 /* The shared classes a page on the system carries, set on the scale. */
@@ -7657,7 +7657,8 @@ input.au-in[type="text"] { text-align: left; }
    height. */
 .pub-home .pub-hero {
   background: var(--graphite);
-  padding: var(--xxl) var(--md) var(--xxxl);
+  /* A shorter field (the owner, 16 Nov 2026): the tools come sooner. */
+  padding: var(--xl) var(--md) var(--xxl);
   box-shadow: 0 0 0 100vmax var(--graphite);
   clip-path: inset(0 -100vmax);
   /* Up to the header and its notice: the page's own top padding (.view). */
@@ -7671,7 +7672,9 @@ input.au-in[type="text"] { text-align: left; }
 }
 .pub-home .pub-h1 { color: #fff; }
 .pub-home .pub-lede { color: var(--ink-2); }
-@media (max-width: 760px) { .pub-home .pub-hero { padding: var(--xl) var(--xs) var(--xxl); } }
+@media (max-width: 760px) { .pub-home .pub-hero { padding: var(--lg) var(--xs) var(--xl); } }
+/* Two lines on a desk, not three. */
+@media (min-width: 1024px) { .pub-home .pub-h1 { max-width: 17em; } }
 @media (max-width: 640px) { .pub-home .pub-hero { margin-top: calc(var(--lg) * -1); } }
 
 /* What a route or a list cannot yet do, said apart from what it can (the owner,
@@ -7708,6 +7711,68 @@ input.au-in[type="text"] { text-align: left; }
 .lab-acts .lab-stage::before { counter-increment: lab-stage; content: counter(lab-stage); display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 8px; border-radius: 50%; font-size: var(--ls-meta); font-weight: var(--weight-semibold); background: color-mix(in srgb, currentColor 16%, transparent); }
 .lab-acts .lab-act-after { color: var(--ink-2); }
 @media (max-width: 760px) { .lab-acts #lab-act-save { display: none; } }
+
+
+/* ==========================================================================
+   THE FOCUSED WORKSPACE (the owner, 16 Nov 2026): "the sidebar, product
+   tabs, workflow steps and model controls compete before the input fields."
+   On a desk the calculator's first figure stood 696px down a 900px screen:
+   under the tab row came the steps, a line of context in a box of its own,
+   the heading, two notes, a full-width card of save controls and the
+   Quick | Full switch.
+
+   - The steps and their line of context are one row where the line fits
+     beside them, and the line is plain text there, not a second box.
+   - The save controls are a narrow panel beside the heading (1200px up) or
+     one compact row (1024px to 1199px): the property's name and whether it
+     is saved, the actions, and the backup sentence, all still in sight.
+     Nothing is removed and no id changes. On a phone the bar already
+     follows the model (QT-003, above).
+   ========================================================================== */
+@media (min-width: 1024px) {
+  .pf-flow[data-pf-view="property"] { gap: var(--xs) var(--md); margin-bottom: var(--sm); }
+  .pf-flow[data-pf-view="property"] > .pf-ctx { flex: 1 1 auto; min-height: 32px; padding: 0 0 0 var(--md); border: 0; border-left: 1px solid var(--line); border-radius: 0; background: none; box-shadow: none; }
+  .pf-flow[data-pf-view="property"] > .pf-ctx.is-unsaved { border-left-color: var(--bronze); }
+
+  .pc-page > .pm-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ls-within) var(--lg); padding: var(--sm) var(--md); }
+  .pc-page > .pm-bar > * { grid-column: 1 / -1; min-width: 0; }
+  .pc-page > .pm-bar > .pm-bar-hd { grid-column: 1; }
+  .pc-page > .pm-bar > .pm-acts { grid-column: 2; grid-row: 1; justify-content: flex-end; }
+  .pc-page > .pm-bar .pm-status { font-size: var(--ls-support); line-height: 20px; }
+  .pc-page > .pm-bar > .pm-backup { font-size: var(--ls-meta); line-height: 20px; }
+}
+@media (min-width: 1200px) {
+  .pc-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: var(--lg); align-items: start; }
+  .pc-page > * { grid-column: 1 / -1; min-width: 0; }
+  .pc-page > .page-hd, .pc-page > .pc-more-page, .pc-page > .pc-claim { grid-column: 1; }
+  .pc-page > .pm-bar { grid-column: 2; grid-row: 1 / span 3; align-self: start; grid-template-columns: minmax(0, 1fr); gap: var(--ls-related); padding: var(--md); margin-bottom: var(--md); }
+  .pc-page > .pm-bar > .pm-bar-hd, .pc-page > .pm-bar > .pm-acts { grid-column: 1; grid-row: auto; }
+  .pc-page > .pm-bar > .pm-acts { justify-content: flex-start; }
+}
+
+/* ONE BADGE LANGUAGE FOR WHOSE A FIGURE IS (the owner, 16 Nov 2026). A
+   result wore the kind badge — a bronze ring and "Illustrative", a disc and
+   "Yours" — while the box that produced it wore a plain pill reading
+   "Default" or "Yours". The input's tag takes the same two shapes, so the
+   ring beside a box and the ring beside its result are seen to be one
+   thing. Its words stay (the 30 Oct 2026 audit). */
+.lab-tag[data-own]::before { content: ''; display: inline-block; box-sizing: border-box; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; background: currentColor; }
+.lab-tag[data-own="default"]::before { background: none; border: 1.5px solid currentColor; }
+
+/* WHAT THE LAST FIGURE TYPED CHANGED (pcChangeLine): a sentence over the
+   four figures and a mark on each that moved. Ink and the page's line
+   colour only: never the green or red of a gain or a loss. The one motion
+   is a wash over a recalculated card that fades once (opacity); the mark
+   and the sentence stay put while they are read. */
+.pc-q-change { margin: var(--ls-related) 0 0; padding: var(--ls-related) var(--sm); max-width: var(--ls-measure); border-left: 2px solid var(--line-2); background: var(--surface-sunk); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--ink-2); }
+.pc-q-change strong { color: var(--ink); font-weight: var(--weight-semibold); }
+.pc-q-cards > .panel.is-updated { position: relative; }
+/* The mark stands in the card's own flow, after its kind badge: over the
+   label it covered the label's last words on a phone. */
+.pc-q-upd { display: inline-block; margin: var(--ls-related) 0 0 var(--ls-related); padding: 0 8px; vertical-align: middle; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface-2);
+  font-size: var(--ls-meta); font-weight: var(--weight-semibold); line-height: 18px; color: var(--ink-2); }
+.pc-q-cards > .panel.is-updated::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: var(--brand-wash); opacity: 0; animation: pc-upd 900ms ease-out 1; }
+@keyframes pc-upd { from { opacity: .7; } to { opacity: 0; } }
 </style>
 </head>
 <body>
@@ -53158,6 +53223,7 @@ function pcDealField(d, k, { quick = false } = {}) {
     /* Nothing new to draw: the figure already committed, and already the
        reader's. */
     if (typing && v === d[k] && isTouched(d, k)) return;
+    if (quick && v !== d[k]) pcNoteChange(d, k, label, d[k], v);
     d[k] = v;
     markTouched(d, k); saveDeal(); renderAfterTyping();
   };
@@ -53456,6 +53522,45 @@ let pcQuickOtherOpen = false;
    month, as the full model's one-page answer says them (pcAnswerFigs), the
    net yield as the Scenario Lab's tile does, and the grade — each with its
    badge (labTileKind: the weakest figure it rests on). */
+/* WHAT THE LAST FIGURE TYPED CHANGED (the owner, 16 Nov 2026: "clearly
+   indicate which results recalculated, provide a concise plain-English
+   explanation"). The Quick model redrew its four figures without a word: a
+   reader who changed the deposit had to remember the old cash required to
+   know it had moved. The four figures are read as they stood before the
+   figure is written (pcNoteChange, at the box's commit) and again when the
+   answer is drawn; each that differs is marked "Updated", and one sentence
+   names the figure typed and every result that moved, old and new.
+   It is words and a mark, in the answer's own ink: nothing here is toned as
+   good or bad, and nothing in it moves after it is drawn. It stands until
+   the next figure is typed or another deal is opened. No figure is worked
+   out here: these are the answer's own strings. */
+let pcLastChange = null;
+function pcAnswerSaid(d, m, g) {
+  const f = pcAnswerFigs(d, m), lets = m.letsToTenant !== false;
+  return { safe: ['Cash required', f.safe[1]], monthly: ['Monthly position', f.monthly[1]],
+    netYield: ['Net yield', lets && isNum(m.netYield) ? fmtPct(m.netYield, 2) : '—'], grade: ['Research grade', g.grade] };
+}
+function pcNoteChange(d, k, label, from, to) {
+  const m = dealModel(d);
+  pcLastChange = { d, k, label: String(label), from, to, was: pcAnswerSaid(d, m, propertyGrade(d, m)) };
+}
+/* The change the answer may speak of: this deal's, and still what its box holds. */
+function pcChangeFor(d) {
+  const c = pcLastChange;
+  if (!c) return null;
+  if (c.d !== d || d[c.k] !== c.to) { pcLastChange = null; return null; }
+  return c;
+}
+const pcPlain = (v) => isNum(v) ? String(v) : 'its default';
+function pcChangeLine(c, now) {
+  const moved = Object.keys(now).filter(key => c.was[key][1] !== now[key][1]);
+  const same = Object.keys(now).filter(key => !moved.includes(key)).map(key => now[key][0]);
+  const p = el('p', { class: 'metaline pc-q-change', id: 'pc-q-change' }, [
+    el('strong', {}, 'What changed. '), `You changed “${c.label}” from ${pcPlain(c.from)} to ${pcPlain(c.to)}. `,
+    moved.length ? `Recalculated: ${moved.map(key => `${now[key][0].toLowerCase()} ${c.was[key][1]} → ${now[key][1]}`).join('; ')}.` : 'None of the four figures below changed.',
+    moved.length && same.length ? ` ${feeList(same)} did not change.` : null]);
+  return { node: p, moved, words: p.textContent };
+}
 function pcQuickCard(key, level, label, value, sub, badge, tone = null) {
   const card = el('div', { class: `panel ls-card ls-l${level}`, 'data-card': 'metric', 'data-level': String(level), 'data-quick': key },
     statTile(label, value, { sub, tone }));
@@ -53611,6 +53716,20 @@ function pcQuickView(d, m, g, DK) {
   cards.append(pcQuickCard('grade', 2, 'Research grade', g.grade, g.verdict,
     kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
     PC_GRADE_TONE[g.grade]));
+  const change = pcChangeFor(d);
+  if (change) {
+    const said = pcChangeLine(change, pcAnswerSaid(d, m, g));
+    said.moved.forEach(key => {
+      const card = cards.querySelector(`[data-quick="${key}"]`);
+      if (!card) return;
+      card.classList.add('is-updated');
+      card.append(el('span', { class: 'pc-q-upd' }, 'Updated'));
+    });
+    ans.append(said.node);
+    /* Heard too: the region that outlives the redraw (#liveStatus). */
+    const live = document.getElementById('liveStatus');
+    if (live && change.heard !== said.words) { change.heard = said.words; live.textContent = said.words; }
+  }
   ans.append(cards);
   /* THE ANSWER'S ORDER (B3, fix 8): the four figures; what they rest on,
      once; the assumption they depend on most; the limit, once. The old
@@ -55567,9 +55686,9 @@ VIEWS.property = () => {
       { sub: !m.taxComputed ? 'Annual cash flow ÷ cash required including reserve'
         /* Year 1 is a full year of instalments, or it is not the figure (an auction whose balance falls due after its holding months). */
         : Math.abs(num0(m.path?.[0]?.debt) - num0(m.annualDebtService)) < 0.005 ? 'Year 1’s cash flow before tax ÷ cash required including reserve'
-        : 'A full year’s cash flow before tax, 12 instalments, ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+        : 'A full year’s cash flow before tax, 12 instalments, ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? null : '--dn-text' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
-      { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
+      { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? null : '--dn-text' })));
     inv.append(ig);
     const kv = el('dl', { class: 'kv' });
     [['Gross annual rent', fmtAmount(m.grossAnnualRent, 'MYR')],
@@ -72178,7 +72297,32 @@ const PF_STEPS = [
   { id: 'compare', label: 'Compare' },
   { id: 'save', label: 'Save' },
 ];
-const PF_STEP_OF = { areas: 'explore', areaMap: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'evidence', propertyModels: 'save' };
+const PF_STEP_OF = { areas: 'explore', areaMap: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'analyse', propertyModels: 'save' };
+/* THE STEP THE CALCULATOR MARKS (the owner, 16 Nov 2026: "ensure the
+   highlighted stage matches the activity being performed"). It marked
+   Evidence always, over a reader typing a price into the Quick model. It
+   marks Analyse, as the Lab does, and Evidence only where the reader asked
+   for the evidence: the Evidence step pressed, here or from another page,
+   which lands on the review of the figures still the sample's. Analyse
+   pressed here, or the page left, ends that. */
+let pfAtEvidence = false;
+function pfHereOf(view) {
+  if (view !== 'property') { pfAtEvidence = false; return PF_STEP_OF[view]; }
+  if (State.pfLand && State.pfLand.kind === 'calc') pfAtEvidence = true;
+  return pfAtEvidence ? 'evidence' : 'analyse';
+}
+/* The mark moved in place, where the step pressed is on the page it acts on
+   and nothing is redrawn. */
+function pfMark(id) {
+  const flow = document.querySelector('#views .pf-flow');
+  if (!flow) return;
+  flow.dataset.pfHere = id;
+  flow.querySelectorAll('.pf-step').forEach(n => {
+    const on = n.dataset.pfStep === id;
+    n.classList.toggle('is-here', on);
+    if (on) n.setAttribute('aria-current', 'step'); else n.removeAttribute('aria-current');
+  });
+}
 const PF_EXPLORE_PATH = { areas: '/property/areas', areaMap: '/property/areas/map', comparables: '/property/comparables', opportunities: '/property/opportunities' };
 /* The explore page last visited, this tab: where Explore goes back to.
    Before one is visited, the Area screen: the one explore page with
@@ -72313,7 +72457,10 @@ const PF_LAND_PATH = { calc: '/property/calculator', record: '/property/opportun
 function pfEvidenceGo(view) {
   const t = pfEvidenceTarget(view);
   State.pfLand = t;
-  if (view === { calc: 'property', record: 'opportunities', saved: 'propertyModels' }[t.kind]) { pfLand(); return; }
+  if (view === { calc: 'property', record: 'opportunities', saved: 'propertyModels' }[t.kind]) {
+    if (t.kind === 'calc') { pfAtEvidence = true; pfMark('evidence'); }
+    pfLand(); return;
+  }
   navigate(PF_LAND_PATH[t.kind]);
 }
 /* THE LANDING, once the page it goes to is drawn: the review of the sample
@@ -72387,7 +72534,7 @@ function pfLabWords(lab, ev) { return `${ev ? `${ev.words} · ` : ''}${pfLabMove
 /* THE LINE OF STEPS AND THE CONTEXT LINE, drawn above every Property page
    (drawPage, 35-ui.js). */
 function propertyFlowNode(view = State.view) {
-  const here = PF_STEP_OF[view];
+  const here = pfHereOf(view);
   if (!here) return null;
   if (here === 'explore') pfExplore = PF_EXPLORE_PATH[view];
   const ctx = pfContext();
@@ -72406,6 +72553,15 @@ function propertyFlowNode(view = State.view) {
     return el('li', { class: 'pf-li' }, el('button', { ...attrs, type: 'button',
       onclick: () => {
         if (s.id === 'evidence') { pfEvidenceGo(view); return; }
+        /* On the calculator, Analyse is the model on this page: back to its
+           first figure from the evidence, never away to the Lab (Compare
+           and the tab row go there). */
+        if (s.id === 'analyse' && view === 'property') {
+          pfAtEvidence = false; pfMark('analyse');
+          const t = document.getElementById('pc-quick') || document.querySelector('#views .pc-page');
+          if (t) lsGoTo(t);
+          return;
+        }
         if (toModels) { navigate('/property/models'); return; }
         /* On the Lab itself: the comparison, or its Save, where they are —
            and, with nothing to save there, the saved properties. */
@@ -78006,7 +78162,9 @@ const DOCKS = {
       figs: [
         { label: cashPartial(m) ? 'Cash required — partial' : short ? 'Cash required so far' : 'Cash required', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
         { label: 'Monthly position', value: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : null,
-          tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : '--ok-text' },
+          /* A monthly position above nil is not good news to be coloured (the
+             owner, 16 Nov 2026): only a shortfall takes a tone. */
+          tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null },
         { label: g.verdict || 'Grade', value: g.grade },
       ],
       blocker: worst ? worst.text : null,

@@ -823,7 +823,9 @@ const DOCKS = {
       figs: [
         { label: cashPartial(m) ? 'Cash required — partial' : short ? 'Cash required so far' : 'Cash required', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
         { label: 'Monthly position', value: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : null,
-          tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : '--ok-text' },
+          /* A monthly position above nil is not good news to be coloured (the
+             owner, 16 Nov 2026): only a shortfall takes a tone. */
+          tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null },
         { label: g.verdict || 'Grade', value: g.grade },
       ],
       blocker: worst ? worst.text : null,

@@ -5891,9 +5891,9 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 @media (min-width: 1024px) {
   :root { --ls-hero: 56px; --ls-title: 36px; --ls-section: 24px; --ls-metric: 30px; --ls-meta: 13px; --ls-concept: 40px; }
 }
-@media (min-width: 1440px) {
-  :root { --ls-hero: 64px; }
-}
+/* The hero's type stops at 56px (the owner, 16 Nov 2026): at 64px the
+   headline ran to three lines on a wide desk and pushed the three tools down
+   the first screen. */
 
 /* ---------------------------------------------- the page's type, on tokens */
 /* The shared classes a page on the system carries, set on the scale. */
@@ -7588,7 +7588,8 @@ input.au-in[type="text"] { text-align: left; }
    height. */
 .pub-home .pub-hero {
   background: var(--graphite);
-  padding: var(--xxl) var(--md) var(--xxxl);
+  /* A shorter field (the owner, 16 Nov 2026): the tools come sooner. */
+  padding: var(--xl) var(--md) var(--xxl);
   box-shadow: 0 0 0 100vmax var(--graphite);
   clip-path: inset(0 -100vmax);
   /* Up to the header and its notice: the page's own top padding (.view). */
@@ -7602,7 +7603,9 @@ input.au-in[type="text"] { text-align: left; }
 }
 .pub-home .pub-h1 { color: #fff; }
 .pub-home .pub-lede { color: var(--ink-2); }
-@media (max-width: 760px) { .pub-home .pub-hero { padding: var(--xl) var(--xs) var(--xxl); } }
+@media (max-width: 760px) { .pub-home .pub-hero { padding: var(--lg) var(--xs) var(--xl); } }
+/* Two lines on a desk, not three. */
+@media (min-width: 1024px) { .pub-home .pub-h1 { max-width: 17em; } }
 @media (max-width: 640px) { .pub-home .pub-hero { margin-top: calc(var(--lg) * -1); } }
 
 /* What a route or a list cannot yet do, said apart from what it can (the owner,
@@ -7639,3 +7642,65 @@ input.au-in[type="text"] { text-align: left; }
 .lab-acts .lab-stage::before { counter-increment: lab-stage; content: counter(lab-stage); display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 8px; border-radius: 50%; font-size: var(--ls-meta); font-weight: var(--weight-semibold); background: color-mix(in srgb, currentColor 16%, transparent); }
 .lab-acts .lab-act-after { color: var(--ink-2); }
 @media (max-width: 760px) { .lab-acts #lab-act-save { display: none; } }
+
+
+/* ==========================================================================
+   THE FOCUSED WORKSPACE (the owner, 16 Nov 2026): "the sidebar, product
+   tabs, workflow steps and model controls compete before the input fields."
+   On a desk the calculator's first figure stood 696px down a 900px screen:
+   under the tab row came the steps, a line of context in a box of its own,
+   the heading, two notes, a full-width card of save controls and the
+   Quick | Full switch.
+
+   - The steps and their line of context are one row where the line fits
+     beside them, and the line is plain text there, not a second box.
+   - The save controls are a narrow panel beside the heading (1200px up) or
+     one compact row (1024px to 1199px): the property's name and whether it
+     is saved, the actions, and the backup sentence, all still in sight.
+     Nothing is removed and no id changes. On a phone the bar already
+     follows the model (QT-003, above).
+   ========================================================================== */
+@media (min-width: 1024px) {
+  .pf-flow[data-pf-view="property"] { gap: var(--xs) var(--md); margin-bottom: var(--sm); }
+  .pf-flow[data-pf-view="property"] > .pf-ctx { flex: 1 1 auto; min-height: 32px; padding: 0 0 0 var(--md); border: 0; border-left: 1px solid var(--line); border-radius: 0; background: none; box-shadow: none; }
+  .pf-flow[data-pf-view="property"] > .pf-ctx.is-unsaved { border-left-color: var(--bronze); }
+
+  .pc-page > .pm-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ls-within) var(--lg); padding: var(--sm) var(--md); }
+  .pc-page > .pm-bar > * { grid-column: 1 / -1; min-width: 0; }
+  .pc-page > .pm-bar > .pm-bar-hd { grid-column: 1; }
+  .pc-page > .pm-bar > .pm-acts { grid-column: 2; grid-row: 1; justify-content: flex-end; }
+  .pc-page > .pm-bar .pm-status { font-size: var(--ls-support); line-height: 20px; }
+  .pc-page > .pm-bar > .pm-backup { font-size: var(--ls-meta); line-height: 20px; }
+}
+@media (min-width: 1200px) {
+  .pc-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: var(--lg); align-items: start; }
+  .pc-page > * { grid-column: 1 / -1; min-width: 0; }
+  .pc-page > .page-hd, .pc-page > .pc-more-page, .pc-page > .pc-claim { grid-column: 1; }
+  .pc-page > .pm-bar { grid-column: 2; grid-row: 1 / span 3; align-self: start; grid-template-columns: minmax(0, 1fr); gap: var(--ls-related); padding: var(--md); margin-bottom: var(--md); }
+  .pc-page > .pm-bar > .pm-bar-hd, .pc-page > .pm-bar > .pm-acts { grid-column: 1; grid-row: auto; }
+  .pc-page > .pm-bar > .pm-acts { justify-content: flex-start; }
+}
+
+/* ONE BADGE LANGUAGE FOR WHOSE A FIGURE IS (the owner, 16 Nov 2026). A
+   result wore the kind badge — a bronze ring and "Illustrative", a disc and
+   "Yours" — while the box that produced it wore a plain pill reading
+   "Default" or "Yours". The input's tag takes the same two shapes, so the
+   ring beside a box and the ring beside its result are seen to be one
+   thing. Its words stay (the 30 Oct 2026 audit). */
+.lab-tag[data-own]::before { content: ''; display: inline-block; box-sizing: border-box; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; background: currentColor; }
+.lab-tag[data-own="default"]::before { background: none; border: 1.5px solid currentColor; }
+
+/* WHAT THE LAST FIGURE TYPED CHANGED (pcChangeLine): a sentence over the
+   four figures and a mark on each that moved. Ink and the page's line
+   colour only: never the green or red of a gain or a loss. The one motion
+   is a wash over a recalculated card that fades once (opacity); the mark
+   and the sentence stay put while they are read. */
+.pc-q-change { margin: var(--ls-related) 0 0; padding: var(--ls-related) var(--sm); max-width: var(--ls-measure); border-left: 2px solid var(--line-2); background: var(--surface-sunk); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--ink-2); }
+.pc-q-change strong { color: var(--ink); font-weight: var(--weight-semibold); }
+.pc-q-cards > .panel.is-updated { position: relative; }
+/* The mark stands in the card's own flow, after its kind badge: over the
+   label it covered the label's last words on a phone. */
+.pc-q-upd { display: inline-block; margin: var(--ls-related) 0 0 var(--ls-related); padding: 0 8px; vertical-align: middle; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface-2);
+  font-size: var(--ls-meta); font-weight: var(--weight-semibold); line-height: 18px; color: var(--ink-2); }
+.pc-q-cards > .panel.is-updated::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: var(--brand-wash); opacity: 0; animation: pc-upd 900ms ease-out 1; }
+@keyframes pc-upd { from { opacity: .7; } to { opacity: 0; } }

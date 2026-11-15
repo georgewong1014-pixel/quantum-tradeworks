@@ -4710,7 +4710,10 @@ const HOME_PAGE = read(HOME);
 {
   const B = await import('./build.mjs');
   const all = B.allOf, attr = B.attrOf, sight = B.sightText;
-  const WANT = { '/property': ['analyse', 'lab'], '/property/calculator': ['evidence', 'calc'], '/property/models': ['save', 'calc'],
+  /* The calculator marks Analyse, as the Lab does (the owner, 16 Nov 2026:
+     the highlighted stage matches the activity): Evidence is marked there
+     only once the Evidence step is pressed, which no served page has had. */
+  const WANT = { '/property': ['analyse', 'lab'], '/property/calculator': ['analyse', 'calc'], '/property/models': ['save', 'calc'],
     '/property/opportunities': ['explore', 'calc'], '/property/comparables': ['explore', 'calc'], '/property/areas': ['explore', 'calc'], '/property/areas/map': ['explore', 'calc'] };
   const STEPS = 'Explore Analyse Evidence Compare Save';
   const p = [], said = [];
