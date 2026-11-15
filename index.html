@@ -47381,7 +47381,22 @@ function propertyModelBar(d = State.deal) {
   const primary = st.kind !== 'model' || st.dirty
     ? el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => pmSaveProperty({ key: 'bar-save', returnId: 'wb-property-save' }) },
       st.kind === 'model' && st.sc ? 'Save this scenario' : 'Save this property')
-    : el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => goToPropertySection('scenarios', { focus: '#pm-sc-title' }) }, 'Compare scenarios');
+    /* The scenarios are a section of the full model. In the Quick model that
+       section is not on the page, so the press did nothing at all: the one
+       primary action after a save, under a line that says "compare
+       scenarios" (found 15 Nov 2026 on a first-time walk-through). It opens
+       the full model first, as the phone bar's Compare does (ls-act-compare).
+       The full model is several screens longer and its upper sections grow
+       as they are drawn, so the arrival is at once and is taken again two
+       frames later: a single smooth scroll stopped a screen short, with the
+       scenarios at the foot of the window behind the summary bar. */
+    : el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => {
+      const opened = !pcViewIsFull();
+      if (opened) pcSwitchView(true);
+      goToPropertySection('scenarios', { focus: '#pm-sc-title', instant: opened });
+      if (opened) requestAnimationFrame(() => requestAnimationFrame(() =>
+        document.getElementById('pm-sc-title')?.scrollIntoView({ block: 'start', behavior: 'instant' })));
+    } }, 'Compare scenarios');
   acts.append(primary);
   if (st.kind === 'model') {
     /* Offered for changes not saved: an open scenario with none is already

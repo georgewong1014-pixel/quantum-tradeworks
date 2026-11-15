@@ -10314,6 +10314,54 @@ try {
     if (p.length) fail('property name form: Save this property asks in the page, never with a native prompt', p);
     else ok('property name form: src/js/71-property-models.js calls no prompt(); Save this property opens the in-page form with the name focused, pre-filled and selected, keeps typed text across a redraw, cancels on Escape (focus back on the button) and saves under the typed name on Enter, with no native dialog');
   }
+  /* COMPARE SCENARIOS FROM THE QUICK MODEL (found 15 Nov 2026 on a first-time
+     walk-through with a real mouse). "Model a property" opens the Quick
+     model; once the property is saved the bar's one primary action reads
+     "Compare scenarios", under a line that says to compare scenarios. The
+     scenarios are a section of the full model, which the Quick model does
+     not draw, so the press did nothing at all. Held here: from the Quick
+     model the press opens the full model at the property's scenarios, the
+     keyboard on their heading and the heading in the upper half of the
+     window, with the saved figures untouched. */
+  {
+    const p = [];
+    const r = JSON.parse(await evaluate(`(async () => { const w = (ms) => new Promise(r => setTimeout(r, ms)); const out = {};
+      const keepDeal = JSON.stringify(State.deal), keepWork = JSON.stringify(loadWork());
+      newPropertyDeal({ show: false }); State.deal.price = 463000; markTouched(State.deal, 'price'); saveDeal();
+      setPropertyView(false); navigate('/property/calculator'); render(); await w(600);
+      out.quick = new URLSearchParams(location.search).get('view') !== 'full';
+      document.getElementById('wb-property-save')?.click(); await w(300);
+      const i = document.getElementById('pm-name-input');
+      if (i) { i.value = 'Model-test compare from quick'; i.dispatchEvent(new Event('input', { bubbles: true })); i.form.querySelector('button').click(); await w(500); }
+      const b = document.getElementById('wb-property-save');
+      out.label = b ? b.textContent.trim() : null;
+      out.priceBefore = State.deal.price;
+      if (b) b.click();
+      await w(900);
+      const t = document.getElementById('pm-sc-title');
+      out.full = new URLSearchParams(location.search).get('view') === 'full';
+      out.section = !!document.getElementById('scenarios');
+      out.focus = document.activeElement?.id || null;
+      out.top = t ? Math.round(t.getBoundingClientRect().top) : null;
+      out.vh = innerHeight;
+      out.title = t ? t.textContent : null;
+      out.priceAfter = State.deal.price;
+      out.box = document.getElementById('d-price')?.value || null;
+      persistWork(JSON.parse(keepWork)); State.deal = JSON.parse(keepDeal); saveDeal();
+      setPropertyView(false); render(); await w(300);
+      return JSON.stringify(out); })()`));
+    if (!r.quick) p.push('the calculator did not open in the Quick model, so the press was not made from it');
+    if (r.label !== 'Compare scenarios') p.push(`after the save the bar's primary action reads “${r.label}”, not “Compare scenarios”`);
+    else {
+      if (!r.full || !r.section) p.push(`the press left the Quick model on screen, with no scenarios to compare: ${JSON.stringify({ full: r.full, section: r.section })}`);
+      if (r.focus !== 'pm-sc-title') p.push(`the keyboard is on “${r.focus}”, not the scenarios’ heading`);
+      if (!(typeof r.top === 'number' && r.top >= 0 && r.top <= r.vh / 2)) p.push(`the scenarios’ heading is at ${r.top}px of a ${r.vh}px window, not in its upper half`);
+      if (!/Model-test compare from quick/.test(r.title || '')) p.push(`the heading reads “${r.title}”, not the saved property’s scenarios`);
+      if (r.priceBefore !== 463000 || r.priceAfter !== 463000 || r.box !== '463000') p.push(`the saved price did not survive the press: ${JSON.stringify({ before: r.priceBefore, after: r.priceAfter, box: r.box })}`);
+    }
+    if (p.length) fail('compare from the Quick model: the saved property’s “Compare scenarios” opens its scenarios', p);
+    else ok('compare from the Quick model: after a save the bar’s “Compare scenarios” opens the full model at “Scenarios of …”, the keyboard on that heading and the heading in the upper half of the window, with the saved price as typed');
+  }
   /* THE INVESTOR REPORT ASKS ONE QUESTION (the owner, 15 Nov 2026). The report
      views and prints free in this browser; under it, in either state, one
      line asks who would read it and what it lacks, and opens the feedback
