@@ -4928,8 +4928,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "aff6085b5589cc62",
-      "changed": "2026-11-13"
+      "digest": "0f43c4f50ac5fe06",
+      "changed": "2026-11-16"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -4946,7 +4946,7 @@
         ]
       },
       "inert": {
-        "buttons": 67,
+        "buttons": 68,
         "fields": 4,
         "choices": 0,
         "roles": 0,
@@ -4957,8 +4957,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "80370e34866df9b6",
-      "changed": "2026-11-13"
+      "digest": "469d40d7700a7cc2",
+      "changed": "2026-11-16"
     },
     "pages/property/areas/map.html": {
       "path": "/property/areas/map",
@@ -4975,7 +4975,7 @@
         ]
       },
       "inert": {
-        "buttons": 87,
+        "buttons": 88,
         "fields": 1,
         "choices": 0,
         "roles": 0,
@@ -4986,8 +4986,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3a029ea8838b4d94",
-      "changed": "2026-11-13"
+      "digest": "cb6af0a674d8acde",
+      "changed": "2026-11-16"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -5004,7 +5004,7 @@
         ]
       },
       "inert": {
-        "buttons": 16,
+        "buttons": 17,
         "fields": 14,
         "choices": 1,
         "roles": 0,
@@ -5015,8 +5015,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "fe78a4d6e885d2db",
-      "changed": "2026-11-15"
+      "digest": "03a202e1dcff10da",
+      "changed": "2026-11-16"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -5033,7 +5033,7 @@
         ]
       },
       "inert": {
-        "buttons": 12,
+        "buttons": 13,
         "fields": 6,
         "choices": 8,
         "roles": 0,
@@ -5044,8 +5044,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "01679f54216502bf",
-      "changed": "2026-11-13"
+      "digest": "ac14968c9f16db9a",
+      "changed": "2026-11-16"
     },
     "pages/property/market.html": {
       "path": "/property/market",
@@ -5091,7 +5091,7 @@
         ]
       },
       "inert": {
-        "buttons": 8,
+        "buttons": 9,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -5102,8 +5102,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a499fcb510472220",
-      "changed": "2026-11-13"
+      "digest": "496f8a3eba00850c",
+      "changed": "2026-11-16"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
@@ -5120,7 +5120,7 @@
         ]
       },
       "inert": {
-        "buttons": 7,
+        "buttons": 8,
         "fields": 8,
         "choices": 0,
         "roles": 0,
@@ -5131,8 +5131,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "db843e4fb0d9b882",
-      "changed": "2026-11-13"
+      "digest": "573d2f33131f32d0",
+      "changed": "2026-11-16"
     },
     "pages/research.html": {
       "path": "/research",

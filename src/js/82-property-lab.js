@@ -1738,7 +1738,7 @@ function labGoTo(what) {
   if (!P) return false;
   if (what === 'compare') {
     const r = P.node.querySelector(`input[name="${labId(P, 'lens')}"]:checked`) || P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`);
-    if (r) { lsGoTo(r.closest('.lab-xr, .lab-cmp-card'), r); return true; }
+    if (r) { lsGoTo(r.closest('.lab-xr, .lab-cmp-card'), r); pfComparedNow(); return true; }
   }
   if (what === 'save') {
     const b = document.getElementById(labId(P, 'id-save'));

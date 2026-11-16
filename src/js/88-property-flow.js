@@ -83,6 +83,26 @@
    the calculator keeps its context line. Every rule is the window's
    (styles.css, property-flow): the page served before the script is the
    page drawn.
+
+   ONE NAVIGATION, ONE PROGRESS INDICATOR (the owner's decision, 16 Nov
+   2026: "The tab row remains the primary navigation. Convert the five-step
+   strip into a compact progress indicator showing: You are here — current
+   stage; Next — recommended action; Progress — completed steps"). The five
+   steps are drawn as a progress track, not a second row of tabs:
+     - the step of the page on screen reads "You are here: …";
+     - each step whose outcome the site can see is ticked, and the track
+       ends in a count, "N of 5 done" (pfDoneOf says what "done" is, each
+       from state the site holds — never a judgement of the property);
+     - the context line carries one recommended action, "Next" (pfNextOf):
+       Resume in the Lab while it holds moves not saved, else the first of
+       Evidence, Compare and Save not yet done. It does what that step
+       does — it presses it.
+   Nothing a step did is removed: each still answers a press, so the
+   Evidence landing, the Lab's comparison and its Save are reached as
+   before. The Lab keeps its own numbered stages 1-2-3 as its next action
+   and carries no "Next" in its line. Under 640px the track is the same
+   line of 44px chips, ticked, and "Next" is not drawn (the Lab and the
+   calculator carry Analyse · Compare · Save in their bar there).
    ========================================================================== */
 const PF_STEPS = [
   { id: 'explore', label: 'Explore' },
@@ -116,6 +136,99 @@ function pfMark(id) {
     n.classList.toggle('is-here', on);
     if (on) n.setAttribute('aria-current', 'step'); else n.removeAttribute('aria-current');
   });
+}
+/* WHAT "DONE" IS, step by step, for the property the line names — each a
+   fact the site holds, said in the step's title:
+     Explore   an explore page was opened on this visit (this tab's memory),
+               and the reader has moved on from it;
+     Analyse   at least one of the figures the review counts is the
+               reader's (or the record's), not the sample's;
+     Evidence  none of them is the sample's any longer;
+     Compare   the Lab's comparison was opened on this visit (labGoTo);
+     Save      it is saved as a property, with no change and no move in the
+               Lab left unsaved.
+   Nothing here reads a result: no figure makes a step done. */
+let pfExplored = false, pfCompared = false;
+const PF_DONE_MEANS = {
+  explore: 'an explore page opened on this visit',
+  analyse: 'at least one figure is yours, not the sample’s',
+  evidence: 'no sample figure left to review',
+  compare: 'the comparison opened on this visit',
+  save: 'saved as a property, with nothing unsaved',
+};
+function pfSavedBase(k) {
+  if (!k) return false;
+  if (k.kind === 'saved') return true;
+  if (k.kind !== 'calc') return false;
+  const st = propertyStatus(State.deal);
+  return st.kind === 'model' && !st.dirty;
+}
+function pfDoneOf(view, { ev = null, moves = 0, savedBase = false } = {}) {
+  return {
+    explore: pfExplored && PF_STEP_OF[view] !== 'explore',
+    analyse: !!ev && ev.n < ev.of,
+    evidence: !!ev && ev.n === 0,
+    compare: pfCompared,
+    save: savedBase && !moves,
+  };
+}
+const pfDoneCount = (done) => PF_STEPS.filter(s => done[s.id]).length;
+const pfDoneWords = (done) => `${pfDoneCount(done)} of ${PF_STEPS.length} done`;
+const pfDoneNames = (done) => PF_STEPS.filter(s => done[s.id]).map(s => s.label).join(', ');
+const pfStepTitle = (s, done) => `${s.label} — ${done[s.id] ? 'done' : 'not done yet'}: ${PF_DONE_MEANS[s.id]}`;
+/* THE ONE RECOMMENDED ACTION for a page's line (null on the Lab, whose
+   numbered stages are its own): the step it presses, and its words. No
+   figure in them — the line carries a count and never one (served-check). */
+function pfNextOf(view, line, done) {
+  if (!line || line.where === 'lab') return null;
+  if (line.resume) return { id: 'resume' };
+  if (!done.evidence) {
+    const t = pfEvidenceTarget(view);
+    return { id: 'evidence', label: t.kind === 'record' ? 'Check the record’s source' : t.kind === 'saved' ? 'Open the saved property' : 'Review the sample figures' };
+  }
+  if (!done.compare) return { id: 'compare', label: 'Compare scenarios' };
+  if (!done.save) return { id: 'save', label: 'Save this property' };
+  return { id: 'none' };
+}
+/* Next does what its step does: it presses it. Save on the calculator is
+   the calculator's own Save, in sight and given the keyboard. */
+function pfNextGo(view, id) {
+  if (id === 'save' && view === 'property') {
+    const b = document.getElementById('wb-property-save');
+    if (b && b.getClientRects().length) { lsGoTo(b.closest('.pm-bar') || b, b); return; }
+  }
+  document.getElementById(`pf-${id}`)?.click();
+}
+/* THE TRACK, WRITTEN IN PLACE where the page is not redrawn (the Lab's
+   paint; the comparison opened): each tick, each title and the count, only
+   where it differs. */
+function pfProgressPaint(done) {
+  const flow = document.querySelector('#views .pf-flow');
+  if (!flow) return;
+  PF_STEPS.forEach(s => {
+    const n = document.getElementById(`pf-${s.id}`);
+    if (!n) return;
+    const on = !!done[s.id];
+    if (n.classList.contains('is-done') !== on) { n.classList.toggle('is-done', on); n.title = pfStepTitle(s, done); }
+  });
+  const c = document.getElementById('pf-count');
+  if (c && c.dataset.done !== String(pfDoneCount(done))) {
+    c.dataset.done = String(pfDoneCount(done));
+    c.replaceChildren(...pfCountKids(done));
+  }
+}
+const pfCountKids = (done) => [pfDoneWords(done), pfDoneCount(done) ? el('span', { class: 'sr-only' }, `: ${pfDoneNames(done)}`) : null].filter(Boolean);
+/* The comparison opened (labGoTo, 82-property-lab.js): Compare is done for
+   this visit, and the track on screen says so. */
+function pfComparedNow() {
+  if (pfCompared) return;
+  pfCompared = true;
+  const flow = document.querySelector('#views .pf-flow');
+  if (!flow) return;
+  const done = {};
+  PF_STEPS.forEach(s => { done[s.id] = !!document.getElementById(`pf-${s.id}`)?.classList.contains('is-done'); });
+  done.compare = true;
+  pfProgressPaint(done);
 }
 const PF_EXPLORE_PATH = { areas: '/property/areas', areaMap: '/property/areas/map', comparables: '/property/comparables', opportunities: '/property/opportunities' };
 /* The explore page last visited, this tab: where Explore goes back to.
@@ -213,21 +326,22 @@ function pfLineOf(view) {
     if (!lab) return null;
     const col = labActive(lab);
     const mv = pfLabMovesWords(lab);
-    return { where: 'lab', ev: pfEvidenceOf(pfKept(lab, col)), moves: mv.n, movesWords: mv.words };
+    const k = pfKept(lab, col);
+    return { where: 'lab', k, ev: pfEvidenceOf(k), moves: mv.n, movesWords: mv.words };
   }
   if (view !== 'property' && ctx) {
     const col = labActive(ctx.lab), k = pfKept(ctx.lab, col);
     /* How it is bought and what it is: the column's, its answers given in
        the Lab with it (a what-if, said as one by the moves beside it). */
     const asked = k ? { ...k.d, ...(col.inherited || {}), ...col.moves } : col.work;
-    return { where: 'work', what: ['In the Lab: ', el('strong', { class: 'pf-name' }, ctx.name), ...(ctx.other ? [', sliders on ', el('span', { class: 'pf-name' }, ctx.other)] : [])],
+    return { where: 'work', k, what: ['In the Lab: ', el('strong', { class: 'pf-name' }, ctx.name), ...(ctx.other ? [', sliders on ', el('span', { class: 'pf-name' }, ctx.other)] : [])],
       title: `${ctx.name}${ctx.other ? `, sliders on ${ctx.other}` : ''}`, route: pqSummaryText(asked), ev: pfEvidenceOf(k),
       moves: ctx.moves, movesWords: pfMovesWords(ctx.moves), resume: ctx };
   }
   /* The calculator's deal: the sample deal on a first visit. */
   const st = propertyStatus(State.deal);
   const name = st.kind === 'model' ? `“${st.rec.name}”${st.sc ? ` — ${st.sc.name}` : ''}` : st.kind === 'sample' ? 'The sample deal' : 'The deal on the calculator';
-  const line = { where: 'calc', what: [el('strong', { class: 'pf-name' }, name)], title: name,
+  const line = { where: 'calc', k: { d: State.deal, kind: 'calc' }, what: [el('strong', { class: 'pf-name' }, name)], title: name,
     route: pqSummaryText(State.deal), ev: pfEvidenceOf({ d: State.deal, kind: 'calc' }) };
   /* The Lab's moves not saved, from the calculator: said while there are any. */
   if (ctx && ctx.moves) Object.assign(line, { moves: ctx.moves, movesWords: `In the Lab: ${pfMovesWords(ctx.moves)}`, resume: ctx });
@@ -287,17 +401,25 @@ const pfPlain = (e) => !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.b
 const pfSep = () => el('span', { class: 'pf-sep', 'aria-hidden': 'true' }, ' · ');
 /* The context line itself, for a page's parts (pfLineOf). Every part has
    its id, so the Lab's paint writes the two that change there in place. */
-function pfLineNode(line) {
+function pfLineNode(line, next = null, view = State.view) {
   const parts = [];
   if (line.what) parts.push(el('span', { class: 'pf-seg pf-ctx-what', id: 'pf-ctx-what', title: line.title || null }, line.what));
   if (line.route) parts.push(el('span', { class: 'pf-seg pf-ctx-route', id: 'pf-ctx-route' }, line.route));
   if (line.ev) parts.push(el('span', { class: 'pf-seg pf-ctx-ev', id: 'pf-ctx-ev', 'data-sample': String(line.ev.n), 'data-of': String(line.ev.of) }, line.ev.words));
   if (line.movesWords) parts.push(el('span', { class: 'pf-seg pf-ctx-state', id: 'pf-unsaved', 'data-unsaved': String(line.moves || 0) }, line.movesWords));
   const text = el('p', { class: 'pf-ctx-text' }, parts.flatMap((p, i) => (i ? [pfSep(), p] : [p])));
-  const act = line.resume
+  const resume = line.resume
     ? el('button', { type: 'button', class: 'btn btn-ghost btn-sm pf-resume', id: 'pf-resume', onclick: () => pfToLab(line.resume) },
       ['Resume in the Lab', el('span', { 'aria-hidden': 'true' }, ' →')])
-    : line.where === 'lab' ? pfSaveButton(line.moves) : null;
+    : null;
+  /* "Next": the one recommended action, where the Lab's Save is not the
+     line's action (pfNextOf). */
+  const nextKid = !next ? null : next.id === 'resume' ? resume
+    : next.id === 'none' ? el('span', { class: 'pf-next-none', id: 'pf-next-none' }, 'Nothing outstanding')
+    : el('button', { type: 'button', class: 'pf-next-btn', id: 'pf-next', 'data-pf-next': next.id, onclick: () => pfNextGo(view, next.id) },
+      [next.label, el('span', { 'aria-hidden': 'true' }, ' →')]);
+  const act = nextKid ? el('span', { class: 'pf-next' }, [el('span', { class: 'pf-k' }, 'Next'), ' ', nextKid])
+    : resume || (line.where === 'lab' ? pfSaveButton(line.moves) : null);
   return el('div', { class: `pf-ctx${line.moves ? ' is-unsaved' : ''}`, id: 'pf-ctx', 'data-pf-ctx': line.where }, [text, act]);
 }
 /* On the Lab, Save with its moves: the identity line's Save, in sight and
@@ -321,6 +443,10 @@ function pfLabPaint(lab, ev) {
   if (st) { labText(st, mv.words); labAttr(st, 'data-unsaved', mv.n); }
   if (save && save.hidden !== !mv.n) save.hidden = !mv.n;
   labClass(box, 'is-unsaved', mv.n > 0);
+  /* The track: its ticks and its count as the moves and the evidence stand
+     (whether the property is saved was read at the drawing: data-pf-saved). */
+  const flow = box.closest('.pf-flow');
+  if (flow && ev) pfProgressPaint(pfDoneOf('propertyLab', { ev, moves: mv.n, savedBase: flow.dataset.pfSaved === '1' }));
 }
 /* The words the Lab's line beside its sliders carries on a phone. */
 function pfLabWords(lab, ev) { return `${ev ? `${ev.words} · ` : ''}${pfLabMovesWords(lab).words}.`; }
@@ -330,8 +456,11 @@ function pfLabWords(lab, ev) { return `${ev ? `${ev.words} · ` : ''}${pfLabMove
 function propertyFlowNode(view = State.view) {
   const here = pfHereOf(view);
   if (!here) return null;
-  if (here === 'explore') pfExplore = PF_EXPLORE_PATH[view];
+  if (here === 'explore') { pfExplore = PF_EXPLORE_PATH[view]; pfExplored = true; }
   const ctx = pfContext();
+  const line = pfLineOf(view);
+  const savedBase = pfSavedBase(line?.k);
+  const done = pfDoneOf(view, { ev: line?.ev, moves: line?.moves || 0, savedBase });
   const onLab = view === 'propertyLab';
   const unsaved = ctx ? ctx.moves : 0;
   /* Explore is a page — a link. Analyse, Evidence, Compare and Save act on
@@ -341,7 +470,7 @@ function propertyFlowNode(view = State.view) {
   const step = (s) => {
     const save = s.id === 'save', toModels = save && !unsaved && !onLab;
     const current = s.id === here;
-    const attrs = { class: `pf-step${current ? ' is-here' : ''}`, id: `pf-${s.id}`, 'aria-current': current ? 'step' : null, 'data-pf-step': s.id };
+    const attrs = { class: `pf-step${current ? ' is-here' : ''}${done[s.id] ? ' is-done' : ''}`, id: `pf-${s.id}`, 'aria-current': current ? 'step' : null, 'data-pf-step': s.id, title: pfStepTitle(s, done) };
     if (s.id === 'explore') return el('li', { class: 'pf-li' }, el('a', { ...attrs, href: href(pfExplore),
       onclick: (e) => { if (!pfPlain(e)) return; e.preventDefault(); navigate(pfExplore); } }, s.label));
     return el('li', { class: 'pf-li' }, el('button', { ...attrs, type: 'button',
@@ -367,13 +496,13 @@ function propertyFlowNode(view = State.view) {
         pfToLab(ctx, s.id === 'compare' ? 'compare' : save ? 'save' : null);
       } }, s.label));
   };
-  const kids = [el('ol', { class: 'pf-steps' }, PF_STEPS.map(step))];
-  const line = pfLineOf(view);
-  if (line) kids.push(pfLineNode(line));
+  const kids = [el('ol', { class: 'pf-steps' }, [...PF_STEPS.map(step),
+    el('li', { class: 'pf-li pf-count', id: 'pf-count', 'data-done': String(pfDoneCount(done)) }, pfCountKids(done))])];
+  if (line) kids.push(pfLineNode(line, pfNextOf(view, line, done), view));
   /* Where the Evidence step was pressed from another page: its landing,
      once this page is drawn. */
   if (State.pfLand && view === { calc: 'property', record: 'opportunities', saved: 'propertyModels' }[State.pfLand.kind]) setTimeout(pfLand, 0);
-  return el('nav', { class: 'pf-flow', 'aria-label': 'Property: explore, analyse, evidence, compare, save', 'data-pf-view': view, 'data-pf-here': here }, kids);
+  return el('nav', { class: 'pf-flow', 'aria-label': 'Property progress: explore, analyse, evidence, compare, save', 'data-pf-view': view, 'data-pf-here': here, 'data-pf-saved': savedBase ? '1' : '0' }, kids);
 }
 
 /* THE BROWSER'S OWN PROMPT, where the work would be lost: a reload, a closed
