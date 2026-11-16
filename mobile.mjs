@@ -1776,6 +1776,40 @@ for (const w of [360, 390]) {
         }
       }
     }
+    /* IN A WIDE SYSTEM FONT (16 Nov 2026). CI's Linux font found, an hour
+       after they were live, what the page's own font hid: at 1024 the
+       progress track ran 6px past the page, and at 1280 the calculator's
+       one-line lede took two lines beside the save panel. Looking at those
+       found a third that no check measured at all: with a saved property's
+       six actions the compact save row left the property's name a column
+       0px wide, a letter to a line. So the calculator, with the saved
+       property above open and changed, is measured again with Verdana
+       forced — where a reader without the page's font stands. */
+    for (const w of [1024, 1100, 1280, 1366, 1440]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 860, deviceScaleFactor: 1, mobile: false }, sessionId);
+      for (const path of ['/property/calculator', '/property/calculator?view=full']) {
+        await send('Page.navigate', { url: BASE + path }, sessionId);
+        await sleep(1500);
+        const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+          const w = (ms) => new Promise(res => setTimeout(res, ms));
+          for (let i = 0; i < 40 && !(typeof propertyPagesSettled === 'function' && propertyPagesSettled()); i++) await w(150);
+          const st = document.createElement('style'); st.textContent = '* { font-family: Verdana, sans-serif !important; }'; document.head.append(st);
+          await w(400);
+          const hd = document.querySelector('#views .page-hd'), lede = hd && hd.querySelector('.page-lede');
+          const name = document.querySelector('.pc-page > .pm-bar > .pm-bar-hd'), bar = document.querySelector('.pc-page > .pm-bar');
+          return { over: document.documentElement.scrollWidth - innerWidth,
+            lines: lede ? Math.round(lede.getBoundingClientRect().height / parseFloat(getComputedStyle(lede).lineHeight)) : null,
+            name: name ? Math.round(name.getBoundingClientRect().width) : null, bar: bar ? Math.round(bar.getBoundingClientRect().height) : null };
+        })()` }, sessionId);
+        const v = r.result?.result?.value, at = `${w}px in Verdana ${path}`;
+        if (!v) { fails.push(`${at}: could not be measured`); continue; }
+        measured++;
+        if (v.over > 2) fails.push(`${at}: overflows by ${v.over}px`);
+        if (v.lines !== 1) fails.push(`${at}: the lede is ${v.lines === null ? 'missing' : v.lines + ' lines'}, not one line`);
+        if (v.name === null || v.name < 200) fails.push(`${at}: the save controls leave the property's name a column ${v.name}px wide`);
+        if (v.bar === null || v.bar > 700) fails.push(`${at}: the save controls stand ${v.bar}px tall`);
+      }
+    }
     /* The list's heading, which a save from the Not saved card hands the
        keyboard to, shows it has it: its outline was removed with nothing in
        its place. Keyboard first (a Tab), so a scripted focus is a visible one. */
@@ -1791,7 +1825,7 @@ for (const w of [360, 390]) {
       if (!v || !v.fv || ((v.outline === 'none' || !v.ow) && (!v.shadow || v.shadow === 'none'))) fails.push(`1440px /property/models: the list heading given the keyboard shows no focus (${JSON.stringify(v)})`);
     }
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
-    if (!fails.length) console.log(`ok   audit1 property-model: /property/models and the sectioned calculator at 360, 390, 768, 1024 and 1440 (light) and 390 and 1440 (dark), ${measured} pages — no overflow, the bar's, the list's, the scenarios' controls and the section links 44px on a phone, the index one row that scrolls in itself, the three-column comparison in its own scroll box (side by side without one at 1440); every figure on My properties labelled, and its list heading visibly focused`);
+    if (!fails.length) console.log(`ok   audit1 property-model: /property/models and the sectioned calculator at 360, 390, 768, 1024 and 1440 (light) and 390 and 1440 (dark), ${measured} pages — no overflow, the bar's, the list's, the scenarios' controls and the section links 44px on a phone, the index one row that scrolls in itself, the three-column comparison in its own scroll box (side by side without one at 1440); every figure on My properties labelled, and its list heading visibly focused; and in Verdana at 1024, 1100, 1280, 1366 and 1440 the calculator, Quick and Full, with a saved property open and changed: no overflow, a one-line lede, the property's name at least 200px wide beside its save controls`);
   } catch (e) { fails.push(`the checks threw: ${e.message}`); }
   finally {
     const k = JSON.parse(kept.result?.result?.value || '{}');
