@@ -72785,8 +72785,11 @@ function propertyFlowNode(view = State.view) {
         pfToLab(ctx, s.id === 'compare' ? 'compare' : save ? 'save' : null);
       } }, s.label));
   };
+  /* The count is not drawn on the Lab: the Lab's words before its first
+     figure are budgeted (mobile.mjs, lab-words: 184 at 1440), and its ticks
+     and its own numbered stages already say how far the work has got. */
   const kids = [el('ol', { class: 'pf-steps' }, [...PF_STEPS.map(step),
-    el('li', { class: 'pf-li pf-count', id: 'pf-count', 'data-done': String(pfDoneCount(done)) }, pfCountKids(done))])];
+    onLab ? null : el('li', { class: 'pf-li pf-count', id: 'pf-count', 'data-done': String(pfDoneCount(done)) }, pfCountKids(done))])];
   if (line) kids.push(pfLineNode(line, pfNextOf(view, line, done), view));
   /* Where the Evidence step was pressed from another page: its landing,
      once this page is drawn. */
