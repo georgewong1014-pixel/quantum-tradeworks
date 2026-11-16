@@ -30,7 +30,10 @@ handles enquiries by email.
 3. **The email is a notification, never the record.** Its outcome is written
    on the row as `notify_status`: `pending`, `sent`, `failed` or
    `not-configured`. A failed email leaves the enquiry safe in the store; a
-   retry of the same submission tries the email again without a second row.
+   retry of the same submission tries the email again without a second row,
+   and sends the same email under the same key, so the provider cannot send
+   it twice. If the provider refuses the key as a repeat (409), nothing is
+   known about the earlier attempt and the row says `pending`, not `sent`.
 4. **The reference is a label.** `QTE-YYMMDD-XXXX`. Two enquiries can share
    one. The submission ID is the key.
 5. **No files.** A document is sent by email, quoting the reference.
@@ -44,11 +47,24 @@ handles enquiries by email.
 
 Both must be true:
 
-1. `LAUNCH.enquiry.retention` in `src/js/15-derivation.js` holds the sentence
-   saying how long an enquiry is kept. The owner's decision of 16 Nov 2026 is
-   12 months. It is set in source only once the store below is working, so
-   the page never shows a button that answers "not switched on".
-2. The deployment has a store configured.
+1. `LAUNCH.enquiry` in `src/js/15-derivation.js` holds all three things the
+   privacy notice needs:
+   - `retention`: the sentence saying how long an enquiry is kept. The
+     owner's decision of 16 Nov 2026 is 12 months. A person deletes old rows
+     once a month, so a row can live up to a month past that; the proposed
+     sentence, for the owner to confirm, is "An enquiry is kept for 12
+     months, then deleted at the next monthly clear-out."
+   - `storeRegion`: where the Supabase project's servers are, as chosen when
+     the project is created (for example "Singapore").
+   - `mailboxHost`: the company that hosts the mailbox named in
+     `QT_ENQUIRY_TO` (for example "Google").
+
+   They are set in source only once the store below is working, so the page
+   never shows a button that answers "not switched on", and the privacy page
+   never describes an enquiry without saying where it is kept and who holds
+   it.
+2. The deployment has a store configured. A directory (`QT_ENQUIRY_DIR`) is
+   a store on a local server only; on the host it is ignored.
 
 ## Switching it on (the owner's steps)
 
@@ -72,8 +88,10 @@ a key and production settings.
 
 4. **Redeploy**, then open `/api/enquiry` on the site: it should answer
    `"configured": true, "notifies": true`.
-5. **Say so.** The retention sentence is then set in source, the privacy page
-   gains its enquiry paragraphs, and the change is checked and pushed.
+5. **Say so**, with the three details above: the retention sentence, the
+   Supabase region, and who hosts the enquiry mailbox. They are then set in
+   source, the privacy page gains its enquiry paragraphs, and the change is
+   checked and pushed.
 6. **One controlled check**, with made-up details and a reserved test email
    domain: send one enquiry, find its row, see the email, set its owner and
    `logged_at`, then delete the row and the email.
@@ -94,7 +112,7 @@ key and see it refused.
 | 400 | `{ ok: false, error, fields? }` | Unreadable, a filled trap field, a bad submission ID, or a field that fails the rules. |
 | 405, 413, 415 | `{ ok: false, error }` | Wrong method, too large, not JSON. |
 | 429 | `{ ok: false, reason: 'rate-limited' \| 'capped', error }` | A limit was reached. |
-| 502 | `{ ok: false, reason: 'store-failed', error }` | The store did not save. Nothing was sent. |
+| 502 | `{ ok: false, reason: 'store-failed', error }` | The store did not confirm a save. No email was sent. A store that timed out may still hold the row; a retry finds it and makes no second one. |
 | 503 | `{ ok: false, reason: 'not-configured', error }` | No store. |
 
 None of the failures carries a reference.

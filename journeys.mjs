@@ -4221,7 +4221,7 @@ const JOURNEYS = [
        are gated with that reason; DEGRADED only if that build offers the
        form, because then a visitor's path exists that nothing here walked. */
     id: 'enquiry', name: 'Enquiry: sent from the Contact page, a reference only after the store held it, and the record found by its submission',
-    outcomes: ['The form is offered only with its retention sentence, and the privacy page says so with it', 'Customer completion: an enquiry sent from the page, a reference shown, no other program opened', 'Operational completion: the record is found by its submission ID with what the visitor wrote', 'Only the enquiry went: one request, its own fields, nothing from saved work'],
+    outcomes: ['The form is offered only with its retention sentence, and the privacy page says so with it', 'Customer completion: an enquiry sent from the page, a reference shown, no other program opened', 'A send that fails confirms nothing and keeps what was typed', 'Operational completion: the record is found by its submission ID with what the visitor wrote', 'Only the enquiry went: one request, its own fields, nothing from saved work'],
     async run(j, tab) {
       const local = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(new URL(BASE).origin);
       const KEPT = 'An enquiry is kept for a journey’s length and then deleted (a sentence set by the test, not the site’s).';
@@ -4248,6 +4248,7 @@ const JOURNEYS = [
         await step(j, tab, 'Customer completion: an enquiry sent from the page, a reference shown, no other program opened', BUDGET.action, async () => {
           if (shipped && !probe.configured) throw new StepError(`the build offers the enquiry form but the deployment has no store (/api/enquiry answered ${probe.status || 'configured: false'}): a visitor would be told it is not switched on`);
         }, { gated: why });
+        await step(j, tab, 'A send that fails confirms nothing and keeps what was typed', BUDGET.action, async () => {}, { gated: 'no enquiry is sent here, so no failure is staged; proven on the local server in CI' });
         await step(j, tab, 'Operational completion: the record is found by its submission ID with what the visitor wrote', BUDGET.action, async () => {}, { gated: shipped ? 'the owner’s by-hand check (docs/enquiry-submission.md): find the row by its submission ID, set its owner, then delete it' : why });
         await step(j, tab, 'Only the enquiry went: one request, its own fields, nothing from saved work', BUDGET.action, async () => {
           const posts = tab.sent.filter(s => s.method === 'POST' && new URL(s.url).pathname === '/api/enquiry');
@@ -4256,13 +4257,16 @@ const JOURNEYS = [
         if (shipped) j.degrade(why, '/contact');
         return;
       }
+      if (probe.notifies) throw new StepError('the local server has an email key in its environment (QT_ENQUIRY_RESEND_KEY): this journey would send a real email, so it sends nothing — unset the key and run again');
       if (!probe.configured || !probe.dir) throw new StepError(`the local server names no file store (/api/enquiry answered ${JSON.stringify(probe).slice(0, 160)}) — serve.mjs sets QT_ENQUIRY_DIR itself`);
-      await step(j, tab, 'Customer completion: an enquiry sent from the page, a reference shown, no other program opened', BUDGET.load + BUDGET.action * 4, async () => {
-        /* The sentence is set in this page only, as a deployment's source
-           would have it, and the page is drawn again from it. */
+      await step(j, tab, 'A send that fails confirms nothing and keeps what was typed', BUDGET.load + BUDGET.action * 4, async () => {
+        /* The notice's three details are set in this page only, as a
+           deployment's source would have them, and the page is drawn again. */
         await tab.goto('/contact');
-        await tab.eval(`(LAUNCH.enquiry.retention = ${JSON.stringify(KEPT)}, navigate('/privacy'), true)`);
-        await tab.expect(`/\\/api\\/enquiry/.test(document.getElementById('views').innerText) && document.getElementById('views').innerText.includes(${JSON.stringify(KEPT)})`, 'with the sentence set, Privacy does not describe the enquiry form with its retention sentence');
+        await tab.eval(`(Object.assign(LAUNCH.enquiry, { retention: ${JSON.stringify(KEPT)}, storeRegion: 'Testregion', mailboxHost: 'Testmailhost' }), navigate('/privacy'), true)`);
+        await tab.expect(`(t => /\\/api\\/enquiry/.test(t) && t.includes(${JSON.stringify(KEPT)}) && /Supabase hosts in Testregion/.test(t) && /which Testmailhost hosts/.test(t))(document.getElementById('views').innerText)`, 'with the notice’s three details set, Privacy does not describe the enquiry form with its retention sentence, the store’s region and the mailbox’s host');
+        const stale = await tab.eval(`(t => ['which collects nothing on a server', 'this build collects none on a server', 'This build collects none on a server', 'holds nothing about you on a server', 'This build does not read or keep those requests', 'no server-side record of you', 'One form sends something'].filter(x => t.includes(x)))(document.getElementById('views').innerText)`);
+        if (stale.length) throw new StepError(`with the form offered, Privacy still says: “${stale.join('”, “')}”`);
         await tab.eval(`(navigate('/contact'), true)`);
         await tab.expect(`!!document.querySelector('[data-enquiry-open]')`, 'with the sentence set, Contact draws no enquiry button');
         await tab.click(`document.querySelector('[data-enquiry-open]')`, '“Send an enquiry”');
@@ -4272,19 +4276,42 @@ const JOURNEYS = [
         /* Pressed with nothing typed: nothing is sent, and the form says so. */
         from = tab.sent.length;
         await tab.click(`document.querySelector('#drawer [data-enquiry-send]')`, '“Send this enquiry”, with nothing typed');
-        await tab.expect(`/^Not sent yet/.test(document.querySelector('#drawer [data-enquiry-status]')?.textContent || '') && !!document.querySelector('#drawer [aria-invalid]')`, 'an empty form was not refused in the page');
+        await tab.expect(`/^Not sent yet/.test(document.querySelector('#drawer [data-enquiry-status]')?.textContent || '') && document.querySelectorAll('#drawer [aria-invalid="true"]').length >= 3 && document.activeElement?.id === 'enq-topic'`, 'an empty form was not refused in the page with its fields marked invalid and focus on the first');
         if (tab.sent.slice(from).some(s => s.method === 'POST')) throw new StepError('an empty form made a request');
         await tab.choose(`document.getElementById('enq-topic')`, 'property', 'What it is about — Property Intelligence');
         await tab.fill(`document.getElementById('enq-name')`, 'TEST Journey', 'Your name');
         await tab.fill(`document.getElementById('enq-email')`, 'journey@example.test', 'Email address');
         await tab.fill(`document.getElementById('enq-need')`, NEED, 'What you need');
+        /* The store fails, staged in the page: the one request the form
+           makes is answered 502 as the function answers it. No reference,
+           no "received", every answer still in its field, focus back on
+           the button — and nothing reached the server. */
+        from = tab.sent.length;
+        await tab.eval(`(window.__enqFetch = window.fetch, window.fetch = (u, o) => (o && o.method === 'POST'
+          ? Promise.resolve(new Response(JSON.stringify({ ok: false, reason: 'store-failed', error: 'staged' }), { status: 502, headers: { 'content-type': 'application/json' } }))
+          : window.__enqFetch(u, o)), true)`);
+        await tab.click(`document.querySelector('#drawer [data-enquiry-send]')`, '“Send this enquiry”, with the store failing');
+        await tab.expect(`/may not have arrived/.test(document.querySelector('#drawer [data-enquiry-status]')?.textContent || '')`,
+          async () => `a failed send left the form saying “${await tab.eval(`document.querySelector('#drawer [data-enquiry-status]')?.textContent || ''`)}”`, 6000);
+        const f = await tab.eval(`(window.fetch = window.__enqFetch, { title: document.getElementById('drawerTitle')?.textContent.trim(), received: !!document.querySelector('#drawer [data-enquiry-received]'),
+          name: document.getElementById('enq-name')?.value, email: document.getElementById('enq-email')?.value, need: document.getElementById('enq-need')?.value, topic: document.getElementById('enq-topic')?.value,
+          text: document.getElementById('drawer').innerText, focus: document.activeElement?.hasAttribute('data-enquiry-send'), disabled: document.querySelector('#drawer [data-enquiry-send]')?.disabled })`);
+        if (f.received || f.title !== 'Send an enquiry' || /QTE-\d{6}/.test(f.text)) throw new StepError(`a failed send was confirmed: titled “${f.title}”`);
+        if (f.name !== 'TEST Journey' || f.email !== 'journey@example.test' || f.need !== NEED || f.topic !== 'property') throw new StepError(`a failed send lost what was typed: ${JSON.stringify({ name: f.name, email: f.email, topic: f.topic, need: (f.need || '').slice(0, 40) })}`);
+        if (!f.focus || f.disabled) throw new StepError('after a failed send the Send button is not focused and ready to press again');
+        if (tab.sent.slice(from).some(s => s.method === 'POST')) throw new StepError('the staged failure reached the server');
+      });
+      await step(j, tab, 'Customer completion: an enquiry sent from the page, a reference shown, no other program opened', BUDGET.action * 3, async () => {
+        /* Sent again with the same answers: the retry a visitor would make. */
         from = tab.sent.length;
         await tab.click(`document.querySelector('#drawer [data-enquiry-send]')`, '“Send this enquiry”');
         await tab.expect(`/^Enquiry received — reference QTE-\\d{6}-[2-9A-HJKMNP-Z]{4}$/.test(document.getElementById('drawerTitle')?.textContent.trim() || '')`,
           async () => `sending left the drawer titled “${await tab.eval(`document.getElementById('drawerTitle')?.textContent.trim() || ''`)}” saying “${await tab.eval(`document.querySelector('#drawer [data-enquiry-status]')?.textContent || ''`)}”`, 8000);
-        const r = await tab.eval(`({ ref: document.querySelector('#drawer [data-enquiry-received]')?.getAttribute('data-enquiry-received') || null, text: document.getElementById('drawer').innerText, where: location.pathname })`);
+        const r = await tab.eval(`({ ref: document.querySelector('#drawer [data-enquiry-received]')?.getAttribute('data-enquiry-received') || null, text: document.getElementById('drawer').innerText, where: location.pathname,
+          focus: document.activeElement?.hasAttribute('data-enquiry-received') })`);
         reference = r.ref;
         if (!reference) throw new StepError('the confirmation carries no reference');
+        if (!r.focus) throw new StepError('focus was dropped when the form was replaced by the confirmation');
         if (!/not been read yet/.test(r.text) || !/no reply time is promised/.test(r.text) || !/not an order/.test(r.text)) throw new StepError(`the confirmation does not say it is unread, unpromised and not an order: “${r.text.replace(/\s+/g, ' ').slice(0, 200)}”`);
         if (r.where !== '/contact') throw new StepError(`the page moved to ${r.where}: another page or program was opened`);
       });

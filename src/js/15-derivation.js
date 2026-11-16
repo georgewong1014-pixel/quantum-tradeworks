@@ -450,14 +450,20 @@ const LAUNCH = {
      only. Empty means no submission control is ever drawn. */
   reportEndpoint: '/api/report',
   /* The enquiry form (67-enquiry.js, api/enquiry.mjs). It is offered only
-     when `retention` holds the sentence saying how long an enquiry is kept
-     AND the deployment answers that its store is configured. The owner's
-     decision of 16 Nov 2026 is 12 months; the sentence is written here only
-     once the store is working (docs/enquiry-submission.md), so the page
-     never draws a button that answers "not switched on" and never collects
-     a name before the notice says how long it is kept. Tests set it at run
-     time, never in source. */
-  enquiry: { endpoint: '/api/enquiry', retention: '' },
+     when all three of these are filled in AND the deployment answers that
+     its store is configured:
+       retention    the sentence saying how long an enquiry is kept (the
+                    owner's decision of 16 Nov 2026 is 12 months);
+       storeRegion  where the store's servers are, as the privacy page will
+                    say it after "in": e.g. "Singapore";
+       mailboxHost  the company hosting the mailbox the notice is sent to,
+                    as the privacy page will name it: e.g. "Google".
+     They are written here only once the store is working
+     (docs/enquiry-submission.md), so the page never draws a button that
+     answers "not switched on" and never collects a name before the notice
+     can say how long it is kept, where, and who holds it. Tests set them at
+     run time, never in source. */
+  enquiry: { endpoint: '/api/enquiry', retention: '', storeRegion: '', mailboxHost: '' },
 };
 const waitlistReady = () => !!LAUNCH.waitlistEndpoint;
 /* The support address, or '' while none is published. Every surface that

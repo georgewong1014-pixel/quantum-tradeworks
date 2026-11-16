@@ -99,6 +99,7 @@ const SB = { kind: 'supabase', url: 'https://example-project.supabase.co', key: 
   t(storeFromEnv({ QT_ENQUIRY_SUPABASE_URL: 'http://abc.supabase.co', QT_ENQUIRY_SUPABASE_KEY: 'k' }) === null && storeFromEnv({ QT_ENQUIRY_SUPABASE_URL: 'https://abc.supabase.co' }) === null, 'an address that is not https, or an address with no key, names none');
   t(storeFromEnv({ QT_ENQUIRY_SUPABASE_URL: 'https://abc.supabase.co', QT_ENQUIRY_SUPABASE_KEY: 'k', QT_ENQUIRY_TABLE: 'x; drop table' }).table === 'qt_enquiries', 'a table name that is not a plain identifier is ignored');
   t(storeFromEnv({ QT_ENQUIRY_DIR: '/tmp/x' }).kind === 'file', 'a directory names the file store');
+  t(storeFromEnv({ QT_ENQUIRY_DIR: '/tmp/x', VERCEL: '1' }) === null, 'on the host a directory is never a store: an enquiry would be confirmed and lost with the instance');
   t(emailFromEnv({ QT_ENQUIRY_RESEND_KEY: 'k', QT_ENQUIRY_TO: 'inbox@example.test' }).to === 'inbox@example.test' && emailFromEnv({ QT_ENQUIRY_RESEND_KEY: 'k', QT_ENQUIRY_TO: 'not an address' }) === null, 'the notification needs a key and one address to send to');
 }
 
@@ -158,6 +159,7 @@ const SB = { kind: 'supabase', url: 'https://example-project.supabase.co', key: 
 {
   const b = new Map(); let n = 0; for (let i = 0; i < PER_IP; i++) if (!rateLimited('a', 1000 + i, b)) n++;
   t(n === PER_IP && rateLimited('a', 2000, b) === true && rateLimited('b', 2000, b) === false && rateLimited('a', 2000 + PER_IP_WINDOW + 10, b) === false, `one address gets ${PER_IP} in the window, then is turned away; another address, and the same one later, are not`);
+  t(!b.has('b') && b.size === 1, 'a sender whose ten minutes have passed is forgotten at the next enquiry: no address is held longer than that');
 }
 
 /* the handler, on a real port */
@@ -220,16 +222,24 @@ try {
   const sid2 = '33333333-4444-4555-8666-777777777777';
   const mailDown = await post({ ...good, submissionId: sid2 });
   t(mailDown.status === 200 && mailDown.json.saved === true && REFERENCE_RE.test(mailDown.json.reference) && sb.rows[0].notify_status === 'failed', 'the email failing after the store saved: still confirmed, and the row says failed');
+  /* The store returns a time as "+00:00" where the function wrote "Z". The
+     retry's email must still be the first one, character for character: the
+     provider refuses a repeat whose body differs under the same key. */
+  sb.rows[0].created_at = sb.rows[0].created_at.replace(/Z$/, '+00:00');
   fetchImpl = withMail(sb, 'throw');
   await post({ ...good, submissionId: sid2 });
   t(sb.rows.length === 1 && sb.rows[0].notify_status === 'failed' && mailCalls.length === 2, 'a retry tries the email again and creates nothing');
+  t(mailCalls[1].body === mailCalls[0].body && mailCalls[1].headers['idempotency-key'] === mailCalls[0].headers['idempotency-key'], 'the retry’s email is the first one, character for character, under the same key — although the store spells the time differently');
   fetchImpl = withMail(sb, 200);
   const recovered = await post({ ...good, submissionId: sid2 });
   t(recovered.json.reference === mailDown.json.reference && sb.rows.length === 1 && sb.rows[0].notify_status === 'sent', 'when the email works again the same record is notified: recovered without a duplicate');
   fetchImpl = withMail(sb, 409);
   const sid3 = '44444444-5555-4666-8777-888888888888';
   await post({ ...good, submissionId: sid3 });
-  t(sb.rows.find(r => r.submission_id === sid3).notify_status === 'sent', 'a provider answering that the key was already used counts as sent');
+  /* A 409 from the provider says an earlier request used this key with a
+     different body, or one is still in progress: it is not proof that an
+     email went, so the row does not say sent. */
+  t(sb.rows.find(r => r.submission_id === sid3).notify_status === 'pending', 'a provider refusing the key as a repeat is not counted as sent: the row stays pending, to be handled from the store');
   sb = supabase({ failOn: 'update' }); fetchImpl = withMail(sb, 200);
   const sid4 = '55555555-6666-4777-8888-999999999999';
   const noUpdate = await post({ ...good, submissionId: sid4 });

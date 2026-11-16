@@ -133,7 +133,10 @@ export function rateLimited(sender, now = Date.now(), buckets = RECENT) {
   const since = now - PER_IP_WINDOW, kept = (buckets.get(sender) || []).filter(t => t > since);
   if (kept.length >= PER_IP) { buckets.set(sender, kept); return true; }
   kept.push(now); buckets.set(sender, kept);
-  if (buckets.size > 10000) for (const [k, v] of buckets) if (!v.some(t => t > since)) buckets.delete(k);
+  /* Every sender whose window has passed is forgotten on each call, so an
+     address is held in memory no longer than the next enquiry after its
+     ten minutes — and never written to the store or to a log. */
+  for (const [k, v] of buckets) if (k !== sender && !v.some(t => t > since)) buckets.delete(k);
   return false;
 }
 
@@ -142,7 +145,10 @@ export function storeFromEnv(env = process.env) {
   const url = String(env.QT_ENQUIRY_SUPABASE_URL || '').trim().replace(/\/+$/, ''), key = String(env.QT_ENQUIRY_SUPABASE_KEY || '').trim();
   const table = /^[a-z_][a-z0-9_]{0,62}$/.test(String(env.QT_ENQUIRY_TABLE || '')) ? env.QT_ENQUIRY_TABLE : 'qt_enquiries';
   if (/^https:\/\/[a-z0-9.-]+$/i.test(url) && key) return { kind: 'supabase', url, key, table };
-  const dir = String(env.QT_ENQUIRY_DIR || '').trim();
+  /* The file store is for a local server only. On the host a directory is
+     one instance's temporary disk: an enquiry would be confirmed and then
+     lost with the instance, so it is never a store there. */
+  const dir = env.VERCEL ? '' : String(env.QT_ENQUIRY_DIR || '').trim();
   if (dir) return { kind: 'file', dir };
   return null;
 }
@@ -158,16 +164,21 @@ const sbUrl = (store, query) => `${store.url}/rest/v1/${store.table}?${query}`;
 const within = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});
 const fileOf = (store, submissionId) => join(store.dir, `enquiry-${submissionId.toLowerCase()}.json`);
 
+/* A stored time in the one spelling the function itself writes. The store
+   returns "+00:00" where the function wrote "Z"; the notification carries
+   this time, and the email provider refuses a retry whose body differs from
+   the first under the same key. */
+export const isoTime = (t) => { const d = new Date(t); return t && !Number.isNaN(d.getTime()) ? d.toISOString() : null; };
 /* The record the store already holds for this submission, or null. */
 export async function existing(store, submissionId, { fetchImpl = globalThis.fetch } = {}) {
   if (store.kind === 'supabase') {
     const res = await fetchImpl(sbUrl(store, `submission_id=eq.${encodeURIComponent(submissionId)}&select=reference,created_at,notify_status&limit=1`), { headers: sbHeaders(store), ...within(10000) });
     if (res.status !== 200) throw Object.assign(new Error(`store lookup answered ${res.status}`), { status: res.status });
     const rows = await res.json();
-    return Array.isArray(rows) && rows[0] && REFERENCE_RE.test(rows[0].reference) ? { reference: rows[0].reference, acceptedAt: rows[0].created_at || null, notifyStatus: rows[0].notify_status || null } : null;
+    return Array.isArray(rows) && rows[0] && REFERENCE_RE.test(rows[0].reference) ? { reference: rows[0].reference, acceptedAt: isoTime(rows[0].created_at), notifyStatus: rows[0].notify_status || null } : null;
   }
   if (store.kind === 'file') {
-    try { const rec = JSON.parse(await readFile(fileOf(store, submissionId), 'utf8')); return { reference: rec.reference, acceptedAt: rec.created_at, notifyStatus: rec.notify_status || null }; }
+    try { const rec = JSON.parse(await readFile(fileOf(store, submissionId), 'utf8')); return { reference: rec.reference, acceptedAt: isoTime(rec.created_at), notifyStatus: rec.notify_status || null }; }
     catch (err) { if (err.code === 'ENOENT') return null; throw err; }
   }
   throw new Error(`unknown store ${store.kind}`);
@@ -253,8 +264,10 @@ export function buildEmail(v, { reference, submissionId, acceptedAt, page }) {
   const html = `<p>${esc(note)}</p><table>${lines.map(([k, x]) => `<tr><th align="left">${esc(k)}</th><td>${esc(x)}</td></tr>`).join('')}</table><p><b>What they need (their words):</b></p><blockquote>${esc(v.need).replace(/\n/g, '<br>')}</blockquote>`;
   return { subject, text, html };
 }
-/* Send it. 'sent' or 'failed'; a provider's answer that the same key was
-   already used counts as sent, because the earlier send is the send. */
+/* Send it. 'sent', or it throws. The same key with the same body returns the
+   provider's first answer and sends nothing twice. A 409 means the key was
+   used with a different body, or a request with it is still in progress:
+   that proves no send, so the caller records 'pending', never 'sent'. */
 export async function notify(mail, v, meta, { fetchImpl = globalThis.fetch } = {}) {
   const e = buildEmail(v, meta);
   const res = await fetchImpl('https://api.resend.com/emails', { method: 'POST', ...within(15000),
@@ -307,13 +320,13 @@ export default async function handler(req, res, { env = process.env, fetchImpl =
   catch (err) {
     if (err.code === 'capped') { log(`enquiry store (${store.kind}) at its daily cap`); return send(res, 429, { ok: false, reason: 'capped', error: 'The site is not taking more enquiries today. Nothing was received.' }); }
     log(`enquiry store (${store.kind}) did not save: ${named(err)}`);
-    return send(res, 502, { ok: false, reason: 'store-failed', error: 'The enquiry was not received. Nothing was saved or sent.' });
+    return send(res, 502, { ok: false, reason: 'store-failed', error: 'The enquiry may not have arrived, and no reference was given. Sending it again with the same answers will not make a second copy.' });
   }
   /* Saved. From here the visitor is told it was received, whatever the email
      does. A record that was already held and already notified is left alone. */
   if (!(saved.duplicate && (saved.notifyStatus === 'sent' || saved.notifyStatus === 'not-configured'))) {
     let outcome = 'not-configured';
-    if (mail) { try { outcome = await notify(mail, v, { ...meta, reference: saved.reference, acceptedAt: saved.acceptedAt }, { fetchImpl }); } catch (err) { outcome = err.status === 409 ? 'sent' : 'failed'; if (outcome === 'failed') log(`enquiry notification did not send: ${named(err)}`); } }
+    if (mail) { try { outcome = await notify(mail, v, { ...meta, reference: saved.reference, acceptedAt: saved.acceptedAt }, { fetchImpl }); } catch (err) { outcome = err.status === 409 ? 'pending' : 'failed'; log(`enquiry notification ${outcome === 'pending' ? 'was refused as a repeat of an earlier request, outcome unknown' : 'did not send'}: ${named(err)}`); } }
     try { await setNotifyStatus(store, submissionId, outcome, { fetchImpl }); } catch (err) { log(`enquiry notify status was not recorded: ${named(err)}`); }
   }
   return send(res, 200, { ok: true, reference: saved.reference, saved: true, acceptedAt: saved.acceptedAt, ...(saved.duplicate ? { duplicate: true } : {}) });

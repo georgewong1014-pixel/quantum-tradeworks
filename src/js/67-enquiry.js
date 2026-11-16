@@ -20,10 +20,13 @@
 
    WHEN IT IS OFFERED. Two things must both be true, and neither is set in
    this file:
-     1. LAUNCH.enquiry.retention holds the owner's sentence on how long an
-        enquiry is kept (15-derivation.js). Until it does, no button is
-        drawn and the privacy page lists nothing about enquiries: personal
-        data is not collected before the notice says how long it is kept.
+     1. LAUNCH.enquiry (15-derivation.js) holds all three things the notice
+        needs: `retention`, the owner's sentence on how long an enquiry is
+        kept; `storeRegion`, where the store's servers are; `mailboxHost`,
+        the company that hosts the mailbox the notice is sent to. Until it
+        does, no button is drawn and the privacy page lists nothing about
+        enquiries: personal data is not collected before the notice can
+        say how long it is kept, where, and who holds it.
      2. The deployment has an enquiry store configured (the probe below).
         Until it has, the drawer says enquiries are not switched on and
         offers the email address.
@@ -36,15 +39,19 @@
    NOTHING ELSE LEAVES THE BROWSER: not a saved model, a deal or a watchlist.
    No file is taken: a document goes by email, quoting the reference.
    ========================================================================== */
-const enquiryOffered = () => !!(LAUNCH.enquiry && LAUNCH.enquiry.endpoint && LAUNCH.enquiry.retention);
+const enquiryOffered = () => !!(LAUNCH.enquiry && LAUNCH.enquiry.endpoint && LAUNCH.enquiry.retention && LAUNCH.enquiry.storeRegion && LAUNCH.enquiry.mailboxHost);
 const ENQUIRY_TOPIC_NAMES = { property: 'Property Intelligence', equities: 'Equities Research', scanner: 'Quantum Scanner', other: 'Something else' };
 let enquiryProbe = null;
 function enquirySubmission() {
   if (!enquiryOffered() || typeof fetch !== 'function') return Promise.resolve({ configured: false });
+  /* Only an answer is kept. A request that failed, or an answer that is
+     not the function's, says nothing about the store: it is reported as
+     unknown and asked again the next time the drawer opens. */
   if (!enquiryProbe) enquiryProbe = fetch(LAUNCH.enquiry.endpoint, { method: 'GET', cache: 'no-store' })
-    .then(r => (r.ok ? r.json() : { configured: false }))
-    .then(j => ({ configured: !!j.configured }))
-    .catch(() => ({ configured: false }));
+    .then(r => (r.ok ? r.json() : null))
+    .then(j => (j && typeof j.configured === 'boolean' ? { configured: j.configured } : null))
+    .catch(() => null)
+    .then(a => { if (!a) { enquiryProbe = null; return { configured: false, unknown: true }; } return a; });
   return enquiryProbe;
 }
 /* What is typed and not sent, and the ID of the submission those answers
@@ -70,7 +77,7 @@ function enquiryFailure(r) {
   if (r.reason === 'not-configured') return `Enquiries from this page are not switched on. Nothing was received.${alt}`;
   if (r.reason === 'rate-limited' || r.reason === 'capped') return `The site is not taking more enquiries right now (${r.reason === 'capped' ? 'its daily limit is reached' : 'too many from here in a short time'}). Nothing was received; what you typed is still here.${alt}`;
   if (r.fields) return 'Some details need another look. Nothing was sent.';
-  return `That did not go through. Nothing was received, and what you typed is still here: try again.${alt}`;
+  return `That did not go through, so it may not have arrived and no reference was given. What you typed is still here: send it again — the same answers cannot make a second copy.${alt}`;
 }
 
 function openEnquiry() {
@@ -78,8 +85,13 @@ function openEnquiry() {
   const lead = el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, 'Checking whether this page can take an enquiry…');
   body.append(lead);
   openDrawer('Send an enquiry', body);
-  enquirySubmission().then(({ configured }) => {
+  enquirySubmission().then(({ configured, unknown }) => {
     if (!body.isConnected) return;
+    if (unknown) {
+      lead.textContent = 'This page could not check whether it can take an enquiry just now. Close this and try again'
+        + (supportEmail() ? `, or write to ${supportEmail()} from your own email program; this site does not send that message or confirm that it arrived.` : '.');
+      return;
+    }
     if (!configured) {
       lead.textContent = supportEmail()
         ? `Enquiries from this page are not switched on yet. Write to ${supportEmail()} from your own email program; this site does not send the message or confirm that it arrived.`
@@ -96,10 +108,10 @@ function enquiryForm() {
   const errs = {}, boxes = {};
   const field = (key, label, input, hint) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-    input.id = `enq-${key}`; input.setAttribute('aria-describedby', `enq-${key}-err`);
+    input.id = `enq-${key}`; input.setAttribute('aria-describedby', (hint ? `enq-${key}-hint ` : '') + `enq-${key}-err`);
     const err = el('p', { class: 'metaline', id: `enq-${key}-err`, role: 'alert', style: 'margin-top:6px;color:var(--dn-text)' });
     errs[key] = err; boxes[key] = input;
-    f.append(...[el('label', { for: input.id }, label), input, hint ? el('p', { class: 'metaline', style: 'margin-top:6px' }, hint) : null, err].filter(Boolean));
+    f.append(...[el('label', { for: input.id }, label), input, hint ? el('p', { class: 'metaline', id: `enq-${key}-hint`, style: 'margin-top:6px' }, hint) : null, err].filter(Boolean));
     const keep = () => { v[key] = input.value; };
     input.addEventListener('input', keep); input.addEventListener('change', keep);
     if (v[key] !== undefined) input.value = v[key];
@@ -121,29 +133,30 @@ function enquiryForm() {
   /* Stacked, not a two-column list: in a drawer the second column is too
      narrow to read a paragraph in. */
   form.append(el('div', { class: 'sunk', 'data-enquiry-passes': '', style: 'margin-bottom:var(--md)' }, [
-    el('p', { class: 'body', style: 'margin-bottom:var(--sm)' }, [el('strong', {}, 'What sending passes on. '), 'Your name, the email address or phone number you give, and your message, with the page you were on and the build. They go to this site’s enquiry store and to the person who handles enquiries. Nothing from your saved work is sent, and no file. ', LAUNCH.enquiry.retention, ' ', tlink('Privacy', '/privacy'), '.']),
+    el('p', { class: 'body', style: 'margin-bottom:var(--sm)' }, [el('strong', {}, 'What sending passes on. '), 'Your name, the email address or phone number you give and how you would like the reply, what it is about, your message and when you need it, with the page you were on and the build. They go to this site’s enquiry store and to the person who handles enquiries. Nothing from your saved work is sent, and no file. ', LAUNCH.enquiry.retention, ' ', tlink('Privacy', '/privacy'), '.']),
     el('p', { class: 'body' }, [el('strong', {}, 'What it is. '), 'An enquiry. It is not an order, a commission or an agreement, and sending one costs nothing.']),
   ]));
   const status = el('p', { class: 'metaline', role: 'status', 'data-enquiry-status': '', style: 'margin-top:8px' }, 'Not sent yet.');
   const btn = el('button', { type: 'button', class: 'btn btn-primary btn-sm', 'data-enquiry-send': '', onclick: async () => {
     const clean = enqSanitize({ topic: boxes.topic.value, name: boxes.name.value, email: boxes.email.value, phone: boxes.phone.value, replyBy: boxes.replyBy.value, need: boxes.need.value, timing: boxes.timing.value });
-    const show = (fields) => { let first = null; for (const k of Object.keys(errs)) { errs[k].textContent = fields[k] || ''; boxes[k].toggleAttribute('aria-invalid', !!fields[k]); if (fields[k] && !first) first = boxes[k]; } if (first) first.focus(); return !!first; };
+    const show = (fields) => { let first = null; for (const k of Object.keys(errs)) { errs[k].textContent = fields[k] || ''; if (fields[k]) boxes[k].setAttribute('aria-invalid', 'true'); else boxes[k].removeAttribute('aria-invalid'); if (fields[k] && !first) first = boxes[k]; } if (first) first.focus(); return !!first; };
     if (show(enqValidate(clean))) { status.textContent = 'Not sent yet: some details need another look.'; return; }
     btn.disabled = true; status.textContent = 'Sending…';
     const r = await sendEnquiry(clean, trap.value).catch(() => ({ ok: false, reason: 'network' }));
-    if (!r.ok) { btn.disabled = false; if (r.fields) show(r.fields); status.textContent = enquiryFailure(r); return; }
+    if (!r.ok) { btn.disabled = false; status.textContent = enquiryFailure(r); if (!(r.fields && show(r.fields))) btn.focus(); return; }
     /* Received: the store holds it. The draft is done with. */
     enquiryDraft.values = {}; enquiryDraft.signature = ''; enquiryDraft.id = '';
     const at = r.acceptedAt ? caseRaisedAt(new Date(r.acceptedAt)) : caseRaisedAt(new Date());
     const title = document.getElementById('drawerTitle');
     if (title) title.textContent = `Enquiry received — reference ${r.reference}`;
-    const done = el('div', { 'data-enquiry-received': r.reference }, [
+    const done = el('div', { 'data-enquiry-received': r.reference, tabindex: '-1', role: 'status' }, [
       el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, `Received. Reference ${r.reference}. It was saved in this site’s enquiry store at ${at}.`),
       el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, 'It has not been read yet, and no reply time is promised. It is an enquiry, not an order, a commission or an agreement.'),
       el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, supportEmail() ? `To send a document, email it to ${supportEmail()} from your own email program and quote the reference. This page takes no files.` : 'This page takes no files.'),
       el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-enquiry-copy': '', onclick: () => { navigator.clipboard?.writeText(r.reference).then(() => toast('Reference copied'), () => toast('Copy it by hand: ' + r.reference)); } }, 'Copy the reference'),
     ]);
     form.replaceWith(done);
+    done.focus();
     const lead = document.querySelector('#drawer p.body');
     if (lead && !done.contains(lead)) lead.remove();
     toast(`Enquiry received — reference ${r.reference}`);
