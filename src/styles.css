@@ -7177,7 +7177,11 @@ input.au-in[type="text"] { text-align: left; }
    The step of the page reads "You are here:" from 640px. */
 .pf-li + .pf-li::before { content: ''; flex: none; width: 10px; height: 1px; margin: 0 2px; background: var(--line-2); }
 .pf-li.pf-count::before { display: none; }
-.pf-count { margin-left: var(--sm); font-size: var(--ls-meta); line-height: 20px; color: var(--ink-2); white-space: nowrap; }
+/* The count's hidden words (which steps are done) are placed absolutely:
+   the count is their containing block, so they stay inside the track's own
+   scroller. Outside it they widened the page on a phone, which then zoomed
+   out and took every tap in the wrong place (journeys, property-phone). */
+.pf-count { position: relative; margin-left: var(--sm); font-size: var(--ls-meta); line-height: 20px; color: var(--ink-2); white-space: nowrap; }
 .pf-step::before { content: ''; flex: none; box-sizing: border-box; width: 10px; height: 10px; margin-right: 6px; border: 1.5px solid currentColor; border-radius: 50%; opacity: .7; }
 .pf-step.is-done::before { content: '✓'; width: auto; height: auto; border: 0; border-radius: 0; opacity: 1; font-size: var(--ls-meta); line-height: 1; color: var(--ink); }
 .pf-step.is-here::before { content: none; }

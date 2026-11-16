@@ -1526,6 +1526,12 @@ const JOURNEYS = [
         await tab.goto('/property/models');
         await tab.expect(`(document.querySelector('main')?.innerText || '').includes(${JSON.stringify(name)})`, `the saved property “${name}” is not listed on My properties`);
         if (await tab.eval('document.documentElement.scrollWidth > innerWidth')) throw new StepError('My properties scrolls sideways at 390px');
+        /* A page wider than the phone makes the phone zoom out: the two
+           widths above then agree, at the wider figure, and every tap lands
+           somewhere else (16 Nov 2026: a hidden label of the progress track
+           stood outside its scroller once a step was done). */
+        const vw = await tab.eval('innerWidth');
+        if (vw !== 390) throw new StepError(`My properties is laid out ${vw}px wide on a 390px phone: something stands outside the screen`);
       });
       await step(j, tab, 'Reopen it: the figures as typed, not a sample', BUDGET.load * 2 + BUDGET.action, async () => {
         const id = await tab.eval(`pmAll().find(r => r.name === ${JSON.stringify(name)})?.id || null`);

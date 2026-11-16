@@ -95,7 +95,8 @@
        from state the site holds — never a judgement of the property);
      - the context line carries one recommended action, "Next" (pfNextOf):
        Resume in the Lab while it holds moves not saved, else the first of
-       Evidence, Compare and Save not yet done. It does what that step
+       Evidence, Compare and Save not yet done; and, once saved, "Export a
+       backup" while the work is in no backup file. It does what that step
        does — it presses it.
    Nothing a step did is removed: each still answers a press, so the
    Evidence landing, the Lab's comparison and its Save are reached as
@@ -188,11 +189,16 @@ function pfNextOf(view, line, done) {
   }
   if (!done.compare) return { id: 'compare', label: 'Compare scenarios' };
   if (!done.save) return { id: 'save', label: 'Save this property' };
+  /* Saved, and in no backup file yet: the work is in this browser alone
+     (the owner, 16 Nov 2026: users "retain/export their work"). The export
+     is on Your data & settings; this goes there. */
+  if (typeof backupPrompt === 'function' && backupPrompt()) return { id: 'backup', label: 'Export a backup' };
   return { id: 'none' };
 }
 /* Next does what its step does: it presses it. Save on the calculator is
    the calculator's own Save, in sight and given the keyboard. */
 function pfNextGo(view, id) {
+  if (id === 'backup') { navigate('/my/data'); return; }
   if (id === 'save' && view === 'property') {
     const b = document.getElementById('wb-property-save');
     if (b && b.getClientRects().length) { lsGoTo(b.closest('.pm-bar') || b, b); return; }
