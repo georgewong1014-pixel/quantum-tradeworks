@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property-phone, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, research-case, corrections, submission, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property-phone, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, research-case, corrections, submission, enquiry, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -4198,6 +4198,121 @@ const JOURNEYS = [
         const keys = Object.keys(body).sort().join(',');
         if (!['build,id,kind,page,report', 'id,kind,page,report'].includes(keys)) throw new StepError(`the submission carried fields beyond the report: ${keys}`);
         if (body.report !== text || body.id !== id || /[?#]/.test(body.page)) throw new StepError('the submission is not the reviewed text, or its page carries a query');
+        const away = sent.filter(s => new URL(s.url).origin !== new URL(BASE).origin);
+        if (away.length) throw new StepError(`the page asked ${away.length} address(es) off the site: ${away[0].url.slice(0, 100)}`);
+      });
+    },
+  },
+  {
+    /* THE ENQUIRY FORM (the owner, 16 Nov 2026), verified twice like the
+       report submission: as the VISITOR sees it — an enquiry sent from the
+       Contact page, a reference shown only after the store held it, no
+       other program opened — and as STAFF see it — the record found by its
+       submission ID, holding what the visitor wrote and nothing else.
+       The form is offered only when LAUNCH.enquiry.retention holds the
+       sentence saying how long an enquiry is kept, and source ships it
+       empty until the owner's store is working. So the first step checks
+       the state the build is actually in: no sentence, no button, and a
+       privacy page that names no enquiry. Against a local server the
+       journey then sets the sentence in the page (never in source) and
+       sends one made-up enquiry into the directory serve.mjs names.
+       Against any other address it sends nothing — a synthetic enquiry in
+       the owner's store on every run is not a test — and the outcome steps
+       are gated with that reason; DEGRADED only if that build offers the
+       form, because then a visitor's path exists that nothing here walked. */
+    id: 'enquiry', name: 'Enquiry: sent from the Contact page, a reference only after the store held it, and the record found by its submission',
+    outcomes: ['The form is offered only with its retention sentence, and the privacy page says so with it', 'Customer completion: an enquiry sent from the page, a reference shown, no other program opened', 'Operational completion: the record is found by its submission ID with what the visitor wrote', 'Only the enquiry went: one request, its own fields, nothing from saved work'],
+    async run(j, tab) {
+      const local = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(new URL(BASE).origin);
+      const KEPT = 'An enquiry is kept for a journey’s length and then deleted (a sentence set by the test, not the site’s).';
+      const NEED = `Synthetic enquiry ${new Date().toISOString().slice(0, 16)}: comparing two ways to buy one flat.`;
+      const read = `({ offered: typeof enquiryOffered === 'function' ? enquiryOffered() : null, button: !!document.querySelector('[data-enquiry-open]'), text: document.getElementById('views').innerText })`;
+      let shipped = null, from = 0, reference = null, submissionId = null;
+      await step(j, tab, 'The form is offered only with its retention sentence, and the privacy page says so with it', BUDGET.load * 2 + BUDGET.action, async () => {
+        await tab.goto('/contact');
+        const c = await tab.eval(read);
+        if (c.offered === null) throw new StepError('this build has no enquiry form at all (enquiryOffered is not defined)');
+        if (c.button !== c.offered) throw new StepError(`Contact ${c.button ? 'draws' : 'draws no'} enquiry button although the build ${c.offered ? 'offers' : 'does not offer'} the form`);
+        await tab.goto('/privacy');
+        const p = await tab.eval(read);
+        const names = /\/api\/enquiry/.test(p.text);
+        if (names !== c.offered) throw new StepError(`Privacy ${names ? 'describes' : 'does not describe'} the enquiry form although the build ${c.offered ? 'offers' : 'does not offer'} it`);
+        if (c.offered && !/Supabase/.test(p.text)) throw new StepError('Privacy describes the enquiry form without naming where an enquiry is stored');
+        shipped = c.offered;
+      });
+      const probe = await fetch(new URL('/api/enquiry', BASE + '/').href, { cache: 'no-store' }).then(r => (r.ok ? r.json() : { configured: false, status: r.status })).catch(e => ({ configured: false, error: e.message }));
+      if (!local) {
+        const why = shipped
+          ? 'not exercised against this deployment: an enquiry sent here would put a synthetic record in the owner’s store and a notice in their inbox on every run; the owner’s one controlled check is in docs/enquiry-submission.md'
+          : 'this build does not offer the enquiry form (no retention sentence is set), so there is nothing a visitor could send; sending is proven on the local server in CI';
+        await step(j, tab, 'Customer completion: an enquiry sent from the page, a reference shown, no other program opened', BUDGET.action, async () => {
+          if (shipped && !probe.configured) throw new StepError(`the build offers the enquiry form but the deployment has no store (/api/enquiry answered ${probe.status || 'configured: false'}): a visitor would be told it is not switched on`);
+        }, { gated: why });
+        await step(j, tab, 'Operational completion: the record is found by its submission ID with what the visitor wrote', BUDGET.action, async () => {}, { gated: shipped ? 'the owner’s by-hand check (docs/enquiry-submission.md): find the row by its submission ID, set its owner, then delete it' : why });
+        await step(j, tab, 'Only the enquiry went: one request, its own fields, nothing from saved work', BUDGET.action, async () => {
+          const posts = tab.sent.filter(s => s.method === 'POST' && new URL(s.url).pathname === '/api/enquiry');
+          if (posts.length) throw new StepError(`${posts.length} POST request(s) to /api/enquiry were made without anyone pressing Send`);
+        }, { gated: 'no enquiry was sent, so there is no request to inspect; proven on the local server in CI' });
+        if (shipped) j.degrade(why, '/contact');
+        return;
+      }
+      if (!probe.configured || !probe.dir) throw new StepError(`the local server names no file store (/api/enquiry answered ${JSON.stringify(probe).slice(0, 160)}) — serve.mjs sets QT_ENQUIRY_DIR itself`);
+      await step(j, tab, 'Customer completion: an enquiry sent from the page, a reference shown, no other program opened', BUDGET.load + BUDGET.action * 4, async () => {
+        /* The sentence is set in this page only, as a deployment's source
+           would have it, and the page is drawn again from it. */
+        await tab.goto('/contact');
+        await tab.eval(`(LAUNCH.enquiry.retention = ${JSON.stringify(KEPT)}, navigate('/privacy'), true)`);
+        await tab.expect(`/\\/api\\/enquiry/.test(document.getElementById('views').innerText) && document.getElementById('views').innerText.includes(${JSON.stringify(KEPT)})`, 'with the sentence set, Privacy does not describe the enquiry form with its retention sentence');
+        await tab.eval(`(navigate('/contact'), true)`);
+        await tab.expect(`!!document.querySelector('[data-enquiry-open]')`, 'with the sentence set, Contact draws no enquiry button');
+        await tab.click(`document.querySelector('[data-enquiry-open]')`, '“Send an enquiry”');
+        await tab.expect(`!!document.querySelector('#drawer [data-enquiry-form]')`, async () => `the drawer shows no form: “${(await tab.eval(`document.getElementById('drawer')?.innerText || ''`)).replace(/\s+/g, ' ').slice(0, 200)}”`, 6000);
+        const said = await tab.eval(`document.querySelector('#drawer [data-enquiry-form]').innerText`);
+        if (!said.includes(KEPT)) throw new StepError('the form does not say how long an enquiry is kept, beside the Send button');
+        /* Pressed with nothing typed: nothing is sent, and the form says so. */
+        from = tab.sent.length;
+        await tab.click(`document.querySelector('#drawer [data-enquiry-send]')`, '“Send this enquiry”, with nothing typed');
+        await tab.expect(`/^Not sent yet/.test(document.querySelector('#drawer [data-enquiry-status]')?.textContent || '') && !!document.querySelector('#drawer [aria-invalid]')`, 'an empty form was not refused in the page');
+        if (tab.sent.slice(from).some(s => s.method === 'POST')) throw new StepError('an empty form made a request');
+        await tab.choose(`document.getElementById('enq-topic')`, 'property', 'What it is about — Property Intelligence');
+        await tab.fill(`document.getElementById('enq-name')`, 'TEST Journey', 'Your name');
+        await tab.fill(`document.getElementById('enq-email')`, 'journey@example.test', 'Email address');
+        await tab.fill(`document.getElementById('enq-need')`, NEED, 'What you need');
+        from = tab.sent.length;
+        await tab.click(`document.querySelector('#drawer [data-enquiry-send]')`, '“Send this enquiry”');
+        await tab.expect(`/^Enquiry received — reference QTE-\\d{6}-[2-9A-HJKMNP-Z]{4}$/.test(document.getElementById('drawerTitle')?.textContent.trim() || '')`,
+          async () => `sending left the drawer titled “${await tab.eval(`document.getElementById('drawerTitle')?.textContent.trim() || ''`)}” saying “${await tab.eval(`document.querySelector('#drawer [data-enquiry-status]')?.textContent || ''`)}”`, 8000);
+        const r = await tab.eval(`({ ref: document.querySelector('#drawer [data-enquiry-received]')?.getAttribute('data-enquiry-received') || null, text: document.getElementById('drawer').innerText, where: location.pathname })`);
+        reference = r.ref;
+        if (!reference) throw new StepError('the confirmation carries no reference');
+        if (!/not been read yet/.test(r.text) || !/no reply time is promised/.test(r.text) || !/not an order/.test(r.text)) throw new StepError(`the confirmation does not say it is unread, unpromised and not an order: “${r.text.replace(/\s+/g, ' ').slice(0, 200)}”`);
+        if (r.where !== '/contact') throw new StepError(`the page moved to ${r.where}: another page or program was opened`);
+      });
+      await step(j, tab, 'Operational completion: the record is found by its submission ID with what the visitor wrote', BUDGET.action, async () => {
+        const post = tab.sent.slice(from).find(s => s.method === 'POST' && new URL(s.url).pathname === '/api/enquiry');
+        try { submissionId = JSON.parse(post.body).submissionId; } catch { throw new StepError('the request that was sent could not be read back'); }
+        const { readFile, rm } = await import('node:fs/promises');
+        const { join } = await import('node:path');
+        const file = join(probe.dir, `enquiry-${String(submissionId).toLowerCase()}.json`);
+        let rec;
+        try { rec = JSON.parse(await readFile(file, 'utf8')); }
+        catch (e) { throw new StepError(`staff would not find submission ${submissionId} in the store (${probe.dir}): ${e.message}`); }
+        if (rec.reference !== reference) throw new StepError(`the record's reference is ${rec.reference}, the visitor was shown ${reference}`);
+        if (rec.name !== 'TEST Journey' || rec.email !== 'journey@example.test' || rec.phone !== null || rec.topic !== 'property' || rec.reply_by !== 'email') throw new StepError(`the record is not what was typed: ${JSON.stringify({ name: rec.name, email: rec.email, phone: rec.phone, topic: rec.topic, reply_by: rec.reply_by })}`);
+        if (rec.values?.need !== NEED || rec.values?.page !== '/contact') throw new StepError(`the record's words or page differ: ${JSON.stringify(rec.values).slice(0, 200)}`);
+        if (!['not-configured', 'sent', 'failed', 'pending'].includes(rec.notify_status)) throw new StepError(`the record does not say what became of the notice: ${rec.notify_status}`);
+        for (const k of ['owner', 'status', 'next_action', 'logged_at']) if (rec[k] != null) throw new StepError(`the site wrote the staff field ${k}`);
+        /* The journey's own made-up record, in a directory the local server
+           named: removed so that repeated runs never meet the daily limit. */
+        await rm(file, { force: true });
+      });
+      await step(j, tab, 'Only the enquiry went: one request, its own fields, nothing from saved work', BUDGET.action, async () => {
+        const sent = tab.sent.slice(from).filter(s => /^https?:/.test(s.url));
+        const posts = sent.filter(s => s.method === 'POST');
+        if (posts.length !== 1 || new URL(posts[0].url).pathname !== '/api/enquiry') throw new StepError(`${posts.length} POST request(s) were made: ${posts.map(s => `${s.method} ${s.url}`).join(', ').slice(0, 200)}`);
+        const body = JSON.parse(posts[0].body), keys = Object.keys(body).sort().join(',');
+        if (!['build,email,name,need,page,phone,replyBy,submissionId,timing,topic', 'email,name,need,page,phone,replyBy,submissionId,timing,topic'].includes(keys)) throw new StepError(`the enquiry carried fields beyond its own: ${keys}`);
+        if (body.need !== NEED || /[?#]/.test(body.page)) throw new StepError('the enquiry is not what was typed, or its page carries a query');
         const away = sent.filter(s => new URL(s.url).origin !== new URL(BASE).origin);
         if (away.length) throw new StepError(`the page asked ${away.length} address(es) off the site: ${away[0].url.slice(0, 100)}`);
       });

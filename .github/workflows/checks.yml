@@ -155,6 +155,15 @@ jobs:
         if: ${{ !cancelled() }}
         run: node report-api-test.mjs
 
+      # The enquiry form's one submission address (api/enquiry.mjs), offline:
+      # a reference is given only after the store holds the record, a retry
+      # of the same submission makes no second record, a failed notification
+      # leaves the enquiry saved, no store means 503, and the form and the
+      # function apply one text of the rules.
+      - name: the enquiry address confirms only what the store holds, once per submission
+        if: ${{ !cancelled() }}
+        run: node enquiry-api-test.mjs
+
       # The record of what CI found (health/checks.json, checks-record.mjs):
       # each suite's counts read from what it printed, a suite that did not
       # run for the commit served "Not run for <commit>" and never PASS, the

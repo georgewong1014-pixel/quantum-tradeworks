@@ -38,6 +38,11 @@ const ROOT = realpathSync.native(resolve(arg('root', '.')));
    can be read back — never GitHub by default. */
 const API_DIR = join(ROOT, 'api');
 if (!process.env.QT_REPORTS_GITHUB_TOKEN && !process.env.QT_REPORTS_DIR) process.env.QT_REPORTS_DIR = join(tmpdir(), `qt-reports-${PORT}`);
+/* The enquiry store (api/enquiry.mjs), on the same footing: a local server
+   with no Supabase project named gets a temporary directory, so an enquiry
+   sent from a local page is saved and can be read back — never a real store
+   by default, and no email is sent unless a key is named. */
+if (!process.env.QT_ENQUIRY_SUPABASE_URL && !process.env.QT_ENQUIRY_DIR) process.env.QT_ENQUIRY_DIR = join(tmpdir(), `qt-enquiries-${PORT}`);
 async function apiFunction(pathname) {
   const m = /^\/api\/([a-z][a-z0-9-]*)$/.exec(pathname);
   if (!m) return null;
@@ -381,5 +386,6 @@ server.listen(PORT, () => {
   console.log(`http://localhost:${PORT}`);
   if (process.env.QT_REPORTS_GITHUB_TOKEN) console.log(`report store: GitHub issues in ${process.env.QT_REPORTS_REPO || '(QT_REPORTS_REPO not set — submissions will be refused)'}`);
   else console.log(`report store: files in ${process.env.QT_REPORTS_DIR}`);
+  console.log(process.env.QT_ENQUIRY_SUPABASE_URL ? 'enquiry store: the Supabase project named by the environment' : `enquiry store: files in ${process.env.QT_ENQUIRY_DIR}`);
   console.log(`applying ${c.headers.length} header rule(s), ${c.redirects.length} redirect(s) and ${c.rewrites.length} rewrite(s) from vercel.json${c.trailingSlash === false ? ', trailing slashes redirected' : ''}, re-read on change`);
 });

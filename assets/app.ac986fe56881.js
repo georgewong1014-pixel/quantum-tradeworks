@@ -2756,6 +2756,15 @@ const LAUNCH = {
      deployment has configured a store; until then it offers copy and email
      only. Empty means no submission control is ever drawn. */
   reportEndpoint: '/api/report',
+  /* The enquiry form (67-enquiry.js, api/enquiry.mjs). It is offered only
+     when `retention` holds the sentence saying how long an enquiry is kept
+     AND the deployment answers that its store is configured. The owner's
+     decision of 16 Nov 2026 is 12 months; the sentence is written here only
+     once the store is working (docs/enquiry-submission.md), so the page
+     never draws a button that answers "not switched on" and never collects
+     a name before the notice says how long it is kept. Tests set it at run
+     time, never in source. */
+  enquiry: { endpoint: '/api/enquiry', retention: '' },
 };
 const waitlistReady = () => !!LAUNCH.waitlistEndpoint;
 /* The support address, or '' while none is published. Every surface that
@@ -30245,6 +30254,14 @@ VIEWS.contact = () => trustPage('Contact',
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'feedback' }, 'Send feedback'),
        ])]],
+    /* The enquiry form: drawn only when the retention sentence is set in
+       source (LAUNCH.enquiry, 15-derivation.js). The drawer then asks the
+       deployment whether its store is configured before it shows a field. */
+    ...(enquiryOffered() ? [['Send an enquiry',
+      [tp('To ask about using a product, or for something this site does not do yet. A name, one way to reply and a sentence are enough. It is stored and given a reference; it is not an order, and no reply time is promised.'),
+       el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+         el('button', { type: 'button', class: 'btn btn-primary btn-sm', 'data-enquiry-open': '', onclick: () => openEnquiry() }, 'Send an enquiry'),
+       ])]]] : []),
     /* Nothing supplied, nothing to list: the card appears with the first
        postal detail the owner supplies, and lists only the details there
        are. The email address is the first card's, so it is not said twice. */
@@ -30263,6 +30280,11 @@ VIEWS.contact = () => trustPage('Contact',
 
 VIEWS.privacy = () => {
   const tagged = analyticsTagged();
+  /* The enquiry form (67-enquiry.js). Every sentence it changes is written
+     from the one flag the Contact page draws its button from, so the notice
+     and the form appear together or not at all. */
+  const enq = enquiryOffered();
+  const sent = [waitlistReady() ? 'an email address you choose to give the waitlist' : null, enq ? 'an enquiry you choose to send from the Contact page' : null].filter(Boolean);
   const nos = ['no accounts', 'no cookies', tagged ? null : 'no analytics', waitlistReady() ? null : 'no form that sends anything by itself'].filter(Boolean);
   /* "In short" is built from the same flags as the sentences below it, so
      the summary cannot say more than the page does. The one thing that does
@@ -30272,7 +30294,7 @@ VIEWS.privacy = () => {
     'What this build stores, where it stores it and what leaves your device — then the notice the Personal Data Protection Act 2010 asks for.',
     [
     ['In short',
-      [`The site sends nothing you enter to anyone${waitlistReady() ? ', except an email address you choose to give the waitlist' : ''}: there ${nos.length === 1 ? 'is' : 'are'} ${nos.slice(0, -1).join(', ')}${nos.length > 1 ? ' and ' : ''}${nos[nos.length - 1]}. Your browser asks this site for its own files and nothing else, and what you save stays in this browser, on your device. The one thing that travels is a page’s own address when the page is loaded — the property calculator keeps the deal’s figures in it — as set out below.`]],
+      [`The site sends nothing you enter to anyone${sent.length ? ', except ' + sent.join(' and ') : ''}: there ${nos.length === 1 ? 'is' : 'are'} ${nos.slice(0, -1).join(', ')}${nos.length > 1 ? ' and ' : ''}${nos[nos.length - 1]}. Your browser asks this site for its own files and nothing else, and what you save stays in this browser, on your device. The one thing that travels is a page’s own address when the page is loaded — the property calculator keeps the deal’s figures in it — as set out below.`]],
     ['What is stored',
       /* The full list, because a privacy page that names some of what it
          stores is worse than one that names none: it invites the reader to
@@ -30295,7 +30317,9 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Recent: '), 'the pages, tools and saved work you recently opened, and when you opened them and each company you viewed — at most twenty, which the search lists when nothing is typed in it; its “Clear recent” forgets them.'],
          [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; when you last exported, with a fingerprint of each item the file held — never the item itself — so the page can say how many items you have saved since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),
-       'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
+       enq
+         ? 'There are no accounts in this build, so there is nothing to sign in to. The only server-side record of you is an enquiry you choose to send, set out below.'
+         : 'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
         tp('Only requests for this site’s own files: the page itself and the data files it reads — the SEC filings, the instrument list, the Sarawak map and, when you open a locality on the area screen, NAPIC’s published figures for the division it lies in. Those are one file a division, so the address requested names the division. The Kuching scheme map asks for the Kuching map file, its style, lettering and symbols, and its drawing code, all from this site and only on that page; it reads the map file in pieces, so the host could infer which part of Kuching you looked at. The security policy this site is served with tells your browser to refuse any request the page itself makes to another address, so this is enforced by your browser, not only promised here.'),
@@ -30310,7 +30334,10 @@ VIEWS.privacy = () => {
         waitlistReady()
           ? tp('If you enter an email address in the waitlist, that address is sent to the form service configured for this deployment and used for one message about launch. Nothing else on this page is sent with it.')
           : null,
-        tp(el('strong', {}, 'One form sends something, and only when you press Submit.'), ' A data-error report or feedback is saved in this browser first; if you then press Submit, the text you reviewed, the page’s name and the build go to this site’s own address, /api/report, and to the store the operator has configured for it — nothing else from this browser, and no address of yours. The site answers with a receipt reference only once that store has accepted it. No email address is requested and none can be submitted.'),
+        ...(enq
+          ? [tp(el('strong', {}, 'An enquiry, and only when you press Send.'), ' The enquiry form on the Contact page sends your name, the email address or phone number you give, what it is about, your message and when you need it, with the page you were on and the build, to this site’s own address, /api/enquiry. It is saved in the enquiry store, a database that Supabase hosts, and a notice carrying the same details is emailed to the person who handles enquiries through Resend, an email service. Nothing from your saved work is sent, and no file. The network address every request carries is used for a moment to limit how many enquiries one sender can make, and is not stored with the enquiry. ', LAUNCH.enquiry.retention)]
+          : []),
+        tp(el('strong', {}, enq ? 'The report form sends something, and only when you press Submit.' : 'One form sends something, and only when you press Submit.'), ' A data-error report or feedback is saved in this browser first; if you then press Submit, the text you reviewed, the page’s name and the build go to this site’s own address, /api/report, and to the store the operator has configured for it — nothing else from this browser, and no address of yours. The site answers with a receipt reference only once that store has accepted it.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested and none can be submitted.')),
         supportEmail()
           ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing until you press Submit, as above. Or copy the case and send it to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
           : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing until you press Submit, as above — there is no contact address yet. Or copy the case as text; copying uses your clipboard only when you press the button.'),
@@ -30322,7 +30349,7 @@ VIEWS.privacy = () => {
     ['What is never collected',
       'No brokerage credentials, no account numbers, no identity documents. The portfolio feature records what you type and nothing else.'],
     ['Clearing your data',
-      [tp('Clearing this site’s storage in your browser removes everything the product holds about you, immediately and irreversibly. Export first if you want to keep it — ', tlink('Your data', '/my/data'), ' lists what is saved and writes it to a file. There is no copy on any server to fall back on.')]],
+      [tp('Clearing this site’s storage in your browser removes everything the product holds about you, immediately and irreversibly. Export first if you want to keep it — ', tlink('Your data', '/my/data'), ' lists what is saved and writes it to a file. There is no copy on any server to fall back on.', enq ? ' An enquiry you sent is not held in this browser, so clearing does not remove it: ask for that as set out under Access and correction.' : null)]],
     { section: 'Personal Data Protection Act 2010 — notice',
       lede: 'The notice a data user gives under the Personal Data Protection Act 2010 (Malaysia): what personal data is processed and why, where it comes from, who it goes to, and how to ask for access or a correction. It is written for this build, which collects nothing on a server, and for what a launch would add — each addition listed here before it is collected.' },
     ['Who the data user is',
@@ -30330,24 +30357,29 @@ VIEWS.privacy = () => {
        'No operating entity has been registered yet. The data user named here will be responsible for any personal data a launch collects; this build collects none on a server.']],
     ['What personal data is processed, and where it comes from',
       supportEmail()
-        ? ['This build collects none on a server. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. What every web request carries reaches the host — your IP address and your browser’s name and version — as set out above.',
+        ? [(enq ? 'This build collects personal data on a server only when you send an enquiry. Everything else you type' : 'This build collects none on a server. What you type') + ' — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. What every web request carries reaches the host — your IP address and your browser’s name and version — as set out above.',
+           ...(enq ? ['If you send an enquiry from the Contact page, your name, the email address or phone number you give, and what you wrote are collected from you directly and kept in the enquiry store.'] : []),
            tp('If you write to ', supplied('email'), ', your email address, your message and anything you attach reach that mailbox, from you directly; it is hosted by Google, which runs the email service. Nothing else is collected.'),
            'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']
-        : ['Today this build collects none. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. The only personal data that reaches anyone is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
+        : [(enq ? 'Today this build collects personal data only when you send an enquiry from the Contact page: your name, the email address or phone number you give, and what you wrote. Everything else you type' : 'Today this build collects none. What you type') + ' — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. ' + (enq ? 'The only other personal data that reaches anyone' : 'The only personal data that reaches anyone') + ' is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
            'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address and message if you write to the contact address; your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']],
     ['Purposes',
-      (supportEmail() ? 'Today, a message you send to the contact address is used only to answer it and to check and correct the figure it is about. At launch, ' : 'Today there are none, because nothing is collected. At launch, ') + 'personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
+      (supportEmail() ? 'Today, a message you send to the contact address is used only to answer it and to check and correct the figure it is about. ' : enq ? '' : 'Today there are none, because nothing is collected. ')
+        + (enq ? 'An enquiry you send is used only to reply to you about what you asked and to keep track of it until it is closed. ' : '')
+        + 'At launch, personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
     ['Who it is disclosed to',
-      (supportEmail() ? 'Today, no one: a message you send is held in the contact mailbox, which Google hosts, and is not passed on. At launch,' : 'Today, no one: this build holds nothing to disclose. At launch,') + ' only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
+      (enq
+        ? 'Today, only the service providers that hold it for the data user' + (supportEmail() ? ': a message you send is held in the contact mailbox, which Google hosts;' : ':') + ' an enquiry is held in the enquiry store, which Supabase hosts, and the notice of it is sent by Resend to the mailbox of the person who handles enquiries. Supabase and Resend may process it on servers outside Malaysia. None of it is passed on to anyone else. At launch,'
+        : supportEmail() ? 'Today, no one: a message you send is held in the contact mailbox, which Google hosts, and is not passed on. At launch,' : 'Today, no one: this build holds nothing to disclose. At launch,') + ' only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
     ['Whether you must provide it',
-      'Nothing is obligatory. Every page works without you giving any personal data. At launch, if you choose not to give an email address, the only consequence is that no reply or message can reach you.'],
+      'Nothing is obligatory. Every page works without you giving any personal data. ' + (enq ? 'An enquiry needs a name, one way to reply — an email address or a phone number — and what you need, because it cannot be answered without them; nothing else on its form is required. ' : '') + 'At launch, if you choose not to give an email address, the only consequence is that no reply or message can reach you.'],
     ['Access and correction',
       ['The Act gives you the right to ask a data user for a copy of the personal data it holds about you, to ask for it to be corrected, to withdraw your consent to its processing, and to require that it is not used for direct marketing.',
-       tp('Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. ', supportEmail() ? 'Send requests to ' : 'At launch, send requests to ', supplied('email'), '.')]],
+       tp((enq ? 'Today the only thing this build holds about you on a server is an enquiry you sent. To see, correct or delete one, write to the address below and quote its reference. Everything else it stores is on your device' : 'Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device') + ' and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. ', supportEmail() ? 'Send requests to ' : 'At launch, send requests to ', supplied('email'), '.')]],
     ['Your choices',
       'You can use everything here without giving anything, and export or clear what this browser stores at any time. At launch you would be able to decline any message you did not ask for, and withdraw from one you did.'],
     ['Security and retention',
-      'On your device, anyone who can use this browser profile can read what it stores — clear it on a shared computer. The site’s security policy stops the page itself connecting to any other address. At launch, personal data would be kept only as long as its purpose needs, and the period would be stated here.'],
+      'On your device, anyone who can use this browser profile can read what it stores — clear it on a shared computer. The site’s security policy stops the page itself connecting to any other address. ' + (enq ? LAUNCH.enquiry.retention + ' ' : '') + 'At launch, personal data would be kept only as long as its purpose needs, and the period would be stated here.'],
     ['Requests and complaints',
       [supportEmail()
          ? tp('Write to ', supplied('email'), '. A postal address, ', supplied('address'), ', is not published yet.')
@@ -33899,6 +33931,205 @@ function openFeedback(ask) {
   openDrawer('Send feedback', body);
 }
 
+/* THE RULES OF AN ENQUIRY, as the form applies them before anything is sent.
+   The same text stands in api/enquiry.mjs, where the function applies them
+   again; enquiry-api-test.mjs fails if the two differ by a character. Change
+   both together. */
+/* <enquiry-rules> — the same block stands in api/enquiry.mjs. */
+const ENQ_TOPICS = ['property', 'equities', 'scanner', 'other'];
+const ENQ_MAX = { name: 80, email: 120, phone: 30, need: 2000, timing: 120 };
+const ENQ_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ENQ_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/* Text as it is kept: control, bidirectional and zero-width characters
+   removed; line breaks kept only where a field is prose. */
+function enqClean(v, lines) {
+  let s = typeof v === 'string' ? v : '';
+  s = s.replace(/\r\n?/g, '\n').replace(/[​-‏‪-‮⁠-⁩﻿]/g, '');
+  s = lines ? s.replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, '') : s.replace(/[\u0000-\u001F\u007F]/g, ' ');
+  return s.replace(/[ \t]+/g, ' ').trim();
+}
+/* Only these fields are read; anything else is dropped. */
+function enqSanitize(body) {
+  const b = body && typeof body === 'object' ? body : {};
+  const topic = ENQ_TOPICS.includes(b.topic) ? b.topic : '';
+  const email = enqClean(b.email), phone = enqClean(b.phone);
+  const replyBy = b.replyBy === 'phone' || b.replyBy === 'email' ? b.replyBy : '';
+  return { topic, name: enqClean(b.name), email, phone, replyBy, need: enqClean(b.need, true), timing: enqClean(b.timing) };
+}
+/* What is wrong, field by field: an empty object means it may be sent. An
+   enquiry needs a name, one way to reply and what is wanted. Nothing else:
+   no budget, no figures, no finished brief. */
+function enqValidate(v) {
+  const f = {};
+  if (!v.name) f.name = 'Give a name to reply to.';
+  else if (v.name.length > ENQ_MAX.name) f.name = `Keep the name to ${ENQ_MAX.name} characters.`;
+  if (!v.email && !v.phone) f.email = 'Give an email address or a phone number, so there is a way to reply.';
+  if (v.email && (v.email.length > ENQ_MAX.email || !ENQ_EMAIL.test(v.email))) f.email = 'That does not read as an email address.';
+  if (v.phone && (v.phone.length > ENQ_MAX.phone || !/^[0-9+() .-]+$/.test(v.phone) || v.phone.replace(/\D/g, '').length < 7)) f.phone = 'A phone number needs at least seven digits, and only digits, spaces and + ( ) - .';
+  if (v.replyBy === 'phone' && !v.phone) f.replyBy = 'A reply by phone needs a phone number.';
+  if (v.replyBy === 'email' && !v.email) f.replyBy = 'A reply by email needs an email address.';
+  if (!ENQ_TOPICS.includes(v.topic)) f.topic = 'Choose what the enquiry is about.';
+  if (v.need.length < 10) f.need = 'Say what you need, in a sentence or more.';
+  else if (v.need.length > ENQ_MAX.need) f.need = `Keep it to ${ENQ_MAX.need} characters.`;
+  if (v.timing.length > ENQ_MAX.timing) f.timing = `Keep the timing to ${ENQ_MAX.timing} characters.`;
+  return f;
+}
+/* How a reply should be made: the visitor's choice, or the one method given. */
+function enqReplyBy(v) { return v.replyBy || (v.email ? 'email' : 'phone'); }
+/* </enquiry-rules> */
+/* ==========================================================================
+   THE ENQUIRY FORM (the owner, 16 Nov 2026: "full version … an assistant will
+   be in charge to track enquiries, and we are building the funnel"). It
+   follows the contract of the ELS Source enquiry flow, adapted to this site
+   (api/enquiry.mjs holds the server's half).
+
+   WHAT IT ASKS FOR: a name, one way to reply — an email address or a phone
+   number, whichever the visitor has; never a particular app — and what is
+   wanted, in a sentence. Nothing else is required: no budget, no figures, no
+   finished brief. The rules are in 66-enquiry-rules.js, and the function
+   applies the same text again.
+
+   THREE THINGS KEPT APART, in what the page says:
+     - what is typed and not sent: it stays in this form, in this page's
+       memory, and is lost on reload. The form says "Not sent yet".
+     - an enquiry received: said only when the store has answered that it
+       holds the record, with the reference the server made.
+     - an order, a commission or an agreement: this is none of them, and the
+       confirmation says so.
+
+   WHEN IT IS OFFERED. Two things must both be true, and neither is set in
+   this file:
+     1. LAUNCH.enquiry.retention holds the owner's sentence on how long an
+        enquiry is kept (15-derivation.js). Until it does, no button is
+        drawn and the privacy page lists nothing about enquiries: personal
+        data is not collected before the notice says how long it is kept.
+     2. The deployment has an enquiry store configured (the probe below).
+        Until it has, the drawer says enquiries are not switched on and
+        offers the email address.
+
+   ONE SUBMISSION, ONE RECORD. The submission ID is made here, once for a
+   given set of answers, and kept while they are unchanged: a retry after a
+   slow answer or a failure carries the same ID and the store keeps one
+   record. Change an answer and it is a new submission.
+
+   NOTHING ELSE LEAVES THE BROWSER: not a saved model, a deal or a watchlist.
+   No file is taken: a document goes by email, quoting the reference.
+   ========================================================================== */
+const enquiryOffered = () => !!(LAUNCH.enquiry && LAUNCH.enquiry.endpoint && LAUNCH.enquiry.retention);
+const ENQUIRY_TOPIC_NAMES = { property: 'Property Intelligence', equities: 'Equities Research', scanner: 'Quantum Scanner', other: 'Something else' };
+let enquiryProbe = null;
+function enquirySubmission() {
+  if (!enquiryOffered() || typeof fetch !== 'function') return Promise.resolve({ configured: false });
+  if (!enquiryProbe) enquiryProbe = fetch(LAUNCH.enquiry.endpoint, { method: 'GET', cache: 'no-store' })
+    .then(r => (r.ok ? r.json() : { configured: false }))
+    .then(j => ({ configured: !!j.configured }))
+    .catch(() => ({ configured: false }));
+  return enquiryProbe;
+}
+/* What is typed and not sent, and the ID of the submission those answers
+   make. In memory only. */
+const enquiryDraft = { values: {}, signature: '', id: '' };
+function enquirySubmissionId(v) {
+  const signature = JSON.stringify(v);
+  if (signature !== enquiryDraft.signature || !enquiryDraft.id) { enquiryDraft.signature = signature; enquiryDraft.id = crypto.randomUUID(); }
+  return enquiryDraft.id;
+}
+async function sendEnquiry(v, honeypot) {
+  const res = await fetch(LAUNCH.enquiry.endpoint, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ...v, submissionId: enquirySubmissionId(v), page: location.pathname, ...(reportBuild() ? { build: reportBuild() } : {}), ...(honeypot ? { website: honeypot } : {}) }) });
+  let j = null;
+  try { j = await res.json(); } catch { j = null; }
+  if (res.ok && j?.ok && j.saved === true && /^QTE-\d{6}-[2-9A-HJKMNP-Z]{4}$/.test(j.reference || '')) return { ok: true, reference: j.reference, acceptedAt: j.acceptedAt };
+  return { ok: false, status: res.status, reason: j?.reason || String(res.status), fields: j?.fields || null };
+}
+/* What the visitor is told when it was not received. Each says that nothing
+   was received and that what they typed is still here. */
+function enquiryFailure(r) {
+  const alt = supportEmail() ? ` Or write to ${supportEmail()} from your own email program.` : '';
+  if (r.reason === 'not-configured') return `Enquiries from this page are not switched on. Nothing was received.${alt}`;
+  if (r.reason === 'rate-limited' || r.reason === 'capped') return `The site is not taking more enquiries right now (${r.reason === 'capped' ? 'its daily limit is reached' : 'too many from here in a short time'}). Nothing was received; what you typed is still here.${alt}`;
+  if (r.fields) return 'Some details need another look. Nothing was sent.';
+  return `That did not go through. Nothing was received, and what you typed is still here: try again.${alt}`;
+}
+
+function openEnquiry() {
+  const body = el('div');
+  const lead = el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, 'Checking whether this page can take an enquiry…');
+  body.append(lead);
+  openDrawer('Send an enquiry', body);
+  enquirySubmission().then(({ configured }) => {
+    if (!body.isConnected) return;
+    if (!configured) {
+      lead.textContent = supportEmail()
+        ? `Enquiries from this page are not switched on yet. Write to ${supportEmail()} from your own email program; this site does not send the message or confirm that it arrived.`
+        : 'Enquiries from this page are not switched on yet.';
+      return;
+    }
+    lead.textContent = 'Tell the site’s owner what you need. A name, one way to reply and a sentence are enough: no budget, no figures and no finished brief are needed to ask.';
+    body.append(enquiryForm());
+  });
+}
+
+function enquiryForm() {
+  const v = enquiryDraft.values, form = el('div', { 'data-enquiry-form': '' });
+  const errs = {}, boxes = {};
+  const field = (key, label, input, hint) => {
+    const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
+    input.id = `enq-${key}`; input.setAttribute('aria-describedby', `enq-${key}-err`);
+    const err = el('p', { class: 'metaline', id: `enq-${key}-err`, role: 'alert', style: 'margin-top:6px;color:var(--dn-text)' });
+    errs[key] = err; boxes[key] = input;
+    f.append(...[el('label', { for: input.id }, label), input, hint ? el('p', { class: 'metaline', style: 'margin-top:6px' }, hint) : null, err].filter(Boolean));
+    const keep = () => { v[key] = input.value; };
+    input.addEventListener('input', keep); input.addEventListener('change', keep);
+    if (v[key] !== undefined) input.value = v[key];
+    return f;
+  };
+  const text = (key, attrs = {}) => el('input', { class: 'input', type: 'text', autocomplete: 'off', ...attrs });
+  form.append(
+    field('topic', 'What it is about', el('select', { class: 'input' }, [el('option', { value: '' }, 'Choose'), ...ENQ_TOPICS.map(t => el('option', { value: t }, ENQUIRY_TOPIC_NAMES[t]))])),
+    field('name', 'Your name', text('name', { maxlength: String(ENQ_MAX.name), autocomplete: 'name' })),
+    field('email', 'Email address', text('email', { type: 'email', inputmode: 'email', maxlength: String(ENQ_MAX.email), autocomplete: 'email' }), 'An email address or a phone number: one is enough.'),
+    field('phone', 'Phone number', text('phone', { type: 'tel', inputmode: 'tel', maxlength: String(ENQ_MAX.phone), autocomplete: 'tel' })),
+    field('replyBy', 'How you would like the reply', el('select', { class: 'input' }, [el('option', { value: '' }, 'By whichever I gave'), el('option', { value: 'email' }, 'By email'), el('option', { value: 'phone' }, 'By phone')])),
+    field('need', 'What you need', el('textarea', { class: 'input', maxlength: String(ENQ_MAX.need), placeholder: 'What you are trying to do, and what would help.' }), 'Leave out anything private you would not want read: your income, your loan, an identity number.'),
+    field('timing', 'When you need it (optional)', text('timing', { maxlength: String(ENQ_MAX.timing) })));
+  /* A field no person sees or reaches: a program that fills every field
+     fills this one, and the function refuses the enquiry. */
+  const trap = el('input', { type: 'text', name: 'website', tabindex: '-1', autocomplete: 'off', 'aria-hidden': 'true', 'data-enquiry-trap': '' });
+  form.append(el('div', { 'aria-hidden': 'true', style: 'position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden' }, trap));
+  /* Stacked, not a two-column list: in a drawer the second column is too
+     narrow to read a paragraph in. */
+  form.append(el('div', { class: 'sunk', 'data-enquiry-passes': '', style: 'margin-bottom:var(--md)' }, [
+    el('p', { class: 'body', style: 'margin-bottom:var(--sm)' }, [el('strong', {}, 'What sending passes on. '), 'Your name, the email address or phone number you give, and your message, with the page you were on and the build. They go to this site’s enquiry store and to the person who handles enquiries. Nothing from your saved work is sent, and no file. ', LAUNCH.enquiry.retention, ' ', tlink('Privacy', '/privacy'), '.']),
+    el('p', { class: 'body' }, [el('strong', {}, 'What it is. '), 'An enquiry. It is not an order, a commission or an agreement, and sending one costs nothing.']),
+  ]));
+  const status = el('p', { class: 'metaline', role: 'status', 'data-enquiry-status': '', style: 'margin-top:8px' }, 'Not sent yet.');
+  const btn = el('button', { type: 'button', class: 'btn btn-primary btn-sm', 'data-enquiry-send': '', onclick: async () => {
+    const clean = enqSanitize({ topic: boxes.topic.value, name: boxes.name.value, email: boxes.email.value, phone: boxes.phone.value, replyBy: boxes.replyBy.value, need: boxes.need.value, timing: boxes.timing.value });
+    const show = (fields) => { let first = null; for (const k of Object.keys(errs)) { errs[k].textContent = fields[k] || ''; boxes[k].toggleAttribute('aria-invalid', !!fields[k]); if (fields[k] && !first) first = boxes[k]; } if (first) first.focus(); return !!first; };
+    if (show(enqValidate(clean))) { status.textContent = 'Not sent yet: some details need another look.'; return; }
+    btn.disabled = true; status.textContent = 'Sending…';
+    const r = await sendEnquiry(clean, trap.value).catch(() => ({ ok: false, reason: 'network' }));
+    if (!r.ok) { btn.disabled = false; if (r.fields) show(r.fields); status.textContent = enquiryFailure(r); return; }
+    /* Received: the store holds it. The draft is done with. */
+    enquiryDraft.values = {}; enquiryDraft.signature = ''; enquiryDraft.id = '';
+    const at = r.acceptedAt ? caseRaisedAt(new Date(r.acceptedAt)) : caseRaisedAt(new Date());
+    const title = document.getElementById('drawerTitle');
+    if (title) title.textContent = `Enquiry received — reference ${r.reference}`;
+    const done = el('div', { 'data-enquiry-received': r.reference }, [
+      el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, `Received. Reference ${r.reference}. It was saved in this site’s enquiry store at ${at}.`),
+      el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, 'It has not been read yet, and no reply time is promised. It is an enquiry, not an order, a commission or an agreement.'),
+      el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, supportEmail() ? `To send a document, email it to ${supportEmail()} from your own email program and quote the reference. This page takes no files.` : 'This page takes no files.'),
+      el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-enquiry-copy': '', onclick: () => { navigator.clipboard?.writeText(r.reference).then(() => toast('Reference copied'), () => toast('Copy it by hand: ' + r.reference)); } }, 'Copy the reference'),
+    ]);
+    form.replaceWith(done);
+    const lead = document.querySelector('#drawer p.body');
+    if (lead && !done.contains(lead)) lead.remove();
+    toast(`Enquiry received — reference ${r.reference}`);
+  } }, 'Send this enquiry');
+  form.append(btn, status);
+  return form;
+}
 /* ==========================================================================
    LAND AND FLOOR AREA — THE UNITS SARAWAK ACTUALLY DEALS IN
    --------------------------------------------------------------------------
@@ -66689,7 +66920,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property-phone":"Property on a phone: enter, save, reopen","property":"Property: calculate, change, save","quick":"Property Quick model: typed figures move the answer, the full model holds the same deal","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","property-flow":"Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved","journey-bar":"Property journey bar: the property, how it is bought, its evidence and its moves on every page; Evidence lands where its figures are confirmed","map":"Property map: Kuching’s placed schemes from the list, positions only, opened in the Scenario Lab","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Print & share","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","research-case":"Investment case: started from a company, a default confirmed, written in your words, reopened from Saved work, restored from a backup","corrections":"Correction case: reported from a company page, saved in this browser, reopened after a reload and copied — nothing sent","submission":"Report submission: a data error submitted from the page, a receipt only after the store accepted it, and the record found by that receipt","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property-phone":"Property on a phone: enter, save, reopen","property":"Property: calculate, change, save","quick":"Property Quick model: typed figures move the answer, the full model holds the same deal","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","property-flow":"Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved","journey-bar":"Property journey bar: the property, how it is bought, its evidence and its moves on every page; Evidence lands where its figures are confirmed","map":"Property map: Kuching’s placed schemes from the list, positions only, opened in the Scenario Lab","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Print & share","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","research-case":"Investment case: started from a company, a default confirmed, written in your words, reopened from Saved work, restored from a backup","corrections":"Correction case: reported from a company page, saved in this browser, reopened after a reload and copied — nothing sent","submission":"Report submission: a data error submitted from the page, a receipt only after the store accepted it, and the record found by that receipt","enquiry":"Enquiry: sent from the Contact page, a reference only after the store held it, and the record found by its submission","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
    and 7). health/checks.json, written with the journeys' record by the same

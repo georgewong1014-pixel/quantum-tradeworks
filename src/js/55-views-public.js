@@ -2179,6 +2179,14 @@ VIEWS.contact = () => trustPage('Contact',
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'feedback' }, 'Send feedback'),
        ])]],
+    /* The enquiry form: drawn only when the retention sentence is set in
+       source (LAUNCH.enquiry, 15-derivation.js). The drawer then asks the
+       deployment whether its store is configured before it shows a field. */
+    ...(enquiryOffered() ? [['Send an enquiry',
+      [tp('To ask about using a product, or for something this site does not do yet. A name, one way to reply and a sentence are enough. It is stored and given a reference; it is not an order, and no reply time is promised.'),
+       el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+         el('button', { type: 'button', class: 'btn btn-primary btn-sm', 'data-enquiry-open': '', onclick: () => openEnquiry() }, 'Send an enquiry'),
+       ])]]] : []),
     /* Nothing supplied, nothing to list: the card appears with the first
        postal detail the owner supplies, and lists only the details there
        are. The email address is the first card's, so it is not said twice. */
@@ -2197,6 +2205,11 @@ VIEWS.contact = () => trustPage('Contact',
 
 VIEWS.privacy = () => {
   const tagged = analyticsTagged();
+  /* The enquiry form (67-enquiry.js). Every sentence it changes is written
+     from the one flag the Contact page draws its button from, so the notice
+     and the form appear together or not at all. */
+  const enq = enquiryOffered();
+  const sent = [waitlistReady() ? 'an email address you choose to give the waitlist' : null, enq ? 'an enquiry you choose to send from the Contact page' : null].filter(Boolean);
   const nos = ['no accounts', 'no cookies', tagged ? null : 'no analytics', waitlistReady() ? null : 'no form that sends anything by itself'].filter(Boolean);
   /* "In short" is built from the same flags as the sentences below it, so
      the summary cannot say more than the page does. The one thing that does
@@ -2206,7 +2219,7 @@ VIEWS.privacy = () => {
     'What this build stores, where it stores it and what leaves your device — then the notice the Personal Data Protection Act 2010 asks for.',
     [
     ['In short',
-      [`The site sends nothing you enter to anyone${waitlistReady() ? ', except an email address you choose to give the waitlist' : ''}: there ${nos.length === 1 ? 'is' : 'are'} ${nos.slice(0, -1).join(', ')}${nos.length > 1 ? ' and ' : ''}${nos[nos.length - 1]}. Your browser asks this site for its own files and nothing else, and what you save stays in this browser, on your device. The one thing that travels is a page’s own address when the page is loaded — the property calculator keeps the deal’s figures in it — as set out below.`]],
+      [`The site sends nothing you enter to anyone${sent.length ? ', except ' + sent.join(' and ') : ''}: there ${nos.length === 1 ? 'is' : 'are'} ${nos.slice(0, -1).join(', ')}${nos.length > 1 ? ' and ' : ''}${nos[nos.length - 1]}. Your browser asks this site for its own files and nothing else, and what you save stays in this browser, on your device. The one thing that travels is a page’s own address when the page is loaded — the property calculator keeps the deal’s figures in it — as set out below.`]],
     ['What is stored',
       /* The full list, because a privacy page that names some of what it
          stores is worse than one that names none: it invites the reader to
@@ -2229,7 +2242,9 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Recent: '), 'the pages, tools and saved work you recently opened, and when you opened them and each company you viewed — at most twenty, which the search lists when nothing is typed in it; its “Clear recent” forgets them.'],
          [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; when you last exported, with a fingerprint of each item the file held — never the item itself — so the page can say how many items you have saved since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),
-       'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
+       enq
+         ? 'There are no accounts in this build, so there is nothing to sign in to. The only server-side record of you is an enquiry you choose to send, set out below.'
+         : 'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
         tp('Only requests for this site’s own files: the page itself and the data files it reads — the SEC filings, the instrument list, the Sarawak map and, when you open a locality on the area screen, NAPIC’s published figures for the division it lies in. Those are one file a division, so the address requested names the division. The Kuching scheme map asks for the Kuching map file, its style, lettering and symbols, and its drawing code, all from this site and only on that page; it reads the map file in pieces, so the host could infer which part of Kuching you looked at. The security policy this site is served with tells your browser to refuse any request the page itself makes to another address, so this is enforced by your browser, not only promised here.'),
@@ -2244,7 +2259,10 @@ VIEWS.privacy = () => {
         waitlistReady()
           ? tp('If you enter an email address in the waitlist, that address is sent to the form service configured for this deployment and used for one message about launch. Nothing else on this page is sent with it.')
           : null,
-        tp(el('strong', {}, 'One form sends something, and only when you press Submit.'), ' A data-error report or feedback is saved in this browser first; if you then press Submit, the text you reviewed, the page’s name and the build go to this site’s own address, /api/report, and to the store the operator has configured for it — nothing else from this browser, and no address of yours. The site answers with a receipt reference only once that store has accepted it. No email address is requested and none can be submitted.'),
+        ...(enq
+          ? [tp(el('strong', {}, 'An enquiry, and only when you press Send.'), ' The enquiry form on the Contact page sends your name, the email address or phone number you give, what it is about, your message and when you need it, with the page you were on and the build, to this site’s own address, /api/enquiry. It is saved in the enquiry store, a database that Supabase hosts, and a notice carrying the same details is emailed to the person who handles enquiries through Resend, an email service. Nothing from your saved work is sent, and no file. The network address every request carries is used for a moment to limit how many enquiries one sender can make, and is not stored with the enquiry. ', LAUNCH.enquiry.retention)]
+          : []),
+        tp(el('strong', {}, enq ? 'The report form sends something, and only when you press Submit.' : 'One form sends something, and only when you press Submit.'), ' A data-error report or feedback is saved in this browser first; if you then press Submit, the text you reviewed, the page’s name and the build go to this site’s own address, /api/report, and to the store the operator has configured for it — nothing else from this browser, and no address of yours. The site answers with a receipt reference only once that store has accepted it.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested and none can be submitted.')),
         supportEmail()
           ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing until you press Submit, as above. Or copy the case and send it to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
           : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing until you press Submit, as above — there is no contact address yet. Or copy the case as text; copying uses your clipboard only when you press the button.'),
@@ -2256,7 +2274,7 @@ VIEWS.privacy = () => {
     ['What is never collected',
       'No brokerage credentials, no account numbers, no identity documents. The portfolio feature records what you type and nothing else.'],
     ['Clearing your data',
-      [tp('Clearing this site’s storage in your browser removes everything the product holds about you, immediately and irreversibly. Export first if you want to keep it — ', tlink('Your data', '/my/data'), ' lists what is saved and writes it to a file. There is no copy on any server to fall back on.')]],
+      [tp('Clearing this site’s storage in your browser removes everything the product holds about you, immediately and irreversibly. Export first if you want to keep it — ', tlink('Your data', '/my/data'), ' lists what is saved and writes it to a file. There is no copy on any server to fall back on.', enq ? ' An enquiry you sent is not held in this browser, so clearing does not remove it: ask for that as set out under Access and correction.' : null)]],
     { section: 'Personal Data Protection Act 2010 — notice',
       lede: 'The notice a data user gives under the Personal Data Protection Act 2010 (Malaysia): what personal data is processed and why, where it comes from, who it goes to, and how to ask for access or a correction. It is written for this build, which collects nothing on a server, and for what a launch would add — each addition listed here before it is collected.' },
     ['Who the data user is',
@@ -2264,24 +2282,29 @@ VIEWS.privacy = () => {
        'No operating entity has been registered yet. The data user named here will be responsible for any personal data a launch collects; this build collects none on a server.']],
     ['What personal data is processed, and where it comes from',
       supportEmail()
-        ? ['This build collects none on a server. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. What every web request carries reaches the host — your IP address and your browser’s name and version — as set out above.',
+        ? [(enq ? 'This build collects personal data on a server only when you send an enquiry. Everything else you type' : 'This build collects none on a server. What you type') + ' — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. What every web request carries reaches the host — your IP address and your browser’s name and version — as set out above.',
+           ...(enq ? ['If you send an enquiry from the Contact page, your name, the email address or phone number you give, and what you wrote are collected from you directly and kept in the enquiry store.'] : []),
            tp('If you write to ', supplied('email'), ', your email address, your message and anything you attach reach that mailbox, from you directly; it is hosted by Google, which runs the email service. Nothing else is collected.'),
            'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']
-        : ['Today this build collects none. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. The only personal data that reaches anyone is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
+        : [(enq ? 'Today this build collects personal data only when you send an enquiry from the Contact page: your name, the email address or phone number you give, and what you wrote. Everything else you type' : 'Today this build collects none. What you type') + ' — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. ' + (enq ? 'The only other personal data that reaches anyone' : 'The only personal data that reaches anyone') + ' is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
            'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address and message if you write to the contact address; your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']],
     ['Purposes',
-      (supportEmail() ? 'Today, a message you send to the contact address is used only to answer it and to check and correct the figure it is about. At launch, ' : 'Today there are none, because nothing is collected. At launch, ') + 'personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
+      (supportEmail() ? 'Today, a message you send to the contact address is used only to answer it and to check and correct the figure it is about. ' : enq ? '' : 'Today there are none, because nothing is collected. ')
+        + (enq ? 'An enquiry you send is used only to reply to you about what you asked and to keep track of it until it is closed. ' : '')
+        + 'At launch, personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
     ['Who it is disclosed to',
-      (supportEmail() ? 'Today, no one: a message you send is held in the contact mailbox, which Google hosts, and is not passed on. At launch,' : 'Today, no one: this build holds nothing to disclose. At launch,') + ' only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
+      (enq
+        ? 'Today, only the service providers that hold it for the data user' + (supportEmail() ? ': a message you send is held in the contact mailbox, which Google hosts;' : ':') + ' an enquiry is held in the enquiry store, which Supabase hosts, and the notice of it is sent by Resend to the mailbox of the person who handles enquiries. Supabase and Resend may process it on servers outside Malaysia. None of it is passed on to anyone else. At launch,'
+        : supportEmail() ? 'Today, no one: a message you send is held in the contact mailbox, which Google hosts, and is not passed on. At launch,' : 'Today, no one: this build holds nothing to disclose. At launch,') + ' only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
     ['Whether you must provide it',
-      'Nothing is obligatory. Every page works without you giving any personal data. At launch, if you choose not to give an email address, the only consequence is that no reply or message can reach you.'],
+      'Nothing is obligatory. Every page works without you giving any personal data. ' + (enq ? 'An enquiry needs a name, one way to reply — an email address or a phone number — and what you need, because it cannot be answered without them; nothing else on its form is required. ' : '') + 'At launch, if you choose not to give an email address, the only consequence is that no reply or message can reach you.'],
     ['Access and correction',
       ['The Act gives you the right to ask a data user for a copy of the personal data it holds about you, to ask for it to be corrected, to withdraw your consent to its processing, and to require that it is not used for direct marketing.',
-       tp('Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. ', supportEmail() ? 'Send requests to ' : 'At launch, send requests to ', supplied('email'), '.')]],
+       tp((enq ? 'Today the only thing this build holds about you on a server is an enquiry you sent. To see, correct or delete one, write to the address below and quote its reference. Everything else it stores is on your device' : 'Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device') + ' and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. ', supportEmail() ? 'Send requests to ' : 'At launch, send requests to ', supplied('email'), '.')]],
     ['Your choices',
       'You can use everything here without giving anything, and export or clear what this browser stores at any time. At launch you would be able to decline any message you did not ask for, and withdraw from one you did.'],
     ['Security and retention',
-      'On your device, anyone who can use this browser profile can read what it stores — clear it on a shared computer. The site’s security policy stops the page itself connecting to any other address. At launch, personal data would be kept only as long as its purpose needs, and the period would be stated here.'],
+      'On your device, anyone who can use this browser profile can read what it stores — clear it on a shared computer. The site’s security policy stops the page itself connecting to any other address. ' + (enq ? LAUNCH.enquiry.retention + ' ' : '') + 'At launch, personal data would be kept only as long as its purpose needs, and the period would be stated here.'],
     ['Requests and complaints',
       [supportEmail()
          ? tp('Write to ', supplied('email'), '. A postal address, ', supplied('address'), ', is not published yet.')
