@@ -1,13 +1,13 @@
 {
   "kind": "quantum-tradeworks-checks",
   "schema": 1,
-  "commit": "f73ab4b61e80940cdd71d53e893340426cec9589",
-  "recordedAt": "2026-11-15T20:27:02.239Z",
-  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/43746161554",
-  "ranAt": "2026-11-15T19:43:54Z",
-  "event": "workflow_dispatch",
-  "conclusion": "success",
-  "app": "app.0fdd3f3ec7cd.js",
+  "commit": "e081bd1309b3aed4498d3299519d34b6d42dc5ff",
+  "recordedAt": "2026-11-16T08:28:48.646Z",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/43820823231",
+  "ranAt": "2026-11-16T08:27:55Z",
+  "event": "push",
+  "conclusion": "failure",
+  "app": "app.96af4ab64272.js",
   "note": null,
   "suites": [
     {
@@ -147,11 +147,11 @@
       "name": "sweep",
       "kind": "layout",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 108,
-      "failed": 0,
-      "said": "108/108 routes clean",
-      "exit": 0
+      "status": "FAIL",
+      "passed": 107,
+      "failed": 1,
+      "said": "107/108 routes clean",
+      "exit": 1
     },
     {
       "id": "coverage-frames",
@@ -169,11 +169,11 @@
       "name": "mobile",
       "kind": "layout",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 47,
-      "failed": 0,
-      "said": "no horizontal overflow at any width, and no focus stop hidden (47 ok, 0 FAIL)",
-      "exit": 0
+      "status": "FAIL",
+      "passed": 46,
+      "failed": 1,
+      "said": "1 genuine issues (overflow or hidden focus) (46 ok, 1 FAIL)",
+      "exit": 1
     }
   ]
 }
