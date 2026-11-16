@@ -7250,6 +7250,13 @@ input.au-in[type="text"] { text-align: left; }
    the count is their containing block, so they stay inside the track's own
    scroller. Outside it they widened the page on a phone, which then zoomed
    out and took every tap in the wrong place (journeys, property-phone). */
+/* The count gives way before the page does: in a wide system font at 1024px
+   the five steps and the count were 6px wider than the page (16 Nov 2026,
+   CI). It is the one part of the track that may shorten (from 640px; on a
+   phone the track scrolls inside itself, as before); its full words
+   are still read out. */
+@media (min-width: 640px) { .pf-li.pf-count { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: block; } }
+.pf-steps { max-width: 100%; }
 .pf-count { position: relative; margin-left: var(--sm); font-size: var(--ls-meta); line-height: 20px; color: var(--ink-2); white-space: nowrap; }
 .pf-step::before { content: ''; flex: none; box-sizing: border-box; width: 10px; height: 10px; margin-right: 6px; border: 1.5px solid currentColor; border-radius: 50%; opacity: .7; }
 .pf-step.is-done::before { content: '✓'; width: auto; height: auto; border: 0; border-radius: 0; opacity: 1; font-size: var(--ls-meta); line-height: 1; color: var(--ink); }
@@ -7757,8 +7764,8 @@ input.au-in[type="text"] { text-align: left; }
 
    - The steps and their line of context are one row where the line fits
      beside them, and the line is plain text there, not a second box.
-   - The save controls are a narrow panel beside the heading (1200px up) or
-     one compact row (1024px to 1199px): the property's name and whether it
+   - The save controls are a narrow panel beside the heading (1366px up) or
+     one compact row (1024px to 1365px): the property's name and whether it
      is saved, the actions, and the backup sentence, all still in sight.
      Nothing is removed and no id changes. On a phone the bar already
      follows the model (QT-003, above).
@@ -7768,20 +7775,33 @@ input.au-in[type="text"] { text-align: left; }
   .pf-flow[data-pf-view="property"] > .pf-ctx { flex: 1 1 auto; min-height: 32px; padding: 0 0 0 var(--md); border: 0; border-left: 1px solid var(--line); border-radius: 0; background: none; box-shadow: none; }
   .pf-flow[data-pf-view="property"] > .pf-ctx.is-unsaved { border-left-color: var(--bronze); }
 
-  .pc-page > .pm-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ls-within) var(--lg); padding: var(--sm) var(--md); }
+  /* The actions take at most 55% of the row and wrap inside it. As a plain
+     "auto" column they took their one-line width: with a saved property's six
+     actions that left the name's column 0px wide, a letter to a line
+     (16 Nov 2026). */
+  .pc-page > .pm-bar { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(55%); align-items: start; gap: var(--ls-within) var(--lg); padding: var(--sm) var(--md); }
   .pc-page > .pm-bar > * { grid-column: 1 / -1; min-width: 0; }
   .pc-page > .pm-bar > .pm-bar-hd { grid-column: 1; }
   .pc-page > .pm-bar > .pm-acts { grid-column: 2; grid-row: 1; justify-content: flex-end; }
   .pc-page > .pm-bar .pm-status { font-size: var(--ls-support); line-height: 20px; }
   .pc-page > .pm-bar > .pm-backup { font-size: var(--ls-meta); line-height: 20px; }
+  /* The backup sentence is one run of words with its link in it, in the row
+     and in the panel alike: as three flex items it stood in three pieces. */
+  .pc-page > .pm-bar > .pm-backup { display: block; }
+  .pc-page > .pm-bar > .pm-backup > * { display: inline; min-height: 0; padding: 0; }
 }
-@media (min-width: 1200px) {
+/* From 1366px, not 1200px (16 Nov 2026, CI): at 1280 the heading's column
+   was 588px, and in a wide system font (CI's, a Linux reader's) the one-line
+   lede took two lines. The panel is 300px at 1366 and 340px from about
+   1545, so the heading keeps at least 690px; narrower than 1366 the save
+   controls are the compact row above. */
+@media (min-width: 1366px) {
   /* The fourth row is the slack: the save panel spans it, so what the panel
      stands taller than the three rows beside it is that row's alone, and
      the heading, the notes and "Why this is not a valuation" keep their own
      heights whatever opens (shared among three auto rows, opening the
      valuation note moved the heading 3px: coverage-frames). */
-  .pc-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); grid-template-rows: auto auto auto 1fr; column-gap: var(--lg); align-items: start; }
+  .pc-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, clamp(300px, 22vw, 340px)); grid-template-rows: auto auto auto 1fr; column-gap: var(--lg); align-items: start; }
   .pc-page > * { grid-column: 1 / -1; min-width: 0; }
   .pc-page > .page-hd, .pc-page > .pc-more-page, .pc-page > .pc-claim { grid-column: 1; }
   .pc-page > .pm-bar { grid-column: 2; grid-row: 1 / span 4; align-self: start; grid-template-columns: minmax(0, 1fr); gap: var(--ls-related); padding: var(--md); margin-bottom: var(--md); }
