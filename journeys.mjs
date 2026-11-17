@@ -4149,6 +4149,15 @@ const JOURNEYS = [
           /* An older build has no submit block at all; a build with one must say the truth. */
           if (r.block !== null && !probe.configured && !/not switched on/.test(r.block)) throw new StepError(`with no store configured the drawer says “${r.block.slice(0, 160)}”, not that submitting is not switched on`);
           if (r.block !== null && probe.configured && !r.control) throw new StepError(`the store is configured but the drawer offers no Submit control: “${r.block.slice(0, 160)}”`);
+          /* QTW-002 (17 Nov 2026): where submitting is off, the privacy page says so
+             and names copy-and-email as the supported way; it described Submit
+             and /api/report as available. Read from the page as it is served. */
+          if (!probe.configured) {
+            await tab.goto('/privacy');
+            const pv = await tab.eval(`document.getElementById('views')?.innerText || ''`);
+            if (/One form sends something, and only when you press Submit/.test(pv) || !/Where it cannot, there is no Submit button and nothing is sent/.test(pv))
+              throw new StepError('with submitting off, /privacy describes the report form’s Submit as available, or does not say that copying and emailing is the way to report');
+          }
         }, { gated: why });
         await step(j, tab, 'Operational completion: the record is found by its receipt with the text reviewed', BUDGET.action, async () => {}, { gated: 'the owner’s by-hand check (ops/REPORT-SUBMISSION-CHECK.md): find the issue by its receipt, confirm the text, own it' });
         await step(j, tab, 'Only the reviewed report went: one request, five fields, nothing from saved work', BUDGET.action, async () => {
