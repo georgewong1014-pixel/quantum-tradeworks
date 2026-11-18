@@ -39689,7 +39689,10 @@ function propertyModelBar(d = State.deal) {
       ? el('span', { class: 'pm-unsaved' }, 'Unsaved changes')
       : `saved ${pmWhen(st.sc ? st.sc.updatedAt : pmUpdated(st.rec))}`);
   } else if (st.kind === 'unsaved') status.append(el('span', { class: 'pm-unsaved' }, 'Unsaved changes'), ' — not saved as a property yet');
-  else status.append(el('strong', {}, shoplotOf(d) ? shoplotChip(d.shoplot) : 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
+  else status.append(el('strong', {}, shoplotOf(d) ? shoplotChip(d.shoplot) : 'Sample deal'), ' — not saved as a property.');
+  /* "Illustrative default" is said once in words, in the answer's "What these
+     figures rest on", with the tag on each figure and box (the owner, 18 Nov
+     2026: the bar no longer repeats it). */
   bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
   /* Which shoplot starting scenario, and its one limit (94-shoplot-scenarios.js). */
   if (st.kind === 'sample' && shoplotOf(d)) bar.append(shoplotCalcNote(d));
@@ -45763,8 +45766,11 @@ const PC_REFINE_UNITS = [['tenureYears'], ['vacancyPct'], ['maintenance'], ['mgm
 function pcRefineCount(d) {
   const own = PC_REFINE_UNITS.filter(ks => !!d.userStarted || ks.some(k => isTouched(d, k))).length;
   const total = PC_REFINE_UNITS.length;
-  return { own, total, words: own ? `${own} of ${total} changed` : 'all illustrative defaults' };
+  return { own, total, words: `${own ? own : 'none'} of ${total} changed` };
 }
+/* The summary counts the reader's own figures and does not repeat "all
+   illustrative defaults": the answer's "What these figures rest on" says it,
+   once (the owner, 18 Nov 2026). The Lab's labRefineCount keeps its words. */
 /* Whether the group stands open, across a redraw: true or false once the
    reader has chosen (the summary's press, "Go to it", an address that names
    one of its boxes), nothing before — until then it follows the figures and

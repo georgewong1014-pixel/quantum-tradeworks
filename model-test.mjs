@@ -10007,7 +10007,7 @@ try {
     if (f.refOutside?.length) p.push(`not inside "Refine the assumptions": ${f.refOutside.join(', ')}`);
     if (f.refVisible?.length) p.push(`refine inputs in sight with the group closed: ${f.refVisible.join(', ')}`);
     if (f.open) p.push('"Refine the assumptions" is open on a first visit');
-    if (f.sum !== 'Refine the assumptions · all illustrative defaults' && f.sum !== 'Refine the assumptions all illustrative defaults') p.push(`its summary reads "${f.sum}"`);
+    if (f.sum !== 'Refine the assumptions · none of 6 changed' && f.sum !== 'Refine the assumptions none of 6 changed') p.push(`its summary reads "${f.sum}", not "none of 6 changed" (the owner, 18 Nov 2026: "illustrative default" is said once, in the answer)`);
     if (f.groups !== 'Loan|Running costs|Renovation') p.push(`its parts are "${f.groups}", not Loan, Running costs, Renovation`);
     if (f.tags !== 'Default|Default|Default|Default') p.push(`the four essentials' tags read "${f.tags}"`);
     if (f.note !== 'Fields marked Default hold the tool’s illustrative figures, not yours and not from any market.') p.push(`the sentence above the inputs reads "${f.note}"`);
@@ -10022,7 +10022,7 @@ try {
     if (r.tagsAfter !== 'Yours|Yours|Yours|Yours') p.push(`the essentials' tags after each was changed: "${r.tagsAfter}"`);
     if (!r.saved || !r.saved.open || !/1 of 6 changed$/.test(r.saved.sum) || r.saved.tag !== 'Yours') p.push(`a deal that arrives with its own vacancy: ${JSON.stringify(r.saved)}`);
     if (p.length) fail('C-REFINE: the Quick model\'s essentials first, the rest under "Refine the assumptions"', p);
-    else ok('C-REFINE: on a first visit the price, deposit, rate and rent stand in sight, each tagged "Default" under one sentence saying what that is, and the tenure, vacancy, maintenance, fee, other running costs and renovation sit in a closed "Refine the assumptions" (Loan, Running costs, Renovation) saying "all illustrative defaults"; a vacancy typed reads "1 of 6 changed" and its tag "Yours", the group kept closed across a redraw when the reader closed it, a focused box in it kept across one, and open from the start for a deal with its own vacancy; the price, rent, rate and deposit each move the tiles they should, the tiles dealModel\'s, and each turns its tag to "Yours"');
+    else ok('C-REFINE: on a first visit the price, deposit, rate and rent stand in sight, each tagged "Default" under one sentence saying what that is, and the tenure, vacancy, maintenance, fee, other running costs and renovation sit in a closed "Refine the assumptions" (Loan, Running costs, Renovation) saying "none of 6 changed"; a vacancy typed reads "1 of 6 changed" and its tag "Yours", the group kept closed across a redraw when the reader closed it, a focused box in it kept across one, and open from the start for a deal with its own vacancy; the price, rent, rate and deposit each move the tiles they should, the tiles dealModel\'s, and each turns its tag to "Yours"');
   }
   /* EDITED FIGURES AND THE RESERVE ACROSS THE TWO VIEWS (the 17 Oct Day-4
      report, Quantum task: "Change purchase price, rent and renovation
