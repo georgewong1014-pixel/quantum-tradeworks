@@ -107,7 +107,7 @@ const ROUTES = router.ROUTES;
    table (the in-app operations views) and out of every "served 200" list. */
 const ADMIN_SCANNER = ['/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery'];
 const statics = [...new Set(ROUTES.filter(r => !r.path.includes(':')).map(r => r.path))]
-  .filter(p => router.matchRoute(p).path === p && !ADMIN_SCANNER.includes(p));
+  .filter(p => router.matchRoute(p).path === p);
 const params = ROUTES.filter(r => r.path.includes(':')).map(r => r.path);
 const NOT_FOUND = router.headAt('/404.html');
 const expectHead = (path) => {
@@ -314,19 +314,37 @@ const HOME_PAGE = read(HOME);
   judge(p, `every route without a parameter (${statics.length}) is served 200 with its own title, description, canonical, og: and twitter: tags, is index.html in every other byte but the two app files it loads in place of the inline ones, and carries vercel.json's headers with a CSP allowing its script`,
     'a route without a parameter is not served its own head');
 }
-/* H-10: the public operations addresses are a 301 to /, not the scanner view. */
+/* H-10: on a *.vercel.app host these addresses are a 301 to /. The render
+   harness is not that host, so it still serves the operations pages and the
+   route checks still hold them. The rule itself is in vercel.json. */
 {
-  const got = await getAll(ADMIN_SCANNER);
+  const host = new URL(BASE).hostname;
+  const publicHost = /(?:^|\.)vercel\.app$/.test(host);
+  const rules = (VERCEL.redirects || []).filter(r => ADMIN_SCANNER.some(p => r.source === p || r.source === '/admin/scanner/:path+'));
   const p = [];
+  const exact = rules.find(r => r.source === '/admin/scanner');
+  const nested = rules.find(r => r.source === '/admin/scanner/:path+');
+  for (const rule of [exact, nested]) {
+    if (!rule) continue;
+    const hostRule = (rule.has || []).find(h => h.type === 'host');
+    if (rule.statusCode !== 301 || rule.destination !== '/' || !hostRule || !new RegExp(`^(?:${hostRule.value})$`).test('quantum-tradeworks.vercel.app'))
+      p.push(`${rule.source} is not a 301 to / on a vercel.app host`);
+  }
+  if (!exact || !nested) p.push('vercel.json does not redirect /admin/scanner and /admin/scanner/:path+');
+  const got = await getAll(ADMIN_SCANNER);
   for (const path of ADMIN_SCANNER) {
     const r = got.get(path);
     const loc = r.headers.get('location');
     const at = loc ? new URL(loc, BASE) : null;
-    if (r.status !== 301 || !at || at.origin !== new URL(BASE).origin || at.pathname !== '/')
-      p.push(`${path}: ${described(r)}${loc ? ` to ${loc}` : ''}, not 301 to /`);
+    if (publicHost) {
+      if (r.status !== 301 || !at || at.origin !== new URL(BASE).origin || at.pathname !== '/')
+        p.push(`${path}: ${described(r)}${loc ? ` to ${loc}` : ''}, not 301 to /`);
+    } else if (r.status !== 200 || !/text\/html/.test(r.type) || !r.body.includes(`data-served="${path}"`)) {
+      p.push(`${path}: ${described(r)}, not the operations page (the public 301 applies on vercel.app only)`);
+    }
   }
-  judge(p, `/admin/scanner and its three sections are a 301 to / (${ADMIN_SCANNER.length} addresses); the /app/* scanner pages are not among them`,
-    '/admin/scanner is still served as a page');
+  judge(p, `vercel.json 301s /admin/scanner and its sections to / on a vercel.app host; this host (${host}) ${publicHost ? 'answers 301' : 'still serves the operations pages'}`,
+    '/admin/scanner is not a public redirect, or the operations page is gone from the harness');
 }
 
 /* 2. A query string plays no part in which page is served. */
@@ -1422,13 +1440,30 @@ const HOME_PAGE = read(HOME);
   const status = got.get('/status').body || '';
   const sum = /<p class="metaline" id="health-journeys-sum"[^>]*>([\s\S]*?)<\/p>/.exec(status)?.[1];
   const list = /<ul id="health-journeys"[^>]*>([\s\S]*?)<\/ul>/.exec(status)?.[1];
+  const sumRecord = (sum || '').replace(/<span class="journeys-myt">[\s\S]*?<\/span>/, '');
   if (sum == null) p.push('/status serves no #health-journeys-sum');
   else {
-    if (words(sum) !== 'latest record unavailable') p.push(`/status's summary is "${words(sum).slice(0, 120)}", not "latest record unavailable" — the record is read at runtime from health-records`);
-    if (/chip-ok|>Pass</.test(sum)) p.push('/status serves a Pass in the journeys summary before the runtime record');
+    if (/Read from the site by this page/.test(words(sumRecord))) p.push(`/status serves the placeholder in #health-journeys-sum: "${words(sumRecord)}"`);
+    if (!/^Last recorded run \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC on [0-9a-f]{7}: \d+ of \d+ pass\b/.test(words(sumRecord))) p.push(`/status's summary states no UTC run time and 7-character commit: "${words(sumRecord).slice(0, 120)}"`);
+    if (want.recorded && sumRecord !== want.sum) p.push(`/status's summary is not the record's: served "${words(sumRecord).slice(0, 110)}", the record "${words(want.sum).slice(0, 110)}"`);
+    if (rec.ranAt && !/<span class="journeys-myt"> · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} MYT<\/span>/.test(sum)) p.push('/status does not serve the run time in MYT');
+    const link = /<a class="journeys-log" href="([^"]*)">/.exec(sum)?.[1] || null;
+    if (rec.run && link !== rec.run) p.push(`/status links ${link || 'no run'}, not the recorded run ${rec.run}`);
+    if (LIVE && !(link && RUN_URL.test(link))) p.push(`/status links ${link || 'nothing'}, not an Actions run (…/actions/runs/<id>) — the record names no run`);
   }
   if (list == null) p.push('/status serves no #health-journeys');
-  else if (/journey-row|chip-ok/.test(list)) p.push('/status serves journey rows before the runtime record');
+  else if (want.recorded) {
+    if (list !== want.list) p.push('/status\'s #health-journeys is not the record\'s list');
+    const rows = [...list.matchAll(/<li class="journey-row" id="journey-[a-z0-9-]+" data-status="(PASS|DEGRADED|FAIL)">([\s\S]*?)<\/div><\/li>/g)];
+    if (rows.length !== (rec.journeys || []).length) p.push(`/status serves ${rows.length} journey rows for the record's ${(rec.journeys || []).length} journeys`);
+    rows.forEach((m, i) => {
+      const j = rec.journeys[i] || {};
+      const steps = [...m[2].matchAll(/<li data-mark="(ok|fail|gated)"><span class="journey-mark">(OK|FAIL|gated)<\/span> ([^<]*)/g)];
+      const recSteps = Array.isArray(j.steps) ? j.steps : [];
+      if (steps.length !== recSteps.length) p.push(`/status: ${j.id} serves ${steps.length} steps marked OK, FAIL or gated, of the record's ${recSteps.length}`);
+      steps.forEach((s, k) => { if (recSteps[k] && words(s[3]) !== recSteps[k].name) p.push(`/status: ${j.id}'s step ${k + 1} reads "${words(s[3])}", the record's "${recSteps[k].name}"`); });
+    });
+  }
   const jAt = status.indexOf('>Complete journeys on the live site</h3>'), bAt = status.indexOf('>Checked in your browser now</h3>');
   if (jAt < 0 || bAt < 0 || jAt > bAt) p.push('/status: "Complete journeys on the live site" is not served above "Checked in your browser now"');
   /* The journey line left the product pages (the owner, 18 Oct 2026: the
@@ -1459,8 +1494,8 @@ const HOME_PAGE = read(HOME);
       }
     } catch (e) { p.push(`GitHub's deployments and compare APIs could not be read (${e.message})`); }
   }
-  judge(p, `/status says "latest record unavailable" and lists no journey Pass before its script reads health-records (${want.recorded ? `the committed file still holds ${words(want.sum).slice(0, 48)}…` : 'the committed file holds no run'}); the journey line stays off /property, /research and /app/scanner${gated ? '; the committed file gates the Scanner\'s evaluate step' : ''}${LIVE ? '; that file names its run, is under 24 hours old and is the latest Production deployment\'s commit or differs from it only in the record and the island pages' : ''}`,
-    '/status serves a journey Pass before the runtime record, or the committed journeys file is not a record');
+  judge(p, `the recorded journeys are served before any script runs, with the run's MYT time: /status's summary (${want.recorded ? words(want.sum).slice(0, 72) + '…' : 'none'}) and ${(rec.journeys || []).length} journey rows with every step OK, FAIL or gated, exactly the record this site serves, above the in-browser checks; and the journey line on /property, /research and /app/scanner, equal to it${gated ? ', the Scanner\'s evaluate step gated' : ''}${LIVE ? '; the live record names its run, is under 24 hours old and is the latest Production deployment\'s commit or differs from it only in the record and the island pages' : ''}`,
+    'the recorded journeys are not served as recorded');
 }
 /* ---- end journeys-served ---- */
 
@@ -1570,13 +1605,9 @@ const HOME_PAGE = read(HOME);
     if (!(b > -1 && b < at && at < q)) p.push('/status: #health-ci is not served under "Checked in your browser now", above the in-browser checks');
     if (want.status.numbers !== 'PASS' && /Numbers PASS/.test(words(ci))) p.push(`#health-ci says Numbers PASS where the record does not: "${words(ci).slice(0, 120)}"`);
   }
-  /* The calls to action: the count is its steps'. The journey rows are
-     filled when the script reads health-records, so a page that says the
-     record is unavailable lists none yet. */
+  /* The calls to action: the count is its steps'. */
   const cta = /<li class="journey-row" id="journey-ctas" data-status="(PASS|DEGRADED|FAIL)">([\s\S]*?)<\/div><\/li>/.exec(status);
-  const journeysSum = /id="health-journeys-sum"[^>]*>([\s\S]*?)<\/p>/.exec(status)?.[1] || '';
-  if (!cta && words(journeysSum) === 'latest record unavailable') said.push('calls to action read at runtime');
-  else if (!cta) p.push('/status lists no calls-to-action journey');
+  if (!cta) p.push('/status lists no calls-to-action journey');
   else if (cta[1] !== 'FAIL') {
     const steps = (cta[2].match(/<li data-mark="/g) || []).length;
     const m = /(\d+) calls to action pressed \((\d+) steps: the page opened, then each call\)/.exec(words(cta[2]));
@@ -1642,10 +1673,7 @@ const HOME_PAGE = read(HOME);
       const slot = /<span class="proof-result" data-proof-journey="([^"]*)" data-proof-step="([^"]*)" data-now="">([\s\S]*?)<\/span><\/p>/.exec(li.html);
       if (!slot) { p.push(`/status: ${r.key} serves no last result`); continue; }
       if (slot[1] !== r.proof.journey || words(slot[2]) !== r.proof.step) p.push(`/status: ${r.key}'s result is for ${slot[1]} "${words(slot[2])}", not ${r.proof.journey} "${r.proof.step}"`);
-      /* The last result is read at runtime. Served, it names no Pass. */
-      const blank = journeysServed(null).proof(r.proof.journey, r.proof.step);
-      if (slot[3] !== blank) p.push(`/status: ${r.key}'s last result is served "${words(slot[3]).slice(0, 90)}", not "${words(blank)}" until the script reads health-records`);
-      if (/proof-status|chip-ok/.test(slot[3])) p.push(`/status: ${r.key} serves a Pass before the runtime record`);
+      if (typeof want.proof === 'function' && slot[3] !== want.proof(r.proof.journey, r.proof.step)) p.push(`/status: ${r.key}'s last result is not the record's: served "${words(slot[3]).slice(0, 90)}", the record "${words(want.proof(r.proof.journey, r.proof.step)).slice(0, 90)}"`);
     }
   }
   if (rest == null) p.push('/status serves no list of the Live tools not yet proven by a journey (#health-unproven)');
@@ -1698,9 +1726,10 @@ const HOME_PAGE = read(HOME);
       if (!/^<dt>Model:<\/dt><dd><span class="status-badge status-live">Available<\/span> — /.test(model)) p.push(`/status: the model line does not read "Model: Available — …": "${said.model.slice(0, 80)}"`);
       if (slot == null) p.push('/status: the model line serves no recorded result (.status-model-result)');
       else {
-        const blankModel = journeysServed(null).model;
-        if (slot !== blankModel) p.push(`/status: the model line is served "${words(slot).slice(0, 100)}", not "${blankModel}" until the script reads health-records`);
-        if (/proof-status|chip-ok|property journey PASS/.test(slot)) p.push('/status: the model line serves a Pass before the runtime record');
+        if (typeof want.model !== 'string') p.push('journeysServed (journeys.mjs) draws no model line');
+        else if (slot !== want.model) p.push(`/status: the model line is not the record's: served "${words(slot).slice(0, 100)}", the record "${words(want.model).slice(0, 100)}"`);
+        if (want.recorded && !/^property journey (PASS|DEGRADED|FAIL)\b.* · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC · [0-9a-f]{7} · details$/.test(words(slot))) p.push(`/status: the model line does not name the property journey's result, its UTC time and a 7-character commit: "${words(slot).slice(0, 120)}"`);
+        if (want.recorded && !/href="#journey-property"/.test(slot)) p.push('/status: the model line links no property journey on the page');
       }
     }
     if (market == null) p.push('/status: the Property section serves no "Market data:" line');
@@ -2414,7 +2443,7 @@ const HOME_PAGE = read(HOME);
    area screen, the calculator's total) carried none of theirs. */
 {
   const p = [], said = { pages: 0, cards: 0, surfaces: 0 };
-  const scope = prerenderScope(RENDER_PLAN).map(s => s.path).filter(p => !ADMIN_SCANNER.includes(p));
+  const scope = prerenderScope(RENDER_PLAN).map(s => s.path);
   const got = await getAll(scope);
   for (const [path, r] of got) {
     if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
@@ -4280,9 +4309,7 @@ const HOME_PAGE = read(HOME);
       else {
         if (attr(slot, 'data-proof-journey') !== w.journey) p.push(`/status: "${name}"'s model line is ${attr(slot, 'data-proof-journey')}'s journey, not ${w.journey}'s`);
         const inner = /<span class="proof-result"[^>]*>([\s\S]*?)<\/span><\/dd>/.exec(status.body.slice(status.body.indexOf(name)))?.[1];
-        const blank = journeysServed(null).proof(w.journey, w.step);
-        if (inner !== blank) p.push(`/status: "${name}"'s last result is served "${(inner || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90)}", not "${blank}" until the script reads health-records`);
-        if (inner && /proof-status|chip-ok/.test(inner)) p.push(`/status: "${name}" serves a Pass before the runtime record`);
+        if (typeof want.proof === 'function' && inner !== want.proof(w.journey, w.step)) p.push(`/status: "${name}"'s last result is not the record's: served "${(inner || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90)}"`);
       }
       if (!data || !w.data.test(dt)) p.push(`/status: "${name}" does not read "Data: Data Gated — …" as written: "${dt.slice(0, 120)}"`);
       said.push(`${name}: "${mt.slice(0, 40)}…" / "${dt.slice(0, 50)}…"`);

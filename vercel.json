@@ -903,12 +903,24 @@
     {
       "source": "/admin/scanner",
       "destination": "/",
-      "statusCode": 301
+      "statusCode": 301,
+      "has": [
+        {
+          "type": "host",
+          "value": ".*\\.vercel\\.app"
+        }
+      ]
     },
     {
       "source": "/admin/scanner/:path+",
       "destination": "/",
-      "statusCode": 301
+      "statusCode": 301,
+      "has": [
+        {
+          "type": "host",
+          "value": ".*\\.vercel\\.app"
+        }
+      ]
     },
     {
       "source": "/company/([Aa][Aa][Pp][Ll]-[Ss][Ee][Cc])",

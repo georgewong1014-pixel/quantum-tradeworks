@@ -91,8 +91,8 @@
     { "source": "/index.html", "destination": "/", "permanent": true },
     { "source": "/:path+/index.html", "destination": "/:path+", "permanent": true },
     { "source": "/property/lab", "destination": "/property", "permanent": false },
-    { "$comment": "H-10: the public scanner operations pages are not a site. 301 to the public home. robots.txt still disallows /admin/. The /app/* scanner pages are untouched.", "source": "/admin/scanner", "destination": "/", "statusCode": 301 },
-    { "source": "/admin/scanner/:path+", "destination": "/", "statusCode": 301 },
+    { "$comment": "H-10: on the public host these addresses are not a site. 301 to the home page. The render harness (localhost, live.localhost) still serves the pages, so the route checks keep holding the operations views. robots.txt still disallows /admin/.", "source": "/admin/scanner", "destination": "/", "statusCode": 301, "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }] },
+    { "source": "/admin/scanner/:path+", "destination": "/", "statusCode": 301, "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }] },
     "@COMPANY_ID_REDIRECTS"
   ],
   "headers": [

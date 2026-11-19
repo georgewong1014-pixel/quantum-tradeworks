@@ -237,15 +237,7 @@ for (const route of ROUTES) {
   const problems = [];
   const statics = await evalValue(`[...new Set(ROUTES.filter(r => !r.path.includes(':')).map(r => r.path))].filter(p => matchRoute(p).path === p)`) || [];
   if (statics.length < 40) problems.push(`only ${statics.length} addresses without a parameter read from the page's ROUTES`);
-  const ADMIN_SCANNER = new Set(['/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery']);
   for (const path of statics) {
-    if (ADMIN_SCANNER.has(path)) {
-      const s = await served(path);
-      let to = '';
-      try { to = s.location ? new URL(s.location, BASE).pathname : ''; } catch { to = s.location || ''; }
-      if (s.status !== 301 || to !== '/') problems.push(`${path}: ${s.status} to ${s.location || 'nowhere'}, not 301 to /`);
-      continue;
-    }
     const s = await served(path);
     const c = await open(path);
     if (s.status !== 200) { problems.push(`${path}: served ${s.status}`); continue; }
@@ -557,7 +549,7 @@ for (const route of ROUTES) {
     const url = m.params.request.url, id = m.params.requestId;
     if (/\/health\/journeys\.json/.test(url)) asked.push(url);
     const answer = (status, body, type) => send('Fetch.fulfillRequest', { requestId: id, responseCode: status,
-      responseHeaders: [{ name: 'Content-Type', value: type }, { name: 'Cache-Control', value: 'no-cache' }], body: Buffer.from(body, 'utf8').toString('base64') }, sessionId);
+      responseHeaders: [{ name: 'Content-Type', value: type }, { name: 'Cache-Control', value: 'no-cache' }, { name: 'Access-Control-Allow-Origin', value: '*' }], body: Buffer.from(body, 'utf8').toString('base64') }, sessionId);
     if (/\/health\/journeys\.json/.test(url) && serve) answer(serve.status, typeof serve.body === 'string' ? serve.body : JSON.stringify(serve.body), serve.type || 'application/json; charset=utf-8');
     else if (/\/data\/us\.json/.test(url) && usGone) answer(404, 'gone for the sweep', 'text/plain');
     /* audit1 health-verify: served 200 as JSON, a body no reader can use. */
@@ -565,7 +557,7 @@ for (const route of ROUTES) {
     else send('Fetch.continueRequest', { requestId: id }, sessionId);
   };
   ws.addEventListener('message', intercept);
-  await send('Fetch.enable', { patterns: [{ urlPattern: '*/health/journeys.json*', requestStage: 'Request' }, { urlPattern: '*/data/us.json*', requestStage: 'Request' }, { urlPattern: '*/data/instruments.json*', requestStage: 'Request' }] }, sessionId);
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*journeys.json*', requestStage: 'Request' }, { urlPattern: '*/data/us.json*', requestStage: 'Request' }, { urlPattern: '*/data/instruments.json*', requestStage: 'Request' }] }, sessionId);
   /* How the page asks for the file: the cache mode of each fetch of it. */
   const modes = await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const f = window.fetch; window.__healthModes = [];
     window.fetch = function (u, o) { try { if (/health\\/journeys\\.json/.test(String(u && u.url || u))) window.__healthModes.push((o && o.cache) || (u && u.cache) || 'default'); } catch (e) {} return f.apply(this, arguments); }; })();` }, sessionId);
