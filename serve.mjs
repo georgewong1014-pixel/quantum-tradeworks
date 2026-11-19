@@ -111,7 +111,7 @@ function sourceRegExp(source) {
    build that passes every check. Rebuilding is the common case during
    development, so the config has to be as fresh as the file. A stat per
    request is nothing next to reading a 3MB page off disk. */
-const IMPLEMENTED = new Set(['headers', 'rewrites', 'redirects', 'trailingSlash']);
+const IMPLEMENTED = new Set(['headers', 'rewrites', 'redirects', 'trailingSlash', 'git', 'ignoreCommand']);
 let cachedMtime = 0, refusedMtime = 0, cfg = { headers: [], rewrites: [], redirects: [], trailingSlash: undefined };
 function config() {
   let m = 0;
