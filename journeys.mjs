@@ -644,7 +644,7 @@ function selfTest() {
        shorter than that gives up first, and the run tests and records the
        build the release replaced. */
     t(wait >= 7200 && limit * 60 >= wait + 600, `the workflow: a deployment's run waits ${wait || 'no'}s for its build (two hours at least) inside a ${limit || '?'}-minute job with ten to spare`);
-    t(/git push origin HEAD:main; then\n\s+gh workflow run checks\.yml [^\n]*--ref main/.test(y) && /GH_TOKEN: \$\{\{ github\.token \}\}/.test(y.slice(y.indexOf('record the result on main'))), 'the workflow: the record it pushes has checks.yml started on it, so its deployment can pass its Deployment Checks');
+    t(/git push --force origin HEAD:health-records; then\n\s+gh workflow run checks\.yml [^\n]*--ref main/.test(y) && /GH_TOKEN: \$\{\{ github\.token \}\}/.test(y.slice(y.indexOf('record the result on health-records'))), 'the workflow: the record is pushed to health-records, not main, and checks.yml is started on main, the commit the site serves');
     /* D16 and N1b–N1d. Comments may tell the history; the commands may not
        carry it. */
     const cmds = y.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
@@ -654,7 +654,7 @@ function selfTest() {
       && /node journeys\.mjs --url production [^\n]*\\\n[^\n]*--trigger "\$TRIGGER" --run "\$RUN_URL"/.test(cmds) && /RUN_URL: \$\{\{ github\.server_url \}\}\/\$\{\{ github\.repository \}\}\/actions\/runs\/\$\{\{ github\.run_id \}\}/.test(y),
       'the workflow: the record carries what started the run and the run\'s public log');
     t(/node journeys\.mjs --decide [^\n]*--trigger "\$TRIGGER"[^\n]*--deployed-files[^\n]*--deployed-author/.test(cmds) && /git log -1 --format='%an' "\$DEPLOY_SHA"/.test(cmds), 'the workflow: the trigger, the deployed commit\'s files and its author reach the commit rule');
-    const rec = cmds.slice(cmds.indexOf('record the result on main'));
+    const rec = cmds.slice(cmds.indexOf('record the result on health-records'));
     const at = (re) => { const m = re.exec(rec); return m ? m.index : -1; };
     const iCopy = at(/cp "\$RUNNER_TEMP\/journeys\.json" health\/journeys\.json/), iBuild = at(/node build\.mjs\b/), iGuard = at(/node journeys\.mjs --guard\b/), iCommit = at(/git commit\b/);
     t(iCopy > -1 && iCopy < iBuild && iBuild < iGuard && iGuard < iCommit, 'the workflow: the record is copied, the island pages rebuilt from it (node build.mjs), the guard run, then the commit');

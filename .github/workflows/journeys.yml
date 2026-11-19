@@ -33,7 +33,8 @@ name: journeys
 #   - ONE issue titled "Production journeys failing": opened on the first
 #     FAIL, its body replaced by the latest table while it fails, closed with
 #     a comment by the next run in which every journey passes;
-#   - health/journeys.json on main, with what started the run (trigger) and
+#   - health/journeys.json on health-records, not main (Option A, George
+#     18 Nov 02:24 MYT), with what started the run (trigger) and
 #     the run's public log (run), and the island pages rebuilt from it in the
 #     same commit — /status's served result and the one-line result on the
 #     /property, /research and /app/scanner pages (node build.mjs). Recorded
@@ -50,17 +51,15 @@ name: journeys
 #     kinds separately; a suite with no result for that commit reads "Not
 #     run for <commit>", never PASS.
 #
-# LOOP SAFETY. That commit is deployed like any other (the file and the pages
-# have to be on the site), and its deployment runs this workflow again. That
-# run still writes its summary and keeps the issue, but it records nothing:
-# the deployed commit changed only the records (health/journeys.json and
-# health/checks.json) and — written by github-actions[bot] — the island
-# pages, so it serves the same app as the
-# deployment before it (decide's ownRecord rule, held by journeys.mjs
-# --self-test). A status that flaps — a step a second over budget is
-# DEGRADED on one run and PASS on the next — therefore makes at most one
-# extra deployment, whatever the second run finds. A deployment whose
-# changed files cannot be listed records nothing either.
+# LOOP SAFETY. The record is pushed to health-records, which vercel.json
+# does not deploy (git.deploymentEnabled). A push there creates no
+# deployment, so this workflow does not run again because of it. If a
+# record commit is still deployed — it changed only health/journeys.json,
+# health/checks.json and, written by github-actions[bot], the island
+# pages — decide's ownRecord rule records nothing (journeys.mjs
+# --self-test). ignoreCommand also skips that build. A status that flaps
+# therefore makes no second deployment. A deployment whose changed files
+# cannot be listed records nothing either.
 #
 # Permissions are the three it uses and nothing else: contents (the commit),
 # issues (the issue) and actions (starting checks.yml on the commit). The
@@ -89,11 +88,11 @@ on:
 #   - a deployment's run waits up to two hours for the site to serve its build
 #     (the checks took 83 to 87 minutes on the six runs to 5 Nov 2026; they took
 #     39 to 52 when this wait was set at an hour), inside a 220-minute job;
-#   - the record this workflow commits is pushed with its own token, and a
-#     push made with it starts no workflow — so checks.yml would never run on
-#     it, and its deployment would wait for checks that never come. It starts
-#     them itself (actions: write). The commit no longer says [skip ci]: its
-#     checks are what Deployment Checks promotes it on.
+#   - the record is pushed to health-records with this workflow's token,
+#     which starts no workflow, and that branch is not deployed. checks.yml
+#     is still started on main: main is the commit the site serves, and the
+#     record's own commit is not a release. The record commit does not say
+#     [skip ci].
 #
 # checks: read (10 Oct 2026) reads the annotations checks.yml leaves on the
 # served commit — each suite's result — into health/checks.json.
@@ -200,7 +199,12 @@ jobs:
             echo "commit=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git show origin/main:health/journeys.json > "$RUNNER_TEMP/recorded.json" 2>/dev/null || rm -f "$RUNNER_TEMP/recorded.json"
+          # The latest record lives on health-records. main's copy is the one
+          # this branch stopped updating (Option A).
+          git fetch -q origin health-records || true
+          if ! git show origin/health-records:health/journeys.json > "$RUNNER_TEMP/recorded.json" 2>/dev/null; then
+            git show origin/main:health/journeys.json > "$RUNNER_TEMP/recorded.json" 2>/dev/null || rm -f "$RUNNER_TEMP/recorded.json"
+          fi
           deployed=''
           author=''
           # What the deployment changed since the commit the record last ran
@@ -271,20 +275,20 @@ jobs:
         run: node checks-record.mjs collect --commit "$SERVED" --repo "$GITHUB_REPOSITORY" --out "$RUNNER_TEMP/checks.json" --wait 5400
 
       # The record and the island pages rebuilt from it, in one commit by
-      # github-actions[bot], on top of main as it is now:
+      # github-actions[bot], on top of main as it is now, pushed to
+      # health-records (created from that commit if the branch is missing):
       #   1. copy the record over health/journeys.json, and CI's results on
       #      the served commit over health/checks.json;
-      #   2. node build.mjs, which writes it into /status and the three
-      #      product landing pages (no browser: the renders are committed);
+      #   2. node build.mjs, which writes it into /status (no browser: the
+      #      renders are committed);
       #   3. node journeys.mjs --guard: the tree changes the record and those
       #      pages and nothing else, or nothing is committed;
-      #   4. commit — with no [skip ci], so its checks run.
+      #   4. commit — with no [skip ci].
       # A push lost to another starts again from fresh main (fetch, reset,
-      # 1–4), never git pull --rebase. The record is pushed with this
-      # workflow's token, which starts no workflow; checks.yml is started on
-      # it by hand, so the deployment of the record can pass its Deployment
-      # Checks and go live.
-      - name: record the result on main
+      # 1–4), never git pull --rebase. The branch is force-updated: it is
+      # main plus this one record, not a stack of old records. It is not
+      # deployed. checks.yml is started on main, the commit the site serves.
+      - name: record the result on health-records
         if: always() && steps.decide.outputs.commit == 'true'
         env:
           SUMMARY: ${{ steps.decide.outputs.summary }}
@@ -307,8 +311,10 @@ jobs:
           }
           record || exit 1
           for i in 1 2 3 4 5; do
-            if git push origin HEAD:main; then
-              gh workflow run checks.yml --repo "$GITHUB_REPOSITORY" --ref main || echo "could not start checks.yml on the recorded commit"
+            # health-records is main plus this record. --force creates the
+            # branch when it is missing and replaces it when main has moved.
+            if git push --force origin HEAD:health-records; then
+              gh workflow run checks.yml --repo "$GITHUB_REPOSITORY" --ref main || echo "could not start checks.yml on main, the commit the site serves"
               exit 0
             fi
             sleep $((i * 5))

@@ -789,7 +789,7 @@ function selfTest() {
   if (existsSync(rf)) {
     const y = readFileSync(rf, 'utf8').replace(/\r\n/g, '\n');
     const cmds = y.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
-    const rec = cmds.indexOf('record them on main'), iss = cmds.indexOf('open, update or close the issue');
+    const rec = cmds.indexOf('record them on health-records'), iss = cmds.indexOf('open, update or close the issue');
     const step = iss > -1 ? cmds.slice(iss) : '';
     t(/^permissions:\n(?: {2}[a-z-]+: \w+\n)*? {2}issues: write\n/m.test(cmds) && /^ {4}if: github\.event\.workflow_run\.conclusion != 'cancelled'$/m.test(cmds) && /branches: \[main\]/.test(cmds),
       'checks-record.yml: it has issues: write, and keeps its guards (cancelled runs skipped, main only)');
@@ -802,7 +802,7 @@ function selfTest() {
   if (existsSync(jf)) {
     const y = readFileSync(jf, 'utf8').replace(/\r\n/g, '\n');
     const cmds = y.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
-    const col = cmds.indexOf('collect the checks of the served commit'), rec = cmds.indexOf('record the result on main');
+    const col = cmds.indexOf('collect the checks of the served commit'), rec = cmds.indexOf('record the result on health-records');
     t(col > -1 && rec > col && /if: always\(\) && steps\.decide\.outputs\.commit == 'true'/.test(cmds.slice(col, rec))
       && /node checks-record\.mjs collect --commit "\$SERVED" --repo "\$GITHUB_REPOSITORY" --out "\$RUNNER_TEMP\/checks\.json" --wait (\d+)/.test(cmds.slice(col, rec))
       && /SERVED: \$\{\{ steps\.decide\.outputs\.commit_served \}\}/.test(cmds.slice(col, rec)),
