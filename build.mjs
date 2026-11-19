@@ -336,6 +336,9 @@ export function kuchingMapData(root = ROOT) {
    exactly worker-src 'self' and blob: in img-src: connect-src stays 'self'. */
 export const CSP_BEFORE_MAP = "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'";
 export const CSP_MAP_ADDS = { 'img-src': ['blob:'], 'worker-src': ["'self'"] };
+/* /status reads the health-records branch's public raw journeys file.
+   Option A, George 18 Nov 02:24 MYT. One host, and only on connect-src. */
+export const HEALTH_RECORD_CONNECT = 'https://raw.githubusercontent.com';
 export const cspDirectives = (v) => Object.fromEntries(String(v).split(';').map(s => s.trim()).filter(Boolean).map(s => { const [k, ...r] = s.split(/\s+/); return [k, r]; }));
 export function mapCspProblems(vercel) {
   const cfg = typeof vercel === 'string' ? JSON.parse(vercel) : vercel;
@@ -345,15 +348,16 @@ export function mapCspProblems(vercel) {
   if (new Set(csps.map(([, v]) => v)).size !== 1) out.push(`vercel.json sends ${new Set(csps.map(([, v]) => v)).size} different policies (${csps.map(([s]) => s).join(', ')}), not one`);
   const now = cspDirectives(csps[0][1]), was = cspDirectives(CSP_BEFORE_MAP);
   for (const [k, srcs] of Object.entries(now)) for (const s of srcs)
-    if (!/^('self'|'none'|'unsafe-inline'|'sha256-[A-Za-z0-9+/=]+'|data:|blob:)$/.test(s)) out.push(`the policy's ${k} allows ${s}, which is not this site`);
-  const norm = (d, k) => (d[k] || []).filter(s => !/^'sha256-/.test(s) && !/^'@CSP/.test(s));
+    if (s !== HEALTH_RECORD_CONNECT && !/^('self'|'none'|'unsafe-inline'|'sha256-[A-Za-z0-9+/=]+'|data:|blob:)$/.test(s)) out.push(`the policy's ${k} allows ${s}, which is not this site`);
+  const norm = (d, k) => (d[k] || []).filter(s => !/^'sha256-/.test(s) && !/^'@CSP/.test(s) && s !== HEALTH_RECORD_CONNECT);
   for (const k of new Set([...Object.keys(now), ...Object.keys(was), ...Object.keys(CSP_MAP_ADDS)])) {
     const added = norm(now, k).filter(s => !norm(was, k).includes(s)), gone = norm(was, k).filter(s => !norm(now, k).includes(s));
     const want = CSP_MAP_ADDS[k] || [];
     if (gone.length) out.push(`the policy's ${k} no longer has ${gone.join(' ')}`);
     if (added.join(' ') !== want.join(' ')) out.push(`the policy's ${k} adds ${added.join(' ') || 'nothing'} to what it had before the map, where the map adds ${want.join(' ') || 'nothing'}`);
   }
-  if ((now['connect-src'] || []).join(' ') !== "'self'") out.push(`the policy's connect-src is ${(now['connect-src'] || []).join(' ')}, not 'self'`);
+  if ((now['connect-src'] || []).join(' ') !== `'self' ${HEALTH_RECORD_CONNECT}`) out.push(`the policy's connect-src is ${(now['connect-src'] || []).join(' ')}, not 'self' and the public health-record host`);
+  if ((now['connect-src'] || []).filter(s => s === HEALTH_RECORD_CONNECT).length !== 1) out.push('the policy names the public health-record host on connect-src once');
   /* And the vendored code under a rule of its own, sent the policy, cached
      for its year — and the pages' rule leaves it out. */
   const vend = (cfg.headers || []).find(g => g.source === '/vendor/(.*)');
@@ -1213,11 +1217,15 @@ export function withServedRecord(r, served) {
     views = views.replace(re, (all, open, close) => open + inner + close);
   };
   if (r.path === '/status') {
-    put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, served.sum, '#health-journeys-sum');
-    put(/(<ul id="health-journeys" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, served.list, 'an empty #health-journeys marked data-now');
+    /* The journeys block is filled at runtime from health-records. Served,
+       it names no Pass: a reader with no script, and a failed read, see
+       the same sentence (Option A). */
+    const blank = journeysServed(null);
+    put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, 'latest record unavailable', '#health-journeys-sum');
+    put(/(<ul id="health-journeys" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, '', 'an empty #health-journeys marked data-now');
     /* Property's "Model:" line (N2d; statusPropertySection, 91-health.js):
        the property journeys' last recorded results, time and commit. */
-    put(/(<span class="status-model-result"[^>]*\bdata-now=""[^>]*>)(<\/span>)/, served.model, 'an empty .status-model-result marked data-now');
+    put(/(<span class="status-model-result"[^>]*\bdata-now=""[^>]*>)(<\/span>)/, blank.model, 'an empty .status-model-result marked data-now');
     /* Above the last run (QT-D23-01; glanceBuildNode, 91-health.js): "Not run
        yet on the version of the site you are using" while the records are an
        earlier build's, else empty. */
@@ -1237,7 +1245,7 @@ export function withServedRecord(r, served) {
     views = views.replace(PROOF_SLOT_G, (all, open, close) => {
       const a = proofSlotOf(open);
       if (!a) throw new Error(`${r.render} (${r.path}): a .proof-result slot names no journey and step: ${open}`);
-      return open + served.proof(a.journey, a.step) + close;
+      return open + (r.path === '/status' ? journeysServed(null).proof(a.journey, a.step) : served.proof(a.journey, a.step)) + close;
     });
   } else {
     if (!Object.hasOwn(served.lines, r.path)) throw new Error(`${r.file} is an island page, and journeysServed draws no line for ${r.path}`);
