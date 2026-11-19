@@ -1535,7 +1535,7 @@
       ]
     },
     {
-      "source": "/assets/app.d018a96b2223.js",
+      "source": "/assets/app.2cb3e6595e3a.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1577,7 +1577,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-0BipayIj5nM8RW4/cx4kLnJzj8U16trJBm9vZ2jzFYk=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-LLPmWV46QJxchrCKmPF6BGRAwcJc3WNaek14FnvsVvM=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
@@ -1586,7 +1586,7 @@
       ]
     },
     {
-      "source": "/((?!data/|vendor/|assets/app\\.d018a96b2223\\.js$|assets/app\\.ca60b7fb7ff0\\.css$).*)",
+      "source": "/((?!data/|vendor/|assets/app\\.2cb3e6595e3a\\.js$|assets/app\\.ca60b7fb7ff0\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1594,7 +1594,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-0BipayIj5nM8RW4/cx4kLnJzj8U16trJBm9vZ2jzFYk=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-LLPmWV46QJxchrCKmPF6BGRAwcJc3WNaek14FnvsVvM=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",

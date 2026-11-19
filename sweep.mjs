@@ -644,7 +644,8 @@ for (const route of ROUTES) {
   serve = null;
   {
     const c = await open();
-    if (!/^(Not run yet\.|Last recorded run )/.test(c.sum)) p.push(`the committed health/journeys.json reads ${JSON.stringify(c.sum.slice(0, 90))}, not "not run yet" or a dated run`);
+    if (!/^(Not run yet\.|Last recorded run |latest record unavailable)/.test(c.sum)) p.push(`the runtime record reads ${JSON.stringify(c.sum.slice(0, 90))}, not "not run yet", a dated run, or "latest record unavailable"`);
+    if (/^latest record unavailable/.test(c.sum) && c.rows.some(r => r.status === 'PASS')) p.push('latest record unavailable is shown with a Pass');
     if (!c.asked) p.push('/status never asked the site for the committed health/journeys.json');
   }
 
@@ -660,7 +661,7 @@ for (const route of ROUTES) {
     p.push(`a good result: the Live badges' results read ${proofsSaid(s)}`);
 
   s = await fixture({ status: 404, body: '<!doctype html><title>404</title>', type: 'text/html; charset=utf-8' }, 'no file');
-  if (!/^Not run yet\./.test(s.sum) || s.rows.length) p.push(`no file (404): ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows`);
+  if (s.sum.trim() !== 'latest record unavailable' || s.rows.some(r => r.status === 'PASS')) p.push(`no file (404): ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows — not "latest record unavailable" with no Pass`);
 
   s = await fixture({ status: 200, body: FAILING }, 'a failing result');
   const failRow = s.rows.find(r => r.status === 'FAIL');

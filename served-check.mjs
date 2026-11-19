@@ -1424,26 +1424,11 @@ const HOME_PAGE = read(HOME);
   const list = /<ul id="health-journeys"[^>]*>([\s\S]*?)<\/ul>/.exec(status)?.[1];
   if (sum == null) p.push('/status serves no #health-journeys-sum');
   else {
-    if (/Read from the site by this page/.test(words(sum))) p.push(`/status serves the placeholder in #health-journeys-sum: "${words(sum)}"`);
-    if (!/^Last recorded run \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC on [0-9a-f]{7}: \d+ of \d+ pass\b/.test(words(sum))) p.push(`/status's summary states no UTC run time and 7-character commit: "${words(sum).slice(0, 120)}"`);
-    if (want.recorded && sum !== want.sum) p.push(`/status's summary is not the record's: served "${words(sum).slice(0, 110)}", the record "${words(want.sum).slice(0, 110)}"`);
-    const link = /<a class="journeys-log" href="([^"]*)">/.exec(sum)?.[1] || null;
-    if (rec.run && link !== rec.run) p.push(`/status links ${link || 'no run'}, not the recorded run ${rec.run}`);
-    if (LIVE && !(link && RUN_URL.test(link))) p.push(`/status links ${link || 'nothing'}, not an Actions run (…/actions/runs/<id>) — the record names no run`);
+    if (words(sum) !== 'latest record unavailable') p.push(`/status's summary is "${words(sum).slice(0, 120)}", not "latest record unavailable" — the record is read at runtime from health-records`);
+    if (/chip-ok|>Pass</.test(sum)) p.push('/status serves a Pass in the journeys summary before the runtime record');
   }
   if (list == null) p.push('/status serves no #health-journeys');
-  else if (want.recorded) {
-    if (list !== want.list) p.push('/status\'s #health-journeys is not the record\'s list');
-    const rows = [...list.matchAll(/<li class="journey-row" id="journey-[a-z0-9-]+" data-status="(PASS|DEGRADED|FAIL)">([\s\S]*?)<\/div><\/li>/g)];
-    if (rows.length !== (rec.journeys || []).length) p.push(`/status serves ${rows.length} journey rows for the record's ${(rec.journeys || []).length} journeys`);
-    rows.forEach((m, i) => {
-      const j = rec.journeys[i] || {};
-      const steps = [...m[2].matchAll(/<li data-mark="(ok|fail|gated)"><span class="journey-mark">(OK|FAIL|gated)<\/span> ([^<]*)/g)];
-      const recSteps = Array.isArray(j.steps) ? j.steps : [];
-      if (steps.length !== recSteps.length) p.push(`/status: ${j.id} serves ${steps.length} steps marked OK, FAIL or gated, of the record's ${recSteps.length}`);
-      steps.forEach((s, k) => { if (recSteps[k] && words(s[3]) !== recSteps[k].name) p.push(`/status: ${j.id}'s step ${k + 1} reads "${words(s[3])}", the record's "${recSteps[k].name}"`); });
-    });
-  }
+  else if (/journey-row|chip-ok/.test(list)) p.push('/status serves journey rows before the runtime record');
   const jAt = status.indexOf('>Complete journeys on the live site</h3>'), bAt = status.indexOf('>Checked in your browser now</h3>');
   if (jAt < 0 || bAt < 0 || jAt > bAt) p.push('/status: "Complete journeys on the live site" is not served above "Checked in your browser now"');
   /* The journey line left the product pages (the owner, 18 Oct 2026: the
@@ -1474,8 +1459,8 @@ const HOME_PAGE = read(HOME);
       }
     } catch (e) { p.push(`GitHub's deployments and compare APIs could not be read (${e.message})`); }
   }
-  judge(p, `the recorded journeys are served before any script runs: /status's summary (${want.recorded ? words(want.sum).slice(0, 72) + '…' : 'none'}) and ${(rec.journeys || []).length} journey rows with every step OK, FAIL or gated, exactly the record this site serves, above the in-browser checks; and the journey line on /property, /research and /app/scanner, equal to it${gated ? ', the Scanner\'s evaluate step gated' : ''}${LIVE ? '; the live record names its run, is under 24 hours old and is the latest Production deployment\'s commit or differs from it only in the record and the island pages' : ''}`,
-    'the recorded journeys are not served as recorded');
+  judge(p, `/status says "latest record unavailable" and lists no journey Pass before its script reads health-records (${want.recorded ? `the committed file still holds ${words(want.sum).slice(0, 48)}…` : 'the committed file holds no run'}); the journey line stays off /property, /research and /app/scanner${gated ? '; the committed file gates the Scanner\'s evaluate step' : ''}${LIVE ? '; that file names its run, is under 24 hours old and is the latest Production deployment\'s commit or differs from it only in the record and the island pages' : ''}`,
+    '/status serves a journey Pass before the runtime record, or the committed journeys file is not a record');
 }
 /* ---- end journeys-served ---- */
 
