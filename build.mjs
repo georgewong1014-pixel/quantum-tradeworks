@@ -1193,9 +1193,22 @@ export function readChecks(root = ROOT) {
    checksServed's as its checks. */
 /* `build`: the app file the pages being written load (app.<hash>.js), which
    /status says the CI results are, or are not, for (QT-D19-03). */
+/* Malaysia Time for the served journeys summary. The page's script appends
+   the same span from the record it reads, so the two markups match. */
+export function journeysMytSpan(iso) {
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(at);
+  const get = (t) => parts.find(p => p.type === t)?.value;
+  if (!get('day') || !get('hour')) return '';
+  return `<span class="journeys-myt"> · ${get('day')} ${get('month')} ${get('year')}, ${get('hour')}:${get('minute')} MYT</span>`;
+}
 export function servedRecords(root = ROOT, build = null) {
   const journeys = readRecord(root);
-  return Object.assign(journeysServed(journeys), { checks: checksServed(readChecks(root), journeys, CHECK_SUITES, build) });
+  return Object.assign(journeysServed(journeys), { ranAt: journeys?.ranAt || null, checks: checksServed(readChecks(root), journeys, CHECK_SUITES, build) });
 }
 /* A Live badge's result slot on /status, as the render serves it, and the
    journey and step its attributes name (unescaped as the serializer escaped
@@ -1217,15 +1230,15 @@ export function withServedRecord(r, served) {
     views = views.replace(re, (all, open, close) => open + inner + close);
   };
   if (r.path === '/status') {
-    /* The journeys block is filled at runtime from health-records. Served,
-       it names no Pass: a reader with no script, and a failed read, see
-       the same sentence (Option A). */
-    const blank = journeysServed(null);
-    put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, 'latest record unavailable', '#health-journeys-sum');
-    put(/(<ul id="health-journeys" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, '', 'an empty #health-journeys marked data-now');
+    /* The committed record is in the page, with its Malaysia time, so a
+       fetch of the same record does not move the layout. The script still
+       reads health-records; a failed read replaces this with "latest record
+       unavailable" and no Pass (Option A). */
+    put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, served.sum + journeysMytSpan(served.ranAt), '#health-journeys-sum');
+    put(/(<ul id="health-journeys" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, served.list, 'an empty #health-journeys marked data-now');
     /* Property's "Model:" line (N2d; statusPropertySection, 91-health.js):
        the property journeys' last recorded results, time and commit. */
-    put(/(<span class="status-model-result"[^>]*\bdata-now=""[^>]*>)(<\/span>)/, blank.model, 'an empty .status-model-result marked data-now');
+    put(/(<span class="status-model-result"[^>]*\bdata-now=""[^>]*>)(<\/span>)/, served.model, 'an empty .status-model-result marked data-now');
     /* Above the last run (QT-D23-01; glanceBuildNode, 91-health.js): "Not run
        yet on the version of the site you are using" while the records are an
        earlier build's, else empty. */
@@ -1245,7 +1258,7 @@ export function withServedRecord(r, served) {
     views = views.replace(PROOF_SLOT_G, (all, open, close) => {
       const a = proofSlotOf(open);
       if (!a) throw new Error(`${r.render} (${r.path}): a .proof-result slot names no journey and step: ${open}`);
-      return open + (r.path === '/status' ? journeysServed(null).proof(a.journey, a.step) : served.proof(a.journey, a.step)) + close;
+      return open + served.proof(a.journey, a.step) + close;
     });
   } else {
     if (!Object.hasOwn(served.lines, r.path)) throw new Error(`${r.file} is an island page, and journeysServed draws no line for ${r.path}`);

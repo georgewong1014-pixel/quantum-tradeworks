@@ -550,7 +550,7 @@ for (const route of ROUTES) {
     const url = m.params.request.url, id = m.params.requestId;
     if (/\/health\/journeys\.json/.test(url)) asked.push(url);
     const answer = (status, body, type) => send('Fetch.fulfillRequest', { requestId: id, responseCode: status,
-      responseHeaders: [{ name: 'Content-Type', value: type }, { name: 'Cache-Control', value: 'no-cache' }], body: Buffer.from(body, 'utf8').toString('base64') }, sessionId);
+      responseHeaders: [{ name: 'Content-Type', value: type }, { name: 'Cache-Control', value: 'no-cache' }, { name: 'Access-Control-Allow-Origin', value: '*' }], body: Buffer.from(body, 'utf8').toString('base64') }, sessionId);
     if (/\/health\/journeys\.json/.test(url) && serve) answer(serve.status, typeof serve.body === 'string' ? serve.body : JSON.stringify(serve.body), serve.type || 'application/json; charset=utf-8');
     else if (/\/data\/us\.json/.test(url) && usGone) answer(404, 'gone for the sweep', 'text/plain');
     /* audit1 health-verify: served 200 as JSON, a body no reader can use. */
@@ -558,7 +558,7 @@ for (const route of ROUTES) {
     else send('Fetch.continueRequest', { requestId: id }, sessionId);
   };
   ws.addEventListener('message', intercept);
-  await send('Fetch.enable', { patterns: [{ urlPattern: '*/health/journeys.json*', requestStage: 'Request' }, { urlPattern: '*/data/us.json*', requestStage: 'Request' }, { urlPattern: '*/data/instruments.json*', requestStage: 'Request' }] }, sessionId);
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*journeys.json*', requestStage: 'Request' }, { urlPattern: '*/data/us.json*', requestStage: 'Request' }, { urlPattern: '*/data/instruments.json*', requestStage: 'Request' }] }, sessionId);
   /* How the page asks for the file: the cache mode of each fetch of it. */
   const modes = await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const f = window.fetch; window.__healthModes = [];
     window.fetch = function (u, o) { try { if (/health\\/journeys\\.json/.test(String(u && u.url || u))) window.__healthModes.push((o && o.cache) || (u && u.cache) || 'default'); } catch (e) {} return f.apply(this, arguments); }; })();` }, sessionId);

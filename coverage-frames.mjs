@@ -1452,12 +1452,11 @@ try {
           await painted();
           const served = await value(BLOCK);
           if (path === '/status') {
-            if ((served.sum || '').replace(/<[^>]*>/g, '').trim() !== 'latest record unavailable') { said.push(`${at}: served journeys block is not "latest record unavailable": ${JSON.stringify((served.sum || '').slice(0, 90))}`); continue; }
-            if (/<li class="journey-row"/.test(served.list || '') || /chip-ok/.test(served.list || '')) { said.push(`${at}: served a journey Pass before the runtime record`); continue; }
-            /* The Live badges and Property's model line wait for that read.
-               Served, they name no Pass. */
-            if (/proof-status/.test(served.proofs || '')) { said.push(`${at}: served a Live badge result before the runtime record`); continue; }
-            if (!/no recorded run/.test((served.model || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served Property's model line names a run: ${JSON.stringify((served.model || '').replace(/<[^>]*>/g, '').slice(0, 90))}`); continue; }
+            if (!/^Last recorded run /.test((served.sum || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served with no recorded run in its journeys block: ${JSON.stringify((served.sum || '').slice(0, 90))}`); continue; }
+            if (!/MYT/.test(served.sum || '')) { said.push(`${at}: served without the run's MYT time`); continue; }
+            if (!/<li class="journey-row"/.test(served.list || '')) { said.push(`${at}: served with no journey listed`); continue; }
+            if (!/<span class="proof-result"[^>]*>[^<]*<span class="proof-status"/.test(served.proofs || '')) { said.push(`${at}: served with no Live badge's last result: ${JSON.stringify((served.proofs || '').replace(/<[^>]*>/g, ' ').slice(0, 90))}`); continue; }
+            if (!/^property journey /.test((served.model || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served with no property journey on Property's model line: ${JSON.stringify((served.model || '').replace(/<[^>]*>/g, '').slice(0, 90))}`); continue; }
             /* The four kinds and CI's line beside the in-browser checks (the
                10 Oct audit), served from the records like the rest. */
             if (!/<li class="kind-row" id="kind-layout"/.test(served.kinds || '') || !/^Runs in your browser when the page loads — results for this (commit|build) from CI: /.test((served.ci || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served without the four kinds or CI's line: ${JSON.stringify((served.ci || '').replace(/<[^>]*>/g, '').slice(0, 90))}`); continue; }
@@ -1472,18 +1471,9 @@ try {
           if (!await quiet(`typeof realPending !== 'undefined' && !realPending && !document.getElementById('views').hasAttribute('data-served') && typeof HEALTH !== 'undefined' && !!HEALTH.journeys && !!HEALTH.checks`)) said.push(`${at}: the page never settled with the record read`);
           await painted();
           const settled = await value(BLOCK);
-          const runtime = new Set(['sum', 'list', 'proofs', 'model', 'sumBox', 'listBox', 'proofsBox', 'modelBox']);
           for (const [when, x] of [['when the script drew it, the record still on its way', drawn], ['once the record was read and the page settled', settled]]) {
-            const arrived = when.startsWith('once') && /MYT/.test(String(x.sum || ''));
-            for (const k of path === '/status' ? ['sum', 'list', 'proofs', 'model', 'kinds', 'ci'] : ['line']) {
-              if (arrived && runtime.has(k)) continue;
-              if (x[k] !== served[k]) said.push(`${at}, ${when}: the ${k === 'sum' ? 'summary' : k === 'list' ? 'list of journeys' : k === 'proofs' ? 'list of Live badges and their results' : k === 'model' ? 'Property model line' : k === 'kinds' ? 'four kinds' : k === 'ci' ? 'line of CI\'s results' : 'journey line'} is not what was served: ${JSON.stringify((x[k] || '').replace(/<[^>]*>/g, '').slice(0, 80))}`);
-            }
-            for (const k of path === '/status' ? ['sumBox', 'listBox', 'proofsBox', 'modelBox', 'kindsBox', 'ciBox'] : ['lineBox', 'next']) {
-              if (arrived && runtime.has(k)) continue;
-              if (!near(x[k], served[k])) said.push(`${at}, ${when}: ${k.replace('Box', '')} moved from ${JSON.stringify(served[k])} to ${JSON.stringify(x[k])} (top, height)`);
-            }
-            if (path === '/status' && /latest record unavailable/.test(String(x.sum || '')) && /chip-ok|data-status="PASS"/.test(String(x.list || ''))) said.push(`${at}, ${when}: unavailable and a Pass`);
+            for (const k of path === '/status' ? ['sum', 'list', 'proofs', 'model', 'kinds', 'ci'] : ['line']) if (x[k] !== served[k]) said.push(`${at}, ${when}: the ${k === 'sum' ? 'summary' : k === 'list' ? 'list of journeys' : k === 'proofs' ? 'list of Live badges and their results' : k === 'model' ? 'Property model line' : k === 'kinds' ? 'four kinds' : k === 'ci' ? 'line of CI\'s results' : 'journey line'} is not what was served: ${JSON.stringify((x[k] || '').replace(/<[^>]*>/g, '').slice(0, 80))}`);
+            for (const k of path === '/status' ? ['sumBox', 'listBox', 'proofsBox', 'modelBox', 'kindsBox', 'ciBox'] : ['lineBox', 'next']) if (!near(x[k], served[k])) said.push(`${at}, ${when}: ${k.replace('Box', '')} moved from ${JSON.stringify(served[k])} to ${JSON.stringify(x[k])} (top, height)`);
           }
           if (!settled.read) said.push(`${at}: the page never read the record`);
         }
