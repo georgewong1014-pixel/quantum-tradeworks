@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /* Vercel ignoreCommand. Exit 0 skips the build. Exit 1 builds.
+   A commit message that contains [vercel skip] or [skip ci] is a skip.
    Option A, George 18 Nov 02:24 MYT: a health-record commit is not a release.
    Skip when the commit message says [vercel skip] or [skip ci], or when the
    author is github-actions[bot] and the diff since VERCEL_GIT_PREVIOUS_SHA
