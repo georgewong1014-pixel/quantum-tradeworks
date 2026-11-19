@@ -45,6 +45,23 @@
     "slash, keeping the query, so each page has one address."
   ],
   "trailingSlash": false,
+  "$comment-git": [
+    "Option A, George 18 Nov 02:24 MYT. Journey and checks records are",
+    "pushed to health-records, not main. That branch must not deploy: a",
+    "deployment of a record would run journeys.yml again."
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "health-records": false
+    }
+  },
+  "$comment-ignore": [
+    "Exit 0 skips the build; exit 1 builds. Skip a commit whose message",
+    "says [vercel skip] or [skip ci], and a github-actions[bot] commit",
+    "whose diff since VERCEL_GIT_PREVIOUS_SHA is only health/** or the",
+    "generated status island pages. An unknown previous SHA builds."
+  ],
+  "ignoreCommand": "node scripts/vercel-ignore.mjs",
   "$comment-redirects": [
     "An address ending in /index.html means the folder it names: /pricing/index.html",
     "is /pricing. Answered as an unknown address it got the 404 page, where the",

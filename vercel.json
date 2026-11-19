@@ -878,6 +878,12 @@
     }
   ],
   "trailingSlash": false,
+  "git": {
+    "deploymentEnabled": {
+      "health-records": false
+    }
+  },
+  "ignoreCommand": "node scripts/vercel-ignore.mjs",
   "redirects": [
     {
       "source": "/index.html",
