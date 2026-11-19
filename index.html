@@ -76014,8 +76014,11 @@ function healthSection() {
   const wasSum = document.getElementById('health-journeys-sum'), wasList = document.getElementById('health-journeys');
   if (!HEALTH.journeys && wasSum && wasList && (/^Last recorded run /.test(wasSum.textContent) || wasSum.textContent.trim() === HEALTH_RECORD_UNAVAILABLE)) {
     sum.innerHTML = wasSum.innerHTML;
+    /* The age is this tab's clock and is not in the served page. The MYT
+       span is: the build wrote the same one the script appends, and taking
+       it off while the read is still on its way shortens the summary (a
+       second line at 390) and moves everything under it. */
     sum.querySelector('.journeys-age')?.remove();
-    sum.querySelector('.journeys-myt')?.remove();
     HEALTH.kept = sum;
     jlist.innerHTML = wasList.innerHTML;
   } else if (HEALTH.journeys?.state === 'unavailable') {
