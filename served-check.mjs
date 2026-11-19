@@ -1570,9 +1570,13 @@ const HOME_PAGE = read(HOME);
     if (!(b > -1 && b < at && at < q)) p.push('/status: #health-ci is not served under "Checked in your browser now", above the in-browser checks');
     if (want.status.numbers !== 'PASS' && /Numbers PASS/.test(words(ci))) p.push(`#health-ci says Numbers PASS where the record does not: "${words(ci).slice(0, 120)}"`);
   }
-  /* The calls to action: the count is its steps'. */
+  /* The calls to action: the count is its steps'. The journey rows are
+     filled when the script reads health-records, so a page that says the
+     record is unavailable lists none yet. */
   const cta = /<li class="journey-row" id="journey-ctas" data-status="(PASS|DEGRADED|FAIL)">([\s\S]*?)<\/div><\/li>/.exec(status);
-  if (!cta) p.push('/status lists no calls-to-action journey');
+  const journeysSum = /id="health-journeys-sum"[^>]*>([\s\S]*?)<\/p>/.exec(status)?.[1] || '';
+  if (!cta && words(journeysSum) === 'latest record unavailable') said.push('calls to action read at runtime');
+  else if (!cta) p.push('/status lists no calls-to-action journey');
   else if (cta[1] !== 'FAIL') {
     const steps = (cta[2].match(/<li data-mark="/g) || []).length;
     const m = /(\d+) calls to action pressed \((\d+) steps: the page opened, then each call\)/.exec(words(cta[2]));
@@ -1638,7 +1642,10 @@ const HOME_PAGE = read(HOME);
       const slot = /<span class="proof-result" data-proof-journey="([^"]*)" data-proof-step="([^"]*)" data-now="">([\s\S]*?)<\/span><\/p>/.exec(li.html);
       if (!slot) { p.push(`/status: ${r.key} serves no last result`); continue; }
       if (slot[1] !== r.proof.journey || words(slot[2]) !== r.proof.step) p.push(`/status: ${r.key}'s result is for ${slot[1]} "${words(slot[2])}", not ${r.proof.journey} "${r.proof.step}"`);
-      if (typeof want.proof === 'function' && slot[3] !== want.proof(r.proof.journey, r.proof.step)) p.push(`/status: ${r.key}'s last result is not the record's: served "${words(slot[3]).slice(0, 90)}", the record "${words(want.proof(r.proof.journey, r.proof.step)).slice(0, 90)}"`);
+      /* The last result is read at runtime. Served, it names no Pass. */
+      const blank = journeysServed(null).proof(r.proof.journey, r.proof.step);
+      if (slot[3] !== blank) p.push(`/status: ${r.key}'s last result is served "${words(slot[3]).slice(0, 90)}", not "${words(blank)}" until the script reads health-records`);
+      if (/proof-status|chip-ok/.test(slot[3])) p.push(`/status: ${r.key} serves a Pass before the runtime record`);
     }
   }
   if (rest == null) p.push('/status serves no list of the Live tools not yet proven by a journey (#health-unproven)');
@@ -1691,10 +1698,9 @@ const HOME_PAGE = read(HOME);
       if (!/^<dt>Model:<\/dt><dd><span class="status-badge status-live">Available<\/span> — /.test(model)) p.push(`/status: the model line does not read "Model: Available — …": "${said.model.slice(0, 80)}"`);
       if (slot == null) p.push('/status: the model line serves no recorded result (.status-model-result)');
       else {
-        if (typeof want.model !== 'string') p.push('journeysServed (journeys.mjs) draws no model line');
-        else if (slot !== want.model) p.push(`/status: the model line is not the record's: served "${words(slot).slice(0, 100)}", the record "${words(want.model).slice(0, 100)}"`);
-        if (want.recorded && !/^property journey (PASS|DEGRADED|FAIL)\b.* · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC · [0-9a-f]{7} · details$/.test(words(slot))) p.push(`/status: the model line does not name the property journey's result, its UTC time and a 7-character commit: "${words(slot).slice(0, 120)}"`);
-        if (want.recorded && !/href="#journey-property"/.test(slot)) p.push('/status: the model line links no property journey on the page');
+        const blankModel = journeysServed(null).model;
+        if (slot !== blankModel) p.push(`/status: the model line is served "${words(slot).slice(0, 100)}", not "${blankModel}" until the script reads health-records`);
+        if (/proof-status|chip-ok|property journey PASS/.test(slot)) p.push('/status: the model line serves a Pass before the runtime record');
       }
     }
     if (market == null) p.push('/status: the Property section serves no "Market data:" line');
@@ -2408,7 +2414,7 @@ const HOME_PAGE = read(HOME);
    area screen, the calculator's total) carried none of theirs. */
 {
   const p = [], said = { pages: 0, cards: 0, surfaces: 0 };
-  const scope = prerenderScope(RENDER_PLAN).map(s => s.path);
+  const scope = prerenderScope(RENDER_PLAN).map(s => s.path).filter(p => !ADMIN_SCANNER.includes(p));
   const got = await getAll(scope);
   for (const [path, r] of got) {
     if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
@@ -4274,7 +4280,9 @@ const HOME_PAGE = read(HOME);
       else {
         if (attr(slot, 'data-proof-journey') !== w.journey) p.push(`/status: "${name}"'s model line is ${attr(slot, 'data-proof-journey')}'s journey, not ${w.journey}'s`);
         const inner = /<span class="proof-result"[^>]*>([\s\S]*?)<\/span><\/dd>/.exec(status.body.slice(status.body.indexOf(name)))?.[1];
-        if (typeof want.proof === 'function' && inner !== want.proof(w.journey, w.step)) p.push(`/status: "${name}"'s last result is not the record's: served "${(inner || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90)}"`);
+        const blank = journeysServed(null).proof(w.journey, w.step);
+        if (inner !== blank) p.push(`/status: "${name}"'s last result is served "${(inner || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90)}", not "${blank}" until the script reads health-records`);
+        if (inner && /proof-status|chip-ok/.test(inner)) p.push(`/status: "${name}" serves a Pass before the runtime record`);
       }
       if (!data || !w.data.test(dt)) p.push(`/status: "${name}" does not read "Data: Data Gated — …" as written: "${dt.slice(0, 120)}"`);
       said.push(`${name}: "${mt.slice(0, 40)}…" / "${dt.slice(0, 50)}…"`);

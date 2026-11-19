@@ -1472,9 +1472,18 @@ try {
           if (!await quiet(`typeof realPending !== 'undefined' && !realPending && !document.getElementById('views').hasAttribute('data-served') && typeof HEALTH !== 'undefined' && !!HEALTH.journeys && !!HEALTH.checks`)) said.push(`${at}: the page never settled with the record read`);
           await painted();
           const settled = await value(BLOCK);
+          const runtime = new Set(['sum', 'list', 'proofs', 'model', 'sumBox', 'listBox', 'proofsBox', 'modelBox']);
           for (const [when, x] of [['when the script drew it, the record still on its way', drawn], ['once the record was read and the page settled', settled]]) {
-            for (const k of path === '/status' ? ['sum', 'list', 'proofs', 'model', 'kinds', 'ci'] : ['line']) if (x[k] !== served[k]) said.push(`${at}, ${when}: the ${k === 'sum' ? 'summary' : k === 'list' ? 'list of journeys' : k === 'proofs' ? 'list of Live badges and their results' : k === 'model' ? 'Property model line' : k === 'kinds' ? 'four kinds' : k === 'ci' ? 'line of CI\'s results' : 'journey line'} is not what was served: ${JSON.stringify((x[k] || '').replace(/<[^>]*>/g, '').slice(0, 80))}`);
-            for (const k of path === '/status' ? ['sumBox', 'listBox', 'proofsBox', 'modelBox', 'kindsBox', 'ciBox'] : ['lineBox', 'next']) if (!near(x[k], served[k])) said.push(`${at}, ${when}: ${k.replace('Box', '')} moved from ${JSON.stringify(served[k])} to ${JSON.stringify(x[k])} (top, height)`);
+            const arrived = when.startsWith('once') && /MYT/.test(String(x.sum || ''));
+            for (const k of path === '/status' ? ['sum', 'list', 'proofs', 'model', 'kinds', 'ci'] : ['line']) {
+              if (arrived && runtime.has(k)) continue;
+              if (x[k] !== served[k]) said.push(`${at}, ${when}: the ${k === 'sum' ? 'summary' : k === 'list' ? 'list of journeys' : k === 'proofs' ? 'list of Live badges and their results' : k === 'model' ? 'Property model line' : k === 'kinds' ? 'four kinds' : k === 'ci' ? 'line of CI\'s results' : 'journey line'} is not what was served: ${JSON.stringify((x[k] || '').replace(/<[^>]*>/g, '').slice(0, 80))}`);
+            }
+            for (const k of path === '/status' ? ['sumBox', 'listBox', 'proofsBox', 'modelBox', 'kindsBox', 'ciBox'] : ['lineBox', 'next']) {
+              if (arrived && runtime.has(k)) continue;
+              if (!near(x[k], served[k])) said.push(`${at}, ${when}: ${k.replace('Box', '')} moved from ${JSON.stringify(served[k])} to ${JSON.stringify(x[k])} (top, height)`);
+            }
+            if (path === '/status' && /latest record unavailable/.test(String(x.sum || '')) && /chip-ok|data-status="PASS"/.test(String(x.list || ''))) said.push(`${at}, ${when}: unavailable and a Pass`);
           }
           if (!settled.read) said.push(`${at}: the page never read the record`);
         }
