@@ -13,9 +13,11 @@
 # hold a finished result for it, does it collect the run's suites into
 # health/checks.json, draw the island pages again (node build.mjs) and commit —
 # the record's own commit, as journeys.yml's is: health files and island pages
-# only (journeys.mjs --guard), so its deployment records nothing. The checks it
-# starts on that commit complete on a commit that is not the recorded one, so
-# they end here without a write: no loop.
+# only (journeys.mjs --guard), pushed to health-records, not main (Option A,
+# George 18 Nov 02:24 MYT). That branch is not deployed, so the write does
+# not run this workflow's sibling again. The checks it starts on main
+# complete on the commit the site serves; a run on the record's own commit
+# is not that commit, so it ends here without a write: no loop.
 name: checks record
 
 on:
@@ -45,6 +47,14 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      # The journeys record is on health-records. Read and write that branch
+      # when it exists; otherwise there is nothing newer than main to update.
+      - name: check out health-records when it exists
+        run: |
+          git fetch -q origin health-records || true
+          if git rev-parse --verify origin/health-records >/dev/null 2>&1; then
+            git checkout -q -B health-records origin/health-records
+          fi
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
@@ -86,7 +96,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: node checks-record.mjs collect --commit "$SHA" --repo "$GITHUB_REPOSITORY" --out "$RUNNER_TEMP/checks.json" --wait 0
 
-      - name: record them on main
+      - name: record them on health-records
         if: steps.which.outputs.go == 'true'
         env:
           SHA: ${{ github.event.workflow_run.head_sha }}
@@ -107,13 +117,18 @@ jobs:
           [ "$r" = 3 ] && exit 0
           [ "$r" = 0 ] || exit 1
           for i in 1 2 3 4 5; do
-            if git push origin HEAD:main; then
-              gh workflow run checks.yml --repo "$GITHUB_REPOSITORY" --ref main || echo "could not start checks.yml on the record's commit"
+            if git push origin HEAD:health-records; then
+              gh workflow run checks.yml --repo "$GITHUB_REPOSITORY" --ref main || echo "could not start checks.yml on main, the commit the site serves"
               exit 0
             fi
             sleep $((i * 5))
-            git fetch -q origin main
-            git reset -q --hard origin/main
+            git fetch -q origin health-records || true
+            if git rev-parse --verify origin/health-records >/dev/null 2>&1; then
+              git reset -q --hard origin/health-records
+            else
+              git fetch -q origin main
+              git reset -q --hard origin/main
+            fi
             # Another record may have landed meanwhile: write only if it is still this commit's.
             node -e "const j=JSON.parse(require('fs').readFileSync('health/journeys.json','utf8'));process.exit(j.commit===process.argv[1]?0:1)" "$SHA" || { echo "the record moved on; nothing to write"; exit 0; }
             record; r=$?
