@@ -74,6 +74,8 @@
     { "source": "/index.html", "destination": "/", "permanent": true },
     { "source": "/:path+/index.html", "destination": "/:path+", "permanent": true },
     { "source": "/property/lab", "destination": "/property", "permanent": false },
+    { "$comment": "H-10: the public scanner operations pages are not a site. 301 to the public home. robots.txt still disallows /admin/. The /app/* scanner pages are untouched.", "source": "/admin/scanner", "destination": "/", "statusCode": 301 },
+    { "source": "/admin/scanner/:path+", "destination": "/", "statusCode": 301 },
     "@COMPANY_ID_REDIRECTS"
   ],
   "headers": [

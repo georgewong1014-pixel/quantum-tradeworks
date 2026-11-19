@@ -4501,7 +4501,7 @@ try {
     await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/price-history.json*', requestStage: 'Request' }, { urlPattern: '*/data/price-adjustments.json*', requestStage: 'Request' }] }, sessionId);
     let r = null;
     try {
-      await send('Page.navigate', { url: `${BASE}/admin/scanner/data` }, sessionId);
+      await send('Page.navigate', { url: `${BASE}/app/scanner` }, sessionId);
       await answer();
       for (let i = 0; i < 80 && !r; i++) {
         await sleep(250);
@@ -4510,7 +4510,11 @@ try {
           tracked: trackedHistory?.series?.SPLT?.['2026-01-05'] ?? null, scanned: scanBars(scanHistoryFile, 'SPLT').closes[0],
           sameEngine: scanAttachAdjustments(${JSON.stringify(files['price-history.json'])}, ${JSON.stringify(files['price-adjustments.json'])}).adjustmentVersion } : null`); } catch { /* booting */ }
       }
-      if (r) { await sleep(600); r.line = await evaluate(`/price-adjustments\\.json — 1 action read/.test(document.querySelector('main')?.innerText || '')`); }
+      if (r) {
+        await evaluate(`navigate('/admin/scanner/data'); true`);
+        await sleep(600);
+        r.line = await evaluate(`/price-adjustments\\.json — 1 action read/.test(document.querySelector('main')?.innerText || '')`);
+      }
     } finally {
       await send('Fetch.disable', {}, sessionId);
       await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);

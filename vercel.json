@@ -895,6 +895,16 @@
       "permanent": false
     },
     {
+      "source": "/admin/scanner",
+      "destination": "/",
+      "statusCode": 301
+    },
+    {
+      "source": "/admin/scanner/:path+",
+      "destination": "/",
+      "statusCode": 301
+    },
+    {
       "source": "/company/([Aa][Aa][Pp][Ll]-[Ss][Ee][Cc])",
       "destination": "/company/aapl-apple-inc",
       "permanent": true

@@ -69,7 +69,6 @@ const ROUTES = [
   /* Phase 3 — the scanner (ops): the dashboard, the two P1 surfaces, the four
      operations pages, and the old address with the company page's ?symbol=. */
   '/app/scanner', '/app/scanner/market', '/app/scanner/backtest',
-  '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery',
   /* Phase 3 round 3 — the builder's deep links (contract C5), as the market
      screen and an alert page send them: a market with a setup to copy,
      an unknown setup, and an alert that is not in the record. Each must
@@ -213,7 +212,7 @@ for (const route of ROUTES) {
   const served = async (path) => {
     const r = await fetch(BASE + path, { redirect: 'manual' });
     const html = await r.text();
-    return { status: r.status, title: tagIn(html, /<title>([^<]*)<\/title>/),
+    return { status: r.status, location: r.headers.get('location'), title: tagIn(html, /<title>([^<]*)<\/title>/),
       description: tagIn(html, /<meta name="description" content="([^"]*)">/),
       canonical: tagIn(html, /<link rel="canonical" href="([^"]*)">/),
       ogUrl: tagIn(html, /<meta property="og:url" content="([^"]*)">/),
@@ -238,7 +237,15 @@ for (const route of ROUTES) {
   const problems = [];
   const statics = await evalValue(`[...new Set(ROUTES.filter(r => !r.path.includes(':')).map(r => r.path))].filter(p => matchRoute(p).path === p)`) || [];
   if (statics.length < 40) problems.push(`only ${statics.length} addresses without a parameter read from the page's ROUTES`);
+  const ADMIN_SCANNER = new Set(['/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery']);
   for (const path of statics) {
+    if (ADMIN_SCANNER.has(path)) {
+      const s = await served(path);
+      let to = '';
+      try { to = s.location ? new URL(s.location, BASE).pathname : ''; } catch { to = s.location || ''; }
+      if (s.status !== 301 || to !== '/') problems.push(`${path}: ${s.status} to ${s.location || 'nowhere'}, not 301 to /`);
+      continue;
+    }
     const s = await served(path);
     const c = await open(path);
     if (s.status !== 200) { problems.push(`${path}: served ${s.status}`); continue; }
@@ -302,7 +309,7 @@ for (const route of ROUTES) {
   };
   ws.addEventListener('message', aqListen);
   await send('Log.enable', {}, sessionId);
-  const PAGES = ['/', '/pricing', '/discover/screener', '/app', '/property/calculator', '/property/calculator?view=full', '/property/areas', '/app/scanner', '/admin/scanner'];
+  const PAGES = ['/', '/pricing', '/discover/screener', '/app', '/property/calculator', '/property/calculator?view=full', '/property/areas', '/app/scanner'];
   const WIDTHS = [[1280, 900, false], [390, 844, true]];
   const aqBad = [];
   for (const [w, h, mobile] of WIDTHS) {
@@ -1598,7 +1605,7 @@ for (const route of ROUTES) {
   }
   const seen = {};
   for (const path of ['/compare', '/discover/screener', '/research', '/app/scanner', '/research/trading-index', '/property/models', '/property/calculator?view=full', '/property/calculator',
-    '/', '/how-it-works', '/app', '/my/watchlists', '/company/aapl-apple-inc', '/admin/scanner']) {
+    '/', '/how-it-works', '/app', '/my/watchlists', '/company/aapl-apple-inc']) {
     await load(BASE + path);
     seen[path] = await ev(`document.querySelector('#views .start-here')?.dataset.product || null`);
   }
@@ -1608,8 +1615,8 @@ for (const route of ROUTES) {
   for (const [path, pid] of [['/app/scanner', 'scanner'], ['/research/trading-index', 'scanner'], ['/property/models', 'property'], ['/property/calculator?view=full', 'property']])
     if (seen[path] !== pid) p.push(`${path}: ${pid}'s panel is ${JSON.stringify(seen[path])} while only Equities' is hidden`);
   if (seen['/property/calculator']) p.push(`/property/calculator: the Quick model carries a Start here panel (${seen['/property/calculator']}) above its four figures`);
-  /* Nor on a company page, or the Scanner's read-only operations pages. */
-  for (const path of ['/', '/how-it-works', '/app', '/my/watchlists', '/company/aapl-apple-inc', '/admin/scanner']) if (seen[path]) p.push(`${path}: a Start here panel (${seen[path]}) on a page that is not one of a product's tools`);
+  /* Nor on a company page. /admin/scanner is a 301 to / (H-10), not a page this list opens. */
+  for (const path of ['/', '/how-it-works', '/app', '/my/watchlists', '/company/aapl-apple-inc']) if (seen[path]) p.push(`${path}: a Start here panel (${seen[path]}) on a page that is not one of a product's tools`);
   /* Your data & settings says so, and brings it back. */
   await load(BASE + '/my/data');
   const reset = await ev(`(async () => {

@@ -103,8 +103,11 @@ const judge = (problems, good, bad, kind = null) => {
 const ORIGIN = siteOrigin(read('src/index.template.html'));
 const router = clientRouter(ORIGIN);
 const ROUTES = router.ROUTES;
+/* H-10: /admin/scanner* is a 301 to /, not a page. It stays in the router's
+   table (the in-app operations views) and out of every "served 200" list. */
+const ADMIN_SCANNER = ['/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery'];
 const statics = [...new Set(ROUTES.filter(r => !r.path.includes(':')).map(r => r.path))]
-  .filter(p => router.matchRoute(p).path === p);
+  .filter(p => router.matchRoute(p).path === p && !ADMIN_SCANNER.includes(p));
 const params = ROUTES.filter(r => r.path.includes(':')).map(r => r.path);
 const NOT_FOUND = router.headAt('/404.html');
 const expectHead = (path) => {
@@ -310,6 +313,20 @@ const HOME_PAGE = read(HOME);
   }
   judge(p, `every route without a parameter (${statics.length}) is served 200 with its own title, description, canonical, og: and twitter: tags, is index.html in every other byte but the two app files it loads in place of the inline ones, and carries vercel.json's headers with a CSP allowing its script`,
     'a route without a parameter is not served its own head');
+}
+/* H-10: the public operations addresses are a 301 to /, not the scanner view. */
+{
+  const got = await getAll(ADMIN_SCANNER);
+  const p = [];
+  for (const path of ADMIN_SCANNER) {
+    const r = got.get(path);
+    const loc = r.headers.get('location');
+    const at = loc ? new URL(loc, BASE) : null;
+    if (r.status !== 301 || !at || at.origin !== new URL(BASE).origin || at.pathname !== '/')
+      p.push(`${path}: ${described(r)}${loc ? ` to ${loc}` : ''}, not 301 to /`);
+  }
+  judge(p, `/admin/scanner and its three sections are a 301 to / (${ADMIN_SCANNER.length} addresses); the /app/* scanner pages are not among them`,
+    '/admin/scanner is still served as a page');
 }
 
 /* 2. A query string plays no part in which page is served. */

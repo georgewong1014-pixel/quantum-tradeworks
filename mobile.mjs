@@ -79,7 +79,6 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator', '/pr
                    and the operations pages a phone is likely to open — the runs
                    table and the data-health tables are the widest. */
                 '/app/scanner', '/app/scanner/market', '/app/scanner/backtest',
-                '/admin/scanner', '/admin/scanner/jobs', '/admin/scanner/data',
                 /* The Scenario Lab (3 Oct 2026): its sample, and the Location
                    comparison, the one view of facts in sentences. */
                 '/property/lab', '/property/lab?by=location',
@@ -153,7 +152,7 @@ const smallTargets = [];
    overflow, a pass for the pages this check was extended to cover. */
 /* The /app/ aliases and the list pages wait on the same set: a watchlist's
    rows and the scanner's universe are drawn only once the filers are in. */
-const DATA_ROUTES = /^\/(company\/|discover|research|compare|app\/equities|app\/watchlists|my\/watchlists|my\/scanner|app\/scanner|admin\/scanner|$)/;
+const DATA_ROUTES = /^\/(company\/|discover|research|compare|app\/equities|app\/watchlists|my\/watchlists|my\/scanner|app\/scanner|$)/;
 try {
 for (const w of WIDTHS) {
   await send('Emulation.setDeviceMetricsOverride',
