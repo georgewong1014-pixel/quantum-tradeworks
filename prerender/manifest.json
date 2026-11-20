@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "cdf1a8588d8cb796",
-      "changed": "2026-11-13"
+      "digest": "e49db1283c4435fd",
+      "changed": "2026-11-20"
     },
     "pages/about.html": {
       "path": "/about",
@@ -62,8 +62,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7860a99efa46298a",
-      "changed": "2026-11-09"
+      "digest": "c8a0a3812670e5f1",
+      "changed": "2026-11-20"
     },
     "pages/admin/scanner.html": {
       "path": "/admin/scanner",
@@ -4124,8 +4124,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "89b951ea2f39c9cb",
-      "changed": "2026-11-13"
+      "digest": "a0f1c86c0e1f0c32",
+      "changed": "2026-11-20"
     },
     "pages/data-sources.html": {
       "path": "/data-sources",
@@ -4327,8 +4327,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2beb2c83ed0ef1dc",
-      "changed": "2026-11-13"
+      "digest": "02e8b5fdf28cf279",
+      "changed": "2026-11-20"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -4414,8 +4414,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "322f7304cc492f2a",
-      "changed": "2026-11-11"
+      "digest": "073f99441c9b694c",
+      "changed": "2026-11-20"
     },
     "pages/learn/trading-index.html": {
       "path": "/learn/trading-index",
@@ -4499,8 +4499,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "20b70f64eadc971e",
-      "changed": "2026-10-24"
+      "digest": "dbff15896c010c0b",
+      "changed": "2026-11-20"
     },
     "pages/methodology/property.html": {
       "path": "/methodology/property",
@@ -4872,8 +4872,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "317def1d32abb27c",
-      "changed": "2026-11-17"
+      "digest": "54c0c2da0e4e7d95",
+      "changed": "2026-11-20"
     },
     "pages/property-investing.html": {
       "path": "/property-investing",
@@ -4899,8 +4899,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "cbe935cb3aa917fc",
-      "changed": "2026-11-11"
+      "digest": "b962f0c9df318d00",
+      "changed": "2026-11-20"
     },
     "pages/property.html": {
       "path": "/property",
@@ -4986,8 +4986,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "cb6af0a674d8acde",
-      "changed": "2026-11-16"
+      "digest": "cd81940f59d208dd",
+      "changed": "2026-11-20"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -5301,8 +5301,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a98692da04877fff",
-      "changed": "2026-11-11"
+      "digest": "e4316898164e4136",
+      "changed": "2026-11-20"
     },
     "pages/us-options/wheel.html": {
       "path": "/us-options/wheel",
