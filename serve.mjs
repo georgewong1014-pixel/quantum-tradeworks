@@ -127,9 +127,15 @@ function config() {
         }),
         /* permanent (the default) is 308, temporary 307, as Vercel sends them. */
         redirects: (raw.redirects || []).map(r => {
-          if (r.has || r.missing) throw new Error(`serve.mjs does not implement a redirect's has/missing: ${r.source}`);
+          const has = r.has || [];
+          if (r.missing || has.some(h => h.type !== 'host')) throw new Error(`serve.mjs does not implement a redirect's missing, or a has other than host: ${r.source}`);
           return { re: sourceRegExp(r.source), destination: r.destination,
-            status: r.statusCode || (r.permanent === false ? 307 : 308) };
+            status: r.statusCode || (r.permanent === false ? 307 : 308),
+            /* A host condition is a regex, as Vercel reads it. No condition
+               means every host. localhost and live.localhost are not a
+               vercel.app host, so the public /admin/scanner redirect does
+               not hide those pages from the render checks (H-10). */
+            hosts: has.filter(h => h.type === 'host').map(h => new RegExp(`^(?:${h.value})$`)) };
         }),
         trailingSlash: raw.trailingSlash,
       };
@@ -294,9 +300,11 @@ async function handle(req, res) {
   }
   /* Then the redirects, the first match deciding, its parameters filled into
      the destination and the query carried unless the destination has one. */
+  const host = String(req.headers.host || url.host || '').replace(/:\d+$/, '');
   for (const r of redirects) {
     const m = r.re.exec(path);
     if (!m) continue;
+    if (r.hosts.length && !r.hosts.some(re => re.test(host))) continue;
     const to = r.destination.replace(/:([A-Za-z_][A-Za-z0-9_]*)\+?/g, (_, n) => m.groups?.[n] ?? '');
     redirect(r.status, to.includes('?') ? to : `${to}${url.search}`);
     return;

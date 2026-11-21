@@ -2301,6 +2301,42 @@ const HOME_PAGE = read(HOME);
     'the cash required is served without the amount resting on estimated lines, or the map counts rows that are not a place (Day-8 report, copy-property-1 and 9)');
 }
 /* ---- end cash-required-estimates ---- */
+/* ---- admin-scanner-redirect ---- */
+/* H-10 (from PR #8, shipped alone on the owner's choice, 21 Nov 2026): on a
+   *.vercel.app host /admin/scanner and its sections are a 301 to /. The
+   render harness is not that host, so it still serves the operations pages
+   and the route checks still hold them. The rule itself is in vercel.json. */
+{
+  const ADMIN_SCANNER = ['/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery'];
+  const host = new URL(BASE).hostname;
+  const publicHost = /(?:^|\.)vercel\.app$/.test(host);
+  const rules = (VERCEL.redirects || []).filter(r => ADMIN_SCANNER.some(p => r.source === p || r.source === '/admin/scanner/:path+'));
+  const p = [];
+  const exact = rules.find(r => r.source === '/admin/scanner');
+  const nested = rules.find(r => r.source === '/admin/scanner/:path+');
+  for (const rule of [exact, nested]) {
+    if (!rule) continue;
+    const hostRule = (rule.has || []).find(h => h.type === 'host');
+    if (rule.statusCode !== 301 || rule.destination !== '/' || !hostRule || !new RegExp(`^(?:${hostRule.value})$`).test('quantum-tradeworks.vercel.app'))
+      p.push(`${rule.source} is not a 301 to / on a vercel.app host`);
+  }
+  if (!exact || !nested) p.push('vercel.json does not redirect /admin/scanner and /admin/scanner/:path+');
+  const got = await getAll(ADMIN_SCANNER);
+  for (const path of ADMIN_SCANNER) {
+    const r = got.get(path);
+    const loc = r.headers.get('location');
+    const at = loc ? new URL(loc, BASE) : null;
+    if (publicHost) {
+      if (r.status !== 301 || !at || at.origin !== new URL(BASE).origin || at.pathname !== '/')
+        p.push(`${path}: ${described(r)}${loc ? ` to ${loc}` : ''}, not 301 to /`);
+    } else if (r.status !== 200 || !/text\/html/.test(r.type) || !r.body.includes(`data-served="${path}"`)) {
+      p.push(`${path}: ${described(r)}, not the operations page (the public 301 applies on vercel.app only)`);
+    }
+  }
+  judge(p, `vercel.json 301s /admin/scanner and its sections to / on a vercel.app host; this host (${host}) ${publicHost ? 'answers 301' : 'still serves the operations pages'}`,
+    '/admin/scanner is not a public redirect, or the operations page is gone from the harness');
+}
+/* ---- end admin-scanner-redirect ---- */
 /* ---- layout-system ---- */
 /* THE PAGES ON THE LAYOUT SYSTEM, AS SERVED (the owner's decision, 7 Oct
    2026; 37-layout-system.js). /property, /property/calculator and, since
