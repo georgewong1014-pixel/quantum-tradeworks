@@ -437,20 +437,27 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
-/* The mark is the naked octagonal Q, as in the primary lockup — no container. */
-.brand-mark { width: 30px; height: 30px; flex: none; display: block; }
-.brand-mark svg { width: 100%; height: 100%; display: block; }
-.brand-name {
-  font-size: 15px; font-weight: 700; letter-spacing: -.01em;
-  white-space: nowrap; color: var(--logo-word);
-  display: flex; align-items: baseline; gap: 6px;
+/* THE LOGO (the owner's, 22 Nov 2026): QUANTUM over TRADEWORKS, the Q's tail
+   in teal, as a picture made from the owner's file (brand/). It replaced the
+   octagonal-Q mark and the typed "Quantum Tradeworks" in the header, the
+   app bar, the sidebar and the footer. Its height is set; its width follows
+   (337 by 79). The bars are Graphite in both themes and carry the light
+   letters; the footer carries both and shows the one its surface needs. */
+.brand-logo { display: block; height: 38px; width: auto; max-width: none; }
+.sidebar .brand-logo, .appbar .brand-logo { height: 34px; }
+@media (max-width: 560px) { .pubbar .brand-logo { height: 34px; } }
+@media (max-width: 374.98px) { .pubbar .brand-logo { height: 30px; } }
+.foot-brand .brand-logo { height: 44px; }
+/* The tagline is a second spaced capital line under TRADEWORKS: a step apart. */
+.foot-brand .brand-tagline { margin-top: var(--sm); }
+.brand-logo-light { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-logo-ink { display: none; }
+  :root:not([data-theme="light"]) .brand-logo-light { display: block; }
 }
-.brand-name span { color: var(--logo-teal-text); font-weight: 700; letter-spacing: -.01em; }
-/* Only in a bar, and only where a bar genuinely cannot hold it. It hid
-   "Tradeworks" below 520px everywhere — in the footer and the 320px drawer,
-   which have room — and in the header, which has room since its action reads
-   "Open" on a phone. The product's name is not truncated to fit a phone. */
-@media (max-width: 339px) { .bar-in .brand-name span { display: none; } }
+:root[data-theme="dark"] .brand-logo-ink { display: none; }
+:root[data-theme="dark"] .brand-logo-light { display: block; }
+/* (Print leaves the header, the bars and the footer out, logos and all.) */
 .brand-tagline {
   font-size:12px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--ink-3); margin-top: 5px; font-weight:600;
@@ -3017,8 +3024,9 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
    the view's own bottom padding was 96 on top of the footer's 48. */
 .view { padding-bottom: var(--xxl); }
 @media (max-width: 640px) { .view { padding-bottom: var(--xl); } }
-/* The brand block: the mark in its gutter, the rest on one edge. */
-.foot-brand { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: start; }
+/* The brand block: the logo, and the rest on its left edge (one column since
+   the logo, 22 Nov 2026; the old mark had a gutter of its own). */
+.foot-brand { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: start; }
 .foot-desc { font-size: var(--text-sm); max-width: 36ch; margin-top: var(--sm); }
 /* The rule above the legal paragraph runs the footer's width; the paragraph's
    own measure stays 90 characters. Capped with the text, the rule stopped
@@ -7875,25 +7883,7 @@ input.au-in[type="text"] { text-align: left; }
 <header class="topbar pubbar" id="pubbar">
   <div class="bar-in">
     <a class="brand" href="/" data-path="/" aria-label="Quantum Tradeworks home">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 100 100" role="img">
-          <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
-                stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
-          <g fill="var(--logo-teal)">
-            <rect x="30" y="30" width="11" height="11" rx="3"/>
-            <rect x="30" y="45" width="11" height="11" rx="3"/>
-          </g>
-          <g fill="var(--logo-amber)">
-            <rect x="47" y="38" width="11" height="11" rx="3"/>
-            <rect x="60" y="38" width="11" height="11" rx="3"/>
-            <rect x="47" y="51" width="11" height="11" rx="3"/>
-            <rect x="60" y="51" width="11" height="11" rx="3"/>
-          </g>
-          <path d="M63 67 L81 85" fill="none" stroke="var(--logo-teal)"
-                stroke-width="13" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <span class="brand-name">Quantum <span>Tradeworks</span></span>
+      <img class="brand-logo" src="/brand/quantum-tradeworks-logo-light.png" width="337" height="79" alt="">
     </a>
 
     <nav class="pubnav" id="pubnav" aria-label="Primary"><ul class="pubnav-list"><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuProductsBtn" aria-expanded="false" aria-controls="menuProducts">Products<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-products" id="menuProducts" hidden=""><ul class="pp-list"><li><a href="/research" data-path="/research" class="pp-row pub-acc-equities" data-product="equities" aria-description="Beta: Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Equities Research</span><span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span></span><span class="pp-blurb">Financial statements, ratios and valuation models.</span></span></a></li><li><a href="/app/scanner" data-path="/app/scanner" class="pp-row pub-acc-scanner" data-product="scanner" aria-description="Beta: Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Monitoring and recorded matches are not available yet."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Quantum Scanner</span><span class="status-badge status-beta" title="Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Monitoring and recorded matches are not available yet.">Beta</span></span><span class="pp-blurb">Your own rules, checked against each daily close in your price history.</span></span></a></li><li><a href="/property/calculator" data-path="/property/calculator" class="pp-row pub-acc-property" data-product="property" aria-description="Available: Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Property Intelligence</span><span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Available</span><span class="pbadge-q">Your figures, sample to start</span></span></span><span class="pp-blurb">Financing, cash flow, rental yield and ROI.</span></span></a></li></ul><p class="pp-foot"><a href="/how-it-works" data-path="/how-it-works" class="pp-foot-link">What Available and Beta mean</a></p></div></li><li><a href="/my/workspace" data-path="/my/workspace" class="publink" data-pub="workspace">Saved work</a></li><li><a href="/how-it-works" data-path="/how-it-works" class="publink" data-pub="howItWorks">How it works</a></li><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuHelpBtn" aria-expanded="false" aria-controls="menuHelp">Help<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-help" id="menuHelp" hidden=""><div class="rs-group"><p class="rs-label" id="menu-rs-get">Get help</p><ul class="rs-list" aria-labelledby="menu-rs-get"><li><a href="/contact" data-path="/contact" class="rs-link">Contact</a></li><li><a href="/corrections" data-path="/corrections" class="rs-link">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries" class="rs-link">What this product will not do</a></li></ul></div><div class="rs-group"><p class="rs-label" id="menu-rs-figures">Understand the figures</p><ul class="rs-list" aria-labelledby="menu-rs-figures"><li><a href="/methodology" data-path="/methodology" class="rs-link">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources" class="rs-link">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary" class="rs-link">Glossary</a></li><li><a href="/learn" data-path="/learn" class="rs-link">Learn</a></li></ul></div></div></li></ul></nav>
@@ -7937,25 +7927,7 @@ input.au-in[type="text"] { text-align: left; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
     <a class="brand" href="/" data-path="/" aria-label="Quantum Tradeworks home">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 100 100" role="img">
-          <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
-                stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
-          <g fill="var(--logo-teal)">
-            <rect x="30" y="30" width="11" height="11" rx="3"/>
-            <rect x="30" y="45" width="11" height="11" rx="3"/>
-          </g>
-          <g fill="var(--logo-amber)">
-            <rect x="47" y="38" width="11" height="11" rx="3"/>
-            <rect x="60" y="38" width="11" height="11" rx="3"/>
-            <rect x="47" y="51" width="11" height="11" rx="3"/>
-            <rect x="60" y="51" width="11" height="11" rx="3"/>
-          </g>
-          <path d="M63 67 L81 85" fill="none" stroke="var(--logo-teal)"
-                stroke-width="13" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <span class="brand-name">Quantum <span>Tradeworks</span></span>
+      <img class="brand-logo" src="/brand/quantum-tradeworks-logo-light.png" width="337" height="79" alt="">
     </a>
     <button type="button" class="searchbtn appbar-search" data-open-search aria-label="Search companies, pages and tools, and your saved work">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -7966,25 +7938,7 @@ input.au-in[type="text"] { text-align: left; }
 <aside class="sidebar" id="sidebar" aria-label="Workspace" hidden data-served-away="hidden">
   <div class="sb-top">
     <a class="brand" href="/" data-path="/" aria-label="Quantum Tradeworks home">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 100 100" role="img">
-          <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
-                stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
-          <g fill="var(--logo-teal)">
-            <rect x="30" y="30" width="11" height="11" rx="3"/>
-            <rect x="30" y="45" width="11" height="11" rx="3"/>
-          </g>
-          <g fill="var(--logo-amber)">
-            <rect x="47" y="38" width="11" height="11" rx="3"/>
-            <rect x="60" y="38" width="11" height="11" rx="3"/>
-            <rect x="47" y="51" width="11" height="11" rx="3"/>
-            <rect x="60" y="51" width="11" height="11" rx="3"/>
-          </g>
-          <path d="M63 67 L81 85" fill="none" stroke="var(--logo-teal)"
-                stroke-width="13" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <span class="brand-name">Quantum <span>Tradeworks</span></span>
+      <img class="brand-logo" src="/brand/quantum-tradeworks-logo-light.png" width="337" height="79" alt="">
     </a>
     <button type="button" class="iconbtn sb-close" id="navClose" aria-label="Close the menu">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -8009,30 +7963,9 @@ input.au-in[type="text"] { text-align: left; }
   <div class="shell">
     <div class="footer-grid">
       <div class="foot-brand">
-          <span class="brand-mark" aria-hidden="true" style="width:46px;height:46px">
-            <svg viewBox="0 0 100 100" role="img">
-              <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
-                    stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
-              <g fill="var(--logo-teal)">
-                <rect x="38" y="24" width="9" height="9" rx="2.6"/>
-                <rect x="30" y="33.5" width="9" height="9" rx="2.6"/>
-                <rect x="22" y="43" width="9" height="9" rx="2.6"/>
-                <rect x="22" y="52.5" width="9" height="9" rx="2.6"/>
-              </g>
-              <g fill="var(--logo-amber)">
-                <rect x="47" y="33.5" width="9" height="9" rx="2.6"/>
-                <rect x="57.5" y="33.5" width="9" height="9" rx="2.6"/>
-                <rect x="47" y="43" width="9" height="9" rx="2.6"/>
-                <rect x="57.5" y="43" width="9" height="9" rx="2.6"/>
-                <rect x="47" y="52.5" width="9" height="9" rx="2.6"/>
-                <rect x="57.5" y="52.5" width="9" height="9" rx="2.6"/>
-              </g>
-              <path d="M64 68 L81 85" fill="none" stroke="var(--logo-teal)"
-                    stroke-width="12.5" stroke-linecap="round"/>
-            </svg>
-          </span>
           <div class="foot-brand-body">
-            <span class="brand-name">Quantum <span>Tradeworks</span></span>
+            <img class="brand-logo brand-logo-ink" src="/brand/quantum-tradeworks-logo.png" width="337" height="79" alt="Quantum Tradeworks">
+            <img class="brand-logo brand-logo-light" src="/brand/quantum-tradeworks-logo-light.png" width="337" height="79" alt="Quantum Tradeworks">
             <span class="brand-tagline" style="display:block">Research <i>·</i> Test <i class="amber">·</i> Model</span>
             <p class="body foot-desc">A financial decision workspace: research a company, build your own setups, model a property.</p>
             <div class="row row-wrap" style="margin-top:var(--md);gap:6px">

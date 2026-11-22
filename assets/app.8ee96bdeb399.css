@@ -369,20 +369,27 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
-/* The mark is the naked octagonal Q, as in the primary lockup — no container. */
-.brand-mark { width: 30px; height: 30px; flex: none; display: block; }
-.brand-mark svg { width: 100%; height: 100%; display: block; }
-.brand-name {
-  font-size: 15px; font-weight: 700; letter-spacing: -.01em;
-  white-space: nowrap; color: var(--logo-word);
-  display: flex; align-items: baseline; gap: 6px;
+/* THE LOGO (the owner's, 22 Nov 2026): QUANTUM over TRADEWORKS, the Q's tail
+   in teal, as a picture made from the owner's file (brand/). It replaced the
+   octagonal-Q mark and the typed "Quantum Tradeworks" in the header, the
+   app bar, the sidebar and the footer. Its height is set; its width follows
+   (337 by 79). The bars are Graphite in both themes and carry the light
+   letters; the footer carries both and shows the one its surface needs. */
+.brand-logo { display: block; height: 38px; width: auto; max-width: none; }
+.sidebar .brand-logo, .appbar .brand-logo { height: 34px; }
+@media (max-width: 560px) { .pubbar .brand-logo { height: 34px; } }
+@media (max-width: 374.98px) { .pubbar .brand-logo { height: 30px; } }
+.foot-brand .brand-logo { height: 44px; }
+/* The tagline is a second spaced capital line under TRADEWORKS: a step apart. */
+.foot-brand .brand-tagline { margin-top: var(--sm); }
+.brand-logo-light { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-logo-ink { display: none; }
+  :root:not([data-theme="light"]) .brand-logo-light { display: block; }
 }
-.brand-name span { color: var(--logo-teal-text); font-weight: 700; letter-spacing: -.01em; }
-/* Only in a bar, and only where a bar genuinely cannot hold it. It hid
-   "Tradeworks" below 520px everywhere — in the footer and the 320px drawer,
-   which have room — and in the header, which has room since its action reads
-   "Open" on a phone. The product's name is not truncated to fit a phone. */
-@media (max-width: 339px) { .bar-in .brand-name span { display: none; } }
+:root[data-theme="dark"] .brand-logo-ink { display: none; }
+:root[data-theme="dark"] .brand-logo-light { display: block; }
+/* (Print leaves the header, the bars and the footer out, logos and all.) */
 .brand-tagline {
   font-size:12px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--ink-3); margin-top: 5px; font-weight:600;
@@ -2949,8 +2956,9 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
    the view's own bottom padding was 96 on top of the footer's 48. */
 .view { padding-bottom: var(--xxl); }
 @media (max-width: 640px) { .view { padding-bottom: var(--xl); } }
-/* The brand block: the mark in its gutter, the rest on one edge. */
-.foot-brand { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: start; }
+/* The brand block: the logo, and the rest on its left edge (one column since
+   the logo, 22 Nov 2026; the old mark had a gutter of its own). */
+.foot-brand { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: start; }
 .foot-desc { font-size: var(--text-sm); max-width: 36ch; margin-top: var(--sm); }
 /* The rule above the legal paragraph runs the footer's width; the paragraph's
    own measure stays 90 characters. Capped with the text, the rule stopped
