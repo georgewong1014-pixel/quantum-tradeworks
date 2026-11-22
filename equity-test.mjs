@@ -8087,7 +8087,7 @@ try {
       const out = {};
       navigate('/'); await w(150);
       const m = main();
-      /* (Day-16, 29 Oct 2026; QT-D15-01) every detail in each card's ⓘ; since QTW-04 (22 Nov 2026) its `detail`, said once. */
+      /* (Day-16, 29 Oct 2026; QT-D15-01) every detail in each card's ⓘ; since QTW-04 (22 Nov 2026) its detail, said once. */
       const DETAILS = Object.fromEntries(PRODUCTS.map(p => [p.id, p.detail]));
       out.home = {
         view: State.view,

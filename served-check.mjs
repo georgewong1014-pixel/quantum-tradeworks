@@ -2676,7 +2676,8 @@ const HOME_PAGE = read(HOME);
     if (body && lim && rawText(body).includes(lim.replace(/\.$/, ''))) p.push(`/: the ${id} card's ⓘ repeats the limit in sight ("${lim}")`);
     const said = body ? rawText(body).replace(/\s+/g, ' ').trim() : '';
     if (body && said !== `${want} Data sources · What the labels mean`) p.push(`/: the ${id} card's ⓘ is not its detail and its two links alone: "${said.slice(0, 160)}"`);
-    if (body && !all(body).some(n => n.tag === 'a' && attr(n, 'href') === wantSrc[id] && sight(n) === 'Data sources')) p.push(`/: the ${id} card's ⓘ links no "Data sources" at ${wantSrc[id]}`);
+    /* rawText, not sight: the ⓘ is served closed, and sight leaves a closed <details> out. */
+    if (body && !all(body).some(n => n.tag === 'a' && attr(n, 'href') === wantSrc[id] && rawText(n).trim() === 'Data sources')) p.push(`/: the ${id} card's ⓘ links no "Data sources" at ${wantSrc[id]}`);
   }
   const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
   if (!scanNote || !/this site ships no prices/.test(rawText(scanNote))) p.push('/: the Scanner card\'s ⓘ does not say "this site ships no prices"');
