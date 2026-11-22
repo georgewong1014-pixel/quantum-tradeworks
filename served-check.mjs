@@ -1425,7 +1425,17 @@ const HOME_PAGE = read(HOME);
       const recSteps = Array.isArray(j.steps) ? j.steps : [];
       if (steps.length !== recSteps.length) p.push(`/status: ${j.id} serves ${steps.length} steps marked OK, FAIL or gated, of the record's ${recSteps.length}`);
       steps.forEach((s, k) => { if (recSteps[k] && words(s[3]) !== recSteps[k].name) p.push(`/status: ${j.id}'s step ${k + 1} reads "${words(s[3])}", the record's "${recSteps[k].name}"`); });
+      /* QTW-01 (22 Nov 2026): a journey whose customer step was gated is not
+         a completed customer journey. Served as "Checks passed" (or its
+         degraded state) beside "Customer submission unavailable", never as
+         "Pass" alone, and not counted among the journeys that pass. */
+      const custGated = j.status !== 'FAIL' && recSteps.some(s => /^Customer completion\b/.test(String(s.name)) && s.gated);
+      const chips = [...m[2].matchAll(/<span class="chip health-chip [^"]*">([^<]*)<\/span>/g)].map(x => x[1]);
+      if (custGated && (chips[0] === 'Pass' || !chips.includes('Customer submission unavailable'))) p.push(`/status: ${j.id}'s customer step was not walked, but it is served as ${JSON.stringify(chips)}, not "Checks passed" beside "Customer submission unavailable"`);
+      if (!custGated && chips.includes('Customer submission unavailable')) p.push(`/status: ${j.id} is served "Customer submission unavailable", but its record walked the customer step`);
     });
+    const checksOnly = (rec.journeys || []).filter(j => j.status === 'PASS' && (j.steps || []).some(s => /^Customer completion\b/.test(String(s.name)) && s.gated)).length;
+    if (sum != null && checksOnly && !words(sum).includes(`${checksOnly} checks only (customer submission unavailable)`)) p.push(`/status's summary counts ${checksOnly} journey(s) whose customer step was not walked among those that pass: "${words(sum).slice(0, 120)}"`);
   }
   const jAt = status.indexOf('>Complete journeys on the live site</h3>'), bAt = status.indexOf('>Checked in your browser now</h3>');
   if (jAt < 0 || bAt < 0 || jAt > bAt) p.push('/status: "Complete journeys on the live site" is not served above "Checked in your browser now"');
@@ -2645,7 +2655,12 @@ const HOME_PAGE = read(HOME);
      is the 15 Oct report's boundary, word for word. */
   const lines = (cls) => cards.flatMap(c => all(c).filter(n => has(n, cls)).map(n => [attr(c, 'data-product'), sight(n)]));
   const wantOut = [['equities', 'Read a company’s filed financials and compare companies side by side.'], ['scanner', 'Write your own setup rules and see where they held in your price history.'], ['property', 'See the cash required, the monthly position and scenarios for a deal.']];
-  const wantBound = [['equities', 'US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.'], ['scanner', 'No hosted monitoring or recorded matches yet: rules are checked here, on price history you supply.'], ['property', 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.']];
+  /* QTW-04 (22 Nov 2026): the ⓘ printed the badge's note and a long limit that said the same things,
+     and the limit in sight again. Now one detail each, nothing the card already shows, with its sources. */
+  const wantBound = [['equities', 'US companies come from their audited SEC filings. The Malaysian companies, and any US listing marked illustrative, carry illustrative figures. A price measure needs a price you enter.'],
+    ['scanner', 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Recorded matches are not available yet.'],
+    ['property', 'Computed from the figures you enter. The starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders. Transaction evidence is not provided.']];
+  const wantSrc = { equities: '/data-sources', scanner: '/data-sources', property: '/data-sources#fee-rulebook' };
   if (JSON.stringify(lines('pub-card-outcome')) !== JSON.stringify(wantOut)) p.push(`/: the cards' outcome lines are not one each, as stated (${JSON.stringify(lines('pub-card-outcome'))})`);
   /* (Day-16, 29 Oct 2026; QT-D15-01) the limit in sight is one short line; the long sentence is in the card's ⓘ, in the served page. */
   const wantLimit = [['equities', 'No licensed market prices.'], ['scanner', 'Hosted monitoring is not available.'], ['property', 'No listings or official valuation.']];
@@ -2654,9 +2669,14 @@ const HOME_PAGE = read(HOME);
     const c = cardOf(id);
     const body = c && all(c).find(n => has(n, 'pub-info-body'));
     const det = c && all(c).find(n => n.tag === 'details' && has(n, 'pub-info'));
-    if (!body || !rawText(body).includes(want)) p.push(`/: the ${id} card's ⓘ does not print its long limit "${want.slice(0, 40)}…" in the served page`);
+    if (!body || !rawText(body).includes(want)) p.push(`/: the ${id} card's ⓘ does not print its detail "${want.slice(0, 40)}…" in the served page`);
     if (det && attr(det, 'open') !== null) p.push(`/: the ${id} card's ⓘ is served open`);
-    if (c && sight(c).includes(want)) p.push(`/: the ${id} card shows its long limit in sight, not only in the ⓘ`);
+    if (c && sight(c).includes(want)) p.push(`/: the ${id} card shows its detail in sight, not only in the ⓘ`);
+    const lim = (wantLimit.find(([x]) => x === id) || [])[1];
+    if (body && lim && rawText(body).includes(lim.replace(/\.$/, ''))) p.push(`/: the ${id} card's ⓘ repeats the limit in sight ("${lim}")`);
+    const said = body ? rawText(body).replace(/\s+/g, ' ').trim() : '';
+    if (body && said !== `${want} Data sources · What the labels mean`) p.push(`/: the ${id} card's ⓘ is not its detail and its two links alone: "${said.slice(0, 160)}"`);
+    if (body && !all(body).some(n => n.tag === 'a' && attr(n, 'href') === wantSrc[id] && sight(n) === 'Data sources')) p.push(`/: the ${id} card's ⓘ links no "Data sources" at ${wantSrc[id]}`);
   }
   const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
   if (!scanNote || !/this site ships no prices/.test(rawText(scanNote))) p.push('/: the Scanner card\'s ⓘ does not say "this site ships no prices"');
@@ -2775,7 +2795,8 @@ const HOME_PAGE = read(HOME);
     const metas = [...body.matchAll(/<meta (?:name|property)="(?:description|og:description|twitter:description|og:title|twitter:title)" content="([^"]*)">/g)].map(m => m[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"'));
     let text = `${pageText(body)} ${metas.join(' ')} ${(/<title>([^<]*)<\/title>/.exec(body) || [])[1] || ''}`;
     for (const a of allowed) text = text.split(a).join(' ');
-    const m = /.{0,40}(decision workspace|market setups|evaluate property investments|Research · Monitor).{0,40}/i.exec(text);
+    /* "Research · Monitor" was the tagline until QTW-03 (22 Nov 2026); served anywhere now, it is the old one. */
+    const m = /.{0,40}(decision workspace|market setups|evaluate property investments|Research · Monitor|Research · Test).{0,40}/i.exec(text);
     if (m) variants.push(`${path}: …${m[0].trim()}…`);
     const desc = /<p class="body foot-desc">([^<]*)<\/p>/.exec(body)?.[1];
     if (desc !== undefined && desc.replace(/&amp;/g, '&') !== P.oneLiner) variants.push(`${path}: the footer's line is "${desc}"`);

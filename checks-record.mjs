@@ -411,7 +411,13 @@ export function checksServed(checks, journeys, suites, build) {
         st = c('FAIL') ? 'FAIL' : c('DEGRADED') ? 'DEGRADED' : 'PASS';
         /* The failing journeys by name; their steps are listed below. */
         const failed = js.filter(j => j.status === 'FAIL').map(j => esc(j.name));
-        line = c('PASS') + ' of ' + js.length + ' journeys pass' + (c('DEGRADED') ? ', ' + c('DEGRADED') + ' degraded' : '') + (c('FAIL') ? ', ' + c('FAIL') + ' failed (' + failed.join('; ') + ')' : '')
+        /* A journey whose customer step was gated passed its configuration
+           checks only (QTW-01, 22 Nov 2026): counted apart, as
+           journeysServed (journeys.mjs) counts it, with this renderer's own
+           copy of the rule. */
+        const only = js.filter(j => j.status === 'PASS' && (Array.isArray(j.steps) ? j.steps : []).some(s => s && /^Customer completion\b/.test(String(s.name)) && s.gated)).length;
+        line = (c('PASS') - only) + ' of ' + js.length + ' journeys pass' + (only ? ', ' + only + ' checks only (customer submission unavailable)' : '')
+          + (c('DEGRADED') ? ', ' + c('DEGRADED') + ' degraded' : '') + (c('FAIL') ? ', ' + c('FAIL') + ' failed (' + failed.join('; ') + ')' : '')
           + ' · the live site, ' + (when(jdoc.ranAt) || 'its time not recorded') + (site ? ' · ' + site : ', its commit not identified') + ' · '
           + (runOk(jdoc.run) ? log(jdoc.run, 'run log') : log(REPO_URL + '/actions/workflows/journeys.yml', 'run history'));
       }
@@ -602,6 +608,12 @@ function selfTest() {
   t(/data-status="PASS"/.test(nums) && words(nums).includes('6 of 6 suites pass · 60 of 60 checks · CI on abcdef1, 10 Oct 2026, 12:30 UTC · run log') && /href="https:\/\/github\.com\/georgewong1014-pixel\/quantum-tradeworks\/actions\/runs\/1"/.test(nums),
     `served: Numbers — its counts, generated from the record, the commit, the time and the run (${words(nums).slice(0, 110)}…)`);
   t(words(rowOf(ok, 'journeys')).includes('1 of 2 journeys pass, 1 failed (B &lt;x&gt;) · the live site, 10 Oct 2026, 11:17 UTC · abcdef1 · run log'), `served: Journeys — counted from the journeys' record, a failure named and escaped (${words(rowOf(ok, 'journeys')).slice(0, 110)})`);
+  /* QTW-01 (22 Nov 2026): a passing journey whose customer step was gated is counted apart, as /status's list counts it. */
+  {
+    const gatedCust = { id: 'c', name: 'C', status: 'PASS', steps: [{ name: 'The form is offered', status: 'OK' }, { name: 'Customer completion: sent from the page', status: 'OK', gated: 'no form is offered' }] };
+    const cw = words(rowOf(checksServed(full, { ...jrec, journeys: [jrec.journeys[0], gatedCust] }, SUITES), 'journeys'));
+    t(cw.includes('1 of 2 journeys pass, 1 checks only (customer submission unavailable) · the live site'), `served: Journeys — a journey whose customer step was not walked is "checks only", not a pass (${cw.slice(0, 110)})`);
+  }
   const gone = checksServed(missing, jrec, SUITES);
   const gnums = rowOf(gone, 'numbers');
   t(gone.status.numbers === 'NOT RUN' && /data-status="NOT-RUN"/.test(gnums) && /<span class="chip health-chip">Not run<\/span>/.test(gnums) && !/chip-ok/.test(gnums)

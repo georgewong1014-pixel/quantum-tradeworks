@@ -101,9 +101,12 @@ const HOME_FILED = /*@INJECT:homeFiled*/ null;
    and the full note one press away — a native <details>, so it opens with
    no script, from the keyboard as from a finger — with where every label is
    explained. The card's link is described by both (aria-describedby).
-   The card's long limitation (`boundary`) is printed here with the note
-   (Day-16 review QT-D15-01, 29 Oct 2026): in sight is the one short line
-   (`limit`), and every detail stays one press away. */
+   In sight is the one short line (`limit`, Day-16 review QT-D15-01, 29 Oct
+   2026), and every detail stays one press away: the card's `detail`, which
+   says each thing once and nothing the card already shows (QTW-04, 22 Nov
+   2026: the note and the long limit said the same things twice, and the
+   limit in sight a third time), then where the data comes from and what
+   the labels mean. */
 function pubQualifier(p, id) {
   return el('div', { class: 'pub-card-qual' }, [
     productBadge(p.id, { qualified: true, qualId: id('q') }),
@@ -113,8 +116,8 @@ function pubQualifier(p, id) {
         el('span', { class: 'sr-only' }, `What ${PRODUCT_STATUS[p.status]} means for ${p.name}`),
       ]),
       el('p', { class: 'pub-info-body' }, [
-        el('span', { id: id('note') }, p.statusNote), ' ',
-        p.boundary ? el('span', { id: id('bound') }, p.boundary) : null, p.boundary ? ' ' : null,
+        el('span', { id: id('note') }, p.detail || p.statusNote), ' ',
+        p.sources ? el('a', { href: p.sources, class: 'pub-textlink pub-info-src' }, 'Data sources') : null, p.sources ? ' · ' : null,
         el('a', { href: '/how-it-works#hiw-status', class: 'pub-textlink' }, 'What the labels mean'),
       ]),
     ]),
@@ -280,7 +283,7 @@ function pubProductCard(p) {
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') },
-    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.limit ? ` ${id('limit')}` : ''}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
+    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.limit ? ` ${id('limit')}` : ''}` }, p.task, pubArrow())));
   if (p.outcome) card.append(el('p', { class: 'pub-card-outcome', id: id('out') }, p.outcome));
   card.append(pubQualifier(p, id));
   if (p.limit) card.append(el('p', { class: 'pub-card-limit', id: id('limit') }, p.limit));

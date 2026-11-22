@@ -12756,11 +12756,16 @@ const PRODUCTS = [
        (QT-D03-01, the 16 Oct report; the owner chose card lines only).
        served-check holds every card's two lines word for word. Day-16
        review QT-D15-01 (29 Oct 2026): the limit in sight is now `limit`,
-       one short line; the long sentence (`boundary`) went into the card's
-       ⓘ beside statusNote, so every detail stays on the page. */
+       one short line, and every detail stays on the page, in the card's ⓘ.
+       QTW-04 (22 Nov 2026): the ⓘ printed statusNote and a long limit
+       (`boundary`) that said the same things again, and again the limit in
+       sight. It prints `detail` now: each thing once, nothing the card
+       already shows, and where the data comes from. `sources` is that
+       link. statusNote stays the badge's own note everywhere else. */
     outcome: 'Read a company’s filed financials and compare companies side by side.',
     limit: 'No licensed market prices.',
-    boundary: 'US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.',
+    detail: 'US companies come from their audited SEC filings. The Malaysian companies, and any US listing marked illustrative, carry illustrative figures. A price measure needs a price you enter.',
+    sources: '/data-sources',
     statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
      promised a watch this site never keeps — it ships no prices, and the
@@ -12774,7 +12779,8 @@ const PRODUCTS = [
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
     limit: 'Hosted monitoring is not available.',
-    boundary: 'No hosted monitoring or recorded matches yet: rules are checked here, on price history you supply.',
+    detail: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Recorded matches are not available yet.',
+    sources: '/data-sources',
     statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Monitoring and recorded matches are not available yet.' },
   /* `home`: where the product's own links open (the Products menu, the
      sidebar, the footer) — the start, the calculator's quick model (the
@@ -12791,7 +12797,8 @@ const PRODUCTS = [
        the calculator and a step of the homepage's example path. */
     outcome: 'See the cash required, the monthly position and scenarios for a deal.',
     limit: 'No listings or official valuation.',
-    boundary: 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.',
+    detail: 'Computed from the figures you enter. The starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders. Transaction evidence is not provided.',
+    sources: '/data-sources#fee-rulebook',
     statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
   { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
@@ -13548,8 +13555,11 @@ const POSITIONING = {
   title: 'Quantum Tradeworks — your financial decision workspace',
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
-  /* "Plan" left with the unbuilt product (QT-D20-02, 2 Nov 2026). */
-  kicker: 'Research · Monitor · Model',
+  /* "Plan" left with the unbuilt product (QT-D20-02, 2 Nov 2026).
+     "Monitor" left with the monitoring that is not hosted (QTW-03, 22 Nov
+     2026): the Scanner tests a setup on price history you supply, as its
+     card's note says, and watches nothing. */
+  kicker: 'Research · Test · Model',
   /* The hero's lede under the held h1: with it, 15 words. The three tools as
      the three things a visitor can do, in the cards' own words (the owner's
      quick-wins brief, 29 Oct 2026; was "Companies, market setups and
@@ -28182,9 +28192,12 @@ const HOME_FILED = {"id":"AAPL-SEC","tk":"AAPL","name":"Apple Inc.","path":"/com
    and the full note one press away — a native <details>, so it opens with
    no script, from the keyboard as from a finger — with where every label is
    explained. The card's link is described by both (aria-describedby).
-   The card's long limitation (`boundary`) is printed here with the note
-   (Day-16 review QT-D15-01, 29 Oct 2026): in sight is the one short line
-   (`limit`), and every detail stays one press away. */
+   In sight is the one short line (`limit`, Day-16 review QT-D15-01, 29 Oct
+   2026), and every detail stays one press away: the card's `detail`, which
+   says each thing once and nothing the card already shows (QTW-04, 22 Nov
+   2026: the note and the long limit said the same things twice, and the
+   limit in sight a third time), then where the data comes from and what
+   the labels mean. */
 function pubQualifier(p, id) {
   return el('div', { class: 'pub-card-qual' }, [
     productBadge(p.id, { qualified: true, qualId: id('q') }),
@@ -28194,8 +28207,8 @@ function pubQualifier(p, id) {
         el('span', { class: 'sr-only' }, `What ${PRODUCT_STATUS[p.status]} means for ${p.name}`),
       ]),
       el('p', { class: 'pub-info-body' }, [
-        el('span', { id: id('note') }, p.statusNote), ' ',
-        p.boundary ? el('span', { id: id('bound') }, p.boundary) : null, p.boundary ? ' ' : null,
+        el('span', { id: id('note') }, p.detail || p.statusNote), ' ',
+        p.sources ? el('a', { href: p.sources, class: 'pub-textlink pub-info-src' }, 'Data sources') : null, p.sources ? ' · ' : null,
         el('a', { href: '/how-it-works#hiw-status', class: 'pub-textlink' }, 'What the labels mean'),
       ]),
     ]),
@@ -28361,7 +28374,7 @@ function pubProductCard(p) {
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') },
-    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.limit ? ` ${id('limit')}` : ''}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
+    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')}${p.outcome ? ` ${id('out')}` : ''} ${id('q')} ${id('note')}${p.limit ? ` ${id('limit')}` : ''}` }, p.task, pubArrow())));
   if (p.outcome) card.append(el('p', { class: 'pub-card-outcome', id: id('out') }, p.outcome));
   card.append(pubQualifier(p, id));
   if (p.limit) card.append(el('p', { class: 'pub-card-limit', id: id('limit') }, p.limit));
@@ -66908,7 +66921,18 @@ const journeysServed = (function journeysServed(doc) {
   const sha = /^[0-9a-f]{7,40}$/.test(String(doc.commit || '')) ? String(doc.commit).slice(0, 7) : null;
   const run = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/\d+$/.test(String(doc.run || '')) ? String(doc.run) : null;
   const n = (s) => list.filter(j => j.status === s).length;
-  const tally = n('PASS') + ' of ' + list.length + ' pass' + (n('DEGRADED') ? ', ' + n('DEGRADED') + ' degraded' : '') + (n('FAIL') ? ', ' + n('FAIL') + ' failed' : '');
+  /* A JOURNEY A VISITOR COULD NOT COMPLETE HERE (QTW-01, 22 Nov 2026): its
+     customer step was gated — this build offers no form, or submitting is
+     not switched on — so what passed is the configuration checks, not the
+     customer's journey. Said as two results, "Checks passed" and "Customer
+     submission unavailable", and counted apart from the journeys that pass.
+     The record's own status is not changed: CI, the release gate and the
+     bot's commit read it. (checksServed, checks-record.mjs, counts the same
+     way, with its own copy: each renderer is self-contained.) */
+  const custGated = (j) => j.status !== 'FAIL' && (Array.isArray(j.steps) ? j.steps : []).some(s => s && /^Customer completion\b/.test(String(s.name)) && s.gated);
+  const checksOnly = list.filter(j => j.status === 'PASS' && custGated(j)).length;
+  const tally = (n('PASS') - checksOnly) + ' of ' + list.length + ' pass' + (checksOnly ? ', ' + checksOnly + ' checks only (customer submission unavailable)' : '')
+    + (n('DEGRADED') ? ', ' + n('DEGRADED') + ' degraded' : '') + (n('FAIL') ? ', ' + n('FAIL') + ' failed' : '');
   const log = run ? '<a class="journeys-log" href="' + esc(run) + '">public log</a>'
     : '<a class="journeys-log" href="' + REPO + '/actions/workflows/journeys.yml">public run history</a>';
   const sum = 'Last recorded run ' + day + ' ' + at.getUTCFullYear() + ', ' + time + (sha ? ' on ' + sha : ', its commit not identified') + ': ' + tally + ' · ' + log;
@@ -66925,12 +66949,16 @@ const journeysServed = (function journeysServed(doc) {
      the same way here, from its own steps. */
   const ctaCount = (j) => { const n = steps(j).length - 1; return n + ' calls to action pressed (' + (n + 1) + ' steps: the page opened, then each call)'; };
   const items = list.map(j => {
+    const cg = custGated(j);
     let detail = j.status === 'FAIL' ? 'Failed at “' + j.failedStep + '”' + (j.route ? ' on ' + j.route : '') + '.' + (j.note ? ' ' + j.note : '')
-      : j.note || (j.status === 'PASS' ? 'Completed, each step within its time budget.' : 'Completed, but degraded; the recorded run gives no reason.');
+      : j.note || (cg ? 'Configuration checks passed. Customer submission is unavailable on this deployment, so the steps marked gated were not walked here; each says why.'
+        : j.status === 'PASS' ? 'Completed, each step within its time budget.' : 'Completed, but degraded; the recorded run gives no reason.');
     if (j.id === 'ctas' && j.status !== 'FAIL' && steps(j).length > 1) detail = detail.replace(/\b\d+ calls to action pressed(?: \(\d+ steps: the page opened, then each call\))?/, () => ctaCount(j));
     const st = steps(j);
+    const chip = cg && j.status === 'PASS' ? ['chip-ok', 'Checks passed'] : STATE[j.status];
     return '<li class="journey-row" id="' + idOf(j) + '" data-status="' + j.status + '">'
-      + '<span class="chip health-chip ' + STATE[j.status][0] + '">' + STATE[j.status][1] + '</span>'
+      + '<span class="chip health-chip ' + chip[0] + '">' + chip[1] + '</span>'
+      + (cg ? '<span class="chip health-chip chip-warn journey-cust">Customer submission unavailable</span>' : '')
       + '<p class="journey-name">' + esc(j.name) + '</p>'
       + '<div class="journey-body"><p class="caption">' + esc(detail) + '</p>'
       + (st.length ? '<ol class="journey-steps" aria-label="' + esc(j.name) + ': each step">' + st.map(s => '<li data-mark="' + mark(s).toLowerCase() + '">'
@@ -67050,7 +67078,13 @@ const checksServed = (function checksServed(checks, journeys, suites, build) {
         st = c('FAIL') ? 'FAIL' : c('DEGRADED') ? 'DEGRADED' : 'PASS';
         /* The failing journeys by name; their steps are listed below. */
         const failed = js.filter(j => j.status === 'FAIL').map(j => esc(j.name));
-        line = c('PASS') + ' of ' + js.length + ' journeys pass' + (c('DEGRADED') ? ', ' + c('DEGRADED') + ' degraded' : '') + (c('FAIL') ? ', ' + c('FAIL') + ' failed (' + failed.join('; ') + ')' : '')
+        /* A journey whose customer step was gated passed its configuration
+           checks only (QTW-01, 22 Nov 2026): counted apart, as
+           journeysServed (journeys.mjs) counts it, with this renderer's own
+           copy of the rule. */
+        const only = js.filter(j => j.status === 'PASS' && (Array.isArray(j.steps) ? j.steps : []).some(s => s && /^Customer completion\b/.test(String(s.name)) && s.gated)).length;
+        line = (c('PASS') - only) + ' of ' + js.length + ' journeys pass' + (only ? ', ' + only + ' checks only (customer submission unavailable)' : '')
+          + (c('DEGRADED') ? ', ' + c('DEGRADED') + ' degraded' : '') + (c('FAIL') ? ', ' + c('FAIL') + ' failed (' + failed.join('; ') + ')' : '')
           + ' · the live site, ' + (when(jdoc.ranAt) || 'its time not recorded') + (site ? ' · ' + site : ', its commit not identified') + ' · '
           + (runOk(jdoc.run) ? log(jdoc.run, 'run log') : log(REPO_URL + '/actions/workflows/journeys.yml', 'run history'));
       }

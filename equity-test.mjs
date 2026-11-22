@@ -8087,8 +8087,8 @@ try {
       const out = {};
       navigate('/'); await w(150);
       const m = main();
-      /* (Day-16, 29 Oct 2026; QT-D15-01) the long limit, now in each card's ⓘ. */
-      const BOUNDS = Object.fromEntries(PRODUCTS.map(p => [p.id, p.boundary]));
+      /* (Day-16, 29 Oct 2026; QT-D15-01) every detail in each card's ⓘ; since QTW-04 (22 Nov 2026) its `detail`, said once. */
+      const DETAILS = Object.fromEntries(PRODUCTS.map(p => [p.id, p.detail]));
       out.home = {
         view: State.view,
         h1: m.querySelector('h1')?.textContent,
@@ -8100,7 +8100,8 @@ try {
         cards: [...m.querySelectorAll('.pub-card')].map(c => ({ tag: c.tagName, href: c.querySelector('.pub-card-link')?.getAttribute('href'),
           title: c.querySelector('.pub-card-title')?.textContent, links: c.querySelectorAll('a').length,
           badge: c.querySelector('.status-badge')?.textContent.trim(),
-          limit: c.querySelector('.pub-card-limit')?.textContent.trim(), info: c.querySelector('.pub-info-body')?.textContent.replace(/\\s+/g, ' ') || '', bound: BOUNDS[c.dataset.product] || null,
+          limit: c.querySelector('.pub-card-limit')?.textContent.trim(), info: c.querySelector('.pub-info-body')?.textContent.replace(/\\s+/g, ' ') || '', detail: DETAILS[c.dataset.product] || null,
+          src: c.querySelector('.pub-info-body a.pub-info-src')?.getAttribute('href') || null, qual: c.querySelector('.pbadge-q')?.textContent.trim() || null,
           outside: [...c.querySelectorAll('a')].filter(a => !a.closest('figure, details')).map(a => a.textContent.trim()) })),
         want: P.map(p => ({ path: p.path && p.actionPath ? href(p.actionPath) : null, task: p.task, badge: LABEL[p.status] })), /* audit1 registry-ctas: a card opens where its goal starts */
         figures: m.querySelectorAll('figure svg[role="img"]').length, terminal: m.querySelectorAll('canvas, table, .proof-card, .segmented, .hero-proof').length,
@@ -8143,7 +8144,7 @@ try {
     if (home.h1 !== 'Understand what drives the result before relying on the number.') p.push(`homepage h1: "${home.h1}"`);
     /* D5: the kicker is the footer's tagline only; the hero is the h1, the
        lede and one action, with no "Explore products". */
-    if (home.kicker != null || home.tagline !== 'Research · Monitor · Model') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
+    if (home.kicker != null || home.tagline !== 'Research · Test · Model') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
     if (home.primary.length !== 1 || home.primary[0][0] !== 'Choose a tool' || home.primary[0][1] !== '#products')
       p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
     if (home.explore !== null) p.push(`"Explore products" is back on the homepage (${home.explore})`);
@@ -8155,9 +8156,15 @@ try {
       if (c.title !== want.task) p.push(`card ${i + 1} is titled "${c.title}", not "${want.task}"`);
       if (c.badge !== want.badge) p.push(`card "${want.task}" wears "${c.badge}", not "${want.badge}"`);
       if (c.tag !== 'ARTICLE' || c.href !== want.path) p.push(`card "${want.task}" is ${c.tag} with its task to ${c.href}, not an article whose task links ${want.path}`);
-      /* (Day-16, 29 Oct 2026; QT-D15-01) one short limit in sight, one action, the long limit in the ⓘ. */
+      /* (Day-16, 29 Oct 2026; QT-D15-01) one short limit in sight, one action, every detail in the ⓘ.
+         QTW-04 (22 Nov 2026): the ⓘ says each thing once — its detail, not the limit or the qualifier
+         the card already shows, not the badge's note beside a second sentence saying it again — and
+         links where the data comes from. */
       if (!c.limit || c.limit.split(/\s+/).length > 8) p.push(`card "${want.task}" has the limit line ${JSON.stringify(c.limit)}, not one of 8 words or fewer`);
-      if (!c.bound || !c.info.includes(c.bound)) p.push(`card "${want.task}"'s ⓘ does not print its long limit: ${JSON.stringify(c.info.slice(0, 120))}`);
+      if (!c.detail || !c.info.includes(c.detail)) p.push(`card "${want.task}"'s ⓘ does not print its detail: ${JSON.stringify(c.info.slice(0, 120))}`);
+      if (c.limit && c.info.includes(c.limit.replace(/\.$/, ''))) p.push(`card "${want.task}"'s ⓘ repeats the limit in sight ("${c.limit}")`);
+      if (c.qual && c.info.includes(c.qual)) p.push(`card "${want.task}"'s ⓘ repeats its qualifier ("${c.qual}")`);
+      if (!c.src || !/^\/data-sources(#[a-z-]+)?$/.test(c.src)) p.push(`card "${want.task}"'s ⓘ links no data sources (${c.src})`);
       if (c.outside?.length !== 1) p.push(`card "${want.task}" has ${c.outside?.length} links outside its figure and ⓘ (${(c.outside || []).join(' | ')}), not its one action`);
     });
     /* Since 3.8 the cards carry the products' visuals — two charts at least —

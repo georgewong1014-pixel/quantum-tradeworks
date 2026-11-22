@@ -400,11 +400,16 @@ const PRODUCTS = [
        (QT-D03-01, the 16 Oct report; the owner chose card lines only).
        served-check holds every card's two lines word for word. Day-16
        review QT-D15-01 (29 Oct 2026): the limit in sight is now `limit`,
-       one short line; the long sentence (`boundary`) went into the card's
-       ⓘ beside statusNote, so every detail stays on the page. */
+       one short line, and every detail stays on the page, in the card's ⓘ.
+       QTW-04 (22 Nov 2026): the ⓘ printed statusNote and a long limit
+       (`boundary`) that said the same things again, and again the limit in
+       sight. It prints `detail` now: each thing once, nothing the card
+       already shows, and where the data comes from. `sources` is that
+       link. statusNote stays the badge's own note everywhere else. */
     outcome: 'Read a company’s filed financials and compare companies side by side.',
     limit: 'No licensed market prices.',
-    boundary: 'US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.',
+    detail: 'US companies come from their audited SEC filings. The Malaysian companies, and any US listing marked illustrative, carry illustrative figures. A price measure needs a price you enter.',
+    sources: '/data-sources',
     statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
      promised a watch this site never keeps — it ships no prices, and the
@@ -418,7 +423,8 @@ const PRODUCTS = [
     status: 'beta', qualifier: 'Your own price data',
     outcome: 'Write your own setup rules and see where they held in your price history.',
     limit: 'Hosted monitoring is not available.',
-    boundary: 'No hosted monitoring or recorded matches yet: rules are checked here, on price history you supply.',
+    detail: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Recorded matches are not available yet.',
+    sources: '/data-sources',
     statusNote: 'Tests setups on daily price history you supply; this site ships no prices, so here it has nothing to scan. Monitoring and recorded matches are not available yet.' },
   /* `home`: where the product's own links open (the Products menu, the
      sidebar, the footer) — the start, the calculator's quick model (the
@@ -435,7 +441,8 @@ const PRODUCTS = [
        the calculator and a step of the homepage's example path. */
     outcome: 'See the cash required, the monthly position and scenarios for a deal.',
     limit: 'No listings or official valuation.',
-    boundary: 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.',
+    detail: 'Computed from the figures you enter. The starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders. Transaction evidence is not provided.',
+    sources: '/data-sources#fee-rulebook',
     statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
   { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
@@ -1192,8 +1199,11 @@ const POSITIONING = {
   title: 'Quantum Tradeworks — your financial decision workspace',
   /* The footer's tagline. Not on the hero any more (D5): the hero is the
      h1, the lede and one action. */
-  /* "Plan" left with the unbuilt product (QT-D20-02, 2 Nov 2026). */
-  kicker: 'Research · Monitor · Model',
+  /* "Plan" left with the unbuilt product (QT-D20-02, 2 Nov 2026).
+     "Monitor" left with the monitoring that is not hosted (QTW-03, 22 Nov
+     2026): the Scanner tests a setup on price history you supply, as its
+     card's note says, and watches nothing. */
+  kicker: 'Research · Test · Model',
   /* The hero's lede under the held h1: with it, 15 words. The three tools as
      the three things a visitor can do, in the cards' own words (the owner's
      quick-wins brief, 29 Oct 2026; was "Companies, market setups and
