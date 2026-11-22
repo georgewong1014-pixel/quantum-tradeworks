@@ -292,7 +292,18 @@ export function journeysServed(doc) {
   const sha = /^[0-9a-f]{7,40}$/.test(String(doc.commit || '')) ? String(doc.commit).slice(0, 7) : null;
   const run = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/\d+$/.test(String(doc.run || '')) ? String(doc.run) : null;
   const n = (s) => list.filter(j => j.status === s).length;
-  const tally = n('PASS') + ' of ' + list.length + ' pass' + (n('DEGRADED') ? ', ' + n('DEGRADED') + ' degraded' : '') + (n('FAIL') ? ', ' + n('FAIL') + ' failed' : '');
+  /* A JOURNEY A VISITOR COULD NOT COMPLETE HERE (QTW-01, 22 Nov 2026): its
+     customer step was gated — this build offers no form, or submitting is
+     not switched on — so what passed is the configuration checks, not the
+     customer's journey. Said as two results, "Checks passed" and "Customer
+     submission unavailable", and counted apart from the journeys that pass.
+     The record's own status is not changed: CI, the release gate and the
+     bot's commit read it. (checksServed, checks-record.mjs, counts the same
+     way, with its own copy: each renderer is self-contained.) */
+  const custGated = (j) => j.status !== 'FAIL' && (Array.isArray(j.steps) ? j.steps : []).some(s => s && /^Customer completion\b/.test(String(s.name)) && s.gated);
+  const checksOnly = list.filter(j => j.status === 'PASS' && custGated(j)).length;
+  const tally = (n('PASS') - checksOnly) + ' of ' + list.length + ' pass' + (checksOnly ? ', ' + checksOnly + ' checks only (customer submission unavailable)' : '')
+    + (n('DEGRADED') ? ', ' + n('DEGRADED') + ' degraded' : '') + (n('FAIL') ? ', ' + n('FAIL') + ' failed' : '');
   const log = run ? '<a class="journeys-log" href="' + esc(run) + '">public log</a>'
     : '<a class="journeys-log" href="' + REPO + '/actions/workflows/journeys.yml">public run history</a>';
   const sum = 'Last recorded run ' + day + ' ' + at.getUTCFullYear() + ', ' + time + (sha ? ' on ' + sha : ', its commit not identified') + ': ' + tally + ' · ' + log;
@@ -309,12 +320,16 @@ export function journeysServed(doc) {
      the same way here, from its own steps. */
   const ctaCount = (j) => { const n = steps(j).length - 1; return n + ' calls to action pressed (' + (n + 1) + ' steps: the page opened, then each call)'; };
   const items = list.map(j => {
+    const cg = custGated(j);
     let detail = j.status === 'FAIL' ? 'Failed at “' + j.failedStep + '”' + (j.route ? ' on ' + j.route : '') + '.' + (j.note ? ' ' + j.note : '')
-      : j.note || (j.status === 'PASS' ? 'Completed, each step within its time budget.' : 'Completed, but degraded; the recorded run gives no reason.');
+      : j.note || (cg ? 'Configuration checks passed. Customer submission is unavailable on this deployment, so the steps marked gated were not walked here; each says why.'
+        : j.status === 'PASS' ? 'Completed, each step within its time budget.' : 'Completed, but degraded; the recorded run gives no reason.');
     if (j.id === 'ctas' && j.status !== 'FAIL' && steps(j).length > 1) detail = detail.replace(/\b\d+ calls to action pressed(?: \(\d+ steps: the page opened, then each call\))?/, () => ctaCount(j));
     const st = steps(j);
+    const chip = cg && j.status === 'PASS' ? ['chip-ok', 'Checks passed'] : STATE[j.status];
     return '<li class="journey-row" id="' + idOf(j) + '" data-status="' + j.status + '">'
-      + '<span class="chip health-chip ' + STATE[j.status][0] + '">' + STATE[j.status][1] + '</span>'
+      + '<span class="chip health-chip ' + chip[0] + '">' + chip[1] + '</span>'
+      + (cg ? '<span class="chip health-chip chip-warn journey-cust">Customer submission unavailable</span>' : '')
       + '<p class="journey-name">' + esc(j.name) + '</p>'
       + '<div class="journey-body"><p class="caption">' + esc(detail) + '</p>'
       + (st.length ? '<ol class="journey-steps" aria-label="' + esc(j.name) + ': each step">' + st.map(s => '<li data-mark="' + mark(s).toLowerCase() + '">'
@@ -493,6 +508,26 @@ function selfTest() {
       'journeysServed: the model line adds the Scenario Lab journey, a failure with its step, escaped');
     t(journeysServed({ ...full, journeys: full.journeys.filter(x => x.id !== 'property') }).model === 'no property journey in the last recorded run' && none.model === 'no recorded run to show',
       'journeysServed: the model line says when the run has no property journey, and when there is no run');
+    /* QTW-01 (22 Nov 2026): a journey whose customer step was gated passed
+       its configuration checks, not the customer's journey. */
+    {
+      const cust = (status, note = null) => ({ ...j(status === 'PASS' ? 'enquiry' : 'submission', status), note,
+        name: status === 'PASS' ? 'Enquiry: sent from the Contact page' : 'Report submission: a data error submitted',
+        steps: [{ name: 'The form is offered only with its retention sentence', ms: 300, status: 'OK' },
+          { name: 'Customer completion: sent from the page, a reference shown', ms: 0, status: 'OK', gated: 'this build does not offer the form' },
+          { name: 'Operational completion: the record is found', ms: 0, status: 'OK', gated: 'nothing was sent' }] });
+      const withCust = journeysServed({ ...full, journeys: [full.journeys[0], cust('PASS'), cust('DEGRADED', 'submitting is not switched on')] });
+      const row = (id) => (withCust.list.match(new RegExp(`<li class="journey-row" id="journey-${id}" data-status="[A-Z]+">[\\s\\S]*?</div></li>`)) || [''])[0];
+      const chips = (id) => [...row(id).matchAll(/<span class="chip health-chip [^"]*">([^<]*)<\/span>/g)].map(m => m[1]);
+      t(JSON.stringify(chips('enquiry')) === '["Checks passed","Customer submission unavailable"]' && /Configuration checks passed\. Customer submission is unavailable on this deployment/.test(row('enquiry'))
+        && !/Completed, each step within its time budget/.test(row('enquiry')),
+        `journeysServed: a passing journey whose customer step was gated reads "Checks passed" beside "Customer submission unavailable", never "Pass" or "Completed" (${JSON.stringify(chips('enquiry'))})`);
+      t(JSON.stringify(chips('submission')) === '["Degraded","Customer submission unavailable"]' && /submitting is not switched on/.test(row('submission')),
+        `journeysServed: a degraded one keeps its state and its note, with "Customer submission unavailable" beside it (${JSON.stringify(chips('submission'))})`);
+      t(/: 1 of 3 pass, 1 checks only \(customer submission unavailable\), 1 degraded · /.test(withCust.sum),
+        `journeysServed: the tally counts it apart from the journeys that pass (${withCust.sum.replace(/<[^>]*>/g, '').slice(0, 110)})`);
+      t(JSON.stringify(chips('equities')) === '["Pass"]' && !/checks only/.test(out.sum), 'journeysServed: a journey with no customer step, and a run with none gated, read as before');
+    }
     /* The 10 Oct audit: "30 destinations" over 31 steps. The count is the
        steps' — the first opens the page, each after it is a call. */
     {

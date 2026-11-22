@@ -349,8 +349,9 @@ badge and the page's one primary action (`pageHead`, 36-layouts.js):
 Products (the four; Business Intelligence as text with its badge) ·
 Resources (Methodology, Data sources, Glossary, Learn, Corrections, What this
 product will not do, Build status, Report a data error) · Company (About,
-Contact, Plans & pricing, Privacy, Terms). Tagline "Research · Monitor ·
-Model · Plan"; the legal paragraph is unchanged. That is the public
+Contact, Plans & pricing, Privacy, Terms). Tagline "Research · Test ·
+Model" (POSITIONING.kicker; "Plan" left 2 Nov 2026, "Monitor" 22 Nov
+2026); the legal paragraph is unchanged. That is the public
 chrome's footer. Under an app page the footer is the slim one — Resources,
 Company and the legal paragraph — since the sidebar already carries the
 brand and the products.

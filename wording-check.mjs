@@ -664,7 +664,9 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
   if (at < 0 || end < 0) typed.push('src/js/35-ui.js has no POSITIONING table');
   const table = at < 0 ? '' : ui.slice(at, end);
   const values = [...table.matchAll(/^\s+[a-zA-Z]+: '([^']+)',$/gm)].map(m => m[1]);
-  const FAMILY = /decision workspace|market setups|Research · Monitor|Research <i>·<\/i> Monitor/i;
+  /* "Research · Monitor" stays in the family after it left the tagline
+     (QTW-03, 22 Nov 2026): typed anywhere, it is the old, untrue one. */
+  const FAMILY = /decision workspace|market setups|Research · Monitor|Research <i>·<\/i> Monitor|Research · Test|Research <i>·<\/i> Test/i;
   const files = [...readdirSync(join(ROOT, 'src', 'js')).filter(x => x.endsWith('.js')).map(f => join(ROOT, 'src', 'js', f)), join(ROOT, 'src', 'index.template.html')];
   for (const f of files) {
     let raw = readFileSync(f, 'utf8');

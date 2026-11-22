@@ -368,20 +368,27 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
-/* The mark is the naked octagonal Q, as in the primary lockup — no container. */
-.brand-mark { width: 30px; height: 30px; flex: none; display: block; }
-.brand-mark svg { width: 100%; height: 100%; display: block; }
-.brand-name {
-  font-size: 15px; font-weight: 700; letter-spacing: -.01em;
-  white-space: nowrap; color: var(--logo-word);
-  display: flex; align-items: baseline; gap: 6px;
+/* THE LOGO (the owner's, 22 Nov 2026): QUANTUM over TRADEWORKS, the Q's tail
+   in teal, as a picture made from the owner's file (brand/). It replaced the
+   octagonal-Q mark and the typed "Quantum Tradeworks" in the header, the
+   app bar, the sidebar and the footer. Its height is set; its width follows
+   (337 by 79). The bars are Graphite in both themes and carry the light
+   letters; the footer carries both and shows the one its surface needs. */
+.brand-logo { display: block; height: 38px; width: auto; max-width: none; }
+.sidebar .brand-logo, .appbar .brand-logo { height: 34px; }
+@media (max-width: 560px) { .pubbar .brand-logo { height: 34px; } }
+@media (max-width: 374.98px) { .pubbar .brand-logo { height: 30px; } }
+.foot-brand .brand-logo { height: 44px; }
+/* The tagline is a second spaced capital line under TRADEWORKS: a step apart. */
+.foot-brand .brand-tagline { margin-top: var(--sm); }
+.brand-logo-light { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-logo-ink { display: none; }
+  :root:not([data-theme="light"]) .brand-logo-light { display: block; }
 }
-.brand-name span { color: var(--logo-teal-text); font-weight: 700; letter-spacing: -.01em; }
-/* Only in a bar, and only where a bar genuinely cannot hold it. It hid
-   "Tradeworks" below 520px everywhere — in the footer and the 320px drawer,
-   which have room — and in the header, which has room since its action reads
-   "Open" on a phone. The product's name is not truncated to fit a phone. */
-@media (max-width: 339px) { .bar-in .brand-name span { display: none; } }
+:root[data-theme="dark"] .brand-logo-ink { display: none; }
+:root[data-theme="dark"] .brand-logo-light { display: block; }
+/* (Print leaves the header, the bars and the footer out, logos and all.) */
 .brand-tagline {
   font-size:12px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--ink-3); margin-top: 5px; font-weight:600;
@@ -1294,8 +1301,8 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 .page-hd h1, .page-title { font-size: var(--text-h1); font-weight:700; letter-spacing: -.02em; }
 .page-hd > div:first-child { flex: 1 1 560px; min-width: 0; }
 /* A heading with its status beside it (pageHead's badge): on the heading's
-   line, never taller than it. Positioned, so the badge's visually hidden
-   comma (.status-badge::before) is laid out here. */
+   line, never taller than it. Positioned for the badge's hidden comma,
+   which left on 22 Nov 2026 (QTW-05); kept, so nothing else moves. */
 .page-hd-title { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .page-hd-title > h1 { margin: 0; min-width: 0; }
 @media (max-width: 760px) { .page-title { font-size: 22px; } }
@@ -2527,12 +2534,13 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
   text-transform: uppercase; line-height: 1; white-space: nowrap;
   border: 1px solid transparent;
 }
-/* Heard as a separate word — "Equities Research, Beta" — not run on as
-   "Equities Research BETA": a comma for a screen reader, drawn nowhere. */
-.status-badge::before {
-  content: ", "; position: absolute; width: 1px; height: 1px; overflow: hidden;
-  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
-}
+/* No hidden comma before the badge (QTW-05, 22 Nov 2026). A ", " drawn
+   nowhere was meant to make "Equities Research, Beta" two phrases; in the
+   accessibility tree it was a text node holding only a comma, before every
+   badge — in the menu, the footer and the status page — and the first thing
+   in each homepage card's qualifier, where nothing came before it. The badge
+   is inline-flex, so its word is already a word of its own in a link's
+   name: "Equities Research Beta". */
 .status-live { color: var(--ok-text); background: color-mix(in srgb, var(--ok) 11%, var(--surface)); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
 .status-beta { color: var(--brand); background: var(--brand-wash); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
 .status-demo { color: var(--bronze); background: var(--bronze-wash); border-color: color-mix(in srgb, var(--bronze) 30%, transparent); }
@@ -2947,8 +2955,9 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
    the view's own bottom padding was 96 on top of the footer's 48. */
 .view { padding-bottom: var(--xxl); }
 @media (max-width: 640px) { .view { padding-bottom: var(--xl); } }
-/* The brand block: the mark in its gutter, the rest on one edge. */
-.foot-brand { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: start; }
+/* The brand block: the logo, and the rest on its left edge (one column since
+   the logo, 22 Nov 2026; the old mark had a gutter of its own). */
+.foot-brand { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: start; }
 .foot-desc { font-size: var(--text-sm); max-width: 36ch; margin-top: var(--sm); }
 /* The rule above the legal paragraph runs the footer's width; the paragraph's
    own measure stays 90 characters. Capped with the text, the rule stopped
@@ -4014,9 +4023,10 @@ table.dt thead th .cmp-yearend { display: inline-block; margin-top: 2px; font-we
 .ptab .status-badge { margin-left: 6px; }
 /* A tab that works, with its state marked after it (sectionTab). */
 /* Positioned, so the badge's visually hidden comma (.status-badge::before,
-   absolute) is laid out inside the row that scrolls, not at its far end on
+   absolute) was laid out inside the row that scrolls, not at its far end on
    the page: unpositioned, a Delayed badge on a phone's scrolled-away tab
-   widened the whole page by 300px. */
+   widened the whole page by 300px. The comma left on 22 Nov 2026 (QTW-05);
+   the positioning stays, so nothing else moves. */
 .ptabs-list > li { position: relative; display: flex; align-items: center; }
 .ptabs-list > li > .status-badge { margin-left: 4px; }
 .pub-textlink.tool-off, .pub-textlink.tool-off:hover { color: var(--ink-2); text-decoration: none; }
@@ -5751,6 +5761,10 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .journey-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); scroll-margin-top: 96px; }
 .journey-row > .health-chip { flex: none; min-width: 4.75rem; justify-content: center; }
 .journey-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+/* A journey whose customer step was not walked wears two chips (QTW-01,
+   22 Nov 2026): its name takes the next line when the chips leave it under
+   16rem, rather than a column one word wide on a phone. */
+.journey-cust ~ .journey-name { flex-basis: 16rem; }
 /* Under the name on a wide screen (the chip's width in), the whole width
    on a phone — as healthRow lays a check's words out. */
 .journey-body { flex: 0 0 100%; box-sizing: border-box; padding-left: calc(4.75rem + 12px); }
