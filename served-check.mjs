@@ -5111,7 +5111,19 @@ const HOME_PAGE = read(HOME);
   if (folds.length !== 2 || folds.some(f => /\sopen(=|\s|>)/.test(f))) p.push(`/status serves ${folds.length} fold(s), ${folds.filter(f => /\sopen(=|\s|>)/.test(f)).length} open; want two, closed`);
   const f1 = st.indexOf('id="status-record"'), f2 = st.indexOf('id="status-register"');
   if (!(f1 > 0 && f2 > f1)) p.push('/status: the check record and the register folds are missing or out of order');
-  for (const [id, want] of [['status-glance', 'before'], ['health-journeys-sum', 'before'], ['status-property', 'before'], ['status-dates', 'before'],
+  /* "What you can use today" (the owner's choice of 23 Nov 2026, #10): the page opens with it, above the
+     journeys' result — the three products that work, and what is not available yet beside what to do instead. */
+  {
+    const im = st.indexOf('id="status-impact"'), gl = st.indexOf('id="status-glance"');
+    if (im < 0 || !(im < gl)) p.push('/status does not open with "What you can use today" (#status-impact) above the journeys\' result');
+    else {
+      const card = st.slice(im, gl);
+      for (const s of ['What you can use today', 'Equities Research', 'Quantum Scanner', 'Property Intelligence', 'Hosted monitoring and recorded matches',
+        'Licensed market prices', 'Sending a data-error report from the page', 'Copy the report from its last step and email it'])
+        if (!pageText(card).includes(s)) p.push(`/status's "What you can use today" does not say "${s}"`);
+    }
+  }
+  for (const [id, want] of [['status-impact', 'before'], ['status-glance', 'before'], ['health-journeys-sum', 'before'], ['status-property', 'before'], ['status-dates', 'before'],
     ['health-h', 'inside'], ['health-journeys"', 'inside'], ['health-proofs', 'inside'], ['health-quick', 'inside']]) {
     const i = st.indexOf(`id="${id}`);
     if (i < 0) { p.push(`/status serves no #${id}`); continue; }

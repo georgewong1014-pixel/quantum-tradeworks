@@ -4179,7 +4179,7 @@ const JOURNEYS = [
         const why = probe.configured
           ? 'not exercised against this deployment: a submission here would file a synthetic report into the owner’s store on every run; the owner’s live check is in docs/report-submission.md'
           : `submitting from the page is not switched on for this deployment (/api/report answered ${probe.status || (probe.error ? 'nothing' : 'configured: false')}): the supported way to report is to copy the report and email it, which the correction-case journey checks; docs/report-submission.md names the two settings`;
-        await step(j, tab, 'Customer completion: submitted from the page, receipt shown, no other program opened', BUDGET.action, async () => {
+        await step(j, tab, 'Customer completion: submitted from the page, receipt shown, no other program opened', BUDGET.action + BUDGET.load, async () => {
           const r = await tab.eval(`({ block: document.querySelector('#drawer [data-case-submit]')?.textContent.replace(/\\s+/g, ' ').trim() || null, control: !!document.querySelector('#drawer [data-submit-report]') })`);
           /* An older build has no submit block at all; a build with one must say the truth. */
           if (r.block !== null && !probe.configured && !/not switched on/.test(r.block)) throw new StepError(`with no store configured the drawer says “${r.block.slice(0, 160)}”, not that submitting is not switched on`);
@@ -4193,6 +4193,11 @@ const JOURNEYS = [
             if (/One form sends something, and only when you press Submit/.test(pv) || !/Where it cannot, there is no Submit button and nothing is sent/.test(pv))
               throw new StepError('with submitting off, /privacy describes the report form’s Submit as available, or does not say that copying and emailing is the way to report');
           }
+          /* "What you can use today" on /status (23 Nov 2026) lists sending a
+             report from the page as not available: true only while it is off. */
+          await tab.goto('/status');
+          const listed = await tab.eval(`[...document.querySelectorAll('#status-impact .status-impact-not dt')].some(d => /^Sending a data-error report from the page/.test(d.textContent.trim()))`);
+          if (listed !== !probe.configured) throw new StepError(`/status ${listed ? 'lists' : 'does not list'} sending a report from the page as not available, although this deployment ${probe.configured ? 'takes reports' : 'does not take reports'}`);
         }, { gated: why });
         await step(j, tab, 'Operational completion: the record is found by its receipt with the text reviewed', BUDGET.action, async () => {}, { gated: 'the owner’s by-hand check (ops/REPORT-SUBMISSION-CHECK.md): find the issue by its receipt, confirm the text, own it' });
         await step(j, tab, 'Only the reviewed report went: one request, five fields, nothing from saved work', BUDGET.action, async () => {
@@ -4272,7 +4277,7 @@ const JOURNEYS = [
       const NEED = `Synthetic enquiry ${new Date().toISOString().slice(0, 16)}: comparing two ways to buy one flat.`;
       const read = `({ offered: typeof enquiryOffered === 'function' ? enquiryOffered() : null, button: !!document.querySelector('[data-enquiry-open]'), text: document.getElementById('views').innerText })`;
       let shipped = null, from = 0, reference = null, submissionId = null;
-      await step(j, tab, 'The form is offered only with its retention sentence, and the privacy page says so with it', BUDGET.load * 2 + BUDGET.action, async () => {
+      await step(j, tab, 'The form is offered only with its retention sentence, and the privacy page says so with it', BUDGET.load * 3 + BUDGET.action, async () => {
         await tab.goto('/contact');
         const c = await tab.eval(read);
         if (c.offered === null) throw new StepError('this build has no enquiry form at all (enquiryOffered is not defined)');
@@ -4282,6 +4287,11 @@ const JOURNEYS = [
         const names = /\/api\/enquiry/.test(p.text);
         if (names !== c.offered) throw new StepError(`Privacy ${names ? 'describes' : 'does not describe'} the enquiry form although the build ${c.offered ? 'offers' : 'does not offer'} it`);
         if (c.offered && !/Supabase/.test(p.text)) throw new StepError('Privacy describes the enquiry form without naming where an enquiry is stored');
+        /* "What you can use today" on /status (23 Nov 2026) lists sending an
+           enquiry as not available only while the build offers no form. */
+        await tab.goto('/status');
+        const listed = await tab.eval(`[...document.querySelectorAll('#status-impact .status-impact-not dt')].some(d => /^Sending an enquiry from the site/.test(d.textContent.trim()))`);
+        if (listed === c.offered) throw new StepError(`/status ${listed ? 'lists' : 'does not list'} sending an enquiry as not available, although the build ${c.offered ? 'offers' : 'does not offer'} the form`);
         shipped = c.offered;
       });
       const probe = await fetch(new URL('/api/enquiry', BASE + '/').href, { cache: 'no-store' }).then(r => (r.ok ? r.json() : { configured: false, status: r.status })).catch(e => ({ configured: false, error: e.message }));

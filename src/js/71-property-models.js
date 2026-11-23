@@ -785,8 +785,10 @@ function propertyModelBar(d = State.deal) {
      local: nothing in the sentence says a server holds it. With a saved
      property open it adds what is not in a backup yet (backupPrompt). */
   const notBacked = st.kind === 'model' ? backupPrompt() : null;
+  /* What clearing the browser loses, said where saving happens (the owner's
+     choice of 23 Nov 2026, the ten-improvements list #8; left open on 18 Nov). */
   bar.append(el('p', { class: 'caption pm-backup', id: 'pm-backup' }, [
-    'Saved on this browser — ', link('/my/data', 'export a backup', 'wb-property-backup'), ' to move or protect your work.',
+    'Saved on this browser only: clearing this browser’s data deletes your saved work. ', link('/my/data', 'Export a backup', 'wb-property-backup'), ' to move or protect it.',
     notBacked ? ` ${notBacked.charAt(0).toUpperCase()}${notBacked.slice(1)}.` : null]));
   return bar;
 }
