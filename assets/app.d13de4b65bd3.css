@@ -2091,6 +2091,18 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .status-fold-t { display: block; }
 .status-fold-s { display: block; font-size: 13px; font-weight: var(--weight-body); color: var(--ink-2); margin-top: 2px; }
 .status-fold-body { display: flex; flex-direction: column; gap: var(--md); padding: var(--md) var(--md) var(--md); border-top: 1px solid var(--line); }
+/* What you can use today (23 Nov 2026): the products that work, each with
+   its outcome, then what is not available yet beside what to do instead. */
+.status-impact-works { list-style: none; padding: 0; margin: var(--xs) 0 0; display: grid; gap: var(--sm); }
+.status-impact-works > li { display: flex; flex-direction: column; gap: 2px; }
+.status-impact-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-weight: var(--weight-semibold); }
+.status-impact-not { margin-top: var(--xs); gap: var(--sm) var(--lg); font-size: var(--text-sm); grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); }
+.status-impact-not dt { color: var(--ink); font-weight: var(--weight-semibold); }
+.status-impact-where { display: block; font-weight: var(--weight-body); color: var(--ink-3); font-size: var(--text-label); }
+@media (max-width: 640px) {
+  .status-impact-not { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .status-impact-not dd + dt { margin-top: var(--sm); }
+}
 .plan-compare-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .plan-compare-body { display: flex; flex-direction: column; gap: var(--sm); padding: 0 var(--lg) var(--lg); border-top: 1px solid var(--line); }
 .plan-compare-body > :first-child { margin-top: var(--md); }

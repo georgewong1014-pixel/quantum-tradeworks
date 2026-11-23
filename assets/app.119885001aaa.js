@@ -39813,8 +39813,10 @@ function propertyModelBar(d = State.deal) {
      local: nothing in the sentence says a server holds it. With a saved
      property open it adds what is not in a backup yet (backupPrompt). */
   const notBacked = st.kind === 'model' ? backupPrompt() : null;
+  /* What clearing the browser loses, said where saving happens (the owner's
+     choice of 23 Nov 2026, the ten-improvements list #8; left open on 18 Nov). */
   bar.append(el('p', { class: 'caption pm-backup', id: 'pm-backup' }, [
-    'Saved on this browser — ', link('/my/data', 'export a backup', 'wb-property-backup'), ' to move or protect your work.',
+    'Saved on this browser only: clearing this browser’s data deletes your saved work. ', link('/my/data', 'Export a backup', 'wb-property-backup'), ' to move or protect it.',
     notBacked ? ` ${notBacked.charAt(0).toUpperCase()}${notBacked.slice(1)}.` : null]));
   return bar;
 }
@@ -66290,14 +66292,52 @@ function statusOpenAround(node) {
     d.open = true; statusFoldOpen[d.id] = true;
   }
 }
+/* WHAT YOU CAN USE TODAY (the owner's choice of 23 Nov 2026, the
+   ten-improvements list, #10): the page opens with what a visitor can do,
+   what is not available yet and what to do instead; the journeys' result,
+   the data's age and the record follow. The products and their one-line
+   outcomes are PRODUCTS' own. The rows of what is not available are the
+   capabilities the site already names as such, each with the way round it:
+   the Scanner's hosted monitoring, licensed prices, sending a report from
+   the page — held to the deployment by the submission journey, which reads
+   this card on every live run (journeys.mjs) — and the enquiry form, listed
+   only while its three values are empty in source (LAUNCH.enquiry). */
+const STATUS_NOT_YET = () => [
+  ['Hosted monitoring and recorded matches', 'Quantum Scanner', 'Check a setup here, on daily price history you supply.'],
+  ['Licensed market prices', 'Equities Research', 'Enter a price yourself where a measure needs one.'],
+  ['Sending a data-error report from the page', 'All products', 'Copy the report from its last step and email it from your own email program.'],
+  ...(typeof enquiryOffered === 'function' && enquiryOffered() ? []
+    : [['Sending an enquiry from the site', 'Contact', ['Email the address on ', el('a', { href: href('/contact'), 'data-path': '/contact' }, 'the Contact page'), ' from your own email program.']]]),
+];
+function statusImpactCard() {
+  const card = el('section', { class: 'card status-impact', id: 'status-impact', 'aria-labelledby': 'status-impact-h' });
+  card.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'status-impact-h' }, 'What you can use today'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' }, 'What works, what is not available yet, and what to do instead.'),
+  ])));
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Works now'));
+  card.append(el('ul', { class: 'status-impact-works', 'aria-label': 'Works now' }, PRODUCTS.filter(p => p.path && p.actionPath).map(p => el('li', {}, [
+    el('span', { class: 'status-impact-name' }, [el('a', { href: href(p.home || p.path), 'data-path': p.home || p.path }, p.name), ' ', productBadge(p.id)]),
+    el('span', { class: 'caption' }, p.outcome)]))));
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Not available yet, and what to do instead'));
+  const dl = el('dl', { class: 'kv status-impact-not', 'aria-label': 'Not available yet' });
+  STATUS_NOT_YET().forEach(([what, where, instead]) => {
+    dl.append(el('dt', {}, [what, el('span', { class: 'status-impact-where' }, where)]));
+    dl.append(el('dd', { style: 'text-align:left' }, instead));
+  });
+  card.append(dl);
+  return card;
+}
 VIEWS.status = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Status'),
     el('h1', {}, 'Checks and status'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Whether the tools work, when that was last checked, and how old the data is. The detail behind each check is further down, in two closed sections.'),
+      'What you can use today, whether it works and when that was last checked, and how old the data is. The detail behind each check is further down, in two closed sections.'),
   ])));
+
+  wrap.append(statusImpactCard());
 
   const health = healthSection();   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
 

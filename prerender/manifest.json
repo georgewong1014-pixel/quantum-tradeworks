@@ -5015,8 +5015,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b9128861f929a932",
-      "changed": "2026-11-18"
+      "digest": "a3e6bccdf3e49ff0",
+      "changed": "2026-11-22"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -5274,8 +5274,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b70eea3744975dee",
-      "changed": "2026-11-13"
+      "digest": "ccfc905f2b044639",
+      "changed": "2026-11-22"
     },
     "pages/terms.html": {
       "path": "/terms",
