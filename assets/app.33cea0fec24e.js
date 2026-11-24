@@ -33800,6 +33800,15 @@ function waitlistCard() {
   return card;
 }
 
+/* AN UNSAVED REPORT OR FEEDBACK, KEPT FOR THIS VISIT (the launch-
+   harmonisation audit, 24 Nov 2026). Closing the drawer before saving — its
+   Close, Escape, a tap beside it — threw away everything typed: reopened, the
+   form was empty. What was typed is kept here, for the same page and the same
+   form, and put back when it opens again; saving clears it. It is held in
+   memory only: nothing the reader has not saved is written to this browser's
+   storage, and a reload clears it. */
+const caseDrafts = new Map();
+
 function openReportError() {
   /* What opened the form, for the redraw below to find again. */
   const opener = document.activeElement;
@@ -33807,14 +33816,18 @@ function openReportError() {
   body.append(reportLead('This records a case in this browser and gives it an identifier. It does not send anything by itself: the last step shows you the report, and '));
 
   const origin = reportOrigin();
-  const state = { item: origin.groups[0].items[0] || '', subject: origin.subject, shownValue: '', expectedValue: '', sourceRef: '', description: '' };
+  const draftKey = `report ${origin.kind} ${origin.route} ${origin.subject}`;
+  const state = { item: origin.groups[0].items[0] || '', subject: origin.subject, shownValue: '', expectedValue: '', sourceRef: '', description: '',
+    ...(caseDrafts.get(draftKey) || {}) };
   const field = (label, key, kind, placeholder) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
     f.append(el('label', { for: `err-${key}` }, label));
     const node = kind === 'area'
       ? el('textarea', { class: 'input', id: `err-${key}`, placeholder })
       : el('input', { class: 'input', id: `err-${key}`, type: 'text', placeholder });
-    node.addEventListener('input', e => { state[key] = e.target.value; });
+    /* The page's own subject, or what this visit typed before. */
+    node.value = state[key] || '';
+    node.addEventListener('input', e => { state[key] = e.target.value; caseDrafts.set(draftKey, { ...state }); });
     f.append(node);
     body.append(f);
   };
@@ -33822,17 +33835,17 @@ function openReportError() {
   const f1 = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   f1.append(el('label', { for: 'errItem' }, 'Data item'));
   const sel = el('select', { class: 'select', id: 'errItem',
-    onchange: e => { state.item = e.target.value; } });
+    onchange: e => { state.item = e.target.value; caseDrafts.set(draftKey, { ...state }); } });
   origin.groups.forEach(g => {
     const host = g.label ? el('optgroup', { label: g.label }) : sel;
     g.items.forEach(x => host.append(el('option', { value: x }, x)));
     if (g.label) sel.append(host);
   });
+  if ([...sel.options].some(o => o.value === state.item)) sel.value = state.item;
+  else state.item = sel.value;
   f1.append(sel); body.append(f1);
 
   field(origin.subjectLabel, 'subject', 'text', origin.subjectHint);
-  /* field() builds the input empty; a page's own subject is put in it. */
-  if (origin.subject) { const sj = body.querySelector('#err-subject'); if (sj) sj.value = origin.subject; }
   field('What the page shows', 'shownValue', 'text', 'the figure as displayed');
   field('What it should be', 'expectedValue', 'text', 'leave blank if you only know it is wrong');
   field('Source that disagrees', 'sourceRef', 'text', 'a filing, a page, a document — a source makes this verifiable rather than a disagreement');
@@ -33868,6 +33881,7 @@ function openReportError() {
     };
     State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
     saveCorrections();
+    caseDrafts.delete(draftKey);
     /* The page is redrawn first, so the list on /corrections holds the new
        case — and that redraw replaced "Open the error form", the button the
        drawer was to hand focus back to, so closing the confirmation dropped
@@ -33955,6 +33969,10 @@ function openFeedback(ask) {
   const ta = el('textarea', { class: 'input', id: 'fb-text', 'aria-describedby': asked ? 'fb-ask-note' : null,
     placeholder: topic ? 'For example: a co-buyer, or a banker — and what the report would need before you showed it to them.'
       : asked ? 'For example: entering the costs, comparing two scenarios, saving or reopening — and what you expected instead.' : 'What happened, what you expected, or what you would change.' });
+  /* What this visit typed here before and closed without saving (caseDrafts). */
+  const draftKey = `feedback ${location.pathname} ${ask || ''}`;
+  ta.value = caseDrafts.get(draftKey) || '';
+  ta.addEventListener('input', () => { if (ta.value) caseDrafts.set(draftKey, ta.value); else caseDrafts.delete(draftKey); });
   f.append(ta);
   if (asked) f.append(el('p', { class: 'metaline', id: 'fb-ask-note', style: 'margin-top:6px' }, topic
     ? 'Name the reader and the gap, not your finances: leave out your income, your loan, the property’s address and anything else private. This is not an order: no report is prepared or sent in reply.'
@@ -33974,6 +33992,7 @@ function openFeedback(ask) {
       status: supportEmail() ? 'recorded here, not confirmed received' : 'recorded — not sent', description: text };
     State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
     saveCorrections();
+    caseDrafts.delete(draftKey);
     render();
     const back = opener?.isConnected ? opener : opener?.id ? document.getElementById(opener.id) : null;
     if (back && back !== document.body) back.focus({ preventScroll: true });
