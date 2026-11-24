@@ -4084,6 +4084,22 @@ const JOURNEYS = [
         const r = await tab.eval(`({ shown: (document.querySelector('#drawer .sunk')?.textContent || '').replace(/\\s+/g, ' '), model: MODEL_VERSION, asOf: AS_OF })`);
         if (!r.shown.includes(r.model) || !r.shown.includes(r.asOf)) throw new StepError(`before saving, the form says it records “${r.shown.slice(0, 160)}”, without model ${r.model} and data date ${r.asOf}`);
       });
+      /* THE UNSAVED DRAFT (the launch-harmonisation audit, 24 Nov 2026):
+         closed before saving and opened again, the form was empty — what was
+         typed was lost. It is kept for the visit, in memory, never in storage. */
+      await step(j, tab, 'Closed before saving and opened again: what was typed is still there, and nothing is stored', BUDGET.action * 3, async () => {
+        const draft = `${MARK} (draft)`;
+        await tab.fill(`document.getElementById('err-shownValue')`, '9,876', 'What the page shows');
+        await tab.fill(`document.getElementById('err-description')`, draft, 'What looks wrong?');
+        await tab.click(visible('#drawer [data-close-drawer]'), 'The form’s Close');
+        await tab.expect(`document.getElementById('drawer')?.hidden`, 'Close did not close the form', 4000);
+        await tab.click(visible('[data-action="report-error"]'), '“Report a data error”, again');
+        await tab.expect(`!!document.getElementById('err-description')`, '“Report a data error” opened no form the second time');
+        const r = await tab.eval(`({ description: document.getElementById('err-description').value, shown: document.getElementById('err-shownValue').value,
+          stored: Object.keys(localStorage).filter(k => (localStorage.getItem(k) || '').includes(${JSON.stringify(draft)})) })`);
+        if (r.description !== draft || r.shown !== '9,876') throw new StepError(`reopened, the form holds “${r.shown}” and “${r.description.slice(0, 80)}”, not what was typed before it closed`);
+        if (r.stored.length) throw new StepError(`the unsaved draft was written to this browser's storage under ${r.stored.join(', ')}`);
+      });
       await step(j, tab, 'Save the case: “saved in this browser. Nothing has been sent”', BUDGET.action * 2, async () => {
         await tab.fill(`document.getElementById('err-shownValue')`, '1,234', 'What the page shows');
         await tab.fill(`document.getElementById('err-expectedValue')`, '2,345', 'What it should be');
