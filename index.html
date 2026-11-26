@@ -47799,8 +47799,12 @@ function propertyMovedNote(st) {
   if (st.kind !== 'model') return null;
   const moved = propertyStampDiff(st.rec.stamp);
   if (!moved.feesMoved && !moved.dataMoved) return null;
+  /* The chip says the label; the line does not say it again ("Fee rulebook
+     moved Fee rulebook moved: saved on 1.4.0…", seen at 390 on 26 Nov). */
+  const lead = `${moved.label}: `;
+  const text = moved.text.startsWith(lead) ? moved.text.slice(lead.length).replace(/^./, c => c.toUpperCase()) : moved.text;
   return el('p', { class: 'caption pm-moved', id: 'pm-moved' }, [
-    el('span', { class: 'chip chip-warn' }, moved.label), ' ', moved.text,
+    el('span', { class: 'chip chip-warn' }, moved.label), ' ', text,
     ' The figures here use the versions in use now; your saved inputs are unchanged. ',
     el('a', { href: href('/data-sources#fee-rulebook') }, 'What changed')]);
 }

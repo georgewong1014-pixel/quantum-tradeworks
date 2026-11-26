@@ -2465,7 +2465,7 @@ try {
       || it['w-property-fees-model'] !== 'Current' || it['w-wheel-fees-test'] !== 'Model moved') p.push(`Saved work reads ${JSON.stringify(it)}`);
     if (!r.pageHas || Object.values(r.pageHas).some(v => !v)) p.push(`Saved work page: ${JSON.stringify(r.pageHas)}`);
     const ro = r.reopenOld || {};
-    if (!ro.note || !ro.inBar || !ro.note.includes('Fee rulebook moved') || !ro.note.includes(`saved on 1.4.0, now ${r.cur}`)
+    if (!ro.note || !ro.inBar || !ro.note.startsWith('Fee rulebook moved Saved on 1.4.0, now ' + r.cur + '.') || (ro.note.match(/Fee rulebook moved/g) || []).length !== 1
       || !ro.note.includes('your saved inputs are unchanged') || !/\/data-sources#fee-rulebook$/.test(ro.link || '') || ro.price !== 480000 || ro.stampAfter !== '1.4.0')
       p.push(`reopened on the calculator, the property saved under 1.4.0 reads ${JSON.stringify(ro)}`);
     if (!r.reopenNow || r.reopenNow.note || !/Saved on current/.test(r.reopenNow.status)) p.push(`reopened on the calculator, the current property reads ${JSON.stringify(r.reopenNow)}`);

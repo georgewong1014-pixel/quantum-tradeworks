@@ -1563,7 +1563,7 @@
       ]
     },
     {
-      "source": "/assets/app.cf31bc7afced.js",
+      "source": "/assets/app.5765fb6d948e.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1605,7 +1605,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-zzG8evztMjPE8AZbqTv8zqLa24QPt8GQRU9zjSVhA3E=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-V2X7bZSO3ZUN0SI1NOjTx2Kjn81ElL9gjUp/5l823Go=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
@@ -1614,7 +1614,7 @@
       ]
     },
     {
-      "source": "/((?!data/|vendor/|assets/app\\.cf31bc7afced\\.js$|assets/app\\.0e5511a89ce8\\.css$).*)",
+      "source": "/((?!data/|vendor/|assets/app\\.5765fb6d948e\\.js$|assets/app\\.0e5511a89ce8\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1622,7 +1622,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-zzG8evztMjPE8AZbqTv8zqLa24QPt8GQRU9zjSVhA3E=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-V2X7bZSO3ZUN0SI1NOjTx2Kjn81ElL9gjUp/5l823Go=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
