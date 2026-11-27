@@ -1569,7 +1569,7 @@
       ]
     },
     {
-      "source": "/assets/app.fd63507838b0.js",
+      "source": "/assets/app.35f94a2c0d89.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1611,7 +1611,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-/WNQeDiwca/PI3ugWuhtbvxewHTt4ieLoDoG3Pa2Qw4=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-NflKLA2JczIeTpcwX68O9IHnoPma3Em9PemE1YHroPU=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
@@ -1620,7 +1620,7 @@
       ]
     },
     {
-      "source": "/((?!data/|vendor/|assets/app\\.fd63507838b0\\.js$|assets/app\\.0e5511a89ce8\\.css$).*)",
+      "source": "/((?!data/|vendor/|assets/app\\.35f94a2c0d89\\.js$|assets/app\\.0e5511a89ce8\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1628,7 +1628,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-/WNQeDiwca/PI3ugWuhtbvxewHTt4ieLoDoG3Pa2Qw4=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-NflKLA2JczIeTpcwX68O9IHnoPma3Em9PemE1YHroPU=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",

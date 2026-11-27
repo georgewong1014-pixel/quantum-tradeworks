@@ -2756,6 +2756,15 @@ const LAUNCH = {
      deployment has configured a store; until then it offers copy and email
      only. Empty means no submission control is ever drawn. */
   reportEndpoint: '/api/report',
+  /* SUBMISSION FROM THE PAGE IS OFF BY THE OWNER'S DECISION (QTW-002, 18 Nov
+     2026): reports go by email, to contactEmail above — the one constant
+     every mailto, /contact, /privacy, /corrections and the report drawer
+     read. While this names the decision the page never asks /api/report
+     and never draws Submit, whatever the endpoint would answer; api/report.mjs
+     stays as it is (unconfigured, storing nothing). Empty would restore the
+     probe. The local server keeps the full submit-and-receipt journey for CI
+     under a test key the journey sets (reportSubmitOff, 65-learn.js). */
+  reportSubmit: 'off-by-owner-decision-2026-11-18',
   /* The enquiry form (67-enquiry.js, api/enquiry.mjs). It is offered only
      when all three of these are filled in AND the deployment answers that
      its store is configured:
@@ -30295,7 +30304,7 @@ VIEWS.contact = () => trustPage('Contact',
         const v = supportEmail();
         return v
           ? [tp('Write to ', supplied('email'), ', the site owner’s support address. It opens your own email program; this site does not send the message or confirm that it arrived.'),
-             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it and send it to that address from your own email program. The same step says whether this page can also submit it; where it can, a receipt reference appears once the site’s store has accepted it. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it, or open it in your own email program, and send it to that address yourself. Nothing is sent from this page. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
           : [tp(...supportUnavailable())];
       })(),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
@@ -30385,13 +30394,15 @@ VIEWS.privacy = () => {
         ...(enq
           ? [tp(el('strong', {}, 'An enquiry, and only when you press Send.'), ' The enquiry form on the Contact page sends your name, the email address or phone number you give, what it is about, your message and when you need it, with the page you were on and the build, to this site’s own address, /api/enquiry. It is saved in the enquiry store, a database that Supabase hosts in ', LAUNCH.enquiry.storeRegion, ', and a notice carrying the same details is emailed through Resend, an email service, to the mailbox of the person who handles enquiries, which ', LAUNCH.enquiry.mailboxHost, ' hosts. Nothing from your saved work is sent, and no file. The network address that request carries is held in the function’s memory only, to limit how many enquiries one sender can make in ten minutes; it is never written to the enquiry store or to a log. ', LAUNCH.enquiry.retention)]
           : []),
-        /* QTW-002 (17 Nov 2026): written to be true whether or not this
-           deployment has a report store. It described Submit and
-           /api/report as available where neither is offered. */
-        tp(el('strong', {}, 'The report form sends something only where submitting is switched on, and only when you press Submit.'), ' A data-error report or feedback is saved in this browser first. Its last step says whether this site can take it. Where it cannot, there is no Submit button and nothing is sent: you copy the report and email it from your own email program, which is the supported way to report today. Where it can, pressing Submit sends the text you reviewed, the page’s name and the build to this site’s own address, /api/report, and to the store the operator has configured for it — nothing else from this browser, and no address of yours — and the site answers with a receipt reference only once that store has accepted it.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested and none can be submitted.')),
+        /* QTW-002 (the owner's decision of 18 Nov 2026, wording approved 27
+           Nov): submitting from the page stays off; email is the official
+           route. No retention period is stated — none is approved. */
         supportEmail()
-          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page unless Submit is offered and you press it, as above. Or copy the case and send it to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
-          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page unless Submit is offered and you press it, as above — there is no contact address yet. Or copy the case as text; copying uses your clipboard only when you press the button.'),
+          ? tp(el('strong', {}, 'The report form does not send anything.'), ' A report reaches the owner only if you copy it, or open it in your email program, and send it yourself to ', supplied('email'), '. What you send is the text you reviewed, your email address and anything you add; the owner keeps it only to answer and fix the report.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested by the form and none can be submitted with it.'))
+          : tp(el('strong', {}, 'The report form does not send anything.'), ' A data-error report or feedback is saved in this browser; there is no contact address yet, so keep the copy until one is published.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested by the form and none can be submitted with it.')),
+        supportEmail()
+          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page. Copy the case, or open it in your email program, and send it to ', supplied('email'), ' yourself, if you choose to; copying uses your clipboard only when you press the button.')
+          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page — there is no contact address yet. Copy the case as text; copying uses your clipboard only when you press the button.'),
         tp('Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.'),
         tp('Links to outside sources — SEC EDGAR, NAPIC, Bursa Malaysia and others — take you to those sites only when you follow one. That visit is between you and that site; the policy this site is served with lets your browser tell it at most this site’s name, never the page you were on.'),
       ]],
@@ -33229,7 +33240,9 @@ function learnTrust() {
   const mine = State.corrections || [];
   const mineCard = el('div', { class: 'card', id: 'my-cases', style: 'margin-bottom:var(--md)' });
   mineCard.append(cardHead(`Cases you have recorded — ${mine.length}`,
-    `Held in this browser. A case is sent only when you submit it from here${supportEmail() ? ' or send it from your own email program' : ''}; its status says which, and a submitted case shows its receipt.`));
+    reportSubmitOff()
+      ? `Held in this browser. A case reaches the owner only when you copy it, or open it in your email program, and send it yourself${supportEmail() ? ` to ${supportEmail()}` : ''}.`
+      : `Held in this browser. A case is sent only when you submit it from here${supportEmail() ? ' or send it from your own email program' : ''}; its status says which, and a submitted case shows its receipt.`));
   if (!mine.length) {
     mineCard.append(el('p', { class: 'metaline' },
       'None yet. Any figure on this site can be reported — the report button in the footer records a case with the page, the model version and the data date attached.'));
@@ -33365,7 +33378,9 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', supportEmail()
-    ? 'Each report names the exact item and is saved in this browser first. You then copy it and send it from your own email program; the last step says whether this page can also submit it.'
+    ? (reportSubmitOff()
+      ? `Each report names the exact item and is saved in this browser first. You then copy it, or open it in your email program, and send it to ${supportEmail()} yourself; nothing is sent from this page.`
+      : 'Each report names the exact item and is saved in this browser first. You then copy it and send it from your own email program; the last step says whether this page can also submit it.')
     : 'Each report names the exact item and is saved in this browser first. You then copy it; the last step says whether this page can also submit it.'));
   rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the error form'));
   wrap.append(rep);
@@ -33442,8 +33457,22 @@ function reportLead(before) {
   return p;
 }
 let reportProbe = null;
+/* SUBMISSION FROM THE PAGE IS OFF BY THE OWNER'S DECISION (QTW-002, 18 Nov
+   2026; LAUNCH.reportSubmit): the page never asks /api/report and never
+   draws Submit. The local server keeps the full submit-and-receipt journey
+   for CI: journeys.mjs sets this browser key before it opens the drawer, and
+   clears it after. */
+const reportSubmitOff = () => {
+  if (!LAUNCH.reportSubmit) return false;
+  try { return localStorage.getItem('qt.reportSubmitTest') !== '1'; } catch { return true; }
+};
+/* THE EMAIL ROUTE, SAID THE SAME WAY WHEREVER A REPORT'S LAST STEP SAYS IT
+   (the owner's wording, approved 27 Nov 2026): no reply time is promised. */
+const reportEmailRoute = (noun) => supportEmail()
+  ? `Reports are sent by email. Copy the ${noun}, or open it in your email program, and send it to ${supportEmail()}. Nothing is sent from this page. The owner reads every ${noun} sent to this address.`
+  : `Nothing is sent from this page. Copy the ${noun} and keep it: no contact address is published.`;
 function reportSubmission() {
-  if (!LAUNCH.reportEndpoint || typeof fetch !== 'function') return Promise.resolve({ configured: false });
+  if (reportSubmitOff() || !LAUNCH.reportEndpoint || typeof fetch !== 'function') return Promise.resolve({ configured: false });
   if (!reportProbe) reportProbe = fetch(LAUNCH.reportEndpoint, { method: 'GET', cache: 'no-store' })
     .then(r => (r.ok ? r.json() : { configured: false }))
     .then(j => ({ configured: !!j.configured }))
@@ -33471,6 +33500,8 @@ function submitBlock(c, pre) {
     return box;
   }
   const noun = c.kind === 'feedback' ? 'feedback' : 'report';
+  /* Off by the owner's decision: the route is said at once, nothing asked. */
+  if (reportSubmitOff()) { note.textContent = reportEmailRoute(noun); return box; }
   note.textContent = 'Checking whether this page can submit it…';
   reportSubmission().then(({ configured }) => {
     if (!configured) {
@@ -33478,9 +33509,7 @@ function submitBlock(c, pre) {
          (the audit note of 13 Nov 2026): this sentence stood first, above
          Copy and the email link, so the last step opened on what the page
          cannot do. */
-      note.textContent = supportEmail()
-        ? `Copying the ${noun} and sending it from your own email program is how it reaches the site’s owner today. Submitting from this page is not switched on yet, so nothing has been sent from here.`
-        : `Submitting from this page is not switched on yet. Nothing has been sent; copy the ${noun}.`;
+      note.textContent = reportEmailRoute(noun);
       return;
     }
     note.textContent = `Or submit it from here. Submitting sends the text above, with the page’s name and the build, to this site’s report store — nothing else from this browser, and no address of yours. A receipt reference is shown only once the store has accepted it.`;
@@ -33625,11 +33654,13 @@ function correctionPayload(c) {
     : (c.kind === 'scanner' || c.kind === 'general' || c.kind === 'feedback') ? []
     : [`Model version: ${c.modelVersion}`, `Data as of: ${c.asOf}`, `Universe at the time: ${c.coverage}`];
   if (c.kind) tail.push(c.build ? `Build ${c.build}` : 'Build not recorded (the app was loaded inline, not as a hashed file)');
-  if (c.kind === 'feedback') return [`Feedback ${c.id}${c.topic ? ` — ${c.topic}` : ''}`, `Raised: ${c.createdAt}`, `Page: ${c.route}`, ...(c.asked ? [`Asked: ${c.asked}`] : []), ``, c.description || '(nothing written)', ``, ...tail].join('\n');
+  if (c.kind === 'feedback') return [`Feedback ${c.id}${c.topic ? ` — ${c.topic}` : ''}`, `Raised: ${c.createdAt}`, `Page: ${String(c.route || '/').split(/[?#]/)[0]}`, ...(c.asked ? [`Asked: ${c.asked}`] : []), ``, c.description || '(nothing written)', ``, ...tail].join('\n');
   return [
     `Correction case ${c.id}`,
     `Raised: ${c.createdAt}`,
-    `Page: ${c.route}`,
+    /* The page's path alone: the calculator writes the deal's figures into
+       its address, and a report carries no figure the reader did not type. */
+    `Page: ${String(c.route || '/').split(/[?#]/)[0]}`,
     `Subject: ${c.subject || '—'}`,
     `Data item: ${c.item}`,
     `Shown: ${c.shownValue || '—'}`,
@@ -33928,8 +33959,15 @@ function confirmCaseSaved(c) {
         (navigator.clipboard ? navigator.clipboard.writeText(pre.value) : Promise.reject())
           .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
       } }, addr ? `Copy the ${thing}` : 'Copy the case'),
-      addr ? el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '',
-        href: `mailto:${addr}?subject=${encodeURIComponent(`${c.kind === 'feedback' ? 'Feedback' : 'Data error report'} ${c.id}${c.kind === 'feedback' && c.topic ? ` — ${c.topic}` : ''}`)}&body=${encodeURIComponent(correctionPayload(c))}` }, 'Open in my email program') : null,
+      /* The subject carries the case id; the body the text as reviewed in
+         the box above, read when the link is pressed (QTW-002, 27 Nov 2026):
+         what goes is what was seen, and nothing from the address bar. */
+      addr ? (() => {
+        const subject = `${c.kind === 'feedback' ? 'Feedback' : 'Data error report'} ${c.id}${c.kind === 'feedback' && c.topic ? ` — ${c.topic}` : ''}`;
+        const mailtoFor = (text) => `mailto:${addr}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+        return el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '', href: mailtoFor(pre.value),
+          onclick: (e) => { e.currentTarget.href = mailtoFor(pre.value); } }, 'Open in my email program');
+      })() : null,
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/corrections'),
         onclick: e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); closeDrawer(); navigate('/corrections'); } },
         'See my recorded cases'),
