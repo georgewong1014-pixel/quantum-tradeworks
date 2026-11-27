@@ -76,6 +76,8 @@
     { "source": "/property/lab", "destination": "/property", "permanent": false },
     { "$comment": "H-10: on the public host these addresses are not a site. 301 to the home page. The render harness (localhost, live.localhost) still serves the pages, so the route checks keep holding the operations views. robots.txt still disallows /admin/. Shipped alone from PR #8 on the owner's choice, 21 Nov 2026; health records stay on main.", "source": "/admin/scanner", "destination": "/", "statusCode": 301, "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }] },
     { "source": "/admin/scanner/:path+", "destination": "/", "statusCode": 301, "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }] },
+    { "$comment": "H-10's files (26 Nov 2026): Vercel serves a file at its own path, so the operations pages the two rules above send home were still served at /pages/admin/scanner.html and under /pages/admin/scanner/. Same 301, same host condition.", "source": "/pages/admin/scanner.html", "destination": "/", "statusCode": 301, "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }] },
+    { "source": "/pages/admin/scanner/:path+", "destination": "/", "statusCode": 301, "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }] },
     "@COMPANY_ID_REDIRECTS"
   ],
   "headers": [

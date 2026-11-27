@@ -4189,6 +4189,9 @@ table.dt thead th .cmp-yearend { display: inline-block; margin-top: 2px; font-we
 .pm-status:focus { outline: none; }
 .pm-status:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
 .pm-unsaved { color: var(--bronze); font-weight: var(--weight-semibold); }
+/* A saved property reopened under another fee rulebook or other data (propertyMovedNote). */
+.pm-moved { margin: 0; max-width: 72ch; line-height: 1.5; overflow-wrap: anywhere; }
+.pm-moved .chip { margin-right: 2px; vertical-align: baseline; }
 .pm-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs); }
 .pm-acts .select { width: auto; max-width: 100%; }
 .pm-links { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
@@ -47784,6 +47787,27 @@ function propertyReadyLine(d = State.deal, { full = false } = {}) {
    keyboard stays on it as it turns from one to the other — Save, Duplicate,
    Open a saved property and New property each keep theirs, as the work
    bar's did (renderKeepFocus). */
+/* A RULE CHANGE WHERE THE PROPERTY REOPENS (D-16 of the 24 Nov 2026 audit;
+   the owner's pricing-consistency brief of 26 Nov: a saved estimate says when
+   its prices have changed, and keeps the reader's selections). Saved work
+   flagged a property saved under another fee rulebook or other property data;
+   the calculator, where it is opened again, said nothing, though every figure
+   on it is worked under the versions in use now. The saved inputs are not
+   touched, and opening does not stamp the record again: only a save does
+   (pmStampRecord). The words are Saved work's (propertyStampDiff). */
+function propertyMovedNote(st) {
+  if (st.kind !== 'model') return null;
+  const moved = propertyStampDiff(st.rec.stamp);
+  if (!moved.feesMoved && !moved.dataMoved) return null;
+  /* The chip says the label; the line does not say it again ("Fee rulebook
+     moved Fee rulebook moved: saved on 1.4.0…", seen at 390 on 26 Nov). */
+  const lead = `${moved.label}: `;
+  const text = moved.text.startsWith(lead) ? moved.text.slice(lead.length).replace(/^./, c => c.toUpperCase()) : moved.text;
+  return el('p', { class: 'caption pm-moved', id: 'pm-moved' }, [
+    el('span', { class: 'chip chip-warn' }, moved.label), ' ', text,
+    ' The figures here use the versions in use now; your saved inputs are unchanged. ',
+    el('a', { href: href('/data-sources#fee-rulebook') }, 'What changed')]);
+}
 function propertyModelBar(d = State.deal) {
   const st = propertyStatus(d);
   const bar = el('section', { class: 'card pm-bar ls-bar', 'aria-label': 'The property on the calculator' });
@@ -47799,7 +47823,7 @@ function propertyModelBar(d = State.deal) {
   /* "Illustrative default" is said once in words, in the answer's "What these
      figures rest on", with the tag on each figure and box (the owner, 18 Nov
      2026: the bar no longer repeats it). */
-  bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
+  bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status, propertyMovedNote(st)]));
   /* Which shoplot starting scenario, and its one limit (94-shoplot-scenarios.js). */
   if (st.kind === 'sample' && shoplotOf(d)) bar.append(shoplotCalcNote(d));
 

@@ -2331,6 +2331,29 @@ const HOME_PAGE = read(HOME);
       p.push(`${rule.source} is not a 301 to / on a vercel.app host`);
   }
   if (!exact || !nested) p.push('vercel.json does not redirect /admin/scanner and /admin/scanner/:path+');
+  /* The same pages at their file paths (26 Nov 2026): a host serves a file at
+     its own path, so without these two rules the operations pages were still
+     served at /pages/admin/scanner.html and under /pages/admin/scanner/. */
+  const ADMIN_FILES = ADMIN_SCANNER.map(a => `/pages${a}.html`);
+  const fileRules = (VERCEL.redirects || []).filter(r => r.source === '/pages/admin/scanner.html' || r.source === '/pages/admin/scanner/:path+');
+  for (const rule of fileRules) {
+    const hostRule = (rule.has || []).find(h => h.type === 'host');
+    if (rule.statusCode !== 301 || rule.destination !== '/' || !hostRule || !new RegExp(`^(?:${hostRule.value})$`).test('quantum-tradeworks.vercel.app'))
+      p.push(`${rule.source} is not a 301 to / on a vercel.app host`);
+  }
+  if (fileRules.length !== 2) p.push('vercel.json does not redirect /pages/admin/scanner.html and /pages/admin/scanner/:path+');
+  const files = await getAll(ADMIN_FILES);
+  for (const path of ADMIN_FILES) {
+    const r = files.get(path);
+    const loc = r.headers.get('location');
+    const at = loc ? new URL(loc, BASE) : null;
+    if (publicHost) {
+      if (r.status !== 301 || !at || at.origin !== new URL(BASE).origin || at.pathname !== '/')
+        p.push(`${path}: ${described(r)}${loc ? ` to ${loc}` : ''}, not 301 to /`);
+    } else if (r.status !== 200) {
+      p.push(`${path}: ${described(r)}, not the operations page's file (the public 301 applies on vercel.app only)`);
+    }
+  }
   const got = await getAll(ADMIN_SCANNER);
   for (const path of ADMIN_SCANNER) {
     const r = got.get(path);
@@ -2343,7 +2366,7 @@ const HOME_PAGE = read(HOME);
       p.push(`${path}: ${described(r)}, not the operations page (the public 301 applies on vercel.app only)`);
     }
   }
-  judge(p, `vercel.json 301s /admin/scanner and its sections to / on a vercel.app host; this host (${host}) ${publicHost ? 'answers 301' : 'still serves the operations pages'}`,
+  judge(p, `vercel.json 301s /admin/scanner and its sections, and their files under /pages/admin/, to / on a vercel.app host; this host (${host}) ${publicHost ? 'answers 301' : 'still serves the operations pages'}`,
     '/admin/scanner is not a public redirect, or the operations page is gone from the harness');
 }
 /* ---- end admin-scanner-redirect ---- */

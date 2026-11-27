@@ -2413,6 +2413,21 @@ try {
           disclosure: /Fee rulebook moved” means/.test(page) };
         out.summary = (document.querySelector('.ws-filters .metaline') || {}).textContent || '';
 
+        /* Reopened on the calculator (D-16, 26 Nov 2026): the one saved under
+           1.4.0 says so in its bar, keeps its inputs and its stamp (opening is
+           not a save); the current one says nothing. */
+        const priorDeal = JSON.parse(JSON.stringify(State.deal));
+        const priorKeys = ['vl.deal', 'vl.dealBeforeLink'].map(k => [k, localStorage.getItem(k)]);
+        openPropertyModel('w-property-fees-old'); await wait(300);
+        const oldNote = document.getElementById('pm-moved');
+        out.reopenOld = { note: oldNote ? oldNote.textContent : null, inBar: !!oldNote?.closest('.pm-bar'),
+          link: oldNote?.querySelector('a')?.getAttribute('href') || null, price: State.deal.price,
+          stampAfter: (store.read('savedWork', []).find(x => x.id === 'w-property-fees-old') || {}).stamp?.fees || null };
+        openPropertyModel('w-property-fees-now', { show: false }); render(); await wait(200);
+        out.reopenNow = { note: !!document.getElementById('pm-moved'), status: (document.getElementById('pm-status') || {}).textContent || '' };
+        State.deal = priorDeal;
+        priorKeys.forEach(([k, v]) => { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); });
+
         /* The export and a restore. */
         const doc = JSON.parse(JSON.stringify(exportEverything()));
         out.exportFees = doc.feeRulebook;
@@ -2449,6 +2464,11 @@ try {
     if (it['w-property-fees-old'] !== 'Fee rulebook moved' || it['w-property-fees-now'] !== 'Current' || it['w-property-fees-none'] !== 'Saved before the rulebook was recorded'
       || it['w-property-fees-model'] !== 'Current' || it['w-wheel-fees-test'] !== 'Model moved') p.push(`Saved work reads ${JSON.stringify(it)}`);
     if (!r.pageHas || Object.values(r.pageHas).some(v => !v)) p.push(`Saved work page: ${JSON.stringify(r.pageHas)}`);
+    const ro = r.reopenOld || {};
+    if (!ro.note || !ro.inBar || !ro.note.startsWith('Fee rulebook moved Saved on 1.4.0, now ' + r.cur + '.') || (ro.note.match(/Fee rulebook moved/g) || []).length !== 1
+      || !ro.note.includes('your saved inputs are unchanged') || !/\/data-sources#fee-rulebook$/.test(ro.link || '') || ro.price !== 480000 || ro.stampAfter !== '1.4.0')
+      p.push(`reopened on the calculator, the property saved under 1.4.0 reads ${JSON.stringify(ro)}`);
+    if (!r.reopenNow || r.reopenNow.note || !/Saved on current/.test(r.reopenNow.status)) p.push(`reopened on the calculator, the current property reads ${JSON.stringify(r.reopenNow)}`);
     if (!/saved under a model, fee rulebook or data version that has since changed/.test(r.summary || '')) p.push(`the summary line reads "${r.summary}"`);
     if (r.exportFees !== r.cur) p.push(`the export names fee rulebook ${r.exportFees}`);
     if (r.inExport?.slice().sort().join() !== ['1.4.0', r.cur, null, r.cur].sort().join()) p.push(`stamps in the export: ${JSON.stringify(r.inExport)}`);
@@ -2456,7 +2476,7 @@ try {
     if (!r.later?.newer || !r.laterTen?.newer || r.same?.newer || r.junk?.newer || r.numeric?.newer || r.numeric?.fees !== null) p.push(`newer rulebook: later ${JSON.stringify(r.later)}, 1.10.0 ${JSON.stringify(r.laterTen)}, same ${JSON.stringify(r.same)}, junk ${JSON.stringify(r.junk)}, numeric ${JSON.stringify(r.numeric)}`);
     if (!new RegExp(`The file was exported under fee rulebook 9\\.0\\.0; this version is ${r.cur.replace(/\./g, '\\.')}`).test(r.drawer || '')) p.push(`the restore drawer does not name the newer rulebook: "${(r.drawer || '').slice(0, 300)}"`);
     if (p.length) fail('a saved property is stamped with, and compared against, the fee rulebook; the export names it', p);
-    else ok('a saved property is stamped with the fee rulebook: saved under 1.4.0 reads "Fee rulebook moved", the current one "Current", one with no rulebook recorded "Saved before the rulebook was recorded"; an Equities-model change alone moves no property, Equities items still follow the model; the export names the rulebook, an older file restores in full, a later rulebook is named');
+    else ok('a saved property is stamped with the fee rulebook: saved under 1.4.0 reads "Fee rulebook moved" on Saved work and in the calculator\'s bar when reopened (inputs and stamp kept), the current one "Current" and no note, one with no rulebook recorded "Saved before the rulebook was recorded"; an Equities-model change alone moves no property, Equities items still follow the model; the export names the rulebook, an older file restores in full, a later rulebook is named');
   }
 
   /* THE REPORT. A filed company's cover says SEC-filed, an illustrative
