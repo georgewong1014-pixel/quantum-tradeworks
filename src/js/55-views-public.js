@@ -2165,11 +2165,15 @@ VIEWS.about = () => trustPage('About',
          debts and a credit record. */
       ['Not advice. It does not tell you what to buy, hold or sell, produces no buy, sell or hold ratings and no single-figure target price, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. The Scenario Lab’s optional objective only chooses which figures lead, and stays in this browser.',
        'Not a data vendor. It does not redistribute market-data records; NAPIC’s published ranges are shown as derived figures, with their licence position beside them, and where a price is shown its source and licence are stated on the page.']],
+    /* The creator, named (the owner's decision of 24 Nov 2026, wording
+       approved 27 Nov): no title, company, licence or qualification. */
+    ['Who created it',
+      'Quantum Tradeworks is created by George Wong, an engineer based in Sibu, Sarawak.'],
     ['Legal entity and registration',
       ['No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.',
        operatorLine() || tp('The operating entity and its registered address are not published yet.')], true],
     ['The people responsible',
-      'Not published. Naming a team before there is a registered entity behind it would be a claim without anything standing behind it.', true],
+      'No responsible persons are published beyond the creator named above. Naming a team before there is a registered entity behind it would be a claim without anything standing behind it.', true],
     /* It said the product "does not carry on any regulated activity". That
        is the conclusion a Malaysian securities-law opinion would give, and
        the launch audit's first blocker is that no such opinion exists yet —
@@ -2178,7 +2182,10 @@ VIEWS.about = () => trustPage('About',
     ['Regulatory position',
       'This product is not licensed by the Securities Commission Malaysia. It is built to publish research and calculators and to give no personal recommendation. Whether that keeps it outside the activities the Capital Markets and Services Act 2007 regulates has not yet been confirmed by a legal opinion, and one is required before a public launch.'],
     ['Conflicts of interest',
-      ['Nothing on this site is paid for. There are no broker commissions, no mortgage introductions, no developer fees, no advertising, no issuer payments and no sponsored content.',
+      /* The related-brand disclosure (the owner's decision of 24 Nov 2026,
+         wording approved 27 Nov): examples from the founder's other
+         businesses are shown without payment. */
+      ['Nothing on this site is paid for. Some examples come from businesses run by the same founder; they are shown without payment. There are no broker commissions, no mortgage introductions, no developer fees, no advertising, no issuer payments and no sponsored content.',
        'If any of that changes it will be declared here before it takes effect. A score or a valuation must never move because of who paid — that is the one commitment this product cannot trade away.']],
     ['Contact', [['See the contact page.', '/contact']]],
   ]);
