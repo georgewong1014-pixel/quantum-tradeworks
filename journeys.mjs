@@ -613,6 +613,7 @@ function selfTest() {
   t(resultProblem(doc('2026-09-30T11:30:00Z', [j('a', 'FAIL')])) !== null, 'a FAIL with no named step is not a valid result');
   t(resultProblem(doc('2026-09-30T11:30:00Z', [{ ...j('a', 'PASS'), status: 'OK' }])) !== null, 'a status outside PASS, DEGRADED and FAIL is not a valid result');
   t(resultProblem({ kind: RESULT_KIND, schema: 1, ranAt: null, journeys: [] }) === null && !hasRun({ kind: RESULT_KIND, ranAt: null, journeys: [] }), 'the placeholder is valid and holds no run');
+  t(resultProblem({ ...doc('2026-09-30T11:30:00Z', [j('a', 'PASS')]), app: 'app.0123456789ab.js' }) === null, 'a result may name the app file the served root page loaded (app), the build it was run against');
   const md = markdown(doc('2026-09-30T11:30:00Z', [j('a', 'PASS'), { ...j('b|c', 'FAIL', 'Step | with a pipe'), note: 'why' }]));
   t(/\| a \| PASS \| — \| — \| 1\.0 s \|/.test(md) && /Step \\\| with a pipe/.test(md) && /1 pass, 0 degraded, 1 fail/.test(md), 'the table: one row per journey, pipes escaped, the counts in the heading');
   /* The workflow that applies the rule, read as text (no YAML parser here):
@@ -775,6 +776,17 @@ const blobId = (text) => { const buf = Buffer.from(text.replace(/\r\n/g, '\n'), 
 async function servedBlob() {
   try { const r = await fetch(`${BASE}/`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } }); return r.ok ? blobId(await r.text()) : null; }
   catch { return null; }
+}
+/* The app file the served root page loads (app.<12 hex>.js, build.mjs): the
+   build the run was against, by the name /status knows its own build by
+   (reportBuild). Recorded as `app`, so a page served by another build keeps
+   the record it was served with (91-health.js, healthLatestRecord). */
+async function servedApp() {
+  try {
+    const r = await fetch(`${BASE}/`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
+    const m = r.ok ? /\/assets\/(app\.[0-9a-f]{12}\.js)(?:[?#"']|$)/.exec(await r.text()) : null;
+    return m ? m[1] : null;
+  } catch { return null; }
 }
 async function commitServed() {
   const want = flag('commit');
@@ -4616,6 +4628,7 @@ async function main() {
   await where();
   const ranAt = new Date().toISOString();
   const who = await commitServed();
+  const app = await servedApp();
   const todo = JOURNEYS.filter(x => !ONLY.length || ONLY.includes(x.id));
   if (!todo.length) { console.error(`no journey is called ${ONLY.join(', ')} — they are ${JOURNEYS.map(x => x.id).join(', ')}`); process.exit(2); }
   console.log(`journeys against ${BASE}${who.commit ? ` — commit ${who.commit.slice(0, 12)} (${who.commitFrom})` : ` — ${who.commitFrom}`}${OWNER_MACHINE ? ' — the personal lane answered 404 in the browser; the scanner reads a synthetic history' : ''}`);
@@ -4652,7 +4665,7 @@ async function main() {
     }
   } finally { await browser.close(); }
 
-  const doc = { kind: RESULT_KIND, schema: 2, ranAt, url: BASE, commit: who.commit, commitFrom: who.commitFrom, ...(TRIGGER ? { trigger: TRIGGER } : {}), ...(RUN ? { run: RUN } : {}), journeys: results.map(r => r.toJSON()) };
+  const doc = { kind: RESULT_KIND, schema: 2, ranAt, url: BASE, commit: who.commit, commitFrom: who.commitFrom, ...(app ? { app } : {}), ...(TRIGGER ? { trigger: TRIGGER } : {}), ...(RUN ? { run: RUN } : {}), journeys: results.map(r => r.toJSON()) };
   const problem = resultProblem(doc);
   if (problem) { console.error(`FAIL  the result is not a valid result: ${problem}`); process.exit(2); }
   if (has('json')) {

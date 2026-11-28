@@ -1233,7 +1233,11 @@ export function withServedRecord(r, served) {
     /* The committed record is in the page, with its Malaysia time, so a
        fetch of the same record does not move the layout. The script still
        reads health-records; a failed read replaces this with "latest record
-       unavailable" and no Pass (Option A). */
+       unavailable" and no Pass (Option A). A record read from there replaces
+       this one only when it is this same run, or a newer run for this build
+       (its `app` is the app file the page loads); an earlier run, or another
+       build's, leaves the served record standing (George's fix note, 28 Nov
+       2026; healthLatestRecord, 91-health.js). */
     put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, served.sum + journeysMytSpan(served.ranAt), '#health-journeys-sum');
     put(/(<ul id="health-journeys" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, served.list, 'an empty #health-journeys marked data-now');
     /* Property's "Model:" line (N2d; statusPropertySection, 91-health.js):

@@ -75075,7 +75075,15 @@ function localityTransactionPanel(city, area) {
 const HEALTH_JOURNEYS_FILE = 'health/journeys.json';
 /* Option A, George 18 Nov 02:24 MYT. The record is committed on
    health-records, not on the branch this site is built from, so the page
-   reads that branch's public file. A failed read says so and shows no Pass. */
+   reads that branch's public file. A failed read says so and shows no Pass.
+   THE SERVED RECORD STANDS (George's fix note, 28 Nov 2026, PR #10): the
+   page is served with the record committed beside it (build.mjs,
+   withServedRecord) and keeps it — the same markup, where it stood — unless
+   the latest record is accepted for this build (healthLatestRecord): the
+   same run, or a run newer than the served one whose `app` names the app
+   file this page loads (reportBuild). An earlier run, or one for another
+   build — in CI and on a preview, health-records usually still holds
+   production's last record — never replaces what was served. */
 const HEALTH_JOURNEYS_URL = `https://raw.githubusercontent.com/georgewong1014-pixel/quantum-tradeworks/health-records/${HEALTH_JOURNEYS_FILE}`;
 const HEALTH_RECORD_UNAVAILABLE = 'latest record unavailable';
 /* The one renderer of the recorded result (journeys.mjs, journeysServed):
@@ -75599,9 +75607,11 @@ function healthApplyRecord(sumEl, listEl, doc) {
   if (age > HEALTH_STALE_MS) sumEl.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
   if (listEl && listEl.innerHTML !== out.list) listEl.innerHTML = out.list;
 }
-async function healthLoadJourneys() {
+/* One journeys file, read with no-store: the record committed beside this
+   build (served), or the health-records branch's (latest). */
+async function healthFetchJourneys(url) {
   try {
-    const r = await fetch(HEALTH_JOURNEYS_URL, { cache: 'no-store' });
+    const r = await fetch(url, { cache: 'no-store' });
     if (!r.ok) return { state: 'unavailable' };
     let doc;
     try { doc = JSON.parse(await r.text()); } catch { return { state: 'unreadable', why: 'it is not valid JSON' }; }
@@ -75611,6 +75621,27 @@ async function healthLoadJourneys() {
   } catch {
     return { state: 'unavailable' };
   }
+}
+/* Which record the page shows (George's fix note, 28 Nov 2026):
+   - the latest read failed, or is unreadable: that is said, and no Pass
+     is shown (a placeholder there, with a run served, is no record and
+     the served run stands);
+   - the latest is the served run itself: drawn again, the same markup;
+   - the latest is newer than the served run and for this build — its `app`
+     is the app file this page loads: it replaces the served run;
+   - otherwise (an earlier run, or one for another build) the served run
+     stands. With nothing committed to serve, the latest is shown as read. */
+function healthLatestRecord(served, latest, build) {
+  if (latest.state !== 'ok') return latest.state === 'none' && served.state === 'ok' ? served : latest;
+  if (served.state !== 'ok' && served.state !== 'none') return latest;
+  const L = latest.doc, S = served.state === 'ok' ? served.doc : null;
+  if (S && L.ranAt === S.ranAt && L.commit === S.commit) return latest;
+  if (typeof build === 'string' && L.app === build && (!S || Date.parse(L.ranAt) > Date.parse(S.ranAt))) return latest;
+  return served;
+}
+async function healthLoadJourneys() {
+  const [served, latest] = await Promise.all([healthFetchJourneys(`${BASE}/${HEALTH_JOURNEYS_FILE}`), healthFetchJourneys(HEALTH_JOURNEYS_URL)]);
+  return healthLatestRecord(served, latest, typeof reportBuild === 'function' ? reportBuild() : null);
 }
 
 /* CI's results, read as the journeys' are: no-store, absent is none, and
