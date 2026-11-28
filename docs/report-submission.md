@@ -1,5 +1,17 @@
 # Report submission: how a visitor's report reaches the owner
 
+**Decision 18 Nov 2026 (George): submission from the page stays off; email is
+the official route. The store set-up below is kept for reference only. Do not
+configure it.** In source, `LAUNCH.reportSubmit` (src/js/15-derivation.js)
+names the decision and `LAUNCH.contactEmail` is the one address every mailto,
+/contact, /privacy, /corrections and the report drawer read. While the
+decision is named, the page never asks `/api/report` and never draws Submit;
+`api/report.mjs` stays as it is, unconfigured, storing nothing. The
+`submission` journey expects the email route on production (pass; reason
+"email route - submit off by owner decision 18 Nov 2026") and FAILS if a
+Submit button appears there or `/api/report` answers `configured: true`;
+the full submit-and-receipt journey runs against the local `serve.mjs` only.
+
 Written 9 November 2026 for the owner's brief of that day: a visitor without
 an email program must be able to submit a data-error report or feedback that
 the owner can retrieve. This page says what was built, what the deployment
@@ -25,14 +37,15 @@ two halves of the journey are verified.
 4. **Copy** and **Open in my email program** stay as alternatives on every
    case, draft or submitted.
 
-Without a store, copy and email are the supported way to report and the
-last step presents them first (13 Nov 2026): the Copy button and the email
-link stand directly under the report, and under them the drawer says "Copying
-the report and sending it from your own email program is how it reaches the
-site’s owner today. Submitting from this page is not switched on yet, so
-nothing has been sent from here." The forms' opening lines name copy and
-email only. Once the store is configured the same pages offer Submit first,
-with no change to the code.
+Copy and email are the way to report and the last step presents them first
+(13 Nov 2026; the owner's decision of 18 Nov): the Copy button and the email
+link stand directly under the report, and under them the drawer says "Reports
+are sent by email. Copy the report, or open it in your email program, and send
+it to <the address>. Nothing is sent from this page. The owner reads every
+report sent to this address." The forms' opening lines name copy and email
+only. The mailto subject carries the case id; the body carries the reviewed
+text only — the page's path without its query string, no deal figure, no
+saved model.
 
 ## What the deployment needs (the owner's steps)
 
@@ -90,7 +103,7 @@ Every journey is reported as two results, never one.
 |---|---|---|
 | **Customer completion** — "I submitted successfully without installing, signing into or opening another app" | The `submission` journey (journeys.mjs) fills the form, saves, presses Submit, and passes only when the drawer shows "Case … submitted — receipt QTR-n", the case is stored as submitted under that receipt, the page did not move, and /corrections lists it as submitted after a fresh load | CI on every push (checks.yml, the journeys job, against serve.mjs); locally with `node journeys.mjs http://localhost:8123 --only submission` |
 | **Operational completion** — "Staff found the record, owned the next action" | The same journey reads the record back from the store by its receipt and passes only when it holds the identical reviewed text, the case id, the page path without a query, the kind and an acceptance time; and a third step proves one POST went, with five fields and nothing from saved work | CI and locally against the file store serve.mjs provides |
-| **Live site** | The journey does **not** submit against the live site: a synthetic report filed into the owner's tracker twice a day is not a test. Against production it reports **DEGRADED** with the reason — "not switched on" until the two variables are set; "not exercised against this deployment" once they are — so the health page never shows a green it did not earn | journeys.yml |
+| **Live site** | The journey does **not** submit against the live site. Since the decision of 18 Nov 2026 it checks the email route there: the draft saved with its case id, no Submit button, Copy offered with the case id in the text, and "Open in my email program" a mailto: to the one address with the case id in the subject — **PASS** with the reason "email route - submit off by owner decision 18 Nov 2026". It **FAILS** if a Submit button appears on production or `/api/report` answers `configured: true` | journeys.yml |
 
 **The owner's live check, once configured** (do it once, by hand):
 open the live site on a phone with no email program, report a figure on any
@@ -122,10 +135,10 @@ POSTs with an invalid body (for example `{` with `content-type:
 application/json`) from one machine within a minute; the first five answer
 400, the sixth 429 `rate-limited`. No record is created by any of them.
 
-**To verify the fallback without creating issues:** remove the two store
-variables and redeploy; `GET /api/report` answers `configured:false`, the
-drawer says submission is not switched on and offers copy and email, and a
-POST answers 503 with no receipt.
+**To verify the fallback without creating issues:** with no store variables
+set (the state the decision keeps), `GET /api/report` answers
+`configured:false`, the drawer says reports are sent by email and offers copy
+and the email link, and a POST answers 503 with no receipt.
 
 ## Privacy review items (for counsel, with the draft Privacy page)
 

@@ -613,6 +613,7 @@ function selfTest() {
   t(resultProblem(doc('2026-09-30T11:30:00Z', [j('a', 'FAIL')])) !== null, 'a FAIL with no named step is not a valid result');
   t(resultProblem(doc('2026-09-30T11:30:00Z', [{ ...j('a', 'PASS'), status: 'OK' }])) !== null, 'a status outside PASS, DEGRADED and FAIL is not a valid result');
   t(resultProblem({ kind: RESULT_KIND, schema: 1, ranAt: null, journeys: [] }) === null && !hasRun({ kind: RESULT_KIND, ranAt: null, journeys: [] }), 'the placeholder is valid and holds no run');
+  t(resultProblem({ ...doc('2026-09-30T11:30:00Z', [j('a', 'PASS')]), app: 'app.0123456789ab.js' }) === null, 'a result may name the app file the served root page loaded (app), the build it was run against');
   const md = markdown(doc('2026-09-30T11:30:00Z', [j('a', 'PASS'), { ...j('b|c', 'FAIL', 'Step | with a pipe'), note: 'why' }]));
   t(/\| a \| PASS \| — \| — \| 1\.0 s \|/.test(md) && /Step \\\| with a pipe/.test(md) && /1 pass, 0 degraded, 1 fail/.test(md), 'the table: one row per journey, pipes escaped, the counts in the heading');
   /* The workflow that applies the rule, read as text (no YAML parser here):
@@ -644,7 +645,7 @@ function selfTest() {
        shorter than that gives up first, and the run tests and records the
        build the release replaced. */
     t(wait >= 7200 && limit * 60 >= wait + 600, `the workflow: a deployment's run waits ${wait || 'no'}s for its build (two hours at least) inside a ${limit || '?'}-minute job with ten to spare`);
-    t(/git push origin HEAD:main; then\n\s+gh workflow run checks\.yml [^\n]*--ref main/.test(y) && /GH_TOKEN: \$\{\{ github\.token \}\}/.test(y.slice(y.indexOf('record the result on main'))), 'the workflow: the record it pushes has checks.yml started on it, so its deployment can pass its Deployment Checks');
+    t(/git push --force origin HEAD:health-records; then\n\s+gh workflow run checks\.yml [^\n]*--ref main/.test(y) && /GH_TOKEN: \$\{\{ github\.token \}\}/.test(y.slice(y.indexOf('record the result on health-records'))), 'the workflow: the record is pushed to health-records, not main, and checks.yml is started on main, the commit the site serves');
     /* D16 and N1b–N1d. Comments may tell the history; the commands may not
        carry it. */
     const cmds = y.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
@@ -654,7 +655,7 @@ function selfTest() {
       && /node journeys\.mjs --url production [^\n]*\\\n[^\n]*--trigger "\$TRIGGER" --run "\$RUN_URL"/.test(cmds) && /RUN_URL: \$\{\{ github\.server_url \}\}\/\$\{\{ github\.repository \}\}\/actions\/runs\/\$\{\{ github\.run_id \}\}/.test(y),
       'the workflow: the record carries what started the run and the run\'s public log');
     t(/node journeys\.mjs --decide [^\n]*--trigger "\$TRIGGER"[^\n]*--deployed-files[^\n]*--deployed-author/.test(cmds) && /git log -1 --format='%an' "\$DEPLOY_SHA"/.test(cmds), 'the workflow: the trigger, the deployed commit\'s files and its author reach the commit rule');
-    const rec = cmds.slice(cmds.indexOf('record the result on main'));
+    const rec = cmds.slice(cmds.indexOf('record the result on health-records'));
     const at = (re) => { const m = re.exec(rec); return m ? m.index : -1; };
     const iCopy = at(/cp "\$RUNNER_TEMP\/journeys\.json" health\/journeys\.json/), iBuild = at(/node build\.mjs\b/), iGuard = at(/node journeys\.mjs --guard\b/), iCommit = at(/git commit\b/);
     t(iCopy > -1 && iCopy < iBuild && iBuild < iGuard && iGuard < iCommit, 'the workflow: the record is copied, the island pages rebuilt from it (node build.mjs), the guard run, then the commit');
@@ -775,6 +776,17 @@ const blobId = (text) => { const buf = Buffer.from(text.replace(/\r\n/g, '\n'), 
 async function servedBlob() {
   try { const r = await fetch(`${BASE}/`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } }); return r.ok ? blobId(await r.text()) : null; }
   catch { return null; }
+}
+/* The app file the served root page loads (app.<12 hex>.js, build.mjs): the
+   build the run was against, by the name /status knows its own build by
+   (reportBuild). Recorded as `app`, so a page served by another build keeps
+   the record it was served with (91-health.js, healthLatestRecord). */
+async function servedApp() {
+  try {
+    const r = await fetch(`${BASE}/`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
+    const m = r.ok ? /\/assets\/(app\.[0-9a-f]{12}\.js)(?:[?#"']|$)/.exec(await r.text()) : null;
+    return m ? m[1] : null;
+  } catch { return null; }
 }
 async function commitServed() {
   const want = flag('commit');
@@ -4174,6 +4186,11 @@ const JOURNEYS = [
       let id = null, text = null, receipt = null, from = 0;
       await step(j, tab, 'Open Apple’s company page and report a data error', BUDGET.load + BUDGET.action, async () => {
         await tab.goto('/company/aapl-apple-inc');
+        /* THE OWNER'S DECISION OF 18 NOV 2026 (QTW-002): submitting from the
+           page is off; the full submit-and-receipt journey runs against the
+           local server only, under the test key the page reads
+           (reportSubmitOff, 65-learn.js). Production never sets it. */
+        if (local) await tab.eval(`(localStorage.setItem('qt.reportSubmitTest', '1'), true)`);
         await tab.click(visible('[data-action="report-error"]'), '“Report a data error”');
         await tab.expect(`document.getElementById('drawerTitle')?.textContent.trim() === 'Report a data error' && !!document.getElementById('err-description')`, '“Report a data error” opened no form');
         await tab.fill(`document.getElementById('err-shownValue')`, '1,234', 'What the page shows');
@@ -4186,36 +4203,48 @@ const JOURNEYS = [
       });
       const probe = await fetch(new URL('/api/report', BASE + '/').href, { cache: 'no-store' }).then(r => (r.ok ? r.json() : { configured: false, status: r.status })).catch(e => ({ configured: false, error: e.message }));
       if (!local) {
-        /* Not a local server: the outcome steps are taken as GATED steps — each
-           checks the honest refusal the page shows and records why the live
-           store is not exercised — and the journey is DEGRADED, never PASS,
-           so the health page shows no green for a submission nobody made. A
-           journey that declared these outcomes and skipped them would be
-           failed by the runner (below, "never took it"), rightly. */
-        const why = probe.configured
-          ? 'not exercised against this deployment: a submission here would file a synthetic report into the owner’s store on every run; the owner’s live check is in docs/report-submission.md'
-          : `submitting from the page is not switched on for this deployment (/api/report answered ${probe.status || (probe.error ? 'nothing' : 'configured: false')}): the supported way to report is to copy the report and email it, which the correction-case journey checks; docs/report-submission.md names the two settings`;
+        /* NOT A LOCAL SERVER — THE EMAIL ROUTE (the owner's decision of 18
+           Nov 2026, QTW-002): submitting from the page is off, and the
+           journey expects exactly that. It FAILS, never degrades, if a Submit
+           button appears here or /api/report answers configured: true. The
+           customer step is the email route itself: the draft kept with its
+           case id, Copy offered with the id in the text, and "Open in my
+           email program" a mailto: to the one address with the id in the
+           subject. No mail program is opened and nothing is sent. The
+           operational half — the owner finding the report in the mailbox —
+           is the owner's by-hand check, gated and said so. */
+        const EMAIL_ROUTE = 'email route - submit off by owner decision 18 Nov 2026';
+        if (probe.configured === true) throw new StepError('/api/report answers configured: true on this deployment, but submitting from the page is off by the owner’s decision of 18 Nov 2026 (docs/report-submission.md) — the store must not be configured');
         await step(j, tab, 'Customer completion: submitted from the page, receipt shown, no other program opened', BUDGET.action + BUDGET.load, async () => {
-          const r = await tab.eval(`({ block: document.querySelector('#drawer [data-case-submit]')?.textContent.replace(/\\s+/g, ' ').trim() || null, control: !!document.querySelector('#drawer [data-submit-report]') })`);
-          /* An older build has no submit block at all; a build with one must say the truth. */
-          if (r.block !== null && !probe.configured && !/not switched on/.test(r.block)) throw new StepError(`with no store configured the drawer says “${r.block.slice(0, 160)}”, not that submitting is not switched on`);
-          if (r.block !== null && probe.configured && !r.control) throw new StepError(`the store is configured but the drawer offers no Submit control: “${r.block.slice(0, 160)}”`);
-          /* QTW-002 (17 Nov 2026): where submitting is off, the privacy page says so
-             and names copy-and-email as the supported way; it described Submit
-             and /api/report as available. Read from the page as it is served. */
-          if (!probe.configured) {
-            await tab.goto('/privacy');
-            const pv = await tab.eval(`document.getElementById('views')?.innerText || ''`);
-            if (/One form sends something, and only when you press Submit/.test(pv) || !/Where it cannot, there is no Submit button and nothing is sent/.test(pv))
-              throw new StepError('with submitting off, /privacy describes the report form’s Submit as available, or does not say that copying and emailing is the way to report');
-          }
+          const r = await tab.eval(`(() => {
+            const a = document.querySelector('#drawer [data-support-mailto]');
+            return { block: document.querySelector('#drawer [data-case-submit]')?.textContent.replace(/\\s+/g, ' ').trim() || null,
+              control: !!document.querySelector('#drawer [data-submit-report]'), copy: !!document.querySelector('#drawer [data-copy-case]'),
+              text: document.querySelector('#drawer textarea')?.value || '', mailto: a ? a.getAttribute('href') : null,
+              address: typeof supportEmail === 'function' ? supportEmail() : null, where: location.pathname };
+          })()`);
+          if (r.control) throw new StepError('a Submit button is drawn on this deployment: submitting from the page is off by the owner’s decision of 18 Nov 2026');
+          if (!r.block || !/^Reports are sent by email\./.test(r.block) || /switched on/.test(r.block)) throw new StepError(`the drawer’s last step says “${(r.block || '').slice(0, 160)}”, not that reports are sent by email`);
+          if (!r.copy || !r.text.includes(id)) throw new StepError(`Copy is ${r.copy ? 'offered' : 'missing'} and the text to copy ${r.text.includes(id) ? 'carries' : 'does not carry'} the case id ${id}`);
+          if (!r.address) throw new StepError('no report address is published, so the email route cannot be taken');
+          const m = /^mailto:([^?]+)\?(.*)$/.exec(r.mailto || '');
+          const q = m ? new URLSearchParams(m[2]) : null;
+          if (!m || m[1] !== r.address) throw new StepError(`“Open in my email program” links ${r.mailto ? r.mailto.slice(0, 60) : 'nothing'}, not mailto:${r.address}`);
+          if (!(q.get('subject') || '').includes(id)) throw new StepError(`the mailto subject “${q.get('subject') || ''}” does not carry the case id ${id}`);
+          if ((q.get('body') || '') !== r.text || /[?#]/.test((/^Page: (.*)$/m.exec(q.get('body') || '') || [])[1] || '')) throw new StepError('the mailto body is not the reviewed text, or its page line carries a query string');
+          if (r.where !== '/company/aapl-apple-inc') throw new StepError(`the page moved to ${r.where}: another page or program was opened`);
+          /* The privacy page says the same (wording approved 27 Nov 2026). */
+          await tab.goto('/privacy');
+          const pv = await tab.eval(`document.getElementById('views')?.innerText || ''`);
+          if (/One form sends something, and only when you press Submit|sends something only where submitting is switched on/.test(pv) || !/The report form does not send anything\. A report reaches the owner only if you copy it, or open it in your email program, and send it yourself to/.test(pv))
+            throw new StepError('/privacy describes the report form’s Submit as available, or does not say that copying and emailing is the way to report');
           /* "What you can use today" on /status (23 Nov 2026) lists sending a
-             report from the page as not available: true only while it is off. */
+             report from the page as not available: true, by decision. */
           await tab.goto('/status');
           const listed = await tab.eval(`[...document.querySelectorAll('#status-impact .status-impact-not dt')].some(d => /^Sending a data-error report from the page/.test(d.textContent.trim()))`);
-          if (listed !== !probe.configured) throw new StepError(`/status ${listed ? 'lists' : 'does not list'} sending a report from the page as not available, although this deployment ${probe.configured ? 'takes reports' : 'does not take reports'}`);
-        }, { gated: why });
-        await step(j, tab, 'Operational completion: the record is found by its receipt with the text reviewed', BUDGET.action, async () => {}, { gated: 'the owner’s by-hand check (ops/REPORT-SUBMISSION-CHECK.md): find the issue by its receipt, confirm the text, own it' });
+          if (!listed) throw new StepError('/status does not list sending a report from the page as not available, although it is off by decision');
+        });
+        await step(j, tab, 'Operational completion: the record is found by its receipt with the text reviewed', BUDGET.action, async () => {}, { gated: 'the owner’s by-hand check: the report arrives in the mailbox with its case id in the subject, and is answered from there' });
         await step(j, tab, 'Only the reviewed report went: one request, five fields, nothing from saved work', BUDGET.action, async () => {
           /* Only the report address counts: the host may inject its own
              bot-protection script, which posts to obfuscated same-origin
@@ -4223,8 +4252,8 @@ const JOURNEYS = [
              doing, and nothing of the case. */
           const posts = tab.sent.filter(s => s.method === 'POST' && new URL(s.url).pathname === '/api/report');
           if (posts.length) throw new StepError(`${posts.length} POST request(s) to /api/report were made without anyone pressing Submit: ${posts.slice(0, 3).map(s => `(body ${s.body.length} chars: ${JSON.stringify(s.body.slice(0, 160))})`).join(' | ')}`);
-        }, { gated: 'no submission was made, so no request to inspect; proven on the local server in CI' });
-        j.degrade(why, '/company/aapl-apple-inc');
+        }, { gated: 'nothing is sent from the page by decision; the mailto carries the reviewed text only, checked above' });
+        j.notes.push(EMAIL_ROUTE);
         return;
       }
       if (!probe.configured || probe.store !== 'file' || !probe.dir) throw new StepError(`the local server names no file store (/api/report answered ${JSON.stringify(probe).slice(0, 160)}) — serve.mjs sets QT_REPORTS_DIR itself`);
@@ -4265,6 +4294,7 @@ const JOURNEYS = [
         if (body.report !== text || body.id !== id || /[?#]/.test(body.page)) throw new StepError('the submission is not the reviewed text, or its page carries a query');
         const away = sent.filter(s => new URL(s.url).origin !== new URL(BASE).origin);
         if (away.length) throw new StepError(`the page asked ${away.length} address(es) off the site: ${away[0].url.slice(0, 100)}`);
+        await tab.eval(`(localStorage.removeItem('qt.reportSubmitTest'), true)`);
       });
     },
   },
@@ -4598,6 +4628,7 @@ async function main() {
   await where();
   const ranAt = new Date().toISOString();
   const who = await commitServed();
+  const app = await servedApp();
   const todo = JOURNEYS.filter(x => !ONLY.length || ONLY.includes(x.id));
   if (!todo.length) { console.error(`no journey is called ${ONLY.join(', ')} — they are ${JOURNEYS.map(x => x.id).join(', ')}`); process.exit(2); }
   console.log(`journeys against ${BASE}${who.commit ? ` — commit ${who.commit.slice(0, 12)} (${who.commitFrom})` : ` — ${who.commitFrom}`}${OWNER_MACHINE ? ' — the personal lane answered 404 in the browser; the scanner reads a synthetic history' : ''}`);
@@ -4634,7 +4665,7 @@ async function main() {
     }
   } finally { await browser.close(); }
 
-  const doc = { kind: RESULT_KIND, schema: 2, ranAt, url: BASE, commit: who.commit, commitFrom: who.commitFrom, ...(TRIGGER ? { trigger: TRIGGER } : {}), ...(RUN ? { run: RUN } : {}), journeys: results.map(r => r.toJSON()) };
+  const doc = { kind: RESULT_KIND, schema: 2, ranAt, url: BASE, commit: who.commit, commitFrom: who.commitFrom, ...(app ? { app } : {}), ...(TRIGGER ? { trigger: TRIGGER } : {}), ...(RUN ? { run: RUN } : {}), journeys: results.map(r => r.toJSON()) };
   const problem = resultProblem(doc);
   if (problem) { console.error(`FAIL  the result is not a valid result: ${problem}`); process.exit(2); }
   if (has('json')) {

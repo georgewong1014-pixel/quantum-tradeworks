@@ -640,7 +640,9 @@ function learnTrust() {
   const mine = State.corrections || [];
   const mineCard = el('div', { class: 'card', id: 'my-cases', style: 'margin-bottom:var(--md)' });
   mineCard.append(cardHead(`Cases you have recorded — ${mine.length}`,
-    `Held in this browser. A case is sent only when you submit it from here${supportEmail() ? ' or send it from your own email program' : ''}; its status says which, and a submitted case shows its receipt.`));
+    reportSubmitOff()
+      ? `Held in this browser. A case reaches the owner only when you copy it, or open it in your email program, and send it yourself${supportEmail() ? ` to ${supportEmail()}` : ''}.`
+      : `Held in this browser. A case is sent only when you submit it from here${supportEmail() ? ' or send it from your own email program' : ''}; its status says which, and a submitted case shows its receipt.`));
   if (!mine.length) {
     mineCard.append(el('p', { class: 'metaline' },
       'None yet. Any figure on this site can be reported — the report button in the footer records a case with the page, the model version and the data date attached.'));
@@ -776,7 +778,9 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', supportEmail()
-    ? 'Each report names the exact item and is saved in this browser first. You then copy it and send it from your own email program; the last step says whether this page can also submit it.'
+    ? (reportSubmitOff()
+      ? `Each report names the exact item and is saved in this browser first. You then copy it, or open it in your email program, and send it to ${supportEmail()} yourself; nothing is sent from this page.`
+      : 'Each report names the exact item and is saved in this browser first. You then copy it and send it from your own email program; the last step says whether this page can also submit it.')
     : 'Each report names the exact item and is saved in this browser first. You then copy it; the last step says whether this page can also submit it.'));
   rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the error form'));
   wrap.append(rep);
@@ -853,8 +857,22 @@ function reportLead(before) {
   return p;
 }
 let reportProbe = null;
+/* SUBMISSION FROM THE PAGE IS OFF BY THE OWNER'S DECISION (QTW-002, 18 Nov
+   2026; LAUNCH.reportSubmit): the page never asks /api/report and never
+   draws Submit. The local server keeps the full submit-and-receipt journey
+   for CI: journeys.mjs sets this browser key before it opens the drawer, and
+   clears it after. */
+const reportSubmitOff = () => {
+  if (!LAUNCH.reportSubmit) return false;
+  try { return localStorage.getItem('qt.reportSubmitTest') !== '1'; } catch { return true; }
+};
+/* THE EMAIL ROUTE, SAID THE SAME WAY WHEREVER A REPORT'S LAST STEP SAYS IT
+   (the owner's wording, approved 27 Nov 2026): no reply time is promised. */
+const reportEmailRoute = (noun) => supportEmail()
+  ? `Reports are sent by email. Copy the ${noun}, or open it in your email program, and send it to ${supportEmail()}. Nothing is sent from this page. The owner reads every ${noun} sent to this address.`
+  : `Nothing is sent from this page. Copy the ${noun} and keep it: no contact address is published.`;
 function reportSubmission() {
-  if (!LAUNCH.reportEndpoint || typeof fetch !== 'function') return Promise.resolve({ configured: false });
+  if (reportSubmitOff() || !LAUNCH.reportEndpoint || typeof fetch !== 'function') return Promise.resolve({ configured: false });
   if (!reportProbe) reportProbe = fetch(LAUNCH.reportEndpoint, { method: 'GET', cache: 'no-store' })
     .then(r => (r.ok ? r.json() : { configured: false }))
     .then(j => ({ configured: !!j.configured }))
@@ -882,6 +900,8 @@ function submitBlock(c, pre) {
     return box;
   }
   const noun = c.kind === 'feedback' ? 'feedback' : 'report';
+  /* Off by the owner's decision: the route is said at once, nothing asked. */
+  if (reportSubmitOff()) { note.textContent = reportEmailRoute(noun); return box; }
   note.textContent = 'Checking whether this page can submit it…';
   reportSubmission().then(({ configured }) => {
     if (!configured) {
@@ -889,9 +909,7 @@ function submitBlock(c, pre) {
          (the audit note of 13 Nov 2026): this sentence stood first, above
          Copy and the email link, so the last step opened on what the page
          cannot do. */
-      note.textContent = supportEmail()
-        ? `Copying the ${noun} and sending it from your own email program is how it reaches the site’s owner today. Submitting from this page is not switched on yet, so nothing has been sent from here.`
-        : `Submitting from this page is not switched on yet. Nothing has been sent; copy the ${noun}.`;
+      note.textContent = reportEmailRoute(noun);
       return;
     }
     note.textContent = `Or submit it from here. Submitting sends the text above, with the page’s name and the build, to this site’s report store — nothing else from this browser, and no address of yours. A receipt reference is shown only once the store has accepted it.`;
@@ -1036,11 +1054,13 @@ function correctionPayload(c) {
     : (c.kind === 'scanner' || c.kind === 'general' || c.kind === 'feedback') ? []
     : [`Model version: ${c.modelVersion}`, `Data as of: ${c.asOf}`, `Universe at the time: ${c.coverage}`];
   if (c.kind) tail.push(c.build ? `Build ${c.build}` : 'Build not recorded (the app was loaded inline, not as a hashed file)');
-  if (c.kind === 'feedback') return [`Feedback ${c.id}${c.topic ? ` — ${c.topic}` : ''}`, `Raised: ${c.createdAt}`, `Page: ${c.route}`, ...(c.asked ? [`Asked: ${c.asked}`] : []), ``, c.description || '(nothing written)', ``, ...tail].join('\n');
+  if (c.kind === 'feedback') return [`Feedback ${c.id}${c.topic ? ` — ${c.topic}` : ''}`, `Raised: ${c.createdAt}`, `Page: ${String(c.route || '/').split(/[?#]/)[0]}`, ...(c.asked ? [`Asked: ${c.asked}`] : []), ``, c.description || '(nothing written)', ``, ...tail].join('\n');
   return [
     `Correction case ${c.id}`,
     `Raised: ${c.createdAt}`,
-    `Page: ${c.route}`,
+    /* The page's path alone: the calculator writes the deal's figures into
+       its address, and a report carries no figure the reader did not type. */
+    `Page: ${String(c.route || '/').split(/[?#]/)[0]}`,
     `Subject: ${c.subject || '—'}`,
     `Data item: ${c.item}`,
     `Shown: ${c.shownValue || '—'}`,
@@ -1339,8 +1359,15 @@ function confirmCaseSaved(c) {
         (navigator.clipboard ? navigator.clipboard.writeText(pre.value) : Promise.reject())
           .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
       } }, addr ? `Copy the ${thing}` : 'Copy the case'),
-      addr ? el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '',
-        href: `mailto:${addr}?subject=${encodeURIComponent(`${c.kind === 'feedback' ? 'Feedback' : 'Data error report'} ${c.id}${c.kind === 'feedback' && c.topic ? ` — ${c.topic}` : ''}`)}&body=${encodeURIComponent(correctionPayload(c))}` }, 'Open in my email program') : null,
+      /* The subject carries the case id; the body the text as reviewed in
+         the box above, read when the link is pressed (QTW-002, 27 Nov 2026):
+         what goes is what was seen, and nothing from the address bar. */
+      addr ? (() => {
+        const subject = `${c.kind === 'feedback' ? 'Feedback' : 'Data error report'} ${c.id}${c.kind === 'feedback' && c.topic ? ` — ${c.topic}` : ''}`;
+        const mailtoFor = (text) => `mailto:${addr}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+        return el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '', href: mailtoFor(pre.value),
+          onclick: (e) => { e.currentTarget.href = mailtoFor(pre.value); } }, 'Open in my email program');
+      })() : null,
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/corrections'),
         onclick: e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); closeDrawer(); navigate('/corrections'); } },
         'See my recorded cases'),

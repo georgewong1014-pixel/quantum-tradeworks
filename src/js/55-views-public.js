@@ -2165,11 +2165,15 @@ VIEWS.about = () => trustPage('About',
          debts and a credit record. */
       ['Not advice. It does not tell you what to buy, hold or sell, produces no buy, sell or hold ratings and no single-figure target price, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. The Scenario Lab’s optional objective only chooses which figures lead, and stays in this browser.',
        'Not a data vendor. It does not redistribute market-data records; NAPIC’s published ranges are shown as derived figures, with their licence position beside them, and where a price is shown its source and licence are stated on the page.']],
+    /* The creator, named (the owner's decision of 24 Nov 2026, wording
+       approved 27 Nov): no title, company, licence or qualification. */
+    ['Who created it',
+      'Quantum Tradeworks is created by George Wong, an engineer based in Sibu, Sarawak.'],
     ['Legal entity and registration',
       ['No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.',
        operatorLine() || tp('The operating entity and its registered address are not published yet.')], true],
     ['The people responsible',
-      'Not published. Naming a team before there is a registered entity behind it would be a claim without anything standing behind it.', true],
+      'No responsible persons are published beyond the creator named above. Naming a team before there is a registered entity behind it would be a claim without anything standing behind it.', true],
     /* It said the product "does not carry on any regulated activity". That
        is the conclusion a Malaysian securities-law opinion would give, and
        the launch audit's first blocker is that no such opinion exists yet —
@@ -2178,7 +2182,10 @@ VIEWS.about = () => trustPage('About',
     ['Regulatory position',
       'This product is not licensed by the Securities Commission Malaysia. It is built to publish research and calculators and to give no personal recommendation. Whether that keeps it outside the activities the Capital Markets and Services Act 2007 regulates has not yet been confirmed by a legal opinion, and one is required before a public launch.'],
     ['Conflicts of interest',
-      ['Nothing on this site is paid for. There are no broker commissions, no mortgage introductions, no developer fees, no advertising, no issuer payments and no sponsored content.',
+      /* The related-brand disclosure (the owner's decision of 24 Nov 2026,
+         wording approved 27 Nov): examples from the founder's other
+         businesses are shown without payment. */
+      ['Nothing on this site is paid for. Some examples come from businesses run by the same founder; they are shown without payment. There are no broker commissions, no mortgage introductions, no developer fees, no advertising, no issuer payments and no sponsored content.',
        'If any of that changes it will be declared here before it takes effect. A score or a valuation must never move because of who paid — that is the one commitment this product cannot trade away.']],
     ['Contact', [['See the contact page.', '/contact']]],
   ]);
@@ -2204,7 +2211,7 @@ VIEWS.contact = () => trustPage('Contact',
         const v = supportEmail();
         return v
           ? [tp('Write to ', supplied('email'), ', the site owner’s support address. It opens your own email program; this site does not send the message or confirm that it arrived.'),
-             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it and send it to that address from your own email program. The same step says whether this page can also submit it; where it can, a receipt reference appears once the site’s store has accepted it. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it, or open it in your own email program, and send it to that address yourself. Nothing is sent from this page. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
           : [tp(...supportUnavailable())];
       })(),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
@@ -2294,13 +2301,15 @@ VIEWS.privacy = () => {
         ...(enq
           ? [tp(el('strong', {}, 'An enquiry, and only when you press Send.'), ' The enquiry form on the Contact page sends your name, the email address or phone number you give, what it is about, your message and when you need it, with the page you were on and the build, to this site’s own address, /api/enquiry. It is saved in the enquiry store, a database that Supabase hosts in ', LAUNCH.enquiry.storeRegion, ', and a notice carrying the same details is emailed through Resend, an email service, to the mailbox of the person who handles enquiries, which ', LAUNCH.enquiry.mailboxHost, ' hosts. Nothing from your saved work is sent, and no file. The network address that request carries is held in the function’s memory only, to limit how many enquiries one sender can make in ten minutes; it is never written to the enquiry store or to a log. ', LAUNCH.enquiry.retention)]
           : []),
-        /* QTW-002 (17 Nov 2026): written to be true whether or not this
-           deployment has a report store. It described Submit and
-           /api/report as available where neither is offered. */
-        tp(el('strong', {}, 'The report form sends something only where submitting is switched on, and only when you press Submit.'), ' A data-error report or feedback is saved in this browser first. Its last step says whether this site can take it. Where it cannot, there is no Submit button and nothing is sent: you copy the report and email it from your own email program, which is the supported way to report today. Where it can, pressing Submit sends the text you reviewed, the page’s name and the build to this site’s own address, /api/report, and to the store the operator has configured for it — nothing else from this browser, and no address of yours — and the site answers with a receipt reference only once that store has accepted it.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested and none can be submitted.')),
+        /* QTW-002 (the owner's decision of 18 Nov 2026, wording approved 27
+           Nov): submitting from the page stays off; email is the official
+           route. No retention period is stated — none is approved. */
         supportEmail()
-          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page unless Submit is offered and you press it, as above. Or copy the case and send it to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
-          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page unless Submit is offered and you press it, as above — there is no contact address yet. Or copy the case as text; copying uses your clipboard only when you press the button.'),
+          ? tp(el('strong', {}, 'The report form does not send anything.'), ' A report reaches the owner only if you copy it, or open it in your email program, and send it yourself to ', supplied('email'), '. What you send is the text you reviewed, your email address and anything you add; the owner keeps it only to answer and fix the report.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested by the form and none can be submitted with it.'))
+          : tp(el('strong', {}, 'The report form does not send anything.'), ' A data-error report or feedback is saved in this browser; there is no contact address yet, so keep the copy until one is published.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested by the form and none can be submitted with it.')),
+        supportEmail()
+          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page. Copy the case, or open it in your email program, and send it to ', supplied('email'), ' yourself, if you choose to; copying uses your clipboard only when you press the button.')
+          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page — there is no contact address yet. Copy the case as text; copying uses your clipboard only when you press the button.'),
         tp('Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.'),
         tp('Links to outside sources — SEC EDGAR, NAPIC, Bursa Malaysia and others — take you to those sites only when you follow one. That visit is between you and that site; the policy this site is served with lets your browser tell it at most this site’s name, never the page you were on.'),
       ]],

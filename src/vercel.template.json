@@ -45,6 +45,23 @@
     "slash, keeping the query, so each page has one address."
   ],
   "trailingSlash": false,
+  "$comment-git": [
+    "Option A, George 18 Nov 02:24 MYT. Journey and checks records are",
+    "pushed to health-records, not main. That branch must not deploy: a",
+    "deployment of a record would run journeys.yml again."
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "health-records": false
+    }
+  },
+  "$comment-ignore": [
+    "Exit 0 skips the build; exit 1 builds. Skip a commit whose message",
+    "says [vercel skip] or [skip ci], and a github-actions[bot] commit",
+    "whose diff since VERCEL_GIT_PREVIOUS_SHA is only health/** or the",
+    "generated status island pages. An unknown previous SHA builds."
+  ],
+  "ignoreCommand": "node scripts/vercel-ignore.mjs",
   "$comment-redirects": [
     "An address ending in /index.html means the folder it names: /pricing/index.html",
     "is /pricing. Answered as an unknown address it got the 404 page, where the",
@@ -183,7 +200,7 @@
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         { "key": "X-Content-Type-Options", "value": "nosniff" }
       ]
@@ -203,15 +220,16 @@
         "for MapLibre's worker, a module file on this site; and blob: in",
         "img-src, the in-memory pictures MapLibre makes of the map's own",
         "sprites as it decodes them (a blob: address names memory, never",
-        "another site). connect-src stays 'self': the tiles (byte ranges of",
-        "one file), the style, the glyphs and the sprites are all this site's."
+        "another site). connect-src is 'self' plus the public raw health-record",
+        "host (Option A). The tiles (byte ranges of one file), the style, the",
+        "glyphs and the sprites are all this site's."
       ],
       "source": "/((?!data/|vendor/@APP_FILES).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },

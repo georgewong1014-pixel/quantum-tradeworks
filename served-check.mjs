@@ -1405,11 +1405,13 @@ const HOME_PAGE = read(HOME);
   const status = got.get('/status').body || '';
   const sum = /<p class="metaline" id="health-journeys-sum"[^>]*>([\s\S]*?)<\/p>/.exec(status)?.[1];
   const list = /<ul id="health-journeys"[^>]*>([\s\S]*?)<\/ul>/.exec(status)?.[1];
+  const sumRecord = (sum || '').replace(/<span class="journeys-myt">[\s\S]*?<\/span>/, '');
   if (sum == null) p.push('/status serves no #health-journeys-sum');
   else {
-    if (/Read from the site by this page/.test(words(sum))) p.push(`/status serves the placeholder in #health-journeys-sum: "${words(sum)}"`);
-    if (!/^Last recorded run \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC on [0-9a-f]{7}: \d+ of \d+ pass\b/.test(words(sum))) p.push(`/status's summary states no UTC run time and 7-character commit: "${words(sum).slice(0, 120)}"`);
-    if (want.recorded && sum !== want.sum) p.push(`/status's summary is not the record's: served "${words(sum).slice(0, 110)}", the record "${words(want.sum).slice(0, 110)}"`);
+    if (/Read from the site by this page/.test(words(sumRecord))) p.push(`/status serves the placeholder in #health-journeys-sum: "${words(sumRecord)}"`);
+    if (!/^Last recorded run \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC on [0-9a-f]{7}: \d+ of \d+ pass\b/.test(words(sumRecord))) p.push(`/status's summary states no UTC run time and 7-character commit: "${words(sumRecord).slice(0, 120)}"`);
+    if (want.recorded && sumRecord !== want.sum) p.push(`/status's summary is not the record's: served "${words(sumRecord).slice(0, 110)}", the record "${words(want.sum).slice(0, 110)}"`);
+    if (rec.ranAt && !/<span class="journeys-myt"> · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} MYT<\/span>/.test(sum)) p.push('/status does not serve the run time in MYT');
     const link = /<a class="journeys-log" href="([^"]*)">/.exec(sum)?.[1] || null;
     if (rec.run && link !== rec.run) p.push(`/status links ${link || 'no run'}, not the recorded run ${rec.run}`);
     if (LIVE && !(link && RUN_URL.test(link))) p.push(`/status links ${link || 'nothing'}, not an Actions run (…/actions/runs/<id>) — the record names no run`);
@@ -1467,7 +1469,7 @@ const HOME_PAGE = read(HOME);
       }
     } catch (e) { p.push(`GitHub's deployments and compare APIs could not be read (${e.message})`); }
   }
-  judge(p, `the recorded journeys are served before any script runs: /status's summary (${want.recorded ? words(want.sum).slice(0, 72) + '…' : 'none'}) and ${(rec.journeys || []).length} journey rows with every step OK, FAIL or gated, exactly the record this site serves, above the in-browser checks; and the journey line on /property, /research and /app/scanner, equal to it${gated ? ', the Scanner\'s evaluate step gated' : ''}${LIVE ? '; the live record names its run, is under 24 hours old and is the latest Production deployment\'s commit or differs from it only in the record and the island pages' : ''}`,
+  judge(p, `the recorded journeys are served before any script runs, with the run's MYT time: /status's summary (${want.recorded ? words(want.sum).slice(0, 72) + '…' : 'none'}) and ${(rec.journeys || []).length} journey rows with every step OK, FAIL or gated, exactly the record this site serves, above the in-browser checks; and the journey line on /property, /research and /app/scanner, equal to it${gated ? ', the Scanner\'s evaluate step gated' : ''}${LIVE ? '; the live record names its run, is under 24 hours old and is the latest Production deployment\'s commit or differs from it only in the record and the island pages' : ''}`,
     'the recorded journeys are not served as recorded');
 }
 /* ---- end journeys-served ---- */
@@ -4941,8 +4943,9 @@ const HOME_PAGE = read(HOME);
     if (/whoever is responsible/i.test(contact)) p.push('/contact still says "whoever is responsible"');
     if (!/How to reach the site’s owner, who handles support and corrections — and what does not exist yet\./.test(contact)) p.push('/contact\'s lede does not name the site owner who handles support and corrections');
     if (/\b(within|hours?|business days?|reply|respond)\b/i.test(contact)) p.push(`/contact carries a response-time word ("${/\b(within|hours?|business days?|reply|respond)\b/i.exec(contact)[0]}"): no response time is approved`);
-    /* (13 Nov 2026) copy and email are the route, in a sentence of their own; whether the page can also submit is the last step's to say. */
-    if (!/Its last step shows you the report: copy it and send it to that address from your own email program\. The same step says whether this page can also submit it; where it can, a receipt reference appears once the site’s store has accepted it\. Every case stays listed under Corrections ?\./.test(contact)) p.push('/contact does not say the report is copied and sent from the visitor’s own email program, and that the last step says whether the page can also submit it (receipt only after the store accepted it)');
+    /* (QTW-002, the owner's decision of 18 Nov 2026, wording of 27 Nov) copy and email are the route, in a sentence of their own; nothing is sent from the page. */
+    if (!/Its last step shows you the report: copy it, or open it in your own email program, and send it to that address yourself\. Nothing is sent from this page\. Every case stays listed under Corrections ?\./.test(contact)) p.push('/contact does not say the report is copied or opened in the visitor’s own email program and sent by them, and that nothing is sent from the page');
+    if (/can also submit it|switched on/.test(contact)) p.push('/contact still says the page can submit a report, or speaks of submitting being switched on');
     if (/where submitting from the page is switched on/.test(contact)) p.push('/contact still offers submitting from the page beside copy and email, "where … switched on"');
     if (/submit it from here, and a receipt/.test(contact)) p.push('/contact says the report can be submitted from here whether or not the deployment has switched submitting on');
     if (!/Do not include confidential or sensitive information\./.test(contact)) p.push('/contact no longer says not to include confidential or sensitive information');

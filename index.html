@@ -10804,6 +10804,15 @@ const LAUNCH = {
      deployment has configured a store; until then it offers copy and email
      only. Empty means no submission control is ever drawn. */
   reportEndpoint: '/api/report',
+  /* SUBMISSION FROM THE PAGE IS OFF BY THE OWNER'S DECISION (QTW-002, 18 Nov
+     2026): reports go by email, to contactEmail above — the one constant
+     every mailto, /contact, /privacy, /corrections and the report drawer
+     read. While this names the decision the page never asks /api/report
+     and never draws Submit, whatever the endpoint would answer; api/report.mjs
+     stays as it is (unconfigured, storing nothing). Empty would restore the
+     probe. The local server keeps the full submit-and-receipt journey for CI
+     under a test key the journey sets (reportSubmitOff, 65-learn.js). */
+  reportSubmit: 'off-by-owner-decision-2026-11-18',
   /* The enquiry form (67-enquiry.js, api/enquiry.mjs). It is offered only
      when all three of these are filled in AND the deployment answers that
      its store is configured:
@@ -38304,11 +38313,15 @@ VIEWS.about = () => trustPage('About',
          debts and a credit record. */
       ['Not advice. It does not tell you what to buy, hold or sell, produces no buy, sell or hold ratings and no single-figure target price, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. The Scenario Lab’s optional objective only chooses which figures lead, and stays in this browser.',
        'Not a data vendor. It does not redistribute market-data records; NAPIC’s published ranges are shown as derived figures, with their licence position beside them, and where a price is shown its source and licence are stated on the page.']],
+    /* The creator, named (the owner's decision of 24 Nov 2026, wording
+       approved 27 Nov): no title, company, licence or qualification. */
+    ['Who created it',
+      'Quantum Tradeworks is created by George Wong, an engineer based in Sibu, Sarawak.'],
     ['Legal entity and registration',
       ['No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.',
        operatorLine() || tp('The operating entity and its registered address are not published yet.')], true],
     ['The people responsible',
-      'Not published. Naming a team before there is a registered entity behind it would be a claim without anything standing behind it.', true],
+      'No responsible persons are published beyond the creator named above. Naming a team before there is a registered entity behind it would be a claim without anything standing behind it.', true],
     /* It said the product "does not carry on any regulated activity". That
        is the conclusion a Malaysian securities-law opinion would give, and
        the launch audit's first blocker is that no such opinion exists yet —
@@ -38317,7 +38330,10 @@ VIEWS.about = () => trustPage('About',
     ['Regulatory position',
       'This product is not licensed by the Securities Commission Malaysia. It is built to publish research and calculators and to give no personal recommendation. Whether that keeps it outside the activities the Capital Markets and Services Act 2007 regulates has not yet been confirmed by a legal opinion, and one is required before a public launch.'],
     ['Conflicts of interest',
-      ['Nothing on this site is paid for. There are no broker commissions, no mortgage introductions, no developer fees, no advertising, no issuer payments and no sponsored content.',
+      /* The related-brand disclosure (the owner's decision of 24 Nov 2026,
+         wording approved 27 Nov): examples from the founder's other
+         businesses are shown without payment. */
+      ['Nothing on this site is paid for. Some examples come from businesses run by the same founder; they are shown without payment. There are no broker commissions, no mortgage introductions, no developer fees, no advertising, no issuer payments and no sponsored content.',
        'If any of that changes it will be declared here before it takes effect. A score or a valuation must never move because of who paid — that is the one commitment this product cannot trade away.']],
     ['Contact', [['See the contact page.', '/contact']]],
   ]);
@@ -38343,7 +38359,7 @@ VIEWS.contact = () => trustPage('Contact',
         const v = supportEmail();
         return v
           ? [tp('Write to ', supplied('email'), ', the site owner’s support address. It opens your own email program; this site does not send the message or confirm that it arrived.'),
-             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it and send it to that address from your own email program. The same step says whether this page can also submit it; where it can, a receipt reference appears once the site’s store has accepted it. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
+             tp(el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. Its last step shows you the report: copy it, or open it in your own email program, and send it to that address yourself. Nothing is sent from this page. Every case stays listed under ', tlink('Corrections', '/corrections'), '.')]
           : [tp(...supportUnavailable())];
       })(),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
@@ -38433,13 +38449,15 @@ VIEWS.privacy = () => {
         ...(enq
           ? [tp(el('strong', {}, 'An enquiry, and only when you press Send.'), ' The enquiry form on the Contact page sends your name, the email address or phone number you give, what it is about, your message and when you need it, with the page you were on and the build, to this site’s own address, /api/enquiry. It is saved in the enquiry store, a database that Supabase hosts in ', LAUNCH.enquiry.storeRegion, ', and a notice carrying the same details is emailed through Resend, an email service, to the mailbox of the person who handles enquiries, which ', LAUNCH.enquiry.mailboxHost, ' hosts. Nothing from your saved work is sent, and no file. The network address that request carries is held in the function’s memory only, to limit how many enquiries one sender can make in ten minutes; it is never written to the enquiry store or to a log. ', LAUNCH.enquiry.retention)]
           : []),
-        /* QTW-002 (17 Nov 2026): written to be true whether or not this
-           deployment has a report store. It described Submit and
-           /api/report as available where neither is offered. */
-        tp(el('strong', {}, 'The report form sends something only where submitting is switched on, and only when you press Submit.'), ' A data-error report or feedback is saved in this browser first. Its last step says whether this site can take it. Where it cannot, there is no Submit button and nothing is sent: you copy the report and email it from your own email program, which is the supported way to report today. Where it can, pressing Submit sends the text you reviewed, the page’s name and the build to this site’s own address, /api/report, and to the store the operator has configured for it — nothing else from this browser, and no address of yours — and the site answers with a receipt reference only once that store has accepted it.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested and none can be submitted.')),
+        /* QTW-002 (the owner's decision of 18 Nov 2026, wording approved 27
+           Nov): submitting from the page stays off; email is the official
+           route. No retention period is stated — none is approved. */
         supportEmail()
-          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page unless Submit is offered and you press it, as above. Or copy the case and send it to ', supplied('email'), ' from your own email program, if you choose to; copying uses your clipboard only when you press the button.')
-          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page unless Submit is offered and you press it, as above — there is no contact address yet. Or copy the case as text; copying uses your clipboard only when you press the button.'),
+          ? tp(el('strong', {}, 'The report form does not send anything.'), ' A report reaches the owner only if you copy it, or open it in your email program, and send it yourself to ', supplied('email'), '. What you send is the text you reviewed, your email address and anything you add; the owner keeps it only to answer and fix the report.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested by the form and none can be submitted with it.'))
+          : tp(el('strong', {}, 'The report form does not send anything.'), ' A data-error report or feedback is saved in this browser; there is no contact address yet, so keep the copy until one is published.' + (enq ? ' That form asks for no email address, and none can be submitted with it.' : ' No email address is requested by the form and none can be submitted with it.')),
+        supportEmail()
+          ? tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page. Copy the case, or open it in your email program, and send it to ', supplied('email'), ' yourself, if you choose to; copying uses your clipboard only when you press the button.')
+          : tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing from this page — there is no contact address yet. Copy the case as text; copying uses your clipboard only when you press the button.'),
         tp('Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.'),
         tp('Links to outside sources — SEC EDGAR, NAPIC, Bursa Malaysia and others — take you to those sites only when you follow one. That visit is between you and that site; the policy this site is served with lets your browser tell it at most this site’s name, never the page you were on.'),
       ]],
@@ -41277,7 +41295,9 @@ function learnTrust() {
   const mine = State.corrections || [];
   const mineCard = el('div', { class: 'card', id: 'my-cases', style: 'margin-bottom:var(--md)' });
   mineCard.append(cardHead(`Cases you have recorded — ${mine.length}`,
-    `Held in this browser. A case is sent only when you submit it from here${supportEmail() ? ' or send it from your own email program' : ''}; its status says which, and a submitted case shows its receipt.`));
+    reportSubmitOff()
+      ? `Held in this browser. A case reaches the owner only when you copy it, or open it in your email program, and send it yourself${supportEmail() ? ` to ${supportEmail()}` : ''}.`
+      : `Held in this browser. A case is sent only when you submit it from here${supportEmail() ? ' or send it from your own email program' : ''}; its status says which, and a submitted case shows its receipt.`));
   if (!mine.length) {
     mineCard.append(el('p', { class: 'metaline' },
       'None yet. Any figure on this site can be reported — the report button in the footer records a case with the page, the model version and the data date attached.'));
@@ -41413,7 +41433,9 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', supportEmail()
-    ? 'Each report names the exact item and is saved in this browser first. You then copy it and send it from your own email program; the last step says whether this page can also submit it.'
+    ? (reportSubmitOff()
+      ? `Each report names the exact item and is saved in this browser first. You then copy it, or open it in your email program, and send it to ${supportEmail()} yourself; nothing is sent from this page.`
+      : 'Each report names the exact item and is saved in this browser first. You then copy it and send it from your own email program; the last step says whether this page can also submit it.')
     : 'Each report names the exact item and is saved in this browser first. You then copy it; the last step says whether this page can also submit it.'));
   rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the error form'));
   wrap.append(rep);
@@ -41490,8 +41512,22 @@ function reportLead(before) {
   return p;
 }
 let reportProbe = null;
+/* SUBMISSION FROM THE PAGE IS OFF BY THE OWNER'S DECISION (QTW-002, 18 Nov
+   2026; LAUNCH.reportSubmit): the page never asks /api/report and never
+   draws Submit. The local server keeps the full submit-and-receipt journey
+   for CI: journeys.mjs sets this browser key before it opens the drawer, and
+   clears it after. */
+const reportSubmitOff = () => {
+  if (!LAUNCH.reportSubmit) return false;
+  try { return localStorage.getItem('qt.reportSubmitTest') !== '1'; } catch { return true; }
+};
+/* THE EMAIL ROUTE, SAID THE SAME WAY WHEREVER A REPORT'S LAST STEP SAYS IT
+   (the owner's wording, approved 27 Nov 2026): no reply time is promised. */
+const reportEmailRoute = (noun) => supportEmail()
+  ? `Reports are sent by email. Copy the ${noun}, or open it in your email program, and send it to ${supportEmail()}. Nothing is sent from this page. The owner reads every ${noun} sent to this address.`
+  : `Nothing is sent from this page. Copy the ${noun} and keep it: no contact address is published.`;
 function reportSubmission() {
-  if (!LAUNCH.reportEndpoint || typeof fetch !== 'function') return Promise.resolve({ configured: false });
+  if (reportSubmitOff() || !LAUNCH.reportEndpoint || typeof fetch !== 'function') return Promise.resolve({ configured: false });
   if (!reportProbe) reportProbe = fetch(LAUNCH.reportEndpoint, { method: 'GET', cache: 'no-store' })
     .then(r => (r.ok ? r.json() : { configured: false }))
     .then(j => ({ configured: !!j.configured }))
@@ -41519,6 +41555,8 @@ function submitBlock(c, pre) {
     return box;
   }
   const noun = c.kind === 'feedback' ? 'feedback' : 'report';
+  /* Off by the owner's decision: the route is said at once, nothing asked. */
+  if (reportSubmitOff()) { note.textContent = reportEmailRoute(noun); return box; }
   note.textContent = 'Checking whether this page can submit it…';
   reportSubmission().then(({ configured }) => {
     if (!configured) {
@@ -41526,9 +41564,7 @@ function submitBlock(c, pre) {
          (the audit note of 13 Nov 2026): this sentence stood first, above
          Copy and the email link, so the last step opened on what the page
          cannot do. */
-      note.textContent = supportEmail()
-        ? `Copying the ${noun} and sending it from your own email program is how it reaches the site’s owner today. Submitting from this page is not switched on yet, so nothing has been sent from here.`
-        : `Submitting from this page is not switched on yet. Nothing has been sent; copy the ${noun}.`;
+      note.textContent = reportEmailRoute(noun);
       return;
     }
     note.textContent = `Or submit it from here. Submitting sends the text above, with the page’s name and the build, to this site’s report store — nothing else from this browser, and no address of yours. A receipt reference is shown only once the store has accepted it.`;
@@ -41673,11 +41709,13 @@ function correctionPayload(c) {
     : (c.kind === 'scanner' || c.kind === 'general' || c.kind === 'feedback') ? []
     : [`Model version: ${c.modelVersion}`, `Data as of: ${c.asOf}`, `Universe at the time: ${c.coverage}`];
   if (c.kind) tail.push(c.build ? `Build ${c.build}` : 'Build not recorded (the app was loaded inline, not as a hashed file)');
-  if (c.kind === 'feedback') return [`Feedback ${c.id}${c.topic ? ` — ${c.topic}` : ''}`, `Raised: ${c.createdAt}`, `Page: ${c.route}`, ...(c.asked ? [`Asked: ${c.asked}`] : []), ``, c.description || '(nothing written)', ``, ...tail].join('\n');
+  if (c.kind === 'feedback') return [`Feedback ${c.id}${c.topic ? ` — ${c.topic}` : ''}`, `Raised: ${c.createdAt}`, `Page: ${String(c.route || '/').split(/[?#]/)[0]}`, ...(c.asked ? [`Asked: ${c.asked}`] : []), ``, c.description || '(nothing written)', ``, ...tail].join('\n');
   return [
     `Correction case ${c.id}`,
     `Raised: ${c.createdAt}`,
-    `Page: ${c.route}`,
+    /* The page's path alone: the calculator writes the deal's figures into
+       its address, and a report carries no figure the reader did not type. */
+    `Page: ${String(c.route || '/').split(/[?#]/)[0]}`,
     `Subject: ${c.subject || '—'}`,
     `Data item: ${c.item}`,
     `Shown: ${c.shownValue || '—'}`,
@@ -41976,8 +42014,15 @@ function confirmCaseSaved(c) {
         (navigator.clipboard ? navigator.clipboard.writeText(pre.value) : Promise.reject())
           .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
       } }, addr ? `Copy the ${thing}` : 'Copy the case'),
-      addr ? el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '',
-        href: `mailto:${addr}?subject=${encodeURIComponent(`${c.kind === 'feedback' ? 'Feedback' : 'Data error report'} ${c.id}${c.kind === 'feedback' && c.topic ? ` — ${c.topic}` : ''}`)}&body=${encodeURIComponent(correctionPayload(c))}` }, 'Open in my email program') : null,
+      /* The subject carries the case id; the body the text as reviewed in
+         the box above, read when the link is pressed (QTW-002, 27 Nov 2026):
+         what goes is what was seen, and nothing from the address bar. */
+      addr ? (() => {
+        const subject = `${c.kind === 'feedback' ? 'Feedback' : 'Data error report'} ${c.id}${c.kind === 'feedback' && c.topic ? ` — ${c.topic}` : ''}`;
+        const mailtoFor = (text) => `mailto:${addr}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+        return el('a', { class: 'btn btn-ghost btn-sm', 'data-support-mailto': '', href: mailtoFor(pre.value),
+          onclick: (e) => { e.currentTarget.href = mailtoFor(pre.value); } }, 'Open in my email program');
+      })() : null,
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/corrections'),
         onclick: e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); closeDrawer(); navigate('/corrections'); } },
         'See my recorded cases'),
@@ -75028,6 +75073,19 @@ function localityTransactionPanel(city, area) {
    ========================================================================== */
 
 const HEALTH_JOURNEYS_FILE = 'health/journeys.json';
+/* Option A, George 18 Nov 02:24 MYT. The record is committed on
+   health-records, not on the branch this site is built from, so the page
+   reads that branch's public file. A failed read says so and shows no Pass.
+   THE SERVED RECORD STANDS (George's fix note, 28 Nov 2026, PR #10): the
+   page is served with the record committed beside it (build.mjs,
+   withServedRecord) and keeps it — the same markup, where it stood — unless
+   the latest record is accepted for this build (healthLatestRecord): the
+   same run, or a run newer than the served one whose `app` names the app
+   file this page loads (reportBuild). An earlier run, or one for another
+   build — in CI and on a preview, health-records usually still holds
+   production's last record — never replaces what was served. */
+const HEALTH_JOURNEYS_URL = `https://raw.githubusercontent.com/georgewong1014-pixel/quantum-tradeworks/health-records/${HEALTH_JOURNEYS_FILE}`;
+const HEALTH_RECORD_UNAVAILABLE = 'latest record unavailable';
 /* The one renderer of the recorded result (journeys.mjs, journeysServed):
    put here by the build. */
 const journeysServed = (function journeysServed(doc) {
@@ -75525,20 +75583,65 @@ async function healthRunList(list, into) {
   }));
 }
 
-async function healthLoadJourneys() {
+/* Malaysia Time, UTC+8, no daylight saving. Shown beside the record's own
+   UTC sentence so a reader in Kuching sees when the run happened there. */
+function healthRanAtMyt(iso) {
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(at);
+  const get = (t) => parts.find(p => p.type === t)?.value;
+  if (!get('day') || !get('hour')) return null;
+  return `${get('day')} ${get('month')} ${get('year')}, ${get('hour')}:${get('minute')} MYT`;
+}
+function healthApplyRecord(sumEl, listEl, doc) {
+  const out = journeysServed(doc);
+  if (sumEl.innerHTML !== out.sum) sumEl.innerHTML = out.sum;
+  sumEl.querySelector('.journeys-myt')?.remove();
+  const myt = healthRanAtMyt(doc.ranAt);
+  if (myt) sumEl.append(el('span', { class: 'journeys-myt' }, ` · ${myt}`));
+  const age = Date.now() - Date.parse(doc.ranAt);
+  sumEl.querySelector('.journeys-age')?.remove();
+  if (age > HEALTH_STALE_MS) sumEl.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
+  if (listEl && listEl.innerHTML !== out.list) listEl.innerHTML = out.list;
+}
+/* One journeys file, read with no-store: the record committed beside this
+   build (served), or the health-records branch's (latest). */
+async function healthFetchJourneys(url) {
   try {
-    const r = await fetch(`${BASE}/${HEALTH_JOURNEYS_FILE}`, { cache: 'no-store' });
-    if (r.status === 404) return { state: 'none' };
-    if (!r.ok) return { state: 'unreadable', why: `the site answered ${r.status}` };
-    if (!/json/i.test(r.headers.get('content-type') || '')) return { state: 'unreadable', why: 'what the site served is not a results file' };
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) return { state: 'unavailable' };
     let doc;
-    try { doc = await r.json(); } catch { return { state: 'unreadable', why: 'it is not valid JSON' }; }
+    try { doc = JSON.parse(await r.text()); } catch { return { state: 'unreadable', why: 'it is not valid JSON' }; }
     const why = healthResultProblem(doc);
     if (why) return { state: 'unreadable', why };
     return doc.ranAt == null ? { state: 'none' } : { state: 'ok', doc };
-  } catch (e) {
-    return { state: 'unreadable', why: `it could not be fetched (${e.message})` };
+  } catch {
+    return { state: 'unavailable' };
   }
+}
+/* Which record the page shows (George's fix note, 28 Nov 2026):
+   - the latest read failed, or is unreadable: that is said, and no Pass
+     is shown (a placeholder there, with a run served, is no record and
+     the served run stands);
+   - the latest is the served run itself: drawn again, the same markup;
+   - the latest is newer than the served run and for this build — its `app`
+     is the app file this page loads: it replaces the served run;
+   - otherwise (an earlier run, or one for another build) the served run
+     stands. With nothing committed to serve, the latest is shown as read. */
+function healthLatestRecord(served, latest, build) {
+  if (latest.state !== 'ok') return latest.state === 'none' && served.state === 'ok' ? served : latest;
+  if (served.state !== 'ok' && served.state !== 'none') return latest;
+  const L = latest.doc, S = served.state === 'ok' ? served.doc : null;
+  if (S && L.ranAt === S.ranAt && L.commit === S.commit) return latest;
+  if (typeof build === 'string' && L.app === build && (!S || Date.parse(L.ranAt) > Date.parse(S.ranAt))) return latest;
+  return served;
+}
+async function healthLoadJourneys() {
+  const [served, latest] = await Promise.all([healthFetchJourneys(`${BASE}/${HEALTH_JOURNEYS_FILE}`), healthFetchJourneys(HEALTH_JOURNEYS_URL)]);
+  return healthLatestRecord(served, latest, typeof reportBuild === 'function' ? reportBuild() : null);
 }
 
 /* CI's results, read as the journeys' are: no-store, absent is none, and
@@ -75710,6 +75813,11 @@ function healthPaintNow() {
     if (!J && HEALTH.kept === js) return;
     HEALTH.kept = null;
     if (!J) { js.textContent = 'Reading the latest recorded run…'; jl.replaceChildren(); return; }
+    if (J.state === 'unavailable') {
+      js.textContent = HEALTH_RECORD_UNAVAILABLE;
+      jl.replaceChildren();
+      return;
+    }
     if (J.state === 'none') {
       js.textContent = 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.';
       jl.replaceChildren();
@@ -75724,12 +75832,7 @@ function healthPaintNow() {
        a Pass is described as within budget, a failure names its step and
        route, and each step is OK, FAIL or gated. How old the run is, is the
        reader's now, and is said by the script alone. */
-    const out = journeysServed(J.doc);
-    const age = Date.now() - Date.parse(J.doc.ranAt);
-    js.querySelector('.journeys-age')?.remove();
-    if (js.innerHTML !== out.sum) js.innerHTML = out.sum;
-    if (age > HEALTH_STALE_MS) js.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
-    if (jl.innerHTML !== out.list) jl.innerHTML = out.list;
+    healthApplyRecord(js, jl, J.doc);
   }
 }
 
@@ -75874,7 +75977,10 @@ function statusModelPaint() {
    drawn from them with the same function (checksServed) — the proof slots'
    way, so the served block and the drawn one are one text and take the same
    lines. Nothing in them is the tab's own now. */
-const checksDrawn = () => (HEALTH.journeys && HEALTH.checks && checksServed
+/* A failed read of the runtime record leaves the served checks block as the
+   build wrote it (Not run for an older commit stays that). Redrawing it
+   from no journeys record would call an older CI result this build's. */
+const checksDrawn = () => (HEALTH.journeys && (HEALTH.journeys.state === 'ok' || HEALTH.journeys.state === 'none') && HEALTH.checks && checksServed
   ? checksServed(HEALTH.checks.state === 'ok' ? HEALTH.checks.doc : null, HEALTH.journeys.state === 'ok' ? HEALTH.journeys.doc : null, CHECK_SUITES, reportBuild()) : null);
 function keptOrDrawn(node, sel, part) {
   const out = checksDrawn();
@@ -75982,11 +76088,18 @@ function healthSection() {
   const sum = el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.journeys });
   const jlist = el('ul', { id: 'health-journeys', class: 'journeys-list', 'data-now': '' });
   const wasSum = document.getElementById('health-journeys-sum'), wasList = document.getElementById('health-journeys');
-  if (!HEALTH.journeys && wasSum && wasList && /^Last recorded run /.test(wasSum.textContent)) {
+  if (!HEALTH.journeys && wasSum && wasList && (/^Last recorded run /.test(wasSum.textContent) || wasSum.textContent.trim() === HEALTH_RECORD_UNAVAILABLE)) {
     sum.innerHTML = wasSum.innerHTML;
+    /* The age is this tab's clock and is not in the served page. The MYT
+       span is: the build wrote the same one the script appends, and taking
+       it off while the read is still on its way shortens the summary (a
+       second line at 390) and moves everything under it. */
     sum.querySelector('.journeys-age')?.remove();
     HEALTH.kept = sum;
     jlist.innerHTML = wasList.innerHTML;
+  } else if (HEALTH.journeys?.state === 'unavailable') {
+    sum.textContent = HEALTH_RECORD_UNAVAILABLE;
+    jlist.replaceChildren();
   } else if (HEALTH.journeys?.state === 'ok') {
     /* DRAWN AGAIN WITH THE RECORD ALREADY READ (10 Oct 2026): the page is
        drawn a second time when the filings land, and by then the record has
@@ -75995,11 +76108,7 @@ function healthSection() {
        each Live badge" first — stood 5,000px higher, a layout shift of 0.10
        under a reader scrolled to Property's two lines at 390. Drawn from
        the record at once, by the same function. */
-    const out = journeysServed(HEALTH.journeys.doc);
-    sum.innerHTML = out.sum;
-    const age = Date.now() - Date.parse(HEALTH.journeys.doc.ranAt);
-    if (age > HEALTH_STALE_MS) sum.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
-    jlist.innerHTML = out.list;
+    healthApplyRecord(sum, jlist, HEALTH.journeys.doc);
   }
   /* The summary sentence is the page's own opening line (VIEWS.status, 90-area-screen.js):
      the same element, with its id and its served and drawn words, drawn there

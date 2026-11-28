@@ -550,7 +550,7 @@ for (const route of ROUTES) {
     const url = m.params.request.url, id = m.params.requestId;
     if (/\/health\/journeys\.json/.test(url)) asked.push(url);
     const answer = (status, body, type) => send('Fetch.fulfillRequest', { requestId: id, responseCode: status,
-      responseHeaders: [{ name: 'Content-Type', value: type }, { name: 'Cache-Control', value: 'no-cache' }], body: Buffer.from(body, 'utf8').toString('base64') }, sessionId);
+      responseHeaders: [{ name: 'Content-Type', value: type }, { name: 'Cache-Control', value: 'no-cache' }, { name: 'Access-Control-Allow-Origin', value: '*' }], body: Buffer.from(body, 'utf8').toString('base64') }, sessionId);
     if (/\/health\/journeys\.json/.test(url) && serve) answer(serve.status, typeof serve.body === 'string' ? serve.body : JSON.stringify(serve.body), serve.type || 'application/json; charset=utf-8');
     else if (/\/data\/us\.json/.test(url) && usGone) answer(404, 'gone for the sweep', 'text/plain');
     /* audit1 health-verify: served 200 as JSON, a body no reader can use. */
@@ -558,7 +558,7 @@ for (const route of ROUTES) {
     else send('Fetch.continueRequest', { requestId: id }, sessionId);
   };
   ws.addEventListener('message', intercept);
-  await send('Fetch.enable', { patterns: [{ urlPattern: '*/health/journeys.json*', requestStage: 'Request' }, { urlPattern: '*/data/us.json*', requestStage: 'Request' }, { urlPattern: '*/data/instruments.json*', requestStage: 'Request' }] }, sessionId);
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*journeys.json*', requestStage: 'Request' }, { urlPattern: '*/data/us.json*', requestStage: 'Request' }, { urlPattern: '*/data/instruments.json*', requestStage: 'Request' }] }, sessionId);
   /* How the page asks for the file: the cache mode of each fetch of it. */
   const modes = await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const f = window.fetch; window.__healthModes = [];
     window.fetch = function (u, o) { try { if (/health\\/journeys\\.json/.test(String(u && u.url || u))) window.__healthModes.push((o && o.cache) || (u && u.cache) || 'default'); } catch (e) {} return f.apply(this, arguments); }; })();` }, sessionId);
@@ -637,7 +637,8 @@ for (const route of ROUTES) {
   serve = null;
   {
     const c = await open();
-    if (!/^(Not run yet\.|Last recorded run )/.test(c.sum)) p.push(`the committed health/journeys.json reads ${JSON.stringify(c.sum.slice(0, 90))}, not "not run yet" or a dated run`);
+    if (!/^(Not run yet\.|Last recorded run |latest record unavailable)/.test(c.sum)) p.push(`the runtime record reads ${JSON.stringify(c.sum.slice(0, 90))}, not "not run yet", a dated run, or "latest record unavailable"`);
+    if (/^latest record unavailable/.test(c.sum) && c.rows.some(r => r.status === 'PASS')) p.push('latest record unavailable is shown with a Pass');
     if (!c.asked) p.push('/status never asked the site for the committed health/journeys.json');
   }
 
@@ -653,7 +654,7 @@ for (const route of ROUTES) {
     p.push(`a good result: the Live badges' results read ${proofsSaid(s)}`);
 
   s = await fixture({ status: 404, body: '<!doctype html><title>404</title>', type: 'text/html; charset=utf-8' }, 'no file');
-  if (!/^Not run yet\./.test(s.sum) || s.rows.length) p.push(`no file (404): ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows`);
+  if (s.sum.trim() !== 'latest record unavailable' || s.rows.some(r => r.status === 'PASS')) p.push(`no file (404): ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows — not "latest record unavailable" with no Pass`);
 
   s = await fixture({ status: 200, body: FAILING }, 'a failing result');
   const failRow = s.rows.find(r => r.status === 'FAIL');

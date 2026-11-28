@@ -38,6 +38,19 @@
    ========================================================================== */
 
 const HEALTH_JOURNEYS_FILE = 'health/journeys.json';
+/* Option A, George 18 Nov 02:24 MYT. The record is committed on
+   health-records, not on the branch this site is built from, so the page
+   reads that branch's public file. A failed read says so and shows no Pass.
+   THE SERVED RECORD STANDS (George's fix note, 28 Nov 2026, PR #10): the
+   page is served with the record committed beside it (build.mjs,
+   withServedRecord) and keeps it — the same markup, where it stood — unless
+   the latest record is accepted for this build (healthLatestRecord): the
+   same run, or a run newer than the served one whose `app` names the app
+   file this page loads (reportBuild). An earlier run, or one for another
+   build — in CI and on a preview, health-records usually still holds
+   production's last record — never replaces what was served. */
+const HEALTH_JOURNEYS_URL = `https://raw.githubusercontent.com/georgewong1014-pixel/quantum-tradeworks/health-records/${HEALTH_JOURNEYS_FILE}`;
+const HEALTH_RECORD_UNAVAILABLE = 'latest record unavailable';
 /* The one renderer of the recorded result (journeys.mjs, journeysServed):
    put here by the build. */
 const journeysServed = /*@INJECT:journeysServed*/ null;
@@ -309,20 +322,65 @@ async function healthRunList(list, into) {
   }));
 }
 
-async function healthLoadJourneys() {
+/* Malaysia Time, UTC+8, no daylight saving. Shown beside the record's own
+   UTC sentence so a reader in Kuching sees when the run happened there. */
+function healthRanAtMyt(iso) {
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(at);
+  const get = (t) => parts.find(p => p.type === t)?.value;
+  if (!get('day') || !get('hour')) return null;
+  return `${get('day')} ${get('month')} ${get('year')}, ${get('hour')}:${get('minute')} MYT`;
+}
+function healthApplyRecord(sumEl, listEl, doc) {
+  const out = journeysServed(doc);
+  if (sumEl.innerHTML !== out.sum) sumEl.innerHTML = out.sum;
+  sumEl.querySelector('.journeys-myt')?.remove();
+  const myt = healthRanAtMyt(doc.ranAt);
+  if (myt) sumEl.append(el('span', { class: 'journeys-myt' }, ` · ${myt}`));
+  const age = Date.now() - Date.parse(doc.ranAt);
+  sumEl.querySelector('.journeys-age')?.remove();
+  if (age > HEALTH_STALE_MS) sumEl.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
+  if (listEl && listEl.innerHTML !== out.list) listEl.innerHTML = out.list;
+}
+/* One journeys file, read with no-store: the record committed beside this
+   build (served), or the health-records branch's (latest). */
+async function healthFetchJourneys(url) {
   try {
-    const r = await fetch(`${BASE}/${HEALTH_JOURNEYS_FILE}`, { cache: 'no-store' });
-    if (r.status === 404) return { state: 'none' };
-    if (!r.ok) return { state: 'unreadable', why: `the site answered ${r.status}` };
-    if (!/json/i.test(r.headers.get('content-type') || '')) return { state: 'unreadable', why: 'what the site served is not a results file' };
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) return { state: 'unavailable' };
     let doc;
-    try { doc = await r.json(); } catch { return { state: 'unreadable', why: 'it is not valid JSON' }; }
+    try { doc = JSON.parse(await r.text()); } catch { return { state: 'unreadable', why: 'it is not valid JSON' }; }
     const why = healthResultProblem(doc);
     if (why) return { state: 'unreadable', why };
     return doc.ranAt == null ? { state: 'none' } : { state: 'ok', doc };
-  } catch (e) {
-    return { state: 'unreadable', why: `it could not be fetched (${e.message})` };
+  } catch {
+    return { state: 'unavailable' };
   }
+}
+/* Which record the page shows (George's fix note, 28 Nov 2026):
+   - the latest read failed, or is unreadable: that is said, and no Pass
+     is shown (a placeholder there, with a run served, is no record and
+     the served run stands);
+   - the latest is the served run itself: drawn again, the same markup;
+   - the latest is newer than the served run and for this build — its `app`
+     is the app file this page loads: it replaces the served run;
+   - otherwise (an earlier run, or one for another build) the served run
+     stands. With nothing committed to serve, the latest is shown as read. */
+function healthLatestRecord(served, latest, build) {
+  if (latest.state !== 'ok') return latest.state === 'none' && served.state === 'ok' ? served : latest;
+  if (served.state !== 'ok' && served.state !== 'none') return latest;
+  const L = latest.doc, S = served.state === 'ok' ? served.doc : null;
+  if (S && L.ranAt === S.ranAt && L.commit === S.commit) return latest;
+  if (typeof build === 'string' && L.app === build && (!S || Date.parse(L.ranAt) > Date.parse(S.ranAt))) return latest;
+  return served;
+}
+async function healthLoadJourneys() {
+  const [served, latest] = await Promise.all([healthFetchJourneys(`${BASE}/${HEALTH_JOURNEYS_FILE}`), healthFetchJourneys(HEALTH_JOURNEYS_URL)]);
+  return healthLatestRecord(served, latest, typeof reportBuild === 'function' ? reportBuild() : null);
 }
 
 /* CI's results, read as the journeys' are: no-store, absent is none, and
@@ -494,6 +552,11 @@ function healthPaintNow() {
     if (!J && HEALTH.kept === js) return;
     HEALTH.kept = null;
     if (!J) { js.textContent = 'Reading the latest recorded run…'; jl.replaceChildren(); return; }
+    if (J.state === 'unavailable') {
+      js.textContent = HEALTH_RECORD_UNAVAILABLE;
+      jl.replaceChildren();
+      return;
+    }
     if (J.state === 'none') {
       js.textContent = 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.';
       jl.replaceChildren();
@@ -508,12 +571,7 @@ function healthPaintNow() {
        a Pass is described as within budget, a failure names its step and
        route, and each step is OK, FAIL or gated. How old the run is, is the
        reader's now, and is said by the script alone. */
-    const out = journeysServed(J.doc);
-    const age = Date.now() - Date.parse(J.doc.ranAt);
-    js.querySelector('.journeys-age')?.remove();
-    if (js.innerHTML !== out.sum) js.innerHTML = out.sum;
-    if (age > HEALTH_STALE_MS) js.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
-    if (jl.innerHTML !== out.list) jl.innerHTML = out.list;
+    healthApplyRecord(js, jl, J.doc);
   }
 }
 
@@ -658,7 +716,10 @@ function statusModelPaint() {
    drawn from them with the same function (checksServed) — the proof slots'
    way, so the served block and the drawn one are one text and take the same
    lines. Nothing in them is the tab's own now. */
-const checksDrawn = () => (HEALTH.journeys && HEALTH.checks && checksServed
+/* A failed read of the runtime record leaves the served checks block as the
+   build wrote it (Not run for an older commit stays that). Redrawing it
+   from no journeys record would call an older CI result this build's. */
+const checksDrawn = () => (HEALTH.journeys && (HEALTH.journeys.state === 'ok' || HEALTH.journeys.state === 'none') && HEALTH.checks && checksServed
   ? checksServed(HEALTH.checks.state === 'ok' ? HEALTH.checks.doc : null, HEALTH.journeys.state === 'ok' ? HEALTH.journeys.doc : null, CHECK_SUITES, reportBuild()) : null);
 function keptOrDrawn(node, sel, part) {
   const out = checksDrawn();
@@ -766,11 +827,18 @@ function healthSection() {
   const sum = el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.journeys });
   const jlist = el('ul', { id: 'health-journeys', class: 'journeys-list', 'data-now': '' });
   const wasSum = document.getElementById('health-journeys-sum'), wasList = document.getElementById('health-journeys');
-  if (!HEALTH.journeys && wasSum && wasList && /^Last recorded run /.test(wasSum.textContent)) {
+  if (!HEALTH.journeys && wasSum && wasList && (/^Last recorded run /.test(wasSum.textContent) || wasSum.textContent.trim() === HEALTH_RECORD_UNAVAILABLE)) {
     sum.innerHTML = wasSum.innerHTML;
+    /* The age is this tab's clock and is not in the served page. The MYT
+       span is: the build wrote the same one the script appends, and taking
+       it off while the read is still on its way shortens the summary (a
+       second line at 390) and moves everything under it. */
     sum.querySelector('.journeys-age')?.remove();
     HEALTH.kept = sum;
     jlist.innerHTML = wasList.innerHTML;
+  } else if (HEALTH.journeys?.state === 'unavailable') {
+    sum.textContent = HEALTH_RECORD_UNAVAILABLE;
+    jlist.replaceChildren();
   } else if (HEALTH.journeys?.state === 'ok') {
     /* DRAWN AGAIN WITH THE RECORD ALREADY READ (10 Oct 2026): the page is
        drawn a second time when the filings land, and by then the record has
@@ -779,11 +847,7 @@ function healthSection() {
        each Live badge" first — stood 5,000px higher, a layout shift of 0.10
        under a reader scrolled to Property's two lines at 390. Drawn from
        the record at once, by the same function. */
-    const out = journeysServed(HEALTH.journeys.doc);
-    sum.innerHTML = out.sum;
-    const age = Date.now() - Date.parse(HEALTH.journeys.doc.ranAt);
-    if (age > HEALTH_STALE_MS) sum.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
-    jlist.innerHTML = out.list;
+    healthApplyRecord(sum, jlist, HEALTH.journeys.doc);
   }
   /* The summary sentence is the page's own opening line (VIEWS.status, 90-area-screen.js):
      the same element, with its id and its served and drawn words, drawn there

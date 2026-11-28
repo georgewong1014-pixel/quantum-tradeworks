@@ -449,6 +449,15 @@ const LAUNCH = {
      deployment has configured a store; until then it offers copy and email
      only. Empty means no submission control is ever drawn. */
   reportEndpoint: '/api/report',
+  /* SUBMISSION FROM THE PAGE IS OFF BY THE OWNER'S DECISION (QTW-002, 18 Nov
+     2026): reports go by email, to contactEmail above — the one constant
+     every mailto, /contact, /privacy, /corrections and the report drawer
+     read. While this names the decision the page never asks /api/report
+     and never draws Submit, whatever the endpoint would answer; api/report.mjs
+     stays as it is (unconfigured, storing nothing). Empty would restore the
+     probe. The local server keeps the full submit-and-receipt journey for CI
+     under a test key the journey sets (reportSubmitOff, 65-learn.js). */
+  reportSubmit: 'off-by-owner-decision-2026-11-18',
   /* The enquiry form (67-enquiry.js, api/enquiry.mjs). It is offered only
      when all three of these are filled in AND the deployment answers that
      its store is configured:

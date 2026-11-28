@@ -1453,11 +1453,9 @@ try {
           const served = await value(BLOCK);
           if (path === '/status') {
             if (!/^Last recorded run /.test((served.sum || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served with no recorded run in its journeys block: ${JSON.stringify((served.sum || '').slice(0, 90))}`); continue; }
+            if (!/MYT/.test(served.sum || '')) { said.push(`${at}: served without the run's MYT time`); continue; }
             if (!/<li class="journey-row"/.test(served.list || '')) { said.push(`${at}: served with no journey listed`); continue; }
-            /* Each Live badge's last result (D15, plan item 2.6), served
-               from the record like the list above it. */
             if (!/<span class="proof-result"[^>]*>[^<]*<span class="proof-status"/.test(served.proofs || '')) { said.push(`${at}: served with no Live badge's last result: ${JSON.stringify((served.proofs || '').replace(/<[^>]*>/g, ' ').slice(0, 90))}`); continue; }
-            /* Property's model line (N2d), served from the record too. */
             if (!/^property journey /.test((served.model || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served with no property journey on Property's model line: ${JSON.stringify((served.model || '').replace(/<[^>]*>/g, '').slice(0, 90))}`); continue; }
             /* The four kinds and CI's line beside the in-browser checks (the
                10 Oct audit), served from the records like the rest. */

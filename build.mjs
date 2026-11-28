@@ -336,6 +336,9 @@ export function kuchingMapData(root = ROOT) {
    exactly worker-src 'self' and blob: in img-src: connect-src stays 'self'. */
 export const CSP_BEFORE_MAP = "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'";
 export const CSP_MAP_ADDS = { 'img-src': ['blob:'], 'worker-src': ["'self'"] };
+/* /status reads the health-records branch's public raw journeys file.
+   Option A, George 18 Nov 02:24 MYT. One host, and only on connect-src. */
+export const HEALTH_RECORD_CONNECT = 'https://raw.githubusercontent.com';
 export const cspDirectives = (v) => Object.fromEntries(String(v).split(';').map(s => s.trim()).filter(Boolean).map(s => { const [k, ...r] = s.split(/\s+/); return [k, r]; }));
 export function mapCspProblems(vercel) {
   const cfg = typeof vercel === 'string' ? JSON.parse(vercel) : vercel;
@@ -345,15 +348,16 @@ export function mapCspProblems(vercel) {
   if (new Set(csps.map(([, v]) => v)).size !== 1) out.push(`vercel.json sends ${new Set(csps.map(([, v]) => v)).size} different policies (${csps.map(([s]) => s).join(', ')}), not one`);
   const now = cspDirectives(csps[0][1]), was = cspDirectives(CSP_BEFORE_MAP);
   for (const [k, srcs] of Object.entries(now)) for (const s of srcs)
-    if (!/^('self'|'none'|'unsafe-inline'|'sha256-[A-Za-z0-9+/=]+'|data:|blob:)$/.test(s)) out.push(`the policy's ${k} allows ${s}, which is not this site`);
-  const norm = (d, k) => (d[k] || []).filter(s => !/^'sha256-/.test(s) && !/^'@CSP/.test(s));
+    if (s !== HEALTH_RECORD_CONNECT && !/^('self'|'none'|'unsafe-inline'|'sha256-[A-Za-z0-9+/=]+'|data:|blob:)$/.test(s)) out.push(`the policy's ${k} allows ${s}, which is not this site`);
+  const norm = (d, k) => (d[k] || []).filter(s => !/^'sha256-/.test(s) && !/^'@CSP/.test(s) && s !== HEALTH_RECORD_CONNECT);
   for (const k of new Set([...Object.keys(now), ...Object.keys(was), ...Object.keys(CSP_MAP_ADDS)])) {
     const added = norm(now, k).filter(s => !norm(was, k).includes(s)), gone = norm(was, k).filter(s => !norm(now, k).includes(s));
     const want = CSP_MAP_ADDS[k] || [];
     if (gone.length) out.push(`the policy's ${k} no longer has ${gone.join(' ')}`);
     if (added.join(' ') !== want.join(' ')) out.push(`the policy's ${k} adds ${added.join(' ') || 'nothing'} to what it had before the map, where the map adds ${want.join(' ') || 'nothing'}`);
   }
-  if ((now['connect-src'] || []).join(' ') !== "'self'") out.push(`the policy's connect-src is ${(now['connect-src'] || []).join(' ')}, not 'self'`);
+  if ((now['connect-src'] || []).join(' ') !== `'self' ${HEALTH_RECORD_CONNECT}`) out.push(`the policy's connect-src is ${(now['connect-src'] || []).join(' ')}, not 'self' and the public health-record host`);
+  if ((now['connect-src'] || []).filter(s => s === HEALTH_RECORD_CONNECT).length !== 1) out.push('the policy names the public health-record host on connect-src once');
   /* And the vendored code under a rule of its own, sent the policy, cached
      for its year — and the pages' rule leaves it out. */
   const vend = (cfg.headers || []).find(g => g.source === '/vendor/(.*)');
@@ -1189,9 +1193,22 @@ export function readChecks(root = ROOT) {
    checksServed's as its checks. */
 /* `build`: the app file the pages being written load (app.<hash>.js), which
    /status says the CI results are, or are not, for (QT-D19-03). */
+/* Malaysia Time for the served journeys summary. The page's script appends
+   the same span from the record it reads, so the two markups match. */
+export function journeysMytSpan(iso) {
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(at);
+  const get = (t) => parts.find(p => p.type === t)?.value;
+  if (!get('day') || !get('hour')) return '';
+  return `<span class="journeys-myt"> · ${get('day')} ${get('month')} ${get('year')}, ${get('hour')}:${get('minute')} MYT</span>`;
+}
 export function servedRecords(root = ROOT, build = null) {
   const journeys = readRecord(root);
-  return Object.assign(journeysServed(journeys), { checks: checksServed(readChecks(root), journeys, CHECK_SUITES, build) });
+  return Object.assign(journeysServed(journeys), { ranAt: journeys?.ranAt || null, checks: checksServed(readChecks(root), journeys, CHECK_SUITES, build) });
 }
 /* A Live badge's result slot on /status, as the render serves it, and the
    journey and step its attributes name (unescaped as the serializer escaped
@@ -1213,7 +1230,15 @@ export function withServedRecord(r, served) {
     views = views.replace(re, (all, open, close) => open + inner + close);
   };
   if (r.path === '/status') {
-    put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, served.sum, '#health-journeys-sum');
+    /* The committed record is in the page, with its Malaysia time, so a
+       fetch of the same record does not move the layout. The script still
+       reads health-records; a failed read replaces this with "latest record
+       unavailable" and no Pass (Option A). A record read from there replaces
+       this one only when it is this same run, or a newer run for this build
+       (its `app` is the app file the page loads); an earlier run, or another
+       build's, leaves the served record standing (George's fix note, 28 Nov
+       2026; healthLatestRecord, 91-health.js). */
+    put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, served.sum + journeysMytSpan(served.ranAt), '#health-journeys-sum');
     put(/(<ul id="health-journeys" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, served.list, 'an empty #health-journeys marked data-now');
     /* Property's "Model:" line (N2d; statusPropertySection, 91-health.js):
        the property journeys' last recorded results, time and commit. */
